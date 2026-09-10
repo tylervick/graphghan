@@ -13,7 +13,7 @@ deliverables:
    brief ("a blanket with this quote and these motifs") turns into an options page and a
    finished, validated pattern.
 
-Live site: **https://tylervick.github.io/graphghan/**
+Live site: **https://tylervick.com/graphghan/**
 
 The first pattern is **Craigh na Dun Blanket** (for Meaghan): 189x184 sc, 5 colors, standing
 stones, thistles, a dragonfly, and a braided gold twist border.
