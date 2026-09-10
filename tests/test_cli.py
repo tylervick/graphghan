@@ -73,8 +73,10 @@ def test_usage_error():
     assert main(["render"]) == 2
 
 
-def test_render_rejects_unknown_gauge(tmp_path):
+def test_render_rejects_unknown_gauge(tmp_path, capsys):
     assert main(["render", "craigh-na-dun", "--gauge", "bogus", "--out", str(tmp_path)]) == 2
+    err = capsys.readouterr().err
+    assert "unknown gauge 'bogus'" in err and "dc" in err
 
 
 def test_render_rejects_unknown_variant(tmp_path):

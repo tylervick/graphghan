@@ -39,9 +39,10 @@ def _resolve_or_die(arg: str) -> Path | None:
 
 def _bad_gauge(meta, gauge: str) -> str | None:
     """None if `gauge` is usable for this pattern, else a usage-error message for stderr."""
-    if gauge in meta.gauges or gauge in gr.GAUGES:
+    available = sorted(set(meta.gauges) | set(gr.GAUGES))
+    if gauge in available:
         return None
-    return f"unknown gauge {gauge!r} (have: {', '.join(meta.gauges)})"
+    return f"unknown gauge {gauge!r} (have: {', '.join(available)})"
 
 
 def _bad_variant(design, variant: str) -> str | None:
