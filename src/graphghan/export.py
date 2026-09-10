@@ -122,6 +122,11 @@ def written_rows(a, codes):
 
 def chart_json(a, meta, gauge_key, report, variant="final"):
     st, rows = meta.gauges.get(gauge_key, gr.GAUGES[gauge_key])
+    if gr.current_gauge() != (st, rows):
+        raise ValueError(
+            f"active gauge {gr.current_gauge()} does not match gauge_key {gauge_key!r} {(st, rows)}; "
+            "call gr.set_gauge first"
+        )
     codes = meta.palette.codes
     return {
         "schema": SCHEMA,

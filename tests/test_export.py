@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 
 import numpy as np
+import pytest
 
 from graphghan import grid as gr
 from graphghan.export import (
@@ -84,3 +85,13 @@ def test_chart_json_schema_and_write_dist(tmp_path):
     assert json.loads((tmp_path / "chart.json").read_text())["rows"] == ["5A", "1A3B1A", "5A"]
     for name in ("chart.png", "preview.png", "preview-grid.png", "written-rows.txt"):
         assert (tmp_path / name).exists()
+
+
+def test_chart_json_requires_matching_active_gauge():
+    meta = load_pattern(FIX)
+    gr.set_gauge("square")  # registered by the minimal fixture's pattern.toml
+    try:
+        with pytest.raises(ValueError):
+            chart_json(small(), meta, "sc", {})
+    finally:
+        gr.set_gauge("sc")
