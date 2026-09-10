@@ -27,3 +27,14 @@ def test_text_lines_clear(chart):
     px0, _, px1, _ = rep["panel"]
     for (_lx0, ly0, _lx1, ly1) in rep["text"]:
         assert set(np.unique(a[ly0:ly1, px0:px1]).tolist()) <= {{C, K}}
+
+
+def test_every_variant_and_gauge_builds():
+    meta = load_pattern(HERE)
+    design = load_design(HERE)
+    for name in design.VARIANTS:
+        g, report = design.build(meta.stitch, name)
+        assert g.a.ndim == 2 and "panel" in report and "text" in report
+    for gauge in meta.gauges:
+        g, _ = design.build(gauge, "final")
+        assert g.a.shape[0] < 200 and g.a.shape[1] < 200

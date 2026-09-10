@@ -54,6 +54,8 @@ scaffolded test all build `"final"`.
 
 ## 8. Final
     uv run graphghan render <slug> && uv run graphghan check <slug>
+- The scaffold's tests build every variant at the default stitch and `final` at every gauge; add tests
+  for what makes this design correct on top of that.
 - Add pattern tests for what makes this design correct (text lines clear, motifs present, mirrors).
 - Bump `version` in pattern.toml and write the CHANGELOG entry.
 

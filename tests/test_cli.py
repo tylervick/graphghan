@@ -52,6 +52,7 @@ def test_new_scaffolds_and_renders(tmp_path, monkeypatch):
         [sys.executable, "-m", "pytest", "-q", str(d / "tests")], cwd=ROOT, capture_output=True, text=True
     )
     assert scaffold_tests.returncode == 0, scaffold_tests.stdout + scaffold_tests.stderr
+    assert "3 passed" in scaffold_tests.stdout, scaffold_tests.stdout + scaffold_tests.stderr
 
 
 def test_check_missing_pattern_is_usage_error():
