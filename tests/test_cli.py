@@ -40,6 +40,17 @@ def test_new_scaffolds_and_renders(tmp_path, monkeypatch):
     assert main(["render", str(d), "--out", str(tmp_path / "out")]) == 0
     assert json.loads((tmp_path / "out" / "chart.json").read_text())["slug"] == "test-scaffold"
     assert main(["render", str(d), "--check"]) == 1  # no committed dist yet
+    lint = subprocess.run(
+        [sys.executable, "-m", "ruff", "check", "--config", str(ROOT / "pyproject.toml"), str(d)],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+    )
+    assert lint.returncode == 0, lint.stdout + lint.stderr
+    scaffold_tests = subprocess.run(
+        [sys.executable, "-m", "pytest", "-q", str(d / "tests")], cwd=ROOT, capture_output=True, text=True
+    )
+    assert scaffold_tests.returncode == 0, scaffold_tests.stdout + scaffold_tests.stderr
 
 
 def test_check_missing_pattern_is_usage_error():
