@@ -1,10 +1,18 @@
 import { loadProgress } from './progress.js';
 import { registerServiceWorker } from './pwa.js';
+import { esc } from './util.js';
 
 async function main() {
-  const res = await fetch('patterns/index.json');
-  const patterns = await res.json();
   const box = document.getElementById('cards');
+  let patterns;
+  try {
+    const res = await fetch('patterns/index.json');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    patterns = await res.json();
+  } catch (e) {
+    box.innerHTML = '<p class="sub">Could not load the pattern list. Reload to try again.</p>';
+    return;
+  }
   box.innerHTML = '';
   for (const p of patterns) {
     const prog = loadProgress(p.slug);
@@ -13,12 +21,12 @@ async function main() {
     a.className = 'card';
     a.href = `patterns/${p.slug}/`;
     a.innerHTML = `
-      <img src="${p.preview}" alt="Preview of ${p.title}">
+      <img src="${esc(p.preview)}" alt="Preview of ${esc(p.title)}">
       <div class="body">
-        <h2>${p.title}</h2>
-        <div class="meta"><span>${p.dedication || ''}</span><span>${p.width} × ${p.height} ${p.stitch}</span><span>${p.size_in[0]}″ × ${p.size_in[1]}″</span><span>${p.colors} colors</span><span>v${p.version}</span></div>
+        <h2>${esc(p.title)}</h2>
+        <div class="meta"><span>${esc(p.dedication || '')}</span><span>${esc(p.width)} × ${esc(p.height)} ${esc(p.stitch)}</span><span>${esc(p.size_in[0])}″ × ${esc(p.size_in[1])}″</span><span>${esc(p.colors)} colors</span><span>v${esc(p.version)}</span></div>
         <div class="bar-progress" title="${pct}% of rows done"><i style="width:${pct}%"></i></div>
-        <div class="sub" style="margin-top:6px">${prog ? `Row ${prog.row} of ${p.height}` : 'Not started'}</div>
+        <div class="sub" style="margin-top:6px">${prog ? `Row ${esc(prog.row)} of ${esc(p.height)}` : 'Not started'}</div>
       </div>`;
     box.appendChild(a);
   }
