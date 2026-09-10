@@ -66,7 +66,7 @@ graphghan/
     craigh-na-dun/
       pattern.toml  design.py  CHANGELOG.md  tests/test_design.py  reference/  dist/
   examples/
-    studies_2026_09.py    the option studies (dragonfly-in-amber, tartan, link border...)
+    outlander_studies.py  the option studies (dragonfly-in-amber, tartan, link border...)
                           kept as motif-catalog examples; not published to the site
   site/
     src/            index.html, pattern.html (template), app/*.js (ES modules), styles.css,
@@ -172,7 +172,7 @@ working (RS right-to-left on odd rows) is derived by consumers, not stored.
 | command | does |
 |---|---|
 | `new <slug> --title T [--template craigh-na-dun]` | scaffold `patterns/<slug>/` with pattern.toml, design.py from a template, tests, empty reference/ |
-| `options <slug> [--gauges sc,hdc]` | render every variant at each gauge into `build/options/`, write `build/options.html` (the comparison page: true-proportion previews, stats table, gauge toggle) |
+| `options <slug> [--gauges sc,hdc]` | render every variant at each gauge into `build/options/`, write `build/options/options.html` (the comparison page: true-proportion previews, stats table, gauge toggle) |
 | `render <slug> [--gauge K] [--variant V] [--out DIR]` | write dist files; `--check` re-renders and diffs against committed dist (exit 1 on drift) |
 | `check <slug>` | generic invariants (validate.py) + `pytest patterns/<slug>/tests` |
 | `site build [--out site/dist]` | build the viewer from all patterns with committed dist |
