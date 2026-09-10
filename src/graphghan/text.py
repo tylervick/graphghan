@@ -25,7 +25,7 @@ def text_line(
 ):
     """Returns (array, ascent_rows, descent_rows). Rendered at 8x and box-filtered down;
     `bold` is a stroke width as a fraction of the row size; `threshold` is the ink cutoff (0..1)."""
-    big = ImageFont.truetype(str(font_path), size_rows * 8)
+    big = ImageFont.truetype(str(font_path), size_rows * 8, layout_engine=ImageFont.Layout.BASIC)  # deterministic across platforms (no raqm/fribidi dependence)
     asc_px, desc_px = big.getmetrics()
     line_px = asc_px + desc_px
     ascent = int(round(asc_px * size_rows / line_px))
