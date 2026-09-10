@@ -25,7 +25,7 @@ validated row by row, delivered as an offline viewer page and a Stitch Fiddle im
 9. Ship: commit `dist/`, `uv run graphghan site build`, publish or deploy; hand over chart.png for Stitch Fiddle (references/stitchfiddle.md).
 
 ## Rules that are not optional (why: references/design-rules.md)
-- No run shorter than 2 stitches anywhere in plaid or bands.
+- No run shorter than 2 stitches in plaid, bands, or other filled areas; braids and letters will have singles.
 - Lettering needs ≥ 11 rows per line to read; 17 at sc, 12 at hdc for a quote; use the aspect-aware text renderer.
 - Keep words clear: nothing beside a text line, nothing overlapping the panel behind the letters.
 - Count color changes per row, not just stitches; report mean and busiest-row change count for every

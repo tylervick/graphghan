@@ -1,8 +1,11 @@
 # Design rules (each with the reason it exists)
 
-1. **No run shorter than 2 stitches** in plaid, bands, or frames. One-stitch runs double the color
-   changes and look like noise in yarn. The plaid uses a priority rule (gold > red > blue > green)
-   instead of twill hatching for exactly this reason; the sett rounds every stripe up to 2 cells.
+1. **No run shorter than 2 stitches** in filled areas — plaid, stripe bands, or backgrounds. One-stitch
+   runs double the color changes and look like noise in yarn. The plaid uses a priority rule
+   (gold > red > blue > green) instead of twill hatching for exactly this reason; the sett rounds every
+   stripe up to 2 cells. Curves, diagonals, braids, and lettering unavoidably produce single stitches;
+   `check` reports `min run` and `changes per row` for awareness, they never fail. Watch the
+   busiest-row count instead.
 2. **Lettering needs at least 11 rows per line**; a four-line quote gets 17 rows at sc and 12 at hdc.
    Below that, serifs and bowls collapse. Use the aspect-aware renderer (`graphghan.text.text_line`):
    it renders at 8× and box-filters to the cell aspect, so letters are not stretched at hdc.
