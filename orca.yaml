@@ -1,0 +1,29 @@
+# Orca (onorca.dev) worktree hooks. `scripts.setup` runs in the freshly created
+# worktree under non-interactive bash; ORCA_ROOT_PATH points at the main checkout.
+#
+# THIS FILE MUST STAY TRACKED IN GIT. `git worktree add` only materializes tracked
+# files, so an untracked orca.yaml is simply absent from every new worktree and the
+# hook never fires once.
+#
+# What a fresh graphghan worktree is actually missing is just the environment:
+# `.venv/` is gitignored, so nothing Python-shaped runs until `uv sync` has. Every
+# other input the tools need -- fonts/, uv.lock, patterns/*/dist/ (which
+# tests/test_drift.py diffs a fresh render against) -- is tracked and arrives with
+# the checkout, so unlike some repos there is nothing here to copy from the root.
+scripts:
+  setup: |
+    set -euo pipefail
+
+    # Orca runs this under bash without sourcing the shell rc that puts mise on
+    # PATH, so point at the binary's real home first.
+    export PATH="/opt/homebrew/bin:$HOME/.local/bin:$PATH"
+    mise trust && mise install
+
+    # Delegate to mise.toml rather than repeating the steps: `mise run` resolves
+    # uv and hk through mise's own environment, so this works without the shims
+    # directory being on PATH, and "what setup means" stays defined in one file.
+    #
+    # Deliberately NOT seeded from $ORCA_ROOT_PATH/.venv -- a virtualenv records
+    # absolute paths, so a copied one still points at the main checkout. uv
+    # rebuilds it from uv.lock against the shared package cache in a second or two.
+    mise run setup

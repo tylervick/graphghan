@@ -1,0 +1,90 @@
+amends "package://github.com/jdx/hk/releases/download/v1.55.0/hk@1.55.0#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v1.55.0/hk@1.55.0#/Builtins.pkl"
+
+// Python tooling goes through `uv run` rather than hk's Builtins.ruff so that the
+// hooks, CI and a bare `uv run ruff` all use the one ruff pinned by pyproject.toml's
+// dev dependency-group. A mise-managed ruff would be a second pin, free to drift.
+local ruff: Step = new Step {
+  glob = "**/*.py"
+  check = "uv run ruff check {{files}}"
+  fix = "uv run ruff check --fix {{files}}"
+}
+
+local ruffFormat: Step = new Step {
+  glob = "**/*.py"
+  check = "uv run ruff format --check {{files}}"
+  fix = "uv run ruff format {{files}}"
+  // The linter rewrites code (import sorting, `B` autofixes); the formatter
+  // rewrites layout. Ordering them keeps the two from racing on one file and
+  // leaving output that neither would produce alone.
+  depends = "ruff"
+}
+
+local largeFiles: Step = new Step {
+  glob = "**/*"
+  // Builtins.check_added_large_files defaults to 500KB, which the 3.3MB
+  // patterns/craigh-na-dun/reference/reference-sheet.png already exceeds -- the
+  // default would reject an asset that is legitimately in the tree. 5MB still
+  // catches what this actually guards against: a full-resolution render or a
+  // stray export committed by accident.
+  check = "hk util check-added-large-files --maxkb 5000 {{files}}"
+}
+
+local pytest: Step = new Step {
+  // No glob: site/tests exercises the site build, patterns/*/tests exercise the
+  // committed renders, and tests/test_drift.py compares a fresh render against
+  // what is in dist/ -- so a change to a font, a TOML or an asset can break the
+  // suite just as easily as a change to a .py file.
+  exclusive = true
+  check = "uv run pytest -q"
+}
+
+// Fast enough to sit in front of every commit -- all of these are either
+// incremental over the staged files or pure local I/O.
+// Verbatim third-party legal text. The OFL files ship with trailing whitespace on
+// a few lines and the license forbids modifying them, so the whitespace steps have
+// to leave these alone -- otherwise `hk fix` quietly edits a license.
+local verbatim = List("LICENSE", "**/OFL.txt")
+
+local fast = new Mapping<String, Step> {
+  ["ruff"] = ruff
+  ["ruff-format"] = ruffFormat
+  ["trailing-whitespace"] = (Builtins.trailing_whitespace) { exclude = verbatim }
+  ["newlines"] = (Builtins.newlines) { exclude = verbatim }
+  ["merge-conflict"] = Builtins.check_merge_conflict
+  ["private-key"] = Builtins.detect_private_key
+  ["large-files"] = largeFiles
+}
+
+// What `hk check --all` means, and therefore what CI enforces. The three added
+// here scan the workflow and the whole tree rather than one edited file, so they
+// are worth a couple of seconds on push and in CI but not on every commit.
+local lint = (fast) {
+  ["actionlint"] = Builtins.actionlint
+  ["zizmor"] = Builtins.zizmor
+  ["gitleaks"] = Builtins.gitleaks
+}
+
+hooks {
+  ["pre-commit"] {
+    fix = true
+    stash = "git"
+    steps = fast
+  }
+  ["pre-push"] {
+    // Everything CI will run, run before the push rather than after it. pytest
+    // is ~6s, which is cheap next to a red Actions run.
+    steps = (lint) {
+      ["pytest"] = pytest
+    }
+  }
+  // `hk check --all` / `mise run lint`. pytest is deliberately absent: CI runs it
+  // as its own step so a test failure reads separately from a lint failure.
+  ["check"] {
+    steps = lint
+  }
+  ["fix"] {
+    fix = true
+    steps = lint
+  }
+}
