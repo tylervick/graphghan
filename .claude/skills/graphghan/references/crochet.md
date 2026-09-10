@@ -4,7 +4,7 @@
 | stitch | st/in | rows/in | cell (in) | aspect h/w | notes |
 |---|---|---|---|---|---|
 | sc  | 3.5  | 4.0   | 0.286 × 0.250 | 0.875 | the graphghan default; curves survive |
-| hdc | 3.25 | 2.5   | 0.308 × 0.400 | 1.30  | 60% of the rows for the same size; knots blur |
+| hdc | 3.25 | 2.5   | 0.308 × 0.400 | 1.30  | about 60% of the rows for the same size (2.5 ÷ 4.0 rows per inch = 62.5%); knots blur |
 | dc  | 3.0  | 1.625 | 0.333 × 0.615 | 1.85  | too coarse for lettering at couch size |
 Other yarn: bulky #5 with 6–6.5 mm ≈ 2.75 st × 3 rows per in (sc). Always swatch 20 × 20 and block.
 
@@ -27,3 +27,5 @@ Other yarn: bulky #5 with 6–6.5 mm ≈ 2.75 st × 3 rows per in (sc). Always s
 - Caps on rows → hdc. Lettering-heavy or curve-heavy → sc. Big and fast with no lettering → dc.
 - Mixed stitches are for texture (a dc ridge, a sewn-on braided cord over a plain band); the chart
   itself stays one stitch because every cell assumes the same height.
+- Do not letter at dc; the scaffold's `TEXT_ROWS["dc"] = 9` is below the 11-row floor and `check`
+  will not catch it.
