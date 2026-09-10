@@ -7,5 +7,11 @@ export function saveProgress(slug, p) { try { localStorage.setItem(key(slug), JS
 export function clearProgress(slug) { try { localStorage.removeItem(key(slug)); } catch (e) {} }
 export function exportCode(slug, p) { return btoa(unescape(encodeURIComponent(JSON.stringify({ slug, row: p.row, run: p.run || 0 })))).replace(/=+$/, ''); }
 export function importCode(code) {
-  try { const s = code.trim(); const p = JSON.parse(decodeURIComponent(escape(atob(s + '='.repeat((4 - s.length % 4) % 4))))); return Number.isInteger(p.row) && typeof p.slug === 'string' ? { run: 0, ...p } : null; } catch (e) { return null; }
+  try {
+    const s = code.trim();
+    const p = JSON.parse(decodeURIComponent(escape(atob(s + '='.repeat((4 - s.length % 4) % 4)))));
+    if (!(Number.isInteger(p.row) && p.row >= 1 && typeof p.slug === 'string')) return null;
+    const run = Number.isInteger(p.run) && p.run >= 0 ? p.run : 0;
+    return { ...p, run };
+  } catch (e) { return null; }
 }

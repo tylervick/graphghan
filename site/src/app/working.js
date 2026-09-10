@@ -2,7 +2,7 @@ import { rowSide, workingRuns } from './data.js';
 import { esc } from './util.js';
 
 export class WorkingMode {
-  constructor(chart, hooks) { this.chart = chart; this.hooks = hooks; this.el = null; this.lock = null; }
+  constructor(chart, hooks) { this.chart = chart; this.hooks = hooks; this.el = null; this.lock = null; this.lockPending = false; }
 
   open() {
     if (this.el) return;
@@ -17,7 +17,7 @@ export class WorkingMode {
     el.querySelector('#w-close').addEventListener('click', () => this.close());
     el.querySelector('#w-done').addEventListener('click', () => this.advance());
     el.querySelector('#w-back').addEventListener('click', () => this.back());
-    el.querySelector('#w-next').addEventListener('click', () => { const p = this.hooks.getProgress(); this.hooks.setRow(p.row + 1, 0, false); this.render(); });
+    el.querySelector('#w-next').addEventListener('click', () => { const p = this.hooks.getProgress(); if (p.row >= this.chart.H) { this.announce('Last row'); return; } this.hooks.setRow(p.row + 1, 0, false); this.render(); });
     this.onKey = e => { if (e.key === ' ' || e.key === 'Enter' || e.key === 'ArrowRight') { e.preventDefault(); this.advance(); } if (e.key === 'ArrowLeft') this.back(); if (e.key === 'Escape') this.close(); };
     document.addEventListener('keydown', this.onKey);
     this.requestWakeLock();
@@ -34,7 +34,13 @@ export class WorkingMode {
     const p = this.hooks.getProgress(); this.hooks.setRow(p.row, p.run, true);
   }
 
-  async requestWakeLock() { try { if ('wakeLock' in navigator && !this.lock) { this.lock = await navigator.wakeLock.request('screen'); this.lock.addEventListener('release', () => { this.lock = null; }); } } catch (e) { /* not supported or denied */ } }
+  async requestWakeLock() {
+    if (this.lock || this.lockPending) return;
+    this.lockPending = true;
+    try { if ('wakeLock' in navigator) { this.lock = await navigator.wakeLock.request('screen'); this.lock.addEventListener('release', () => { this.lock = null; }); } }
+    catch (e) { /* not supported or denied */ }
+    finally { this.lockPending = false; }
+  }
 
   advance() {
     const p = this.hooks.getProgress(); const runs = workingRuns(this.chart, p.row);
@@ -57,7 +63,7 @@ export class WorkingMode {
     this.el.querySelector('#w-row').textContent = `Row ${p.row} of ${chart.H}`;
     this.el.querySelector('#w-side').textContent = rowSide(p.row) === 'RS' ? 'Right side · chart reads right → left' : 'Wrong side · chart reads left → right';
     let total = 0;
-    this.el.querySelector('#w-runs').innerHTML = runs.map(([c, n], i) => { total += n; return `<span class="chip ${i < p.run ? 'done' : ''} ${i === p.run ? 'current' : ''}" data-i="${i}" style="background:${esc(chart.hex[c])};color:${chart.light[c] ? '#fff' : '#111'}"><span>${esc(n)} ${esc(chart.codes[c])}</span><small>to ${esc(total)}</small></span>`; }).join('');
+    this.el.querySelector('#w-runs').innerHTML = runs.map(([c, n], i) => { total += n; return `<span class="chip ${i < p.run ? 'done' : ''} ${i === p.run ? 'current' : ''}" data-i="${esc(i)}" style="background:${esc(chart.hex[c])};color:${chart.light[c] ? '#fff' : '#111'}"><span>${esc(n)} ${esc(chart.codes[c])}</span><small>to ${esc(total)}</small></span>`; }).join('');
     this.el.querySelectorAll('.chip').forEach(ch => ch.addEventListener('click', () => { this.hooks.setRun(+ch.dataset.i); this.render(); }));
     const cur = this.el.querySelector('.chip.current'); if (cur) cur.scrollIntoView({ block: 'nearest' });
     this.drawStrip(p.row);
