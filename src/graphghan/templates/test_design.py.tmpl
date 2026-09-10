@@ -1,0 +1,29 @@
+from pathlib import Path
+
+import numpy as np
+import pytest
+
+from graphghan import validate
+from graphghan.pattern import load_design, load_pattern
+
+HERE = Path(__file__).resolve().parent.parent
+
+
+@pytest.fixture(scope="module")
+def chart():
+    meta = load_pattern(HERE)
+    g, report = load_design(HERE).build(meta.stitch, "final")
+    return g.a, report, meta
+
+
+def test_generic_invariants(chart):
+    a, _, meta = chart
+    assert [(n, d) for n, ok, d in validate.run_all(a, meta) if not ok] == []
+
+
+def test_text_lines_clear(chart):
+    a, rep, meta = chart
+    C, K = meta.palette["C"], meta.palette["K"]
+    px0, _, px1, _ = rep["panel"]
+    for (_lx0, ly0, _lx1, ly1) in rep["text"]:
+        assert set(np.unique(a[ly0:ly1, px0:px1]).tolist()) <= {{C, K}}
