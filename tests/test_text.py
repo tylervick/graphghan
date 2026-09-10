@@ -17,5 +17,17 @@ def test_width_follows_cell_aspect():
     gr.set_gauge("hdc")
     w_hdc = text_line("woman", 12, 1, 0, FONT_METAMORPHOUS)[0].shape[1]
     gr.set_gauge("sc")
-    # hdc rows are 1.68x taller than sc rows, so the same 12-row line is physically taller and wider
+    # hdc rows are 1.6x taller than sc rows, so the same 12-row line is physically taller and wider
     assert w_hdc > w_sc * 1.4
+
+
+def test_empty_text_returns_background_column():
+    gr.set_gauge("sc")
+    arr, asc, desc = text_line("", 12, 1, 0, FONT_METAMORPHOUS)
+    assert arr.shape == (12, 1) and (arr == 0).all() and asc + desc == 12
+
+
+def test_whitespace_text_returns_background_column():
+    gr.set_gauge("sc")
+    arr, asc, desc = text_line("   ", 12, 1, 0, FONT_METAMORPHOUS)
+    assert arr.shape == (12, 1) and (arr == 0).all() and asc + desc == 12

@@ -20,11 +20,14 @@ def text_line(text: str, size_rows: int, color: int, bg: int, font_path: str | P
     big = ImageFont.truetype(str(font_path), size_rows * 8)
     asc_px, desc_px = big.getmetrics()
     line_px = asc_px + desc_px
+    ascent = int(round(asc_px * size_rows / line_px))
     img = Image.new("L", (size_rows * 8 * max(1, len(text)) * 2 + 40, line_px), 0)
     ImageDraw.Draw(img).text((20, 0), text, font=big, fill=255,
                              stroke_width=int(round(bold * size_rows * 8)), stroke_fill=255)
     a = np.array(img)
     xs = np.where(a.max(axis=0) > 0)[0]
+    if xs.size == 0:
+        return np.full((size_rows, 1), bg, dtype=np.uint8), ascent, size_rows - ascent
     img = img.crop((int(xs.min()), 0, int(xs.max()) + 1, line_px))
     scale = size_rows * gr.SH / line_px                   # inches per source pixel
     cols_out = max(1, int(round(img.width * scale / gr.SW)))
@@ -32,5 +35,4 @@ def text_line(text: str, size_rows: int, color: int, bg: int, font_path: str | P
     m = np.array(small) >= int(255 * threshold)
     arr = np.full(m.shape, bg, dtype=np.uint8)
     arr[m] = color
-    ascent = int(round(asc_px * size_rows / line_px))
     return arr, ascent, size_rows - ascent
