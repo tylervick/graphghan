@@ -1,0 +1,63 @@
+[pattern]
+slug = "craigh-na-dun"
+title = "Craigh na Dun Blanket"
+dedication = "For Meaghan"
+quote = "Lord, you gave me a rare woman, and God! I loved her well."
+version = "1.0.0"
+stitch = "sc"
+size_in = [54.0, 46.0]
+hook = "5 mm (US H-8)"
+yarn_weight = "worsted (#4)"
+first_row_color = "Y"
+
+[gauge]
+sc = [3.5, 4.0]
+hdc = [3.25, 2.5]
+
+[[colors]]
+code = "C"
+name = "Cream"
+hex = "#F2E8D5"
+yarn = "Aran / off-white"
+use = "sky, quote panel"
+
+[[colors]]
+code = "K"
+name = "Charcoal"
+hex = "#2B2F33"
+yarn = "Charcoal or black"
+use = "stones, lettering, dragonfly"
+
+[[colors]]
+code = "G"
+name = "Deep Green"
+hex = "#1E4D3A"
+yarn = "Hunter green"
+use = "hill, border ground, thistle foliage"
+
+[[colors]]
+code = "P"
+name = "Purple"
+hex = "#6B2D5C"
+yarn = "Plum / dark orchid"
+use = "thistle heads"
+
+[[colors]]
+code = "Y"
+name = "Gold"
+hex = "#D9A21B"
+yarn = "Gold"
+use = "moon, braided border, edge lines"
+
+[notes]
+setup = [
+  "Foundation: chain W + 1 in Gold (Y). Row 1 begins in the 2nd chain from the hook; the whole first row is Gold, part of the outer 2-row gold edge.",
+  "Ch 1, turn at the end of every row. The chart counts stitches only; the turning chain is not a stitch.",
+  "Change colors in the last yarn-over of the stitch before the new color: work the stitch until two loops remain, drop the old color, pull the new one through.",
+  "Block the finished blanket to size so the braid straightens and the lettering squares up.",
+]
+colors = [
+  "Braid rows (the top and bottom strips) alternate gold and green every 2 to 5 stitches; carry the other color under the stitches, tapestry style. The side strips add about four gold runs to every other row.",
+  "Lettering rows are cream and charcoal only across the panel. Carry charcoal under the cream between letters, or use a bobbin per word.",
+  "Scene rows are cream sky with charcoal stones and the gold moon; the hill rows are long green runs, the easiest in the blanket.",
+]
