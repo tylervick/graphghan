@@ -1,4 +1,5 @@
 """Build the static viewer: site/src + patterns/*/dist -> site/dist (or OUT_DIR)."""
+
 from __future__ import annotations
 
 import hashlib
@@ -55,9 +56,11 @@ def build(out: Path):
         pdir.mkdir(parents=True, exist_ok=True)
         for name in ("chart.json", "chart.png", "preview.png", "written-rows.txt"):
             shutil.copy(d / "dist" / name, pdir / name)
-        page = (template.replace("{{title}}", html.escape(doc["title"], quote=True))
-                .replace("{{slug}}", html.escape(slug, quote=True))
-                .replace("{{dedication}}", html.escape(doc.get("dedication", ""), quote=True)))
+        page = (
+            template.replace("{{title}}", html.escape(doc["title"], quote=True))
+            .replace("{{slug}}", html.escape(slug, quote=True))
+            .replace("{{dedication}}", html.escape(doc.get("dedication", ""), quote=True))
+        )
         (pdir / "index.html").write_text(page, encoding="utf-8")
         entry = {k: doc[k] for k in INDEX_KEYS if k != "dedication"}
         entry["dedication"] = doc.get("dedication", "")
@@ -67,9 +70,17 @@ def build(out: Path):
     (out / "patterns").mkdir(exist_ok=True)
     (out / "patterns" / "index.json").write_text(json.dumps(index), encoding="utf-8")
     files = sorted(p for p in out.rglob("*") if p.is_file())
-    entries = [{"url": p.relative_to(out).as_posix(), "hash": hashlib.sha256(p.read_bytes()).hexdigest()[:12]} for p in files]
+    entries = [
+        {"url": p.relative_to(out).as_posix(), "hash": hashlib.sha256(p.read_bytes()).hexdigest()[:12]}
+        for p in files
+    ]
     build_hash = hashlib.sha256("".join(e["hash"] for e in entries).encode()).hexdigest()[:12]
-    sw = (SRC / "sw.js").read_text(encoding="utf-8").replace("__BUILD_HASH__", build_hash).replace("__PRECACHE__", json.dumps([e["url"] for e in entries]))
+    sw = (
+        (SRC / "sw.js")
+        .read_text(encoding="utf-8")
+        .replace("__BUILD_HASH__", build_hash)
+        .replace("__PRECACHE__", json.dumps([e["url"] for e in entries]))
+    )
     (out / "sw.js").write_text(sw, encoding="utf-8")
     (out / "build.json").write_text(json.dumps({"hash": build_hash, "files": entries}), encoding="utf-8")
     return out, index, build_hash
