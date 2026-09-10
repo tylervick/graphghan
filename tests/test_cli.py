@@ -1,4 +1,5 @@
 import json
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -70,3 +71,22 @@ def test_catalog(tmp_path):
 
 def test_usage_error():
     assert main(["render"]) == 2
+
+
+def test_render_rejects_unknown_gauge(tmp_path):
+    assert main(["render", "craigh-na-dun", "--gauge", "bogus", "--out", str(tmp_path)]) == 2
+
+
+def test_render_rejects_unknown_variant(tmp_path):
+    assert main(["render", "craigh-na-dun", "--variant", "bogus", "--out", str(tmp_path)]) == 2
+
+
+def test_render_check_detects_drift(tmp_path):
+    copy = tmp_path / "craigh-na-dun-copy"
+    shutil.copytree(ROOT / "patterns" / "craigh-na-dun", copy, ignore=shutil.ignore_patterns("__pycache__"))
+    toml_path = copy / "pattern.toml"
+    original = toml_path.read_text()
+    changed = original.replace('hex = "#F2E8D5"', 'hex = "#000000"', 1)
+    assert changed != original
+    toml_path.write_text(changed)
+    assert main(["render", str(copy), "--check"]) == 1
