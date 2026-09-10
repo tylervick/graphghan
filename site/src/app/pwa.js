@@ -1,5 +1,6 @@
 function toast(text, actions) {
-  const el = document.createElement('div'); el.className = 'toast'; el.innerHTML = `<span>${text}</span>`;
+  const el = document.createElement('div'); el.className = 'toast';
+  const span = document.createElement('span'); span.textContent = text; el.appendChild(span);
   for (const [label, fn] of actions) { const b = document.createElement('button'); b.textContent = label; b.addEventListener('click', () => { fn(); el.remove(); }); el.appendChild(b); }
   document.body.appendChild(el);
   return el;
@@ -9,12 +10,13 @@ export function registerServiceWorker() {
   if (!('serviceWorker' in navigator)) return;
   window.addEventListener('load', async () => {
     try {
+      const hadController = !!navigator.serviceWorker.controller;
       const reg = await navigator.serviceWorker.register(new URL('sw.js', document.baseURI));
       const offerReload = worker => toast('A new version is ready.', [['Reload', () => { worker.postMessage('SKIP_WAITING'); }]]);
       if (reg.waiting && navigator.serviceWorker.controller) offerReload(reg.waiting);
       reg.addEventListener('updatefound', () => { const w = reg.installing; if (!w) return; w.addEventListener('statechange', () => { if (w.state === 'installed' && navigator.serviceWorker.controller) offerReload(w); }); });
       let reloading = false;
-      navigator.serviceWorker.addEventListener('controllerchange', () => { if (!reloading) { reloading = true; location.reload(); } });
+      navigator.serviceWorker.addEventListener('controllerchange', () => { if (hadController && !reloading) { reloading = true; location.reload(); } });
     } catch (e) { /* offline install is a convenience; the page still works */ }
   });
   let deferred = null;

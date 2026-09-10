@@ -57,6 +57,7 @@ details{border:1px solid var(--line);border-radius:8px;background:var(--panel)}s
 .toast button{min-height:0;padding:6px 10px;background:transparent;color:inherit;border-color:currentColor}
 
 /* working mode */
+body.in-working{overflow:hidden}
 .working{position:fixed;inset:0;background:var(--ground);z-index:40;display:flex;flex-direction:column;padding:12px 14px calc(12px + env(safe-area-inset-bottom))}
 .working header{display:flex;align-items:center;justify-content:space-between;gap:10px}
 .working .rownum{font-family:"Metamorphous",Georgia,serif;font-size:36px;line-height:1}

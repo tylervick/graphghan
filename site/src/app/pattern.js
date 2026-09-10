@@ -31,8 +31,9 @@ async function main() {
 
   // key
   $('keyrows').innerHTML = doc.palette.map(p => `<tr><td><span class="sw" style="background:${esc(p.hex)}"></span><b class="mono">${esc(p.code)}</b></td><td>${esc(p.name)}<div class="sub">${esc(p.use)}</div></td><td>${esc(p.yarn)}</td><td class="num">${esc(doc.stats.counts[p.code].toLocaleString())}</td><td class="num">${esc(doc.stats.yards_est[p.code].toLocaleString())}</td><td class="num">${esc(doc.stats.skeins_364yd[p.code])}</td></tr>`).join('');
-  $('notes-setup').innerHTML = (doc.notes.setup || []).map(t => `<li>${esc(t)}</li>`).join('');
-  $('notes-colors').innerHTML = (doc.notes.colors || []).map(t => `<li>${esc(t)}</li>`).join('');
+  const notes = doc.notes || {};
+  $('notes-setup').innerHTML = (notes.setup || []).map(t => `<li>${esc(t)}</li>`).join('');
+  $('notes-colors').innerHTML = (notes.colors || []).map(t => `<li>${esc(t)}</li>`).join('');
   $('dl-png').href = `patterns/${slug}/chart.png`; $('dl-rows').href = `patterns/${slug}/written-rows.txt`;
   $('instr-summary').textContent = `All ${doc.height} rows, in working order`;
   $('instr').textContent = writtenLines(chart).join('\n');
@@ -62,12 +63,21 @@ async function main() {
   }
   function setRun(run) { progress = { ...progress, run, updatedAt: Date.now() }; saveProgress(slug, progress); renderRow(); }
 
+  function fitAndSyncZoom() {
+    const zoom = $('zoom');
+    const cw = view.fitWidth(scroller);
+    const max = zoom.max !== '' ? +zoom.max : cw;
+    zoom.value = Math.min(cw, max);
+  }
+  let resizeTimer = null;
+  window.addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(fitAndSyncZoom, 150); });
+
   $('zoom').addEventListener('input', e => view.set({ cw: +e.target.value }));
   $('grid').addEventListener('change', e => view.set({ showGrid: e.target.checked }));
   $('letters').addEventListener('change', e => { if (e.target.checked && view.opts.cw < 12) { $('zoom').value = 14; view.set({ cw: 14, showLetters: true }); } else view.set({ showLetters: e.target.checked }); });
   $('trueprop').addEventListener('change', e => view.set({ trueProp: e.target.checked }));
   $('dim').addEventListener('change', e => view.set({ dimOthers: e.target.checked }));
-  $('fit').addEventListener('click', () => { $('zoom').value = view.fitWidth(scroller); });
+  $('fit').addEventListener('click', () => fitAndSyncZoom());
   $('prev').addEventListener('click', () => setRow(progress.row - 1));
   $('next').addEventListener('click', () => setRow(progress.row + 1));
   document.addEventListener('keydown', e => { if (e.target.tagName === 'INPUT' || document.body.classList.contains('in-working')) return; if (e.key === 'ArrowRight' || e.key === 'ArrowUp') setRow(progress.row + 1); if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') setRow(progress.row - 1); });
@@ -92,7 +102,7 @@ async function main() {
     $('checks').innerHTML = checks.map(([ok, t, s]) => `<div class="check ${ok ? '' : 'fail'}"><b>${ok ? '✓' : '✗'} ${esc(t)}</b><div class="sub">${esc(s)}</div></div>`).join('');
   })();
 
-  $('zoom').value = view.fitWidth(scroller);
+  fitAndSyncZoom();
   setRow(progress.row, progress.run);
   window.graphghan = { chart, view, setRow, setRun, get progress() { return progress; } };
 }

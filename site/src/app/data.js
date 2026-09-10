@@ -1,7 +1,9 @@
+const HEX_RE = /^#[0-9a-fA-F]{6}$/;
+
 export function decodeChart(doc) {
   const codes = doc.palette.map(p => p.code);
-  const hex = doc.palette.map(p => p.hex);
-  const light = doc.palette.map(p => { const v = parseInt(p.hex.slice(1), 16); const r = v >> 16, g = (v >> 8) & 255, b = v & 255; return (r * 299 + g * 587 + b * 114) / 1000 < 140; });
+  const hex = doc.palette.map(p => HEX_RE.test(p.hex) ? p.hex : '#888888');
+  const light = hex.map(h => { const v = parseInt(h.slice(1), 16); const r = v >> 16, g = (v >> 8) & 255, b = v & 255; return (r * 299 + g * 587 + b * 114) / 1000 < 140; });
   const idx = Object.fromEntries(codes.map((c, i) => [c, i]));
   const W = doc.width, H = doc.height;
   const grid = new Uint8Array(W * H);

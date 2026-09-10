@@ -22,12 +22,16 @@ self.addEventListener('fetch', e => {
     const direct = await cache.match(e.request, { ignoreSearch: true });
     if (direct) return direct;
     if (e.request.mode === 'navigate') {
-      const asIndex = await cache.match(scopeUrl(url.pathname.replace(/\/$/, '/index.html').replace(new URL(self.registration.scope).pathname, '')));
+      const scopePath = new URL(self.registration.scope).pathname;
+      let path = url.pathname;
+      if (path.endsWith('/')) path += 'index.html';
+      else if (!/\.[^/]+$/.test(path)) path += '/index.html';
+      const asIndex = await cache.match(scopeUrl(path.replace(scopePath, '')));
       if (asIndex) return asIndex;
     }
     try {
       const res = await fetch(e.request);
-      if (res.ok) cache.put(e.request, res.clone());
+      if (res.ok) e.waitUntil(cache.put(e.request, res.clone()).catch(() => {}));
       return res;
     } catch (err) {
       if (e.request.mode === 'navigate') return cache.match(scopeUrl('index.html'));

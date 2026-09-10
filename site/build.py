@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import hashlib
+import html
 import json
+import re
 import shutil
 from pathlib import Path
 
@@ -11,6 +13,7 @@ from PIL import Image, ImageDraw
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "site" / "src"
 INDEX_KEYS = ("slug", "title", "dedication", "version", "stitch", "width", "height", "size_in")
+SLUG_RE = re.compile(r"[a-z0-9-]+")
 
 
 def load_patterns():
@@ -18,7 +21,7 @@ def load_patterns():
     for d in sorted((ROOT / "patterns").iterdir()):
         cj = d / "dist" / "chart.json"
         if cj.exists():
-            items.append((d, json.loads(cj.read_text())))
+            items.append((d, json.loads(cj.read_text(encoding="utf-8"))))
     return items
 
 
@@ -42,28 +45,33 @@ def build(out: Path):
         shutil.rmtree(out)
     shutil.copytree(SRC, out, ignore=shutil.ignore_patterns("pattern.html", "sw.js"))
     make_icons(out)
-    template = (SRC / "pattern.html").read_text()
+    template = (SRC / "pattern.html").read_text(encoding="utf-8")
     index = []
     for d, doc in load_patterns():
-        pdir = out / "patterns" / doc["slug"]
+        slug = doc["slug"]
+        if not SLUG_RE.fullmatch(slug):
+            raise ValueError(f"invalid slug {slug!r}")
+        pdir = out / "patterns" / slug
         pdir.mkdir(parents=True, exist_ok=True)
         for name in ("chart.json", "chart.png", "preview.png", "written-rows.txt"):
             shutil.copy(d / "dist" / name, pdir / name)
-        page = (template.replace("{{title}}", doc["title"]).replace("{{slug}}", doc["slug"])
-                .replace("{{dedication}}", doc.get("dedication", "")))
-        (pdir / "index.html").write_text(page)
-        entry = {k: doc[k] for k in INDEX_KEYS}
+        page = (template.replace("{{title}}", html.escape(doc["title"], quote=True))
+                .replace("{{slug}}", html.escape(slug, quote=True))
+                .replace("{{dedication}}", html.escape(doc.get("dedication", ""), quote=True)))
+        (pdir / "index.html").write_text(page, encoding="utf-8")
+        entry = {k: doc[k] for k in INDEX_KEYS if k != "dedication"}
+        entry["dedication"] = doc.get("dedication", "")
         entry["colors"] = len(doc["palette"])
-        entry["preview"] = f"patterns/{doc['slug']}/preview.png"
+        entry["preview"] = f"patterns/{slug}/preview.png"
         index.append(entry)
     (out / "patterns").mkdir(exist_ok=True)
-    (out / "patterns" / "index.json").write_text(json.dumps(index))
+    (out / "patterns" / "index.json").write_text(json.dumps(index), encoding="utf-8")
     files = sorted(p for p in out.rglob("*") if p.is_file())
     entries = [{"url": p.relative_to(out).as_posix(), "hash": hashlib.sha256(p.read_bytes()).hexdigest()[:12]} for p in files]
     build_hash = hashlib.sha256("".join(e["hash"] for e in entries).encode()).hexdigest()[:12]
-    sw = (SRC / "sw.js").read_text().replace("__BUILD_HASH__", build_hash).replace("__PRECACHE__", json.dumps([e["url"] for e in entries]))
-    (out / "sw.js").write_text(sw)
-    (out / "build.json").write_text(json.dumps({"hash": build_hash, "files": entries}))
+    sw = (SRC / "sw.js").read_text(encoding="utf-8").replace("__BUILD_HASH__", build_hash).replace("__PRECACHE__", json.dumps([e["url"] for e in entries]))
+    (out / "sw.js").write_text(sw, encoding="utf-8")
+    (out / "build.json").write_text(json.dumps({"hash": build_hash, "files": entries}), encoding="utf-8")
     return out, index, build_hash
 
 

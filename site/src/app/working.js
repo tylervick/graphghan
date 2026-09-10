@@ -6,7 +6,7 @@ export class WorkingMode {
 
   open() {
     if (this.el) return;
-    const el = document.createElement('div'); el.className = 'working'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-label', 'Working mode');
+    const el = document.createElement('div'); el.className = 'working'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-label', 'Working mode'); el.setAttribute('aria-modal', 'true');
     el.innerHTML = `
       <header><div><div class="rownum" id="w-row"></div><div class="sub" id="w-side"></div></div><button id="w-close" aria-label="Close working mode">Close</button></header>
       <div class="strip"><canvas id="w-strip"></canvas></div>
@@ -18,12 +18,18 @@ export class WorkingMode {
     el.querySelector('#w-done').addEventListener('click', () => this.advance());
     el.querySelector('#w-back').addEventListener('click', () => this.back());
     el.querySelector('#w-next').addEventListener('click', () => { const p = this.hooks.getProgress(); if (p.row >= this.chart.H) { this.announce('Last row'); return; } this.hooks.setRow(p.row + 1, 0, false); this.render(); });
-    this.onKey = e => { if (e.key === ' ' || e.key === 'Enter' || e.key === 'ArrowRight') { e.preventDefault(); this.advance(); } if (e.key === 'ArrowLeft') this.back(); if (e.key === 'Escape') this.close(); };
+    this.onKey = e => {
+      if (e.target.closest('button')) { if (e.key === 'Escape') this.close(); return; }
+      if (e.key === ' ' || e.key === 'Enter' || e.key === 'ArrowRight') { e.preventDefault(); this.advance(); }
+      if (e.key === 'ArrowLeft') this.back();
+      if (e.key === 'Escape') this.close();
+    };
     document.addEventListener('keydown', this.onKey);
     this.requestWakeLock();
     this.onVis = () => { if (document.visibilityState === 'visible') this.requestWakeLock(); };
     document.addEventListener('visibilitychange', this.onVis);
     this.render();
+    const done = el.querySelector('#w-done'); if (done) done.focus();
   }
 
   close() {
@@ -32,6 +38,7 @@ export class WorkingMode {
     if (this.lock) { this.lock.release().catch(() => {}); this.lock = null; }
     this.el.remove(); this.el = null; document.body.classList.remove('in-working');
     const p = this.hooks.getProgress(); this.hooks.setRow(p.row, p.run, true);
+    const work = document.getElementById('work'); if (work) work.focus();
   }
 
   async requestWakeLock() {
