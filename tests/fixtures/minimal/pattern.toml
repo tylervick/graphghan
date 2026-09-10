@@ -1,0 +1,31 @@
+[pattern]
+slug = "minimal"
+title = "Minimal"
+dedication = ""
+quote = ""
+version = "0.0.1"
+stitch = "sc"
+size_in = [4.0, 3.0]
+hook = "5 mm"
+yarn_weight = "worsted"
+first_row_color = "A"
+
+[gauge]
+sc = [3.5, 4.0]
+square = [4.0, 4.0]
+
+[[colors]]
+code = "A"
+name = "Alpha"
+hex = "#112233"
+yarn = "any"
+use = "ground"
+
+[[colors]]
+code = "B"
+name = "Beta"
+hex = "#ffffff"
+
+[notes]
+setup = ["Chain W + 1 in A."]
+colors = []
