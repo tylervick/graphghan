@@ -21,14 +21,29 @@ from .validate import run_all
 TEMPLATES = Path(__file__).parent / "templates"
 
 
-def _resolve(slug_or_path: str) -> Path:
+def _resolve(slug_or_path: str) -> Path | None:
     p = Path(slug_or_path)
-    return p.resolve() if p.exists() and (p / "pattern.toml").exists() else pattern_dir(slug_or_path)
+    if p.exists() and (p / "pattern.toml").exists():
+        return p.resolve()
+    d = pattern_dir(slug_or_path)
+    return d if (d / "pattern.toml").exists() else None
+
+
+def _resolve_or_die(arg: str) -> Path | None:
+    d = _resolve(arg)
+    if d is None:
+        print(f"pattern not found: {arg}", file=sys.stderr)
+    return d
 
 
 def cmd_render(args) -> int:
-    d = _resolve(args.pattern)
+    d = _resolve_or_die(args.pattern)
+    if d is None:
+        return 2
     meta = load_pattern(d)
+    if args.check and not (d / "dist" / "chart.json").exists():
+        print(f"no committed dist for {meta.slug}; run 'graphghan render {meta.slug}' first")
+        return 1
     design = load_design(d)
     gauge = args.gauge or meta.stitch
     g, report = design.build(gauge, args.variant)
@@ -49,7 +64,9 @@ def cmd_render(args) -> int:
 
 
 def cmd_check(args) -> int:
-    d = _resolve(args.pattern)
+    d = _resolve_or_die(args.pattern)
+    if d is None:
+        return 2
     meta = load_pattern(d)
     g, _ = load_design(d).build(meta.stitch, "final")
     ok = True
@@ -79,7 +96,9 @@ def cmd_new(args) -> int:
 
 
 def cmd_options(args) -> int:
-    d = _resolve(args.pattern)
+    d = _resolve_or_die(args.pattern)
+    if d is None:
+        return 2
     meta = load_pattern(d)
     design = load_design(d)
     out = Path(args.out) if args.out else d / "build" / "options"
@@ -120,10 +139,9 @@ def cmd_site(args) -> int:
         print("site/build.py not found (the site plan adds it)")
         return 1
     out = Path(args.out) if args.out else root / "site" / "dist"
-    if args.site_cmd == "build":
-        runpy.run_path(str(build), run_name="__main__", init_globals={"OUT_DIR": out})
-        return 0
     runpy.run_path(str(build), run_name="__main__", init_globals={"OUT_DIR": out})
+    if args.site_cmd == "build":
+        return 0
     handler = lambda *a, **k: http.server.SimpleHTTPRequestHandler(*a, directory=str(out), **k)  # noqa: E731
     print(f"serving {out} at http://127.0.0.1:{args.port}/")
     http.server.ThreadingHTTPServer(("127.0.0.1", args.port), handler).serve_forever()

@@ -33,6 +33,11 @@ def test_new_scaffolds_and_renders(tmp_path, monkeypatch):
     assert (d / "pattern.toml").exists() and (d / "design.py").exists() and (d / "tests" / "test_design.py").exists()
     assert main(["render", str(d), "--out", str(tmp_path / "out")]) == 0
     assert json.loads((tmp_path / "out" / "chart.json").read_text())["slug"] == "test-scaffold"
+    assert main(["render", str(d), "--check"]) == 1                 # no committed dist yet
+
+
+def test_check_missing_pattern_is_usage_error():
+    assert main(["check", "nonexistent-slug-xyz"]) == 2
 
 
 def test_options_page(tmp_path):
