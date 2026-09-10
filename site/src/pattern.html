@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<base href="../../">
+<title>{{title}}</title>
+<meta name="theme-color" content="#1E4D3A">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body data-slug="{{slug}}">
+<div class="wrap">
+<p class="sub"><a href="./">← All patterns</a></p>
+<header class="mast">
+  <div>
+    <div class="eyebrow" id="eyebrow">{{dedication}}</div>
+    <h1>{{title}}</h1>
+    <p class="quote" id="quote"></p>
+  </div>
+  <div class="specs" id="specs"></div>
+</header>
+
+<section>
+  <h2>Chart</h2>
+  <p class="hint">Row 1 is the bottom row. Odd rows are right-side rows read <b>right to left</b>; even rows read <b>left to right</b>. The line under the chart is already in working order. Tap a cell to locate it; ← → step rows.</p>
+  <div class="viewer">
+    <div class="bar">
+      <label>Zoom <input type="range" id="zoom" min="3" max="24" value="6"></label>
+      <label><input type="checkbox" id="grid" checked> Grid</label>
+      <label><input type="checkbox" id="letters"> Letters</label>
+      <label><input type="checkbox" id="trueprop"> True proportions</label>
+      <label><input type="checkbox" id="dim" checked> Dim other rows</label>
+      <button id="fit">Fit width</button>
+      <button id="work" class="primary">Working mode</button>
+      <span class="cellinfo" id="cellinfo"></span>
+    </div>
+    <div class="scroller" id="scroller"><canvas id="c"></canvas></div>
+    <div class="rowpanel">
+      <div>
+        <div class="big" id="rowno">Row 1</div>
+        <div class="side" id="rowside"></div>
+        <div style="display:flex;gap:6px;margin-top:10px">
+          <button id="prev" aria-label="Previous row">←</button>
+          <button id="next" class="primary" aria-label="Next row">Next row →</button>
+        </div>
+      </div>
+      <div>
+        <div class="runs" id="runs"></div>
+        <div class="hint" id="rowstats" style="margin-top:8px"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="grid2">
+  <div>
+    <h2>Color key &amp; yarn</h2>
+    <div class="tablewrap"><table><thead><tr><th>Code</th><th>Color</th><th>Suggested colorway</th><th class="num">Stitches</th><th class="num">Yards</th><th class="num">Skeins</th></tr></thead><tbody id="keyrows"></tbody></table></div>
+    <p class="sub" style="margin-top:10px">Yardage assumes about 1.1 yd per square inch of sc in worsted, plus 20% for tails and carried strands.</p>
+  </div>
+  <div>
+    <h2>Progress</h2>
+    <div class="notes">
+      <p id="progress-summary"></p>
+      <div style="display:flex;flex-wrap:wrap;gap:8px">
+        <button id="export">Copy progress code</button>
+        <button id="import">Paste progress code</button>
+        <button id="reset">Start over</button>
+      </div>
+      <p class="sub" style="margin-top:10px">Progress is saved on this device. To move to another device, copy the code here and paste it there.</p>
+    </div>
+    <h2 style="margin-top:24px">Files</h2>
+    <div class="notes">
+      <p><a id="dl-png" download>chart.png</a> — one pixel per stitch, for Stitch Fiddle import (set the color count and the long side to match).</p>
+      <p><a id="dl-rows" download>written-rows.txt</a> — every row in working order.</p>
+      <p><button id="print">Print chart in tiles</button></p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>Working notes</h2>
+  <div class="grid2">
+    <div class="notes"><h3>Setup</h3><ol id="notes-setup"></ol></div>
+    <div class="notes"><h3>Managing colors</h3><ul id="notes-colors"></ul></div>
+  </div>
+</section>
+
+<section>
+  <h2>Validation</h2>
+  <p class="hint">Checked in this browser against the chart data on this page.</p>
+  <div class="checks" id="checks"></div>
+</section>
+
+<section>
+  <h2>Row-by-row instructions</h2>
+  <details><summary id="instr-summary">All rows, in working order</summary><div class="instr" id="instr"></div></details>
+</section>
+</div>
+
+<div id="print-tiles"></div>
+<script type="module" src="app/pattern.js"></script>
+</body>
+</html>
