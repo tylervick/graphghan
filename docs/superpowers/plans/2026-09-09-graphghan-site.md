@@ -81,9 +81,7 @@ from build import build  # noqa: E402
 
 def test_build_layout_and_contracts(tmp_path):
     out, index, h = build(tmp_path / "dist")
-    assert (
-        (out / "index.html").exists() and (out / "sw.js").exists() and (out / "manifest.webmanifest").exists()
-    )
+    assert (out / "index.html").exists() and (out / "sw.js").exists() and (out / "manifest.webmanifest").exists()
     assert len(h) == 12
     idx = json.loads((out / "patterns" / "index.json").read_text())
     assert index == idx and any(p["slug"] == "craigh-na-dun" for p in idx)
@@ -102,10 +100,7 @@ def test_precache_covers_every_file(tmp_path):
     out, _, h = build(tmp_path / "dist")
     sw = (out / "sw.js").read_text()
     assert "__PRECACHE__" not in sw and h in sw
-    listed = set(
-        json.loads((out / "build.json").read_text())["files"][i]["url"]
-        for i in range(len(json.loads((out / "build.json").read_text())["files"]))
-    )
+    listed = set(json.loads((out / "build.json").read_text())["files"][i]["url"] for i in range(len(json.loads((out / "build.json").read_text())["files"])))
     actual = {p.relative_to(out).as_posix() for p in out.rglob("*") if p.is_file()} - {"sw.js", "build.json"}
     assert listed == actual
     assert "patterns/craigh-na-dun/index.html" in listed and "patterns/index.json" in listed
@@ -121,7 +116,6 @@ Expected: FAIL with `ModuleNotFoundError: No module named 'build'`
 `site/build.py`:
 ```python
 """Build the static viewer: site/src + patterns/*/dist -> site/dist (or OUT_DIR)."""
-
 from __future__ import annotations
 
 import hashlib
@@ -172,11 +166,8 @@ def build(out: Path):
         pdir.mkdir(parents=True, exist_ok=True)
         for name in ("chart.json", "chart.png", "preview.png", "written-rows.txt"):
             shutil.copy(d / "dist" / name, pdir / name)
-        page = (
-            template.replace("{{title}}", doc["title"])
-            .replace("{{slug}}", doc["slug"])
-            .replace("{{dedication}}", doc.get("dedication", ""))
-        )
+        page = (template.replace("{{title}}", doc["title"]).replace("{{slug}}", doc["slug"])
+                .replace("{{dedication}}", doc.get("dedication", "")))
         (pdir / "index.html").write_text(page)
         entry = {k: doc[k] for k in INDEX_KEYS}
         entry["colors"] = len(doc["palette"])
@@ -185,17 +176,9 @@ def build(out: Path):
     (out / "patterns").mkdir(exist_ok=True)
     (out / "patterns" / "index.json").write_text(json.dumps(index))
     files = sorted(p for p in out.rglob("*") if p.is_file())
-    entries = [
-        {"url": p.relative_to(out).as_posix(), "hash": hashlib.sha256(p.read_bytes()).hexdigest()[:12]}
-        for p in files
-    ]
+    entries = [{"url": p.relative_to(out).as_posix(), "hash": hashlib.sha256(p.read_bytes()).hexdigest()[:12]} for p in files]
     build_hash = hashlib.sha256("".join(e["hash"] for e in entries).encode()).hexdigest()[:12]
-    sw = (
-        (SRC / "sw.js")
-        .read_text()
-        .replace("__BUILD_HASH__", build_hash)
-        .replace("__PRECACHE__", json.dumps([e["url"] for e in entries]))
-    )
+    sw = (SRC / "sw.js").read_text().replace("__BUILD_HASH__", build_hash).replace("__PRECACHE__", json.dumps([e["url"] for e in entries]))
     (out / "sw.js").write_text(sw)
     (out / "build.json").write_text(json.dumps({"hash": build_hash, "files": entries}))
     return out, index, build_hash
