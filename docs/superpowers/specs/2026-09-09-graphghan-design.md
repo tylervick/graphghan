@@ -171,7 +171,7 @@ working (RS right-to-left on odd rows) is derived by consumers, not stored.
 
 | command | does |
 |---|---|
-| `new <slug> --title T [--template craigh-na-dun]` | scaffold `patterns/<slug>/` with pattern.toml, design.py from a template, tests, empty reference/ |
+| `new <slug> --title T` | scaffold `patterns/<slug>/` with pattern.toml, design.py from a template, tests, empty reference/ |
 | `options <slug> [--gauges sc,hdc]` | render every variant at each gauge into `build/options/`, write `build/options/options.html` (the comparison page: true-proportion previews, stats table, gauge toggle) |
 | `render <slug> [--gauge K] [--variant V] [--out DIR]` | write dist files; `--check` re-renders and diffs against committed dist (exit 1 on drift) |
 | `check <slug>` | generic invariants (validate.py) + `pytest patterns/<slug>/tests` |

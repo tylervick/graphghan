@@ -235,7 +235,6 @@ def build_parser():
     n.add_argument("slug", help="folder name / slug for the new pattern")
     n.add_argument("--title", required=True, help="human-readable title for the new pattern")
     n.add_argument("--dir", help="parent directory to scaffold into (default: patterns/)")
-    n.add_argument("--template", default="craigh-na-dun", help="template pattern to base the scaffold on")
     n.set_defaults(fn=cmd_new)
 
     o = sub.add_parser("options", help="render a preview + stats grid across variants and gauges")
