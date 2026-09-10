@@ -1,0 +1,81 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": [
+    "Three managers cover everything pinned in this repo:",
+    "  github-actions -- the five SHA-pinned action refs in .github/workflows/ci.yml",
+    "  mise           -- uv, hk, actionlint, gitleaks, zizmor and pinact in mise.toml",
+    "  pep621         -- pillow/numpy plus the pytest+ruff dev group in pyproject.toml,",
+    "                    with uv.lock refreshed alongside",
+    "",
+    "config:best-practices keeps the actions SHA-pinned with a trailing # vX.Y.Z",
+    "comment, which is the form `mise run pin-actions` already writes and the form",
+    "zizmor's unpinned-uses audit demands -- so a Renovate action bump stays green",
+    "through the pre-push hook without anyone re-running pinact by hand."
+  ],
+  "extends": [
+    "config:best-practices",
+    ":semanticCommits"
+  ],
+  "labels": ["dependencies"],
+  "schedule": ["before 9am on monday"],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": [
+        "hk.pkl names its hk release twice per line -- once in the download URL",
+        "path (v1.55.0) and once in the pkl package coordinate (hk@1.55.0) -- across",
+        "both the `amends` and `import` lines, so four occurrences in total. hk",
+        "evaluates that file with its own embedded pkl and a config written against",
+        "one release is not guaranteed to evaluate under another, so these MUST move",
+        "in lockstep with `hk` in mise.toml; the packageRules entry below groups them",
+        "into a single PR. Two matchStrings rather than one because a regex manager",
+        "supports a single currentValue group per pattern, and each pattern is applied",
+        "to every occurrence in the file."
+      ],
+      "managerFilePatterns": ["/^hk\\.pkl$/"],
+      "datasourceTemplate": "github-releases",
+      "depNameTemplate": "jdx/hk",
+      "extractVersionTemplate": "^v?(?<version>.+)$",
+      "matchStrings": [
+        "download/v(?<currentValue>\\d+\\.\\d+\\.\\d+)/",
+        "hk@(?<currentValue>\\d+\\.\\d+\\.\\d+)#"
+      ]
+    }
+  ],
+  "packageRules": [
+    {
+      "description": [
+        "One PR for hk's two pins. `hk` comes from the mise manager reading",
+        "mise.toml; `jdx/hk` from the custom manager above reading hk.pkl. Split",
+        "across two PRs, either one merged alone leaves the binary and its config",
+        "on different releases -- which fails closed at `hk validate` rather than",
+        "silently, but still red on main for no reason."
+      ],
+      "matchDepNames": ["hk", "jdx/hk"],
+      "groupName": "hk"
+    },
+    {
+      "description": [
+        "Group the linters hk shells out to. They are only ever exercised together",
+        "by `hk check --all`, and each one's bump needs the same thing proven: that",
+        "a full lint pass over this tree is still clean. Separate PRs would each pay",
+        "for that same CI run. uv and pinact stay out of this group -- uv gates every",
+        "other job in CI, and pinact is a manual tool that touches no hook."
+      ],
+      "matchManagers": ["mise"],
+      "matchDepNames": ["actionlint", "gitleaks", "zizmor"],
+      "groupName": "hk linters"
+    },
+    {
+      "description": [
+        "A new zizmor or actionlint release can add an audit that fires on a",
+        "workflow which was clean the day before, and a new ruff minor can add a",
+        "lint or change formatting. That is a real finding worth reading, not a",
+        "broken bot -- but it should never land unattended, and nothing here",
+        "automerges anyway. Kept as an explicit statement of that intent."
+      ],
+      "matchPackageNames": ["zizmor", "actionlint", "ruff"],
+      "automerge": false
+    }
+  ]
+}

@@ -20,8 +20,28 @@ stones, thistles, a dragonfly, and a braided gold twist border.
 
 ## Quick start
 
+Tooling is managed by [mise](https://mise.jdx.dev) (uv, hk, and the linters) and
+[hk](https://hk.jdx.dev) (git hooks). One-time, in a fresh checkout:
+
 ```bash
-uv sync
+mise trust && mise install    # uv, hk, actionlint, gitleaks, zizmor
+mise run setup                # uv sync --all-groups, then install the git hooks
+```
+
+That gives you a pre-commit hook (ruff, formatting, file hygiene) and a pre-push hook
+(the above plus pytest and the workflow/secret scans). Day to day:
+
+```bash
+mise run check    # lint + test, the same pair CI runs
+mise run fix      # apply every fix hk can make
+mise run test     # pytest only
+```
+
+Orca worktrees run `mise run setup` automatically on creation — see `orca.yaml`.
+
+Then the tool itself:
+
+```bash
 uv run graphghan new <slug> --title "<Title>"    # scaffold patterns/<slug>/
 uv run graphghan options <slug>                  # compare variants/gauges, writes an HTML page
 uv run graphghan render <slug>                   # write dist/chart.json, chart.png, etc.

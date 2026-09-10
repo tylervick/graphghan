@@ -1,0 +1,59 @@
+# Dev tooling for graphghan.
+#
+# mise owns the *tools*; uv owns Python and the package environment. Nothing
+# here pins Python on purpose -- `.python-version` + `uv.lock` already do, and
+# your global `idiomatic_version_file_enable_tools` is empty, so mise ignores
+# `.python-version` rather than fighting uv over which interpreter wins.
+#
+# In a fresh checkout:
+#   mise trust && mise install && mise run setup
+#
+# (An Orca worktree does this for you -- see orca.yaml.)
+
+# Every tool is pinned exactly rather than "latest", for two reasons: it is what
+# makes `hk check --all` mean the same thing on this laptop and in CI, and
+# Renovate's mise manager can only propose bumps against a concrete version.
+# renovate.json groups them into one PR.
+[tools]
+uv = "0.11.29"
+# Must match the `amends`/`import` URLs at the top of hk.pkl. hk evaluates that
+# file with its own embedded pkl, and a config written against one release is not
+# guaranteed to evaluate under another. renovate.json has a custom manager that
+# bumps hk.pkl in the same PR so the two cannot drift apart.
+hk = "1.55.0"
+# Invoked by hk steps rather than directly.
+actionlint = "1.7.12"
+gitleaks = "8.30.1"
+zizmor = "1.29.0"
+# Only needed when a workflow gains or bumps an action; see `mise run pin-actions`.
+pinact = "4.1.1"
+
+[tasks.setup]
+description = "Create .venv from uv.lock and install the git hooks"
+run = """
+uv sync --all-groups
+hk install
+"""
+
+[tasks.lint]
+description = "Everything hk checks: ruff, formatting, file hygiene, workflow + secret scans"
+run = "hk check --all"
+
+[tasks.fix]
+description = "Apply every fix hk can make"
+run = "hk fix --all"
+
+[tasks.test]
+description = "The full pytest suite (package, patterns, site)"
+run = "uv run pytest -q"
+
+[tasks.check]
+description = "Lint and test -- the same pair CI runs"
+depends = ["lint", "test"]
+
+[tasks.pin-actions]
+description = "Re-pin .github/workflows actions to commit SHAs (run after adding or bumping one)"
+# zizmor enforces that actions are hash-pinned but cannot pin them itself; this
+# is the fix side of that rule. It hits the GitHub API, which is why it is a
+# task you run deliberately rather than an hk step on every commit.
+run = "pinact run --verify .github/workflows/*.yml"
