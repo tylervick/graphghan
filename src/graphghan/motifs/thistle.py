@@ -113,5 +113,5 @@ def bloom_icon(bg, head, calyx):
     arr = np.full((h, w), bg, dtype=np.uint8)
     arr[:chh, :] = head
     kx = (w - kw) // 2
-    arr[chh:, kx:kx + kw] = calyx
+    arr[chh:, kx : kx + kw] = calyx
     return arr

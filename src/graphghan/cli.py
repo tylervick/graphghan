@@ -1,4 +1,5 @@
 """graphghan command line."""
+
 from __future__ import annotations
 
 import argparse
@@ -51,9 +52,13 @@ def cmd_render(args) -> int:
         committed = json.loads((d / "dist" / "chart.json").read_text())
         fresh = rows_to_strings(g.a, meta.palette.codes)
         if committed["rows"] != fresh or committed["version"] != meta.version:
-            bad = next((i for i, (x, y) in enumerate(zip(committed["rows"], fresh, strict=False)) if x != y), None)
-            print(f"DRIFT: committed dist differs from code (first differing row index {bad}, "
-                  f"version {committed['version']} vs {meta.version})")
+            bad = next(
+                (i for i, (x, y) in enumerate(zip(committed["rows"], fresh, strict=False)) if x != y), None
+            )
+            print(
+                f"DRIFT: committed dist differs from code (first differing row index {bad}, "
+                f"version {committed['version']} vs {meta.version})"
+            )
             return 1
         print("no drift")
         return 0
@@ -89,7 +94,9 @@ def cmd_new(args) -> int:
     subs = {"slug": args.slug, "title": args.title}
     (d / "pattern.toml").write_text((TEMPLATES / "pattern.toml.tmpl").read_text().format(**subs))
     (d / "design.py").write_text((TEMPLATES / "design.py.tmpl").read_text().format(**subs))
-    (d / "tests" / "test_design.py").write_text((TEMPLATES / "test_design.py.tmpl").read_text().format(**subs))
+    (d / "tests" / "test_design.py").write_text(
+        (TEMPLATES / "test_design.py.tmpl").read_text().format(**subs)
+    )
     (d / "CHANGELOG.md").write_text(f"# {args.slug}\n\n## 0.1.0\nScaffolded.\n")
     print(f"scaffolded {d}")
     return 0
@@ -110,12 +117,29 @@ def cmd_options(args) -> int:
             doc = chart_json(g.a, meta, gauge, report, variant)
             preview_png(g.a, meta.palette.rgb, out / f"{variant}_{gauge}.png", cw=6)
             per_hr = {"sc": 1100, "hdc": 850, "dc": 700}.get(gauge, 900)
-            hours = doc["stats"]["stitches"] / per_hr + sum(doc["stats"]["color_changes_per_row"]["per_row"]) * 3 / 3600
-            entries.append({"variant": variant, "gauge": gauge, "width": doc["width"], "height": doc["height"],
-                            "size_in": doc["size_in"], "colors": sorted({meta.palette.codes[i] for i in set(g.a.ravel().tolist())}),
-                            "changes_mean": doc["stats"]["color_changes_per_row"]["mean"], "changes_max": doc["stats"]["color_changes_per_row"]["max"],
-                            "hours": round(hours), "rows": doc["rows"], "palette": doc["palette"], "cell_aspect": doc["cell_aspect"]})
-            print(f"{variant} {gauge}: {doc['width']}x{doc['height']} changes mean {doc['stats']['color_changes_per_row']['mean']} max {doc['stats']['color_changes_per_row']['max']}")
+            hours = (
+                doc["stats"]["stitches"] / per_hr
+                + sum(doc["stats"]["color_changes_per_row"]["per_row"]) * 3 / 3600
+            )
+            entries.append(
+                {
+                    "variant": variant,
+                    "gauge": gauge,
+                    "width": doc["width"],
+                    "height": doc["height"],
+                    "size_in": doc["size_in"],
+                    "colors": sorted({meta.palette.codes[i] for i in set(g.a.ravel().tolist())}),
+                    "changes_mean": doc["stats"]["color_changes_per_row"]["mean"],
+                    "changes_max": doc["stats"]["color_changes_per_row"]["max"],
+                    "hours": round(hours),
+                    "rows": doc["rows"],
+                    "palette": doc["palette"],
+                    "cell_aspect": doc["cell_aspect"],
+                }
+            )
+            print(
+                f"{variant} {gauge}: {doc['width']}x{doc['height']} changes mean {doc['stats']['color_changes_per_row']['mean']} max {doc['stats']['color_changes_per_row']['max']}"
+            )
     (out / "options.html").write_text(build_options_html(meta.title, entries))
     print(f"wrote {out / 'options.html'}")
     return 0

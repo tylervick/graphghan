@@ -15,7 +15,7 @@ def rings(bg, fg, r_in=1.1, r_out=1.75, gap_in=1.9):
     ra = circle_ring(w, h, c1, cy, r_in, r_out)
     rb = circle_ring(w, h, c2, cy, r_in, r_out)
     ys, _ = np.mgrid[0:h, 0:w]
-    windows = [(ys < cy, True), (ys >= cy, False)]   # left ring over at top, right ring over at bottom
+    windows = [(ys < cy, True), (ys >= cy, False)]  # left ring over at top, right ring over at bottom
     ra, rb, found = weave(ra, rb, windows)
     arr = np.full((h, w), bg, dtype=np.uint8)
     arr[ra | rb] = fg

@@ -1,4 +1,5 @@
 """Per-pattern palette: an ordered list of colors whose index is the cell value in the grid."""
+
 from __future__ import annotations
 
 import tomllib
@@ -58,8 +59,12 @@ class Palette:
     @classmethod
     def from_toml(cls, path: str | Path) -> "Palette":
         data = tomllib.loads(Path(path).read_text())
-        return cls([Color(c["code"], c["name"], parse_hex(c["hex"]), c.get("yarn", ""), c.get("use", ""))
-                    for c in data["colors"]])
+        return cls(
+            [
+                Color(c["code"], c["name"], parse_hex(c["hex"]), c.get("yarn", ""), c.get("use", ""))
+                for c in data["colors"]
+            ]
+        )
 
 
 def load(design_file: str | Path) -> Palette:

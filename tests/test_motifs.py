@@ -18,7 +18,8 @@ def _runs(row):
         if int(v) == prev:
             n += 1
         else:
-            out.append(n); prev, n = int(v), 1
+            out.append(n)
+            prev, n = int(v), 1
     out.append(n)
     return out
 
@@ -29,8 +30,8 @@ def test_twist_is_inch_true_and_corner_anchored():
     v, period_v = twist.twist_strip_in(152, 12, horizontal=False, bg=BG, fg=FG)
     assert v.shape == (152, 12) and abs(period_v - 4.0) < 1e-9
     gold = arr == FG
-    assert gold[:, 0].sum() <= 5 and gold[:, -1].sum() <= 5        # strands converge at both corners
-    assert not gold[0].any() and not gold[-1].any()                 # margin rows stay background
+    assert gold[:, 0].sum() <= 5 and gold[:, -1].sum() <= 5  # strands converge at both corners
+    assert not gold[0].any() and not gold[-1].any()  # margin rows stay background
 
 
 def test_solomon_and_corner_block_have_four_crossings():
@@ -55,7 +56,7 @@ def test_thistles():
     small = thistle.thistle_small(BG, P2, P3)
     assert big.shape == (34, 19) and small.shape == (25, 19)
     assert (big == P2).sum() > 60 and (small == P2).sum() >= 30
-    scaled = thistle_scaled = thistle.thistle_scaled(6.0, BG, P2, P3)
+    scaled = thistle.thistle_scaled(6.0, BG, P2, P3)
     assert scaled.shape[0] == gr.rows(6.0)
     icon = thistle.bloom_icon(BG, P2, FG)
     assert (icon == P2).any() and (icon == FG).any()
@@ -88,6 +89,6 @@ def test_stripe_band():
 
 def test_catalog_renders():
     assert len(CATALOG) >= 8
-    for name, fn in CATALOG:
+    for _name, fn in CATALOG:
         arr, rgb = fn()
         assert arr.ndim == 2 and len(rgb) > int(arr.max())

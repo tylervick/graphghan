@@ -1,14 +1,14 @@
-import numpy as np
-
 from graphghan import grid as gr
 from graphghan.text import FONT_METAMORPHOUS, text_line
 
 
 def test_line_height_is_exact_and_glyphs_present():
     gr.set_gauge("sc")
-    arr, asc, desc = text_line("Lord", 17, color=1, bg=0, font_path=FONT_METAMORPHOUS, bold=0.035, threshold=0.42)
+    arr, asc, desc = text_line(
+        "Lord", 17, color=1, bg=0, font_path=FONT_METAMORPHOUS, bold=0.035, threshold=0.42
+    )
     assert arr.shape[0] == 17 and asc + desc == 17 and 10 <= asc <= 15
-    assert (arr == 1).sum() > 60 and arr[:, 0].any() and arr[:, -1].any()   # trimmed to ink
+    assert (arr == 1).sum() > 60 and arr[:, 0].any() and arr[:, -1].any()  # trimmed to ink
 
 
 def test_width_follows_cell_aspect():

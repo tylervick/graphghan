@@ -225,13 +225,15 @@ def test_circle_ring_is_round_in_inches():
 
 
 def test_weave_cuts_under_strand_only_inside_window():
-    a = np.zeros((7, 7), bool); a[3, :] = True          # horizontal bar
-    b = np.zeros((7, 7), bool); b[:, 3] = True          # vertical bar
+    a = np.zeros((7, 7), bool)
+    a[3, :] = True  # horizontal bar
+    b = np.zeros((7, 7), bool)
+    b[:, 3] = True  # vertical bar
     win = np.ones((7, 7), bool)
     a2, b2, found = gr.weave(a, b, [(win, True)])
     assert found == 1
-    assert a2.sum() == 7                                # over strand untouched
-    assert not b2[2, 3] and not b2[4, 3] and b2[0, 3]   # under strand loses the cells touching the bar
+    assert a2.sum() == 7  # over strand untouched
+    assert not b2[2, 3] and not b2[4, 3] and b2[0, 3]  # under strand loses the cells touching the bar
 
 
 def test_curve_mask_in_is_symmetric():
@@ -255,7 +257,7 @@ Copy `OLD/outlander/grid.py` to `src/graphghan/grid.py`, then replace its gauge 
 GAUGES: dict[str, tuple[float, float]] = {"sc": (3.5, 4.0), "hdc": (3.25, 2.5), "dc": (3.0, 1.625)}
 ST_PER_IN = 3.5
 ROWS_PER_IN = 4.0
-SW = 1.0 / ST_PER_IN   # inches per column
+SW = 1.0 / ST_PER_IN  # inches per column
 SH = 1.0 / ROWS_PER_IN  # inches per row
 
 
@@ -427,6 +429,7 @@ Expected: FAIL with `ModuleNotFoundError`
 
 ```python
 """Per-pattern palette: an ordered list of colors whose index is the cell value in the grid."""
+
 from __future__ import annotations
 
 import tomllib
@@ -486,8 +489,12 @@ class Palette:
     @classmethod
     def from_toml(cls, path: str | Path) -> "Palette":
         data = tomllib.loads(Path(path).read_text())
-        return cls([Color(c["code"], c["name"], parse_hex(c["hex"]), c.get("yarn", ""), c.get("use", ""))
-                    for c in data["colors"]])
+        return cls(
+            [
+                Color(c["code"], c["name"], parse_hex(c["hex"]), c.get("yarn", ""), c.get("use", ""))
+                for c in data["colors"]
+            ]
+        )
 
 
 def load(design_file: str | Path) -> Palette:
@@ -499,6 +506,7 @@ def load(design_file: str | Path) -> Palette:
 
 ```python
 """Pattern folders: pattern.toml metadata and design.py loading."""
+
 from __future__ import annotations
 
 import importlib.util
@@ -550,10 +558,20 @@ def load_pattern(pattern_dir: str | Path) -> PatternMeta:
         gr.register_gauge(name, st, rows)
     notes = {k: list(v) for k, v in data.get("notes", {}).items()}
     return PatternMeta(
-        slug=p["slug"], title=p["title"], dedication=p.get("dedication", ""), quote=p.get("quote", ""),
-        version=p["version"], stitch=p.get("stitch", "sc"), size_in=tuple(float(x) for x in p["size_in"]),
-        hook=p.get("hook", ""), yarn_weight=p.get("yarn_weight", ""), first_row_color=p.get("first_row_color", ""),
-        gauges=gauges, palette=Palette.from_toml(d / "pattern.toml"), notes=notes, dir=d,
+        slug=p["slug"],
+        title=p["title"],
+        dedication=p.get("dedication", ""),
+        quote=p.get("quote", ""),
+        version=p["version"],
+        stitch=p.get("stitch", "sc"),
+        size_in=tuple(float(x) for x in p["size_in"]),
+        hook=p.get("hook", ""),
+        yarn_weight=p.get("yarn_weight", ""),
+        first_row_color=p.get("first_row_color", ""),
+        gauges=gauges,
+        palette=Palette.from_toml(d / "pattern.toml"),
+        notes=notes,
+        dir=d,
     )
 
 
@@ -598,9 +616,11 @@ from graphghan.text import FONT_METAMORPHOUS, text_line
 
 def test_line_height_is_exact_and_glyphs_present():
     gr.set_gauge("sc")
-    arr, asc, desc = text_line("Lord", 17, color=1, bg=0, font_path=FONT_METAMORPHOUS, bold=0.035, threshold=0.42)
+    arr, asc, desc = text_line(
+        "Lord", 17, color=1, bg=0, font_path=FONT_METAMORPHOUS, bold=0.035, threshold=0.42
+    )
     assert arr.shape[0] == 17 and asc + desc == 17 and 10 <= asc <= 15
-    assert (arr == 1).sum() > 60 and arr[:, 0].any() and arr[:, -1].any()   # trimmed to ink
+    assert (arr == 1).sum() > 60 and arr[:, 0].any() and arr[:, -1].any()  # trimmed to ink
 
 
 def test_width_follows_cell_aspect():
@@ -629,6 +649,7 @@ curl -sSL -o fonts/OFL.txt https://raw.githubusercontent.com/google/fonts/main/o
 ```python
 """Lettering: render a TTF line so that its full line height spans N rows, with glyph widths
 corrected for the cell aspect, at any gauge and any font."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -642,20 +663,28 @@ from .pattern import find_repo_root
 FONT_METAMORPHOUS = find_repo_root(Path(__file__)) / "fonts" / "Metamorphous-Regular.ttf"
 
 
-def text_line(text: str, size_rows: int, color: int, bg: int, font_path: str | Path,
-              threshold: float = 0.5, bold: float = 0.0):
+def text_line(
+    text: str,
+    size_rows: int,
+    color: int,
+    bg: int,
+    font_path: str | Path,
+    threshold: float = 0.5,
+    bold: float = 0.0,
+):
     """Returns (array, ascent_rows, descent_rows). Rendered at 8x and box-filtered down;
     `bold` is a stroke width as a fraction of the row size; `threshold` is the ink cutoff (0..1)."""
     big = ImageFont.truetype(str(font_path), size_rows * 8)
     asc_px, desc_px = big.getmetrics()
     line_px = asc_px + desc_px
     img = Image.new("L", (size_rows * 8 * max(1, len(text)) * 2 + 40, line_px), 0)
-    ImageDraw.Draw(img).text((20, 0), text, font=big, fill=255,
-                             stroke_width=int(round(bold * size_rows * 8)), stroke_fill=255)
+    ImageDraw.Draw(img).text(
+        (20, 0), text, font=big, fill=255, stroke_width=int(round(bold * size_rows * 8)), stroke_fill=255
+    )
     a = np.array(img)
     xs = np.where(a.max(axis=0) > 0)[0]
     img = img.crop((int(xs.min()), 0, int(xs.max()) + 1, line_px))
-    scale = size_rows * gr.SH / line_px                   # inches per source pixel
+    scale = size_rows * gr.SH / line_px  # inches per source pixel
     cols_out = max(1, int(round(img.width * scale / gr.SW)))
     small = img.resize((cols_out, size_rows), Image.BOX)
     m = np.array(small) >= int(255 * threshold)
@@ -720,8 +749,8 @@ def test_twist_is_inch_true_and_corner_anchored():
     v, period_v = twist.twist_strip_in(152, 12, horizontal=False, bg=BG, fg=FG)
     assert v.shape == (152, 12) and abs(period_v - 4.0) < 1e-9
     gold = arr == FG
-    assert gold[:, 0].sum() <= 5 and gold[:, -1].sum() <= 5        # strands converge at both corners
-    assert not gold[0].any() and not gold[-1].any()                 # margin rows stay background
+    assert gold[:, 0].sum() <= 5 and gold[:, -1].sum() <= 5  # strands converge at both corners
+    assert not gold[0].any() and not gold[-1].any()  # margin rows stay background
 
 
 def test_solomon_and_corner_block_have_four_crossings():
@@ -768,6 +797,7 @@ def test_stones_moon_clear_of_stones():
 def test_plaid_min_run_two():
     a = plaid.plaid(120, 80, 0, 0, {"G": BG, "B": FG, "Y": P2, "R": P3})
     from graphghan.export import rle_rows
+
     for runs in rle_rows(a) + rle_rows(a.T):
         assert min(n for _, n in runs) >= 2
 
@@ -858,9 +888,18 @@ def stripe_band(length, thick, seq, horizontal=True):
 `__init__.py`:
 ```python
 """Motif families. CATALOG renders a sample of each for the skill's thumbnails."""
+
 from . import bands, dragonfly, knots, plaid, rings, stones, thistle, twist  # noqa: F401
 
-SAMPLE_RGB = [(30, 77, 58), (217, 162, 27), (242, 232, 213), (43, 47, 51), (107, 45, 92), (31, 58, 147), (139, 30, 45)]
+SAMPLE_RGB = [
+    (30, 77, 58),
+    (217, 162, 27),
+    (242, 232, 213),
+    (43, 47, 51),
+    (107, 45, 92),
+    (31, 58, 147),
+    (139, 30, 45),
+]
 G, Y, C, K, P, B, R = range(7)
 
 
@@ -877,7 +916,10 @@ def _catalog():
         ("amber-drop", lambda: (dragonfly.amber_drop(36, 44, C, Y, K), SAMPLE_RGB)),
         ("standing-stones", lambda: (stones.standing_stones(120, 50, C, G, K, Y), SAMPLE_RGB)),
         ("plaid", lambda: (plaid.plaid(96, 64, 0, 0, {"G": G, "B": B, "Y": Y, "R": R}), SAMPLE_RGB)),
-        ("stripe-band", lambda: (bands.stripe_band(60, 10, [(G, 2), (B, 2), (G, 2), (Y, 2), (G, 2)]), SAMPLE_RGB)),
+        (
+            "stripe-band",
+            lambda: (bands.stripe_band(60, 10, [(G, 2), (B, 2), (G, 2), (Y, 2), (G, 2)]), SAMPLE_RGB),
+        ),
     ]
 
 
@@ -937,8 +979,8 @@ def test_twist_frame_edges_mirror_and_panel(corners):
     ex, ey = gr.cols(0.5), gr.rows(0.5)
     assert (a[:ey] == Y).all() and (a[-ey:] == Y).all() and (a[:, :ex] == Y).all() and (a[:, -ex:] == Y).all()
     sx, sy = gr.cols(3.5), gr.rows(3.5)
-    assert np.array_equal(a[:, :ex + sx], a[:, W - ex - sx:][:, ::-1])
-    assert np.array_equal(a[:ey + sy], a[H - ey - sy:][::-1])
+    assert np.array_equal(a[:, : ex + sx], a[:, W - ex - sx :][:, ::-1])
+    assert np.array_equal(a[: ey + sy], a[H - ey - sy :][::-1])
     assert x0 == W - x1 and y0 == H - y1 and x1 - x0 > 140 and y1 - y0 > 130
 
 
@@ -967,6 +1009,7 @@ Expected: FAIL with `ModuleNotFoundError`
 
 ```python
 """Composition helpers shared by pattern designs."""
+
 from __future__ import annotations
 
 from .text import text_line
@@ -990,6 +1033,7 @@ def text_block(g, lines, x_center, y_top, size, pitch, font_path, color, bg, bol
 
 ```python
 """Border frames. Each paints into a Grid and returns the inner (cream panel) rect."""
+
 from __future__ import annotations
 
 from . import grid as gr
@@ -1031,16 +1075,23 @@ def twist_frame(g, W, H, bg, fg, edge_in=0.5, strip_in=3.5, corners="dot", margi
     return px0, py0, W - px0, H - py0
 
 
-def link_frame(g, W, H, ground, rail, bloom, calyx, edge_color, edge_in=0.5, band_in=2.5, link_in=5.0, margin_in=0.5):
+def link_frame(
+    g, W, H, ground, rail, bloom, calyx, edge_color, edge_in=0.5, band_in=2.5, link_in=5.0, margin_in=0.5
+):
     """A band of linked rectangles: `rail` rails and dividers on `ground`, a thistle bloom in every link."""
     ex, ey = gr.cols(edge_in), gr.rows(edge_in)
     bx, by = gr.cols(band_in), gr.rows(band_in)
     rx, ry = gr.cols(0.5), gr.rows(0.5)
     g.rect(0, 0, W, H, edge_color)
     g.rect(ex, ey, W - ex, H - ey, ground)
-    for (x0, y0, x1, y1) in ((ex, ey, W - ex, H - ey), (ex + bx - rx, ey + by - ry, W - ex - bx + rx, H - ey - by + ry)):
-        g.rect(x0, y0, x1, y0 + ry, rail); g.rect(x0, y1 - ry, x1, y1, rail)
-        g.rect(x0, y0, x0 + rx, y1, rail); g.rect(x1 - rx, y0, x1, y1, rail)
+    for x0, y0, x1, y1 in (
+        (ex, ey, W - ex, H - ey),
+        (ex + bx - rx, ey + by - ry, W - ex - bx + rx, H - ey - by + ry),
+    ):
+        g.rect(x0, y0, x1, y0 + ry, rail)
+        g.rect(x0, y1 - ry, x1, y1, rail)
+        g.rect(x0, y0, x0 + rx, y1, rail)
+        g.rect(x1 - rx, y0, x1, y1, rail)
     icon = thistle.bloom_icon(ground, bloom, calyx)
     ih, iw = icon.shape
     for y0 in (ey, H - ey - by):
@@ -1048,7 +1099,8 @@ def link_frame(g, W, H, ground, rail, bloom, calyx, edge_color, edge_in=0.5, ban
         x_start, x_end = ex + bx, W - ex - bx
         n = max(1, int(round((x_end - x_start) * gr.SW / link_in)))
         step = (x_end - x_start) / n
-        g.rect(x_start - rx, y0, x_start, y0 + by, rail); g.rect(x_end, y0, x_end + rx, y0 + by, rail)
+        g.rect(x_start - rx, y0, x_start, y0 + by, rail)
+        g.rect(x_end, y0, x_end + rx, y0 + by, rail)
         for i in range(1, n):
             xx = int(round(x_start + i * step))
             g.rect(xx - rx // 2, y0, xx - rx // 2 + rx, y0 + by, rail)
@@ -1060,7 +1112,8 @@ def link_frame(g, W, H, ground, rail, bloom, calyx, edge_color, edge_in=0.5, ban
         y_start, y_end = ey + by, H - ey - by
         n = max(1, int(round((y_end - y_start) * gr.SH / link_in)))
         step = (y_end - y_start) / n
-        g.rect(x0, y_start - ry, x0 + bx, y_start, rail); g.rect(x0, y_end, x0 + bx, y_end + ry, rail)
+        g.rect(x0, y_start - ry, x0 + bx, y_start, rail)
+        g.rect(x0, y_end, x0 + bx, y_end + ry, rail)
         for i in range(1, n):
             yy = int(round(y_start + i * step))
             g.rect(x0, yy - ry // 2, x0 + bx, yy - ry // 2 + ry, rail)
@@ -1112,7 +1165,15 @@ import numpy as np
 from pathlib import Path
 
 from graphghan import grid as gr
-from graphghan.export import chart_json, decode_rows, rle_rows, rows_to_strings, stats, write_dist, written_rows
+from graphghan.export import (
+    chart_json,
+    decode_rows,
+    rle_rows,
+    rows_to_strings,
+    stats,
+    write_dist,
+    written_rows,
+)
 from graphghan.pattern import load_pattern
 
 FIX = Path(__file__).parent / "fixtures" / "minimal"
@@ -1133,9 +1194,10 @@ def test_rle_round_trip():
 
 
 def test_written_rows_reverse_odd_rows():
-    a = small(); a[2, 0] = 1                      # bottom row: B then A
+    a = small()
+    a[2, 0] = 1  # bottom row: B then A
     lines = written_rows(a, ["A", "B"])
-    assert lines[0] == "Row 1 (RS): 4 A, 1 B  (5 sts)"   # read right to left
+    assert lines[0] == "Row 1 (RS): 4 A, 1 B  (5 sts)"  # read right to left
     assert lines[1].startswith("Row 2 (WS): 1 A, 3 B, 1 A")
 
 
@@ -1151,11 +1213,34 @@ def test_chart_json_schema_and_write_dist(tmp_path):
     meta = load_pattern(FIX)
     gr.set_gauge("sc")
     doc = chart_json(small(), meta, "sc", {"panel": (1, 1, 4, 2)})
-    for key in ("schema", "slug", "title", "dedication", "quote", "version", "stitch", "gauge", "cell_aspect",
-                "width", "height", "size_in", "palette", "rows", "stats", "notes", "report"):
+    for key in (
+        "schema",
+        "slug",
+        "title",
+        "dedication",
+        "quote",
+        "version",
+        "stitch",
+        "gauge",
+        "cell_aspect",
+        "width",
+        "height",
+        "size_in",
+        "palette",
+        "rows",
+        "stats",
+        "notes",
+        "report",
+    ):
         assert key in doc
     assert doc["schema"] == 1 and doc["gauge"] == {"st_per_in": 3.5, "rows_per_in": 4.0}
-    assert doc["palette"][0] == {"code": "A", "name": "Alpha", "hex": "#112233", "yarn": "any", "use": "ground"}
+    assert doc["palette"][0] == {
+        "code": "A",
+        "name": "Alpha",
+        "hex": "#112233",
+        "yarn": "any",
+        "use": "ground",
+    }
     write_dist(small(), meta, "sc", {"panel": (1, 1, 4, 2)}, tmp_path)
     assert json.loads((tmp_path / "chart.json").read_text())["rows"] == ["5A", "1A3B1A", "5A"]
     for name in ("chart.png", "preview.png", "preview-grid.png", "written-rows.txt"):
@@ -1205,6 +1290,7 @@ Expected: FAIL with `ModuleNotFoundError`
 
 ```python
 """Exports: run-length rows, PNGs, stats, written rows, chart.json (schema 1)."""
+
 from __future__ import annotations
 
 import json
@@ -1229,7 +1315,8 @@ def rle_rows(a):
             if v == prev:
                 n += 1
             else:
-                runs.append((prev, n)); prev, n = v, 1
+                runs.append((prev, n))
+                prev, n = v, 1
         runs.append((prev, n))
         out.append(runs)
     return out
@@ -1266,9 +1353,13 @@ def preview_png(a, rgb, path, cw=8, ch=None, grid=False, bold_every=10):
     if grid:
         d = ImageDraw.Draw(img)
         for x in range(w + 1):
-            d.line([(x * cw, 0), (x * cw, h * ch)], fill=(0, 0, 0) if x % bold_every == 0 else (120, 120, 120))
+            d.line(
+                [(x * cw, 0), (x * cw, h * ch)], fill=(0, 0, 0) if x % bold_every == 0 else (120, 120, 120)
+            )
         for y in range(h + 1):
-            d.line([(0, y * ch), (w * cw, y * ch)], fill=(0, 0, 0) if y % bold_every == 0 else (120, 120, 120))
+            d.line(
+                [(0, y * ch), (w * cw, y * ch)], fill=(0, 0, 0) if y % bold_every == 0 else (120, 120, 120)
+            )
     img.save(path)
 
 
@@ -1284,11 +1375,19 @@ def stats(a, codes):
             if n == 1:
                 singles[codes[c]] += 1
     cell_sqin = gr.SW * gr.SH
-    yards = {code: n * cell_sqin * 1.1 * 1.2 for code, n in counts.items()}   # 1.1 yd/sq in worsted sc, +20% tails
+    yards = {
+        code: n * cell_sqin * 1.1 * 1.2 for code, n in counts.items()
+    }  # 1.1 yd/sq in worsted sc, +20% tails
     return {
-        "stitches": int(w * h), "size_in": [round(w * gr.SW, 1), round(h * gr.SH, 1)],
-        "counts": counts, "single_stitch_runs": singles,
-        "color_changes_per_row": {"mean": round(sum(per_row) / len(per_row), 1), "max": max(per_row), "per_row": per_row},
+        "stitches": int(w * h),
+        "size_in": [round(w * gr.SW, 1), round(h * gr.SH, 1)],
+        "counts": counts,
+        "single_stitch_runs": singles,
+        "color_changes_per_row": {
+            "mean": round(sum(per_row) / len(per_row), 1),
+            "max": max(per_row),
+            "per_row": per_row,
+        },
         "yards_est": {k: int(round(v)) for k, v in yards.items()},
         "skeins_364yd": {k: round(v / 364, 1) for k, v in yards.items()},
     }
@@ -1304,8 +1403,11 @@ def written_rows(a, codes):
         if row_no % 2 == 1:
             row = row[::-1]
         side = "RS" if row_no % 2 == 1 else "WS"
-        lines.append(f"Row {row_no} ({side}): " + ", ".join(f"{n} {codes[c]}" for c, n in row)
-                     + f"  ({sum(n for _, n in row)} sts)")
+        lines.append(
+            f"Row {row_no} ({side}): "
+            + ", ".join(f"{n} {codes[c]}" for c, n in row)
+            + f"  ({sum(n for _, n in row)} sts)"
+        )
     return lines
 
 
@@ -1313,19 +1415,36 @@ def chart_json(a, meta, gauge_key, report, variant="final"):
     st, rows = meta.gauges.get(gauge_key, gr.GAUGES[gauge_key])
     codes = meta.palette.codes
     return {
-        "schema": SCHEMA, "slug": meta.slug, "title": meta.title, "dedication": meta.dedication, "quote": meta.quote,
-        "version": meta.version, "variant": variant, "stitch": gauge_key,
-        "gauge": {"st_per_in": st, "rows_per_in": rows}, "cell_aspect": round(st / rows, 4),
-        "hook": meta.hook, "yarn_weight": meta.yarn_weight, "first_row_color": meta.first_row_color,
-        "width": int(a.shape[1]), "height": int(a.shape[0]), "size_in": [round(a.shape[1] / st, 1), round(a.shape[0] / rows, 1)],
-        "palette": [{"code": c.code, "name": c.name, "hex": c.hex, "yarn": c.yarn, "use": c.use} for c in meta.palette.colors],
-        "rows": rows_to_strings(a, codes), "stats": stats(a, codes), "notes": meta.notes,
+        "schema": SCHEMA,
+        "slug": meta.slug,
+        "title": meta.title,
+        "dedication": meta.dedication,
+        "quote": meta.quote,
+        "version": meta.version,
+        "variant": variant,
+        "stitch": gauge_key,
+        "gauge": {"st_per_in": st, "rows_per_in": rows},
+        "cell_aspect": round(st / rows, 4),
+        "hook": meta.hook,
+        "yarn_weight": meta.yarn_weight,
+        "first_row_color": meta.first_row_color,
+        "width": int(a.shape[1]),
+        "height": int(a.shape[0]),
+        "size_in": [round(a.shape[1] / st, 1), round(a.shape[0] / rows, 1)],
+        "palette": [
+            {"code": c.code, "name": c.name, "hex": c.hex, "yarn": c.yarn, "use": c.use}
+            for c in meta.palette.colors
+        ],
+        "rows": rows_to_strings(a, codes),
+        "stats": stats(a, codes),
+        "notes": meta.notes,
         "report": {k: (list(v) if isinstance(v, tuple) else v) for k, v in report.items()},
     }
 
 
 def write_dist(a, meta, gauge_key, report, out_dir, variant="final"):
-    out = Path(out_dir); out.mkdir(parents=True, exist_ok=True)
+    out = Path(out_dir)
+    out.mkdir(parents=True, exist_ok=True)
     doc = chart_json(a, meta, gauge_key, report, variant)
     (out / "chart.json").write_text(json.dumps(doc, separators=(",", ":")) + "\n")
     chart_png(a, meta.palette.rgb, out / "chart.png")
@@ -1339,6 +1458,7 @@ def write_dist(a, meta, gauge_key, report, out_dir, variant="final"):
 
 ```python
 """Generic chart invariants and reports. Pattern-specific checks live in each pattern's tests."""
+
 from __future__ import annotations
 
 import numpy as np
@@ -1356,7 +1476,12 @@ def used_indices(a):
 
 
 def solid_edge(a, color, ex, ey):
-    return bool((a[:ey] == color).all() and (a[-ey:] == color).all() and (a[:, :ex] == color).all() and (a[:, -ex:] == color).all())
+    return bool(
+        (a[:ey] == color).all()
+        and (a[-ey:] == color).all()
+        and (a[:, :ex] == color).all()
+        and (a[:, -ex:] == color).all()
+    )
 
 
 def mirror_lr(a, n_cols):
@@ -1384,7 +1509,11 @@ def run_all(a, meta):
     results = [
         ("row totals", bad_rows(a, w) == [], f"{h} rows of {w}"),
         ("palette closure", used <= set(range(len(meta.palette))), f"indices used: {sorted(used)}"),
-        ("solid edge", first is not None and solid_edge(a, first, 1, 1), f"edge color {meta.first_row_color}"),
+        (
+            "solid edge",
+            first is not None and solid_edge(a, first, 1, 1),
+            f"edge color {meta.first_row_color}",
+        ),
         ("first row solid", first is not None and bool((a[-1] == first).all()), "row 1 is a single color"),
         ("mirror left/right (outer 2 cols)", mirror_lr(a, 2), ""),
         ("mirror top/bottom (outer 2 rows)", mirror_tb(a, 2), ""),
@@ -1526,9 +1655,9 @@ def test_five_colors_only(chart):
 def test_frame_corner_squares_mirror(chart):
     a, _, _ = chart
     ex, ey, sx, sy = gr.cols(0.5), gr.rows(0.5), gr.cols(3.5), gr.rows(3.5)
-    tl = a[ey:ey + sy, ex:ex + sx]
-    assert np.array_equal(tl, a[ey:ey + sy, -ex - sx:-ex][:, ::-1])
-    assert np.array_equal(tl, a[-ey - sy:-ey, ex:ex + sx][::-1, :])
+    tl = a[ey : ey + sy, ex : ex + sx]
+    assert np.array_equal(tl, a[ey : ey + sy, -ex - sx : -ex][:, ::-1])
+    assert np.array_equal(tl, a[-ey - sy : -ey, ex : ex + sx][::-1, :])
 
 
 def test_panel_and_outside(chart):
@@ -1537,7 +1666,8 @@ def test_panel_and_outside(chart):
     x0, y0, x1, y1 = rep["panel"]
     panel = a[y0:y1, x0:x1]
     assert set(np.unique(panel).tolist()) <= {C, K, G, P, Y} and (panel == C).mean() > 0.6
-    outside = a.copy(); outside[y0:y1, x0:x1] = C
+    outside = a.copy()
+    outside[y0:y1, x0:x1] = C
     assert not (outside == K).any() and not (outside == P).any()
 
 
@@ -1554,7 +1684,7 @@ def test_text_lines_clear(chart):
     a, rep, meta = chart
     C, K = meta.palette["C"], meta.palette["K"]
     px0, _, px1, _ = rep["panel"]
-    for (lx0, ly0, lx1, ly1) in rep["text"]:
+    for lx0, ly0, lx1, ly1 in rep["text"]:
         assert set(np.unique(a[ly0:ly1, px0:px1]).tolist()) <= {C, K}
 
 
@@ -1587,6 +1717,7 @@ Expected: FAIL with `FileNotFoundError` (no design.py)
 
 ```python
 """Craigh na Dun Blanket: standing stones, the quote, thistles, a dragonfly, braided gold border."""
+
 from __future__ import annotations
 
 from graphghan import Grid, grid as gr, palette
@@ -1634,15 +1765,20 @@ def build(gauge_key: str = "sc", variant: str = "final"):
     lx, rx = x0 + gr.cols(1.2), x1 - gr.cols(1.2) - thw
     g.blit(th, lx, ty, transparent=C)
     g.blit(th[:, ::-1], rx, ty, transparent=C)
-    report = {"panel": (x0, y0, x1, y1), "scene": (x0, y0, x1, y0 + scene_h), "text": boxes,
-              "text_bottom": text_bottom, "thistles": [(lx, ty, lx + thw, ty + thh), (rx, ty, rx + thw, ty + thh)]}
+    report = {
+        "panel": (x0, y0, x1, y1),
+        "scene": (x0, y0, x1, y0 + scene_h),
+        "text": boxes,
+        "text_bottom": text_bottom,
+        "thistles": [(lx, ty, lx + thw, ty + thh), (rx, ty, rx + thw, ty + thh)],
+    }
     if opts["foot"] == "dragonfly":
         span = 6.5
         dw, dh = gr.cols(span + 0.6), gr.rows(5.6)
         df = dragonfly.dragonfly(dw, dh, C, K, K, K, span=span)
         room = y1 - gr.rows(0.4) - (text_bottom + gap)
         if dh > room:
-            df = df[(dh - room) // 2:(dh - room) // 2 + room]
+            df = df[(dh - room) // 2 : (dh - room) // 2 + room]
         dy = y1 - gr.rows(0.4) - df.shape[0]
         g.blit(df, cx - dw // 2, dy, transparent=C)
         report["dragonfly"] = (cx - dw // 2, dy, cx - dw // 2 + dw, y1 - gr.rows(0.4))
@@ -1719,7 +1855,9 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def run(*args):
-    return subprocess.run([sys.executable, "-m", "graphghan.cli", *args], cwd=ROOT, capture_output=True, text=True)
+    return subprocess.run(
+        [sys.executable, "-m", "graphghan.cli", *args], cwd=ROOT, capture_output=True, text=True
+    )
 
 
 def test_render_writes_dist_and_check_passes(tmp_path):
@@ -1727,7 +1865,7 @@ def test_render_writes_dist_and_check_passes(tmp_path):
     doc = json.loads((tmp_path / "chart.json").read_text())
     assert doc["schema"] == 1 and doc["width"] == 189 and doc["dedication"] == "For Meaghan"
     assert (tmp_path / "chart.png").exists() and (tmp_path / "written-rows.txt").exists()
-    assert main(["render", "craigh-na-dun", "--check"]) == 0        # committed dist matches
+    assert main(["render", "craigh-na-dun", "--check"]) == 0  # committed dist matches
 
 
 def test_check_runs_invariants_and_tests():
@@ -1740,7 +1878,11 @@ def test_new_scaffolds_and_renders(tmp_path, monkeypatch):
     monkeypatch.chdir(ROOT)
     assert main(["new", "test-scaffold", "--title", "Test Scaffold", "--dir", str(tmp_path)]) == 0
     d = tmp_path / "test-scaffold"
-    assert (d / "pattern.toml").exists() and (d / "design.py").exists() and (d / "tests" / "test_design.py").exists()
+    assert (
+        (d / "pattern.toml").exists()
+        and (d / "design.py").exists()
+        and (d / "tests" / "test_design.py").exists()
+    )
     assert main(["render", str(d), "--out", str(tmp_path / "out")]) == 0
     assert json.loads((tmp_path / "out" / "chart.json").read_text())["slug"] == "test-scaffold"
 
@@ -1821,6 +1963,7 @@ colors = []
 `src/graphghan/templates/design.py.tmpl`:
 ```python
 """{title}: quote panel inside a braided border. Edit freely; keep build() deterministic."""
+
 from __future__ import annotations
 
 from graphghan import Grid, grid as gr, palette
@@ -1882,7 +2025,7 @@ def test_text_lines_clear(chart):
     a, rep, meta = chart
     C, K = meta.palette["C"], meta.palette["K"]
     px0, _, px1, _ = rep["panel"]
-    for (lx0, ly0, lx1, ly1) in rep["text"]:
+    for lx0, ly0, lx1, ly1 in rep["text"]:
         assert set(np.unique(a[ly0:ly1, px0:px1]).tolist()) <= {{C, K}}
 ```
 
@@ -1890,6 +2033,7 @@ def test_text_lines_clear(chart):
 
 ```python
 """The comparison page written by `graphghan options`: every variant at every gauge, with stats."""
+
 from __future__ import annotations
 
 import json
@@ -1900,19 +2044,20 @@ def build_options_html(title, entries):
     cards = []
     for e in entries:
         cards.append(
-            f'<article><h2>{e["variant"]} · {e["gauge"]}</h2>'
+            f"<article><h2>{e['variant']} · {e['gauge']}</h2>"
             f'<canvas data-key="{e["variant"]}_{e["gauge"]}"></canvas>'
-            f'<table><tr><th>Stitches × rows</th><td>{e["width"]} × {e["height"]}</td></tr>'
-            f'<tr><th>Finished</th><td>{e["size_in"][0]}″ × {e["size_in"][1]}″</td></tr>'
-            f'<tr><th>Colors</th><td>{len(e["colors"])}</td></tr>'
-            f'<tr><th>Changes / row</th><td>mean {e["changes_mean"]}, max {e["changes_max"]}</td></tr>'
-            f'<tr><th>Stitching</th><td>~{e["hours"]} h</td></tr></table></article>')
-    data = json.dumps({f'{e["variant"]}_{e["gauge"]}': e for e in entries})
+            f"<table><tr><th>Stitches × rows</th><td>{e['width']} × {e['height']}</td></tr>"
+            f"<tr><th>Finished</th><td>{e['size_in'][0]}″ × {e['size_in'][1]}″</td></tr>"
+            f"<tr><th>Colors</th><td>{len(e['colors'])}</td></tr>"
+            f"<tr><th>Changes / row</th><td>mean {e['changes_mean']}, max {e['changes_max']}</td></tr>"
+            f"<tr><th>Stitching</th><td>~{e['hours']} h</td></tr></table></article>"
+        )
+    data = json.dumps({f"{e['variant']}_{e['gauge']}": e for e in entries})
     return f"""<meta charset="utf-8"><title>{title} options</title>
 <style>body{{font-family:system-ui;margin:24px;background:#f4f5f0;color:#1f2a24}}article{{margin:0 0 32px;background:#fff;padding:16px;border:1px solid #d3d9d0;border-radius:6px}}
 canvas{{display:block;max-width:100%;margin:8px 0}}table{{border-collapse:collapse}}th{{text-align:left;padding:4px 12px 4px 0;color:#5b675f;font-weight:600}}td{{padding:4px 0}}</style>
 <h1>{title}: options</h1>
-{''.join(cards)}
+{"".join(cards)}
 <script>
 const DATA={data};
 for (const [key,e] of Object.entries(DATA)) {{
@@ -1929,6 +2074,7 @@ for (const [key,e] of Object.entries(DATA)) {{
 
 ```python
 """graphghan command line."""
+
 from __future__ import annotations
 
 import argparse
@@ -1968,7 +2114,9 @@ def cmd_render(args) -> int:
         fresh = rows_to_strings(g.a, meta.palette.codes)
         if committed["rows"] != fresh or committed["version"] != meta.version:
             bad = next((i for i, (x, y) in enumerate(zip(committed["rows"], fresh)) if x != y), None)
-            print(f"DRIFT: committed dist differs from code (first differing row index {bad}, version {committed['version']} vs {meta.version})")
+            print(
+                f"DRIFT: committed dist differs from code (first differing row index {bad}, version {committed['version']} vs {meta.version})"
+            )
             return 1
         print("no drift")
         return 0
@@ -1995,12 +2143,16 @@ def cmd_new(args) -> int:
     base = Path(args.dir) if args.dir else find_repo_root() / "patterns"
     d = base / args.slug
     if d.exists():
-        print(f"{d} already exists"); return 1
-    (d / "tests").mkdir(parents=True); (d / "reference").mkdir()
+        print(f"{d} already exists")
+        return 1
+    (d / "tests").mkdir(parents=True)
+    (d / "reference").mkdir()
     subs = {"slug": args.slug, "title": args.title}
     (d / "pattern.toml").write_text((TEMPLATES / "pattern.toml.tmpl").read_text().format(**subs))
     (d / "design.py").write_text((TEMPLATES / "design.py.tmpl").read_text().format(**subs))
-    (d / "tests" / "test_design.py").write_text((TEMPLATES / "test_design.py.tmpl").read_text().format(**subs))
+    (d / "tests" / "test_design.py").write_text(
+        (TEMPLATES / "test_design.py.tmpl").read_text().format(**subs)
+    )
     (d / "CHANGELOG.md").write_text(f"# {args.slug}\n\n## 0.1.0\nScaffolded.\n")
     print(f"scaffolded {d}")
     return 0
@@ -2019,12 +2171,29 @@ def cmd_options(args) -> int:
             doc = chart_json(g.a, meta, gauge, report, variant)
             preview_png(g.a, meta.palette.rgb, out / f"{variant}_{gauge}.png", cw=6)
             per_hr = {"sc": 1100, "hdc": 850, "dc": 700}.get(gauge, 900)
-            hours = doc["stats"]["stitches"] / per_hr + sum(doc["stats"]["color_changes_per_row"]["per_row"]) * 3 / 3600
-            entries.append({"variant": variant, "gauge": gauge, "width": doc["width"], "height": doc["height"],
-                            "size_in": doc["size_in"], "colors": sorted({meta.palette.codes[i] for i in set(g.a.ravel().tolist())}),
-                            "changes_mean": doc["stats"]["color_changes_per_row"]["mean"], "changes_max": doc["stats"]["color_changes_per_row"]["max"],
-                            "hours": round(hours), "rows": doc["rows"], "palette": doc["palette"], "cell_aspect": doc["cell_aspect"]})
-            print(f"{variant} {gauge}: {doc['width']}x{doc['height']} changes mean {doc['stats']['color_changes_per_row']['mean']} max {doc['stats']['color_changes_per_row']['max']}")
+            hours = (
+                doc["stats"]["stitches"] / per_hr
+                + sum(doc["stats"]["color_changes_per_row"]["per_row"]) * 3 / 3600
+            )
+            entries.append(
+                {
+                    "variant": variant,
+                    "gauge": gauge,
+                    "width": doc["width"],
+                    "height": doc["height"],
+                    "size_in": doc["size_in"],
+                    "colors": sorted({meta.palette.codes[i] for i in set(g.a.ravel().tolist())}),
+                    "changes_mean": doc["stats"]["color_changes_per_row"]["mean"],
+                    "changes_max": doc["stats"]["color_changes_per_row"]["max"],
+                    "hours": round(hours),
+                    "rows": doc["rows"],
+                    "palette": doc["palette"],
+                    "cell_aspect": doc["cell_aspect"],
+                }
+            )
+            print(
+                f"{variant} {gauge}: {doc['width']}x{doc['height']} changes mean {doc['stats']['color_changes_per_row']['mean']} max {doc['stats']['color_changes_per_row']['max']}"
+            )
     (out / "options.html").write_text(build_options_html(meta.title, entries))
     print(f"wrote {out / 'options.html'}")
     return 0
@@ -2045,7 +2214,8 @@ def cmd_site(args) -> int:
     root = find_repo_root()
     build = root / "site" / "build.py"
     if not build.exists():
-        print("site/build.py not found (the site plan adds it)"); return 1
+        print("site/build.py not found (the site plan adds it)")
+        return 1
     out = Path(args.out) if args.out else root / "site" / "dist"
     if args.site_cmd == "build":
         runpy.run_path(str(build), run_name="__main__", init_globals={"OUT_DIR": out})
@@ -2060,15 +2230,34 @@ def cmd_site(args) -> int:
 def build_parser():
     p = argparse.ArgumentParser(prog="graphghan", description="charts for pixel-chart crafts")
     sub = p.add_subparsers(dest="cmd", required=True)
-    r = sub.add_parser("render"); r.add_argument("pattern"); r.add_argument("--gauge"); r.add_argument("--variant", default="final")
-    r.add_argument("--out"); r.add_argument("--check", action="store_true"); r.set_defaults(fn=cmd_render)
-    c = sub.add_parser("check"); c.add_argument("pattern"); c.set_defaults(fn=cmd_check)
-    n = sub.add_parser("new"); n.add_argument("slug"); n.add_argument("--title", required=True); n.add_argument("--dir")
-    n.add_argument("--template", default="craigh-na-dun"); n.set_defaults(fn=cmd_new)
-    o = sub.add_parser("options"); o.add_argument("pattern"); o.add_argument("--gauges", default="sc,hdc"); o.add_argument("--out")
+    r = sub.add_parser("render")
+    r.add_argument("pattern")
+    r.add_argument("--gauge")
+    r.add_argument("--variant", default="final")
+    r.add_argument("--out")
+    r.add_argument("--check", action="store_true")
+    r.set_defaults(fn=cmd_render)
+    c = sub.add_parser("check")
+    c.add_argument("pattern")
+    c.set_defaults(fn=cmd_check)
+    n = sub.add_parser("new")
+    n.add_argument("slug")
+    n.add_argument("--title", required=True)
+    n.add_argument("--dir")
+    n.add_argument("--template", default="craigh-na-dun")
+    n.set_defaults(fn=cmd_new)
+    o = sub.add_parser("options")
+    o.add_argument("pattern")
+    o.add_argument("--gauges", default="sc,hdc")
+    o.add_argument("--out")
     o.set_defaults(fn=cmd_options)
-    k = sub.add_parser("catalog"); k.add_argument("--out"); k.set_defaults(fn=cmd_catalog)
-    s = sub.add_parser("site"); s.add_argument("site_cmd", choices=["build", "serve"]); s.add_argument("--out"); s.add_argument("--port", type=int, default=8765)
+    k = sub.add_parser("catalog")
+    k.add_argument("--out")
+    k.set_defaults(fn=cmd_catalog)
+    s = sub.add_parser("site")
+    s.add_argument("site_cmd", choices=["build", "serve"])
+    s.add_argument("--out")
+    s.add_argument("--port", type=int, default=8765)
     s.set_defaults(fn=cmd_site)
     return p
 
@@ -2139,6 +2328,7 @@ Expected: FAIL with `ModuleNotFoundError: No module named 'outlander_studies'`
 `examples/outlander_studies.py` (a self-contained palette; these are motif demonstrations, not published patterns):
 ```python
 """Option studies from the Outlander blanket project, kept as worked examples of the motifs."""
+
 from __future__ import annotations
 
 from graphghan import Grid, grid as gr
@@ -2148,9 +2338,17 @@ from graphghan.motifs import dragonfly, knots, plaid, rings, stones, thistle, tw
 from graphghan.palette import Color, Palette
 from graphghan.text import FONT_METAMORPHOUS
 
-PAL = Palette([Color("C", "Cream", (242, 232, 213)), Color("K", "Charcoal", (43, 47, 51)), Color("G", "Deep Green", (30, 77, 58)),
-               Color("P", "Purple", (107, 45, 92)), Color("B", "Royal Blue", (31, 58, 147)), Color("R", "Burgundy", (139, 30, 45)),
-               Color("Y", "Gold", (217, 162, 27))])
+PAL = Palette(
+    [
+        Color("C", "Cream", (242, 232, 213)),
+        Color("K", "Charcoal", (43, 47, 51)),
+        Color("G", "Deep Green", (30, 77, 58)),
+        Color("P", "Purple", (107, 45, 92)),
+        Color("B", "Royal Blue", (31, 58, 147)),
+        Color("R", "Burgundy", (139, 30, 45)),
+        Color("Y", "Gold", (217, 162, 27)),
+    ]
+)
 C, K, G, P, B, R, Y = (PAL[c] for c in "CKGPBRY")
 QUOTE = ["Lord, you gave me", "a rare woman,", "and God!", "I loved her well."]
 TEXT_ROWS = {"sc": 17, "hdc": 12}
@@ -2178,13 +2376,17 @@ def dragonfly_in_amber(gauge="sc"):
     th = thistle.thistle_scaled(8.5, C, P, G)
     thh, thw = th.shape
     ty, tx = ay + (ah - thh) // 2, ax - gr.cols(1.2) - thw
-    g.blit(th, tx, ty, transparent=C); g.blit(th[:, ::-1], x1 - (tx - x0) - thw, ty, transparent=C)
+    g.blit(th, tx, ty, transparent=C)
+    g.blit(th[:, ::-1], x1 - (tx - x0) - thw, ty, transparent=C)
     boxes, text_h = _text(g, cx, ay + ah + gr.rows(1.0), gauge)
     room = y1 - gr.rows(0.5) - (ay + ah + gr.rows(1.0) + text_h + gr.rows(0.6))
     knot_in = min(6.5, room * gr.SH)
     if knot_in >= 2.5:
-        kw, kh = gr.cols(knot_in), gr.rows(knot_in); s = knot_in / 5.0
-        knot, _ = knots.solomon_knot(kw, kh, C, Y, half=2.4 * s, r_out=1.05 * s, stroke=0.6 * s if s > 0.8 else 0.5)
+        kw, kh = gr.cols(knot_in), gr.rows(knot_in)
+        s = knot_in / 5.0
+        knot, _ = knots.solomon_knot(
+            kw, kh, C, Y, half=2.4 * s, r_out=1.05 * s, stroke=0.6 * s if s > 0.8 else 0.5
+        )
         g.blit(knot, cx - kw // 2, y1 - gr.rows(0.5) - kh)
     return g, {"panel": (x0, y0, x1, y1), "text": boxes}
 
@@ -2199,14 +2401,19 @@ def highland_tartan(gauge="sc"):
     qx, qy = gr.cols(2.0), gr.rows(2.0)
     gx, gy = gr.cols(0.75), gr.rows(0.75)
     g.blit(plaid.plaid(W, H, 0, 0, {"G": G, "B": B, "Y": Y, "R": R}), 0, 0)
-    g.rect(0, 0, W, ey, Y); g.rect(0, H - ey, W, H, Y); g.rect(0, 0, ex, H, Y); g.rect(W - ex, 0, W, H, Y)
+    g.rect(0, 0, W, ey, Y)
+    g.rect(0, H - ey, W, H, Y)
+    g.rect(0, 0, ex, H, Y)
+    g.rect(W - ex, 0, W, H, Y)
     tx0, ty0 = ex + px, ey + py
     top, _ = twist.twist_strip_in(W - 2 * tx0, sy - 2, horizontal=True, bg=G, fg=Y)
     for yy in (ty0, H - ty0 - sy):
-        g.rect(tx0, yy, W - tx0, yy + sy, Y); g.blit(top, tx0, yy + 1)
+        g.rect(tx0, yy, W - tx0, yy + sy, Y)
+        g.blit(top, tx0, yy + 1)
     side, _ = twist.twist_strip_in(H - 2 * ty0, sx - 2, horizontal=False, bg=G, fg=Y)
     for xx in (tx0, W - tx0 - sx):
-        g.rect(xx, ty0, xx + sx, H - ty0, Y); g.blit(side, xx + 1, ty0)
+        g.rect(xx, ty0, xx + sx, H - ty0, Y)
+        g.blit(side, xx + 1, ty0)
     cw, chh = gr.cols(6.0), gr.rows(6.0)
     bx, by = int(round(tx0 + sx / 2.0 - cw / 2.0)), int(round(ty0 + sy / 2.0 - chh / 2.0))
     block, _ = knots.corner_block(cw, chh, G, Y)
@@ -2238,7 +2445,11 @@ def link_border(gauge="sc"):
     return g, {"panel": (x0, y0, x1, y1), "text": boxes}
 
 
-STUDIES = {"dragonfly-in-amber": dragonfly_in_amber, "highland-tartan": highland_tartan, "link-border": link_border}
+STUDIES = {
+    "dragonfly-in-amber": dragonfly_in_amber,
+    "highland-tartan": highland_tartan,
+    "link-border": link_border,
+}
 ```
 
 `examples/README.md`:

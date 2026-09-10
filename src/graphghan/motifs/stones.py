@@ -20,7 +20,14 @@ def standing_stones(w, h, bg, hill, stone, moon):
     ys = np.arange(h)[:, None] * np.ones((1, w), dtype=int)
     arr[hm & (ys >= hill_top - gr.rows(1.0))] = hill
     # stones: (x offset in, width in, height in, lean) standing on the hill line
-    stones = [(-6.6, 1.1, 3.6, 0), (-3.9, 1.3, 4.6, 0), (-1.2, 1.0, 3.2, 0), (1.5, 1.4, 5.0, 0), (4.4, 1.1, 3.9, 0), (6.9, 1.0, 3.0, 0)]
+    stones = [
+        (-6.6, 1.1, 3.6, 0),
+        (-3.9, 1.3, 4.6, 0),
+        (-1.2, 1.0, 3.2, 0),
+        (1.5, 1.4, 5.0, 0),
+        (4.4, 1.1, 3.9, 0),
+        (6.9, 1.0, 3.0, 0),
+    ]
     for ox, sw_in, sh_in, _ in stones:
         x0 = int(round(cx + ox / gr.SW - sw_in / gr.SW / 2))
         x1 = x0 + max(3, gr.cols(sw_in))

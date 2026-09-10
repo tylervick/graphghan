@@ -14,8 +14,12 @@ def dragonfly(w, h, bg, body, wing_fill, wing_line, span=7.0, cx=None, cy=None):
     s = span / 7.0
     arr = np.full((h, w), bg, dtype=np.uint8)
     # wings: (offset x, offset y, a, b, angle)
-    wings = [(1.95, -0.55, 2.55, 0.80, -28), (-1.95, -0.55, 2.55, 0.80, 28),
-             (1.65, 0.70, 2.15, 0.70, 22), (-1.65, 0.70, 2.15, 0.70, -22)]
+    wings = [
+        (1.95, -0.55, 2.55, 0.80, -28),
+        (-1.95, -0.55, 2.55, 0.80, 28),
+        (1.65, 0.70, 2.15, 0.70, 22),
+        (-1.65, 0.70, 2.15, 0.70, -22),
+    ]
     line = 0.42 * s
     for ox, oy, a, b, ang in wings:
         wx = cx + ox * s / gr.SW

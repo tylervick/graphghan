@@ -24,8 +24,8 @@ def test_twist_frame_edges_mirror_and_panel(corners):
     ex, ey = gr.cols(0.5), gr.rows(0.5)
     assert (a[:ey] == Y).all() and (a[-ey:] == Y).all() and (a[:, :ex] == Y).all() and (a[:, -ex:] == Y).all()
     sx, sy = gr.cols(3.5), gr.rows(3.5)
-    assert np.array_equal(a[:, :ex + sx], a[:, W - ex - sx:][:, ::-1])
-    assert np.array_equal(a[:ey + sy], a[H - ey - sy:][::-1])
+    assert np.array_equal(a[:, : ex + sx], a[:, W - ex - sx :][:, ::-1])
+    assert np.array_equal(a[: ey + sy], a[H - ey - sy :][::-1])
     assert x0 == W - x1 and y0 == H - y1 and x1 - x0 > 140 and y1 - y0 > 130
 
 

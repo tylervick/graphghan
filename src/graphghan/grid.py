@@ -1,11 +1,12 @@
 """Stitch grid plus mask helpers. Cells are (row, col); shapes are defined in inches."""
+
 import numpy as np
 
 # gauge: stitches per inch, rows per inch (worsted + 5 mm defaults)
 GAUGES: dict[str, tuple[float, float]] = {"sc": (3.5, 4.0), "hdc": (3.25, 2.5), "dc": (3.0, 1.625)}
 ST_PER_IN = 3.5
 ROWS_PER_IN = 4.0
-SW = 1.0 / ST_PER_IN   # inches per column
+SW = 1.0 / ST_PER_IN  # inches per column
 SH = 1.0 / ROWS_PER_IN  # inches per row
 
 
@@ -43,7 +44,7 @@ class Grid:
 
     def blit(self, arr, x0, y0, transparent=None):
         h, w = arr.shape
-        sub = self.a[y0:y0 + h, x0:x0 + w]
+        sub = self.a[y0 : y0 + h, x0 : x0 + w]
         src = arr[: sub.shape[0], : sub.shape[1]]
         if transparent is None:
             sub[:] = src
@@ -53,6 +54,7 @@ class Grid:
 
 
 # ---------- masks in inch space (local arrays) ----------
+
 
 def inch_coords(w, h, cx, cy):
     """(dx, dy) in inches from center (cx, cy) [cell units] for every cell of a w x h array."""
@@ -86,13 +88,14 @@ def diamond_ring(w, h, cx, cy, r_in, r_out):
 
 # ---------- morphology ----------
 
+
 def dilate(m):
     h, w = m.shape
     p = np.pad(m, 1)
     out = np.zeros_like(m)
     for dy in (0, 1, 2):
         for dx in (0, 1, 2):
-            out |= p[dy:dy + h, dx:dx + w]
+            out |= p[dy : dy + h, dx : dx + w]
     return out
 
 
@@ -128,7 +131,7 @@ def curve_mask(w, h, pts, radius):
     best = np.full(cx.shape, np.inf)
     pts = np.asarray(pts, dtype=float)
     for i in range(0, len(pts), 256):
-        chunk = pts[i:i + 256]
+        chunk = pts[i : i + 256]
         d = np.hypot(cx[:, None] - chunk[None, :, 0], cy[:, None] - chunk[None, :, 1])
         best = np.minimum(best, d.min(axis=1))
     return (best <= radius).reshape(h, w)
@@ -162,7 +165,7 @@ def curve_mask_in(w, h, pts, radius_in, sx, sy):
     pts = np.asarray(pts, dtype=float) * np.array([sx, sy])
     best = np.full(cx.shape, np.inf)
     for i in range(0, len(pts), 256):
-        chunk = pts[i:i + 256]
+        chunk = pts[i : i + 256]
         d = np.hypot(cx[:, None] - chunk[None, :, 0], cy[:, None] - chunk[None, :, 1])
         best = np.minimum(best, d.min(axis=1))
     return (best <= radius_in).reshape(h, w)

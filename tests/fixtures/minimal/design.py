@@ -1,4 +1,5 @@
-from graphghan import Grid, grid as gr, palette
+from graphghan import Grid, palette
+from graphghan import grid as gr
 
 PAL = palette.load(__file__)
 VARIANTS = {"final": {}}

@@ -1,7 +1,16 @@
 """Motif families. CATALOG renders a sample of each for the skill's thumbnails."""
+
 from . import bands, dragonfly, knots, plaid, rings, stones, thistle, twist  # noqa: F401
 
-SAMPLE_RGB = [(30, 77, 58), (217, 162, 27), (242, 232, 213), (43, 47, 51), (107, 45, 92), (31, 58, 147), (139, 30, 45)]
+SAMPLE_RGB = [
+    (30, 77, 58),
+    (217, 162, 27),
+    (242, 232, 213),
+    (43, 47, 51),
+    (107, 45, 92),
+    (31, 58, 147),
+    (139, 30, 45),
+]
 G, Y, C, K, P, B, R = range(7)
 
 
@@ -18,7 +27,10 @@ def _catalog():
         ("amber-drop", lambda: (dragonfly.amber_drop(36, 44, C, Y, K), SAMPLE_RGB)),
         ("standing-stones", lambda: (stones.standing_stones(120, 50, C, G, K, Y), SAMPLE_RGB)),
         ("plaid", lambda: (plaid.plaid(96, 64, 0, 0, {"G": G, "B": B, "Y": Y, "R": R}), SAMPLE_RGB)),
-        ("stripe-band", lambda: (bands.stripe_band(60, 10, [(G, 2), (B, 2), (G, 2), (Y, 2), (G, 2)]), SAMPLE_RGB)),
+        (
+            "stripe-band",
+            lambda: (bands.stripe_band(60, 10, [(G, 2), (B, 2), (G, 2), (Y, 2), (G, 2)]), SAMPLE_RGB),
+        ),
     ]
 
 

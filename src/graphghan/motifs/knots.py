@@ -21,7 +21,7 @@ def solomon_knot(w, h, bg, fg, half=2.4, r_out=1.05, stroke=0.6):
 def corner_block(w, h, bg, fg, outline=2):
     arr = np.full((h, w), fg, dtype=np.uint8)
     inner, n = solomon_knot(w - 2 * outline, h - 2 * outline, bg, fg)
-    arr[outline:h - outline, outline:w - outline] = inner
+    arr[outline : h - outline, outline : w - outline] = inner
     return arr, n
 
 
@@ -35,5 +35,5 @@ def woven_x_block(w, h, bg, fg, outline=2, bar_in=0.6):
     d2 = segment_band(iw, ih, (iw - 1 - pad[0], pad[1]), (pad[0], ih - 1 - pad[1]), bar_in / 2)
     d1, d2, _ = weave(d1, d2, [(np.ones_like(d1), True)])
     inner[d1 | d2] = fg
-    arr[outline:h - outline, outline:w - outline] = inner
+    arr[outline : h - outline, outline : w - outline] = inner
     return arr

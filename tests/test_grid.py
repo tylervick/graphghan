@@ -48,13 +48,15 @@ def test_circle_ring_is_round_in_inches():
 
 
 def test_weave_cuts_under_strand_only_inside_window():
-    a = np.zeros((7, 7), bool); a[3, :] = True          # horizontal bar
-    b = np.zeros((7, 7), bool); b[:, 3] = True          # vertical bar
+    a = np.zeros((7, 7), bool)
+    a[3, :] = True  # horizontal bar
+    b = np.zeros((7, 7), bool)
+    b[:, 3] = True  # vertical bar
     win = np.ones((7, 7), bool)
     a2, b2, found = gr.weave(a, b, [(win, True)])
     assert found == 1
-    assert a2.sum() == 7                                # over strand untouched
-    assert not b2[2, 3] and not b2[4, 3] and b2[0, 3]   # under strand loses the cells touching the bar
+    assert a2.sum() == 7  # over strand untouched
+    assert not b2[2, 3] and not b2[4, 3] and b2[0, 3]  # under strand loses the cells touching the bar
 
 
 def test_curve_mask_in_is_symmetric():

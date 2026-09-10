@@ -1,4 +1,5 @@
 """Border frames. Each paints into a Grid and returns the inner (cream panel) rect."""
+
 from __future__ import annotations
 
 from . import grid as gr
@@ -45,14 +46,19 @@ def twist_frame(g, W, H, bg, fg, edge_in=0.5, strip_in=3.5, corners="dot", margi
     return px0, py0, W - px0, H - py0
 
 
-def link_frame(g, W, H, ground, rail, bloom, calyx, edge_color, edge_in=0.5, band_in=2.5, link_in=5.0, margin_in=0.5):
+def link_frame(
+    g, W, H, ground, rail, bloom, calyx, edge_color, edge_in=0.5, band_in=2.5, link_in=5.0, margin_in=0.5
+):
     """A band of linked rectangles: `rail` rails and dividers on `ground`, a thistle bloom in every link."""
     ex, ey = gr.cols(edge_in), gr.rows(edge_in)
     bx, by = gr.cols(band_in), gr.rows(band_in)
     rx, ry = gr.cols(0.5), gr.rows(0.5)
     g.rect(0, 0, W, H, edge_color)
     g.rect(ex, ey, W - ex, H - ey, ground)
-    for (x0, y0, x1, y1) in ((ex, ey, W - ex, H - ey), (ex + bx - rx, ey + by - ry, W - ex - bx + rx, H - ey - by + ry)):
+    for x0, y0, x1, y1 in (
+        (ex, ey, W - ex, H - ey),
+        (ex + bx - rx, ey + by - ry, W - ex - bx + rx, H - ey - by + ry),
+    ):
         g.rect(x0, y0, x1, y0 + ry, rail)
         g.rect(x0, y1 - ry, x1, y1, rail)
         g.rect(x0, y0, x0 + rx, y1, rail)

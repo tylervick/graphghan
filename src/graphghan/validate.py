@@ -1,4 +1,5 @@
 """Generic chart invariants and reports. Pattern-specific checks live in each pattern's tests."""
+
 from __future__ import annotations
 
 import numpy as np
@@ -15,7 +16,12 @@ def used_indices(a):
 
 
 def solid_edge(a, color, ex, ey):
-    return bool((a[:ey] == color).all() and (a[-ey:] == color).all() and (a[:, :ex] == color).all() and (a[:, -ex:] == color).all())
+    return bool(
+        (a[:ey] == color).all()
+        and (a[-ey:] == color).all()
+        and (a[:, :ex] == color).all()
+        and (a[:, -ex:] == color).all()
+    )
 
 
 def mirror_lr(a, n_cols):
@@ -43,7 +49,11 @@ def run_all(a, meta):
     results = [
         ("row totals", bad_rows(a, w) == [], f"{h} rows of {w}"),
         ("palette closure", used <= set(range(len(meta.palette))), f"indices used: {sorted(used)}"),
-        ("solid edge", first is not None and solid_edge(a, first, 1, 1), f"edge color {meta.first_row_color}"),
+        (
+            "solid edge",
+            first is not None and solid_edge(a, first, 1, 1),
+            f"edge color {meta.first_row_color}",
+        ),
         ("first row solid", first is not None and bool((a[-1] == first).all()), "row 1 is a single color"),
         ("mirror left/right (outer 2 cols)", mirror_lr(a, 2), ""),
         ("mirror top/bottom (outer 2 rows)", mirror_tb(a, 2), ""),

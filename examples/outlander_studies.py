@@ -1,4 +1,5 @@
 """Option studies from the Outlander blanket project, kept as worked examples of the motifs."""
+
 from __future__ import annotations
 
 from graphghan import Grid

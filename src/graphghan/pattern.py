@@ -1,4 +1,5 @@
 """Pattern folders: pattern.toml metadata and design.py loading."""
+
 from __future__ import annotations
 
 import importlib.util
@@ -50,10 +51,20 @@ def load_pattern(pattern_dir: str | Path) -> PatternMeta:
         gr.register_gauge(name, st, rows)
     notes = {k: list(v) for k, v in data.get("notes", {}).items()}
     return PatternMeta(
-        slug=p["slug"], title=p["title"], dedication=p.get("dedication", ""), quote=p.get("quote", ""),
-        version=p["version"], stitch=p.get("stitch", "sc"), size_in=tuple(float(x) for x in p["size_in"]),
-        hook=p.get("hook", ""), yarn_weight=p.get("yarn_weight", ""), first_row_color=p.get("first_row_color", ""),
-        gauges=gauges, palette=Palette.from_toml(d / "pattern.toml"), notes=notes, dir=d,
+        slug=p["slug"],
+        title=p["title"],
+        dedication=p.get("dedication", ""),
+        quote=p.get("quote", ""),
+        version=p["version"],
+        stitch=p.get("stitch", "sc"),
+        size_in=tuple(float(x) for x in p["size_in"]),
+        hook=p.get("hook", ""),
+        yarn_weight=p.get("yarn_weight", ""),
+        first_row_color=p.get("first_row_color", ""),
+        gauges=gauges,
+        palette=Palette.from_toml(d / "pattern.toml"),
+        notes=notes,
+        dir=d,
     )
 
 

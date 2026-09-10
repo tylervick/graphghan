@@ -9,7 +9,9 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def run(*args):
-    return subprocess.run([sys.executable, "-m", "graphghan.cli", *args], cwd=ROOT, capture_output=True, text=True)
+    return subprocess.run(
+        [sys.executable, "-m", "graphghan.cli", *args], cwd=ROOT, capture_output=True, text=True
+    )
 
 
 def test_render_writes_dist_and_check_passes(tmp_path):
@@ -17,7 +19,7 @@ def test_render_writes_dist_and_check_passes(tmp_path):
     doc = json.loads((tmp_path / "chart.json").read_text())
     assert doc["schema"] == 1 and doc["width"] == 189 and doc["dedication"] == "For Meaghan"
     assert (tmp_path / "chart.png").exists() and (tmp_path / "written-rows.txt").exists()
-    assert main(["render", "craigh-na-dun", "--check"]) == 0        # committed dist matches
+    assert main(["render", "craigh-na-dun", "--check"]) == 0  # committed dist matches
 
 
 def test_check_runs_invariants_and_tests():
@@ -30,10 +32,14 @@ def test_new_scaffolds_and_renders(tmp_path, monkeypatch):
     monkeypatch.chdir(ROOT)
     assert main(["new", "test-scaffold", "--title", "Test Scaffold", "--dir", str(tmp_path)]) == 0
     d = tmp_path / "test-scaffold"
-    assert (d / "pattern.toml").exists() and (d / "design.py").exists() and (d / "tests" / "test_design.py").exists()
+    assert (
+        (d / "pattern.toml").exists()
+        and (d / "design.py").exists()
+        and (d / "tests" / "test_design.py").exists()
+    )
     assert main(["render", str(d), "--out", str(tmp_path / "out")]) == 0
     assert json.loads((tmp_path / "out" / "chart.json").read_text())["slug"] == "test-scaffold"
-    assert main(["render", str(d), "--check"]) == 1                 # no committed dist yet
+    assert main(["render", str(d), "--check"]) == 1  # no committed dist yet
 
 
 def test_check_missing_pattern_is_usage_error():

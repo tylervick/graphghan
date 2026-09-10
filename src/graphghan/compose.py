@@ -1,4 +1,5 @@
 """Composition helpers shared by pattern designs."""
+
 from __future__ import annotations
 
 from .text import text_line

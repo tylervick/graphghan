@@ -1,4 +1,5 @@
 """Craigh na Dun Blanket: standing stones, the quote, thistles, a dragonfly, braided gold border."""
+
 from __future__ import annotations
 
 from graphghan import Grid, palette
@@ -47,15 +48,20 @@ def build(gauge_key: str = "sc", variant: str = "final"):
     lx, rx = x0 + gr.cols(1.2), x1 - gr.cols(1.2) - thw
     g.blit(th, lx, ty, transparent=C)
     g.blit(th[:, ::-1], rx, ty, transparent=C)
-    report = {"panel": (x0, y0, x1, y1), "scene": (x0, y0, x1, y0 + scene_h), "text": boxes,
-              "text_bottom": text_bottom, "thistles": [(lx, ty, lx + thw, ty + thh), (rx, ty, rx + thw, ty + thh)]}
+    report = {
+        "panel": (x0, y0, x1, y1),
+        "scene": (x0, y0, x1, y0 + scene_h),
+        "text": boxes,
+        "text_bottom": text_bottom,
+        "thistles": [(lx, ty, lx + thw, ty + thh), (rx, ty, rx + thw, ty + thh)],
+    }
     if opts["foot"] == "dragonfly":
         span = 6.5
         dw, dh = gr.cols(span + 0.6), gr.rows(5.6)
         df = dragonfly.dragonfly(dw, dh, C, K, K, K, span=span)
         room = y1 - gr.rows(0.4) - (text_bottom + gap)
         if dh > room:
-            df = df[(dh - room) // 2:(dh - room) // 2 + room]
+            df = df[(dh - room) // 2 : (dh - room) // 2 + room]
         dy = y1 - gr.rows(0.4) - df.shape[0]
         g.blit(df, cx - dw // 2, dy, transparent=C)
         report["dragonfly"] = (cx - dw // 2, dy, cx - dw // 2 + dw, y1 - gr.rows(0.4))

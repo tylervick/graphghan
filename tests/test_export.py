@@ -34,9 +34,9 @@ def test_rle_round_trip():
 
 def test_written_rows_reverse_odd_rows():
     a = small()
-    a[2, 0] = 1                      # bottom row: B then A
+    a[2, 0] = 1  # bottom row: B then A
     lines = written_rows(a, ["A", "B"])
-    assert lines[0] == "Row 1 (RS): 4 A, 1 B  (5 sts)"   # read right to left
+    assert lines[0] == "Row 1 (RS): 4 A, 1 B  (5 sts)"  # read right to left
     assert lines[1].startswith("Row 2 (WS): 1 A, 3 B, 1 A")
 
 
@@ -52,11 +52,34 @@ def test_chart_json_schema_and_write_dist(tmp_path):
     meta = load_pattern(FIX)
     gr.set_gauge("sc")
     doc = chart_json(small(), meta, "sc", {"panel": (1, 1, 4, 2)})
-    for key in ("schema", "slug", "title", "dedication", "quote", "version", "stitch", "gauge", "cell_aspect",
-                "width", "height", "size_in", "palette", "rows", "stats", "notes", "report"):
+    for key in (
+        "schema",
+        "slug",
+        "title",
+        "dedication",
+        "quote",
+        "version",
+        "stitch",
+        "gauge",
+        "cell_aspect",
+        "width",
+        "height",
+        "size_in",
+        "palette",
+        "rows",
+        "stats",
+        "notes",
+        "report",
+    ):
         assert key in doc
     assert doc["schema"] == 1 and doc["gauge"] == {"st_per_in": 3.5, "rows_per_in": 4.0}
-    assert doc["palette"][0] == {"code": "A", "name": "Alpha", "hex": "#112233", "yarn": "any", "use": "ground"}
+    assert doc["palette"][0] == {
+        "code": "A",
+        "name": "Alpha",
+        "hex": "#112233",
+        "yarn": "any",
+        "use": "ground",
+    }
     write_dist(small(), meta, "sc", {"panel": (1, 1, 4, 2)}, tmp_path)
     assert json.loads((tmp_path / "chart.json").read_text())["rows"] == ["5A", "1A3B1A", "5A"]
     for name in ("chart.png", "preview.png", "preview-grid.png", "written-rows.txt"):

@@ -2,4 +2,4 @@
 
 __version__ = "0.1.0"
 
-from .grid import Grid, set_gauge, register_gauge, current_gauge, cols, rows  # noqa: F401
+from .grid import Grid, cols, current_gauge, register_gauge, rows, set_gauge  # noqa: F401

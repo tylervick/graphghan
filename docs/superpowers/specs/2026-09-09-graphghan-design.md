@@ -131,9 +131,12 @@ colors = ["Braid rows alternate gold and green ...", "..."]
 ```python
 from graphghan import Grid, gauge, motifs, frame, compose, palette
 
-PAL = palette.load(__file__)          # reads pattern.toml next to this file
-VARIANTS = {"final": {"corners": "dot", "foot": "dragonfly"},
-            "plain-foot": {"corners": "dot", "foot": "plain"}}
+PAL = palette.load(__file__)  # reads pattern.toml next to this file
+VARIANTS = {
+    "final": {"corners": "dot", "foot": "dragonfly"},
+    "plain-foot": {"corners": "dot", "foot": "plain"},
+}
+
 
 def build(gauge_key: str = "sc", variant: str = "final") -> tuple[Grid, dict]:
     """Return the grid and a report of named boxes (panel, text lines, motifs) for tests."""
