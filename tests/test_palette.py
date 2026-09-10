@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import pytest
+
 from graphghan.palette import Color, Palette, load
 
 FIX = Path(__file__).parent / "fixtures" / "minimal"
@@ -7,6 +9,11 @@ FIX = Path(__file__).parent / "fixtures" / "minimal"
 
 def test_color_hex():
     assert Color("A", "Alpha", (17, 34, 51)).hex == "#112233"
+
+
+def test_palette_rejects_multi_char_code():
+    with pytest.raises(ValueError):
+        Palette([Color("BG", "x", (0, 0, 0))])
 
 
 def test_palette_from_toml_orders_and_indexes():

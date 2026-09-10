@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import re
 import tomllib
 from dataclasses import dataclass
 from pathlib import Path
+
+_CODE_RE = re.compile(r"^[A-Za-z]$")
 
 
 @dataclass(frozen=True)
@@ -28,6 +31,9 @@ def parse_hex(s: str) -> tuple[int, int, int]:
 class Palette:
     def __init__(self, colors: list[Color]):
         self.colors = list(colors)
+        for c in self.colors:
+            if not _CODE_RE.match(c.code):
+                raise ValueError(f"invalid palette code {c.code!r}: must be a single letter (^[A-Za-z]$)")
         self._index = {c.code: i for i, c in enumerate(self.colors)}
         if len(self._index) != len(self.colors):
             raise ValueError("duplicate color codes in palette")

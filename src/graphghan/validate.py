@@ -2,13 +2,27 @@
 
 from __future__ import annotations
 
+import re
+
 import numpy as np
 
-from .export import rle_rows
+from .export import decode_rows, rle_rows, rows_to_strings
+
+_CODE_RE = re.compile(r"^[A-Za-z]$")
 
 
 def bad_rows(a, width):
     return [i for i, row in enumerate(a) if len(row) != width]
+
+
+def row_totals_match(a, codes):
+    """Round-trip the emitted RLE strings and compare against the source grid (shape and values)."""
+    decoded = decode_rows(rows_to_strings(a, codes), codes)
+    return decoded.shape == a.shape and bool(np.array_equal(decoded, a))
+
+
+def palette_codes_are_single_letters(codes):
+    return all(_CODE_RE.match(c) for c in codes)
 
 
 def used_indices(a):
@@ -46,8 +60,10 @@ def run_all(a, meta):
     used = used_indices(a)
     first = meta.palette[meta.first_row_color] if meta.first_row_color in meta.palette else None
     ch = changes_per_row(a)
+    codes = meta.palette.codes
     results = [
-        ("row totals", bad_rows(a, w) == [], f"{h} rows of {w}"),
+        ("row totals", row_totals_match(a, codes), f"{h} rows of {w}"),
+        ("palette codes", palette_codes_are_single_letters(codes), f"codes: {', '.join(codes)}"),
         ("palette closure", used <= set(range(len(meta.palette))), f"indices used: {sorted(used)}"),
         (
             "solid edge",
