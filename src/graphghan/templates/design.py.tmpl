@@ -1,0 +1,31 @@
+"""{title}: quote panel inside a braided border. Edit freely; keep build() deterministic."""
+from __future__ import annotations
+
+from graphghan import Grid, grid as gr, palette
+from graphghan.compose import text_block
+from graphghan.frame import twist_frame
+from graphghan.text import FONT_METAMORPHOUS
+
+PAL = palette.load(__file__)
+C, K, G, Y = (PAL[c] for c in "CKGY")
+
+QUOTE = ["Your quote", "goes here"]
+TEXT_ROWS = {{"sc": 17, "hdc": 12, "dc": 9}}
+TEXT_GAP = {{"sc": 3, "hdc": 2, "dc": 1}}
+SIZE_IN = (54.0, 46.0)
+
+VARIANTS = {{"final": {{"corners": "dot"}}, "solid-corners": {{"corners": "solid"}}}}
+
+
+def build(gauge_key: str = "sc", variant: str = "final"):
+    opts = VARIANTS[variant]
+    gr.set_gauge(gauge_key)
+    W, H = gr.cols(SIZE_IN[0]), gr.rows(SIZE_IN[1])
+    g = Grid(W, H, G)
+    x0, y0, x1, y1 = twist_frame(g, W, H, G, Y, corners=opts["corners"])
+    g.rect(x0, y0, x1, y1, C)
+    size, pitch = TEXT_ROWS[gauge_key], TEXT_ROWS[gauge_key] + TEXT_GAP[gauge_key]
+    text_h = (len(QUOTE) - 1) * pitch + size
+    text_top = (y0 + y1) // 2 - text_h // 2
+    boxes = text_block(g, QUOTE, (x0 + x1) // 2, text_top, size, pitch, FONT_METAMORPHOUS, K, C)
+    return g, {{"panel": (x0, y0, x1, y1), "text": boxes}}
