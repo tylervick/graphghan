@@ -13,7 +13,7 @@ deliverables:
    brief ("a blanket with this quote and these motifs") turns into an options page and a
    finished, validated pattern.
 
-Live site: **https://tylervick.com/graphghan/**
+Live site: **https://graphghan.milo.cat/**
 
 The first pattern is **Craigh na Dun Blanket** (for Meaghan): 189x184 sc, 5 colors, standing
 stones, thistles, a dragonfly, and a braided gold twist border.
@@ -51,7 +51,7 @@ validation rules, options review) as a Claude Code skill, so it's available from
 symlinked:
 
 ```bash
-ln -sfn ~/Projects/graphghan/.claude/skills/graphghan ~/.claude/skills/graphghan
+ln -sfn "$(pwd)/.claude/skills/graphghan" ~/.claude/skills/graphghan   # run from the repo root
 ```
 
 Then from Claude Code, a brief like "a blanket with this quote and these motifs" drives
