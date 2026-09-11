@@ -79,7 +79,9 @@ against. `graphghan export` writes 1-px PNG, OXS, and CSV.
 a Patterns tab fed from this site, a Projects tab with per-project progress, and a full-screen
 Work screen. `ios/Packages/GraphghanCore` is the Swift reader for the chart format and passes the
 same conformance fixtures as the Python package. The Work screen also drives a Live Activity on
-the lock screen and Dynamic Island with Done and Back buttons.
+the lock screen and Dynamic Island with Done and Back buttons. CI runs the iOS tests on every pull
+request that touches `ios/`, and `.github/workflows/testflight.yml` ships a build to TestFlight by
+hand (see `ios/docs/release.md`).
 
 ## The skill
 
