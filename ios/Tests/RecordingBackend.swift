@@ -12,6 +12,9 @@ final class RecordingBackend: ActivityBackend {
     }
     var areActivitiesEnabled = true
     var startError: Error?
+    /// Forces a real suspension inside `end`, so a concurrency test can catch the controller
+    /// interleaving two calls instead of serializing them.
+    var suspendOnEnd = false
     private(set) var calls: [Call] = []
     private var actives: [ActiveActivity] = []
     private var nextID = 1
@@ -25,6 +28,7 @@ final class RecordingBackend: ActivityBackend {
     }
     func update(id: String, state: WorkActivityState) async { calls.append(.update(id, state.row, state.runIndex)) }
     func end(id: String, state: WorkActivityState?, immediately: Bool) async {
+        if suspendOnEnd { await Task.yield() }
         actives.removeAll { $0.id == id }
         calls.append(.end(id, state?.message, immediately))
     }

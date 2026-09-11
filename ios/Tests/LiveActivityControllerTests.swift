@@ -65,7 +65,7 @@ import GraphghanCore
         await h.controller.update(projectID: p, info: info(p), state: state(Cursor(row: 1, run: 2)))
         #expect(h.backend.calls.last == .start(p) && h.controller.currentID == "act2")
         await h.controller.update(projectID: p, info: info(p), state: state(Cursor(row: 2, run: 3)))  // finished
-        #expect(h.backend.calls.last == .end("act2", nil, true) && h.controller.currentID == nil)
+        #expect(h.backend.calls.last == .end("act2", nil, false) && h.controller.currentID == nil)
     }
 
     @Test func updateForAnotherProjectIsIgnored() async {
@@ -89,14 +89,40 @@ import GraphghanCore
         _ = try? h.backend.start(info: info(gone), state: state(.start))
         h.backend.reset()
         await h.controller.reconcile { info in info.projectID == live ? self.state(Cursor(row: 2, run: 0)) : nil }
-        #expect(h.backend.calls == [.update("act1", 2, 0), .end("act2", "This project is no longer available.", true)])
+        #expect(h.backend.calls == [.update("act1", 2, 0), .end("act2", "This project is no longer available.", false)])
         #expect(h.controller.currentID == "act1" && h.controller.currentProjectID == live)
+    }
+
+    @Test func reconcileEndsAFinishedProject() async {
+        let h = make(); let p = UUID()
+        _ = try? h.backend.start(info: info(p), state: state(.start))
+        h.backend.reset()
+        await h.controller.reconcile { _ in self.state(Cursor(row: 2, run: 3)) }  // finished
+        #expect(h.backend.calls == [.end("act1", nil, false)])
+        #expect(h.controller.currentID == nil)
     }
 
     @Test func endUnavailable() async {
         let h = make(); let p = UUID()
         await h.controller.start(projectID: p, info: info(p), state: state(.start))
         await h.controller.endUnavailable(activityID: "act1", message: "Chart missing.")
-        #expect(h.backend.calls.last == .end("act1", "Chart missing.", true) && h.controller.currentID == nil)
+        #expect(h.backend.calls.last == .end("act1", "Chart missing.", false) && h.controller.currentID == nil)
+    }
+
+    @Test func concurrentStartsForDifferentProjectsAreSerialized() async {
+        let h = make(); let existing = UUID(), a = UUID(), b = UUID()
+        // A pre-existing activity gives each concurrent `start` a real suspension point (ending
+        // it) to interleave on; two starts on an empty backend never suspend at all, so they
+        // can't race no matter how `start` is written.
+        _ = try? h.backend.start(info: info(existing), state: state(.start))
+        h.backend.reset()
+        h.backend.suspendOnEnd = true
+        let infoA = info(a), infoB = info(b), start = state(.start)
+        let first = Task { @MainActor in await h.controller.start(projectID: a, info: infoA, state: start) }
+        let second = Task { @MainActor in await h.controller.start(projectID: b, info: infoB, state: start) }
+        _ = await (first.value, second.value)
+        #expect(h.backend.active().count == 1)
+        #expect(h.controller.currentID == h.backend.active().first?.id)
+        #expect(h.controller.currentProjectID == h.backend.active().first?.info.projectID)
     }
 }
