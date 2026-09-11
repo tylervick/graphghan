@@ -1,14 +1,26 @@
+import SwiftData
 import SwiftUI
 import GraphghanCore
 
 @main
 struct GraphghanApp: App {
+    private let container: ModelContainer
+    private let model: AppModel
+
+    init() {
+        do {
+            container = try Persistence.makeContainer()
+        } catch {
+            fatalError("Could not open the project store: \(error)")
+        }
+        model = AppModel.live(context: container.mainContext)
+    }
+
     var body: some Scene {
         WindowGroup {
-            TabView {
-                Text("Patterns").tabItem { Label("Patterns", systemImage: "square.grid.3x3") }
-                Text("Projects").tabItem { Label("Projects", systemImage: "checklist") }
-            }
+            RootView()
+                .environment(model)
+                .modelContainer(container)
         }
     }
 }

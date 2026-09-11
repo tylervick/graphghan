@@ -1,7 +1,7 @@
 import Foundation
 
 /// One row of the site's `patterns/index.json`.
-public struct IndexEntry: Decodable, Sendable, Identifiable, Equatable {
+public struct IndexEntry: Decodable, Sendable, Identifiable, Hashable {
     public let slug: String
     public let title: String
     public let dedication: String
