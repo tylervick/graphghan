@@ -105,6 +105,7 @@ public struct WorkSequence: Sendable {
                 guard chart.colorIndex(of: code) != nil else { throw SequenceError.malformedPasses("passes[\(i)].runs[\(j)] uses unknown code \(code)") }
                 return Run(code: code, count: count, x0: ro["x0"]?.intValue)
             }
+            guard !runs.isEmpty else { throw SequenceError.malformedPasses("passes[\(i)].runs is empty") }
             let side = o["side"]?.stringValue.flatMap(Side.init(rawValue:))
             let direction = o["direction"]?.stringValue.flatMap(Direction.init(rawValue:))
             return Pass(label: o["label"]?.stringValue ?? "", side: side, direction: direction, gridRow: o["grid_row"]?.intValue, runs: runs)

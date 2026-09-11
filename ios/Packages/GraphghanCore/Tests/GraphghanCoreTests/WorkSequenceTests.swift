@@ -73,4 +73,15 @@ import Testing
         let doc = try ChartDocument.decode(Data(json.utf8))
         #expect(throws: SequenceError.self) { try WorkSequence(chart: try Chart.unchecked(document: doc)) }
     }
+
+    @Test func explicitPassesRejectEmptyRuns() throws {
+        var json = try String(decoding: Fixtures.data("explicit-passes.chart.json"), as: UTF8.self)
+        // Empty the second pass's runs array; runs entries contain no "]" so this is unambiguous.
+        let runsInSecondPass = try NSRegularExpression(pattern: "(\"label\": \"Row 2\"[^\\]]*\"runs\":\\s*\\[)[^\\]]*(\\])")
+        let fullRange = NSRange(json.startIndex..., in: json)
+        json = runsInSecondPass.stringByReplacingMatches(in: json, range: fullRange, withTemplate: "$1$2")
+        // The id no longer matches after editing passes, so build the document directly.
+        let doc = try ChartDocument.decode(Data(json.utf8))
+        #expect(throws: SequenceError.self) { try WorkSequence(chart: try Chart.unchecked(document: doc)) }
+    }
 }

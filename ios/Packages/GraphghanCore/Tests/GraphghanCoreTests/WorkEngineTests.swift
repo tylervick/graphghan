@@ -48,5 +48,10 @@ import Testing
     @Test func invalidCursorIsRejected() {
         #expect(WorkEngine.apply(.advance, to: Cursor(row: 99, run: 0), in: Self.seq) == nil)
         #expect(WorkEngine.apply(.back, to: Cursor(row: 3, run: 9), in: Self.seq) == nil)
+        #expect(WorkEngine.apply(.jump(row: 1), to: Cursor(row: 99, run: 0), in: Self.seq) == nil)
+    }
+
+    @Test func emptySequenceIsNeverFinished() {
+        #expect(!WorkEngine.isFinished(.start, in: WorkSequence(passes: [])))
     }
 }
