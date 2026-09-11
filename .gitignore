@@ -6,3 +6,11 @@ __pycache__/
 patterns/*/build/
 site/dist/
 .worktrees/
+
+ios/*.xcodeproj
+ios/Graphghan/Info.plist
+ios/Graphghan/Graphghan.entitlements
+ios/build/
+ios/DerivedData/
+ios/Packages/*/.build/
+ios/TestResults*.xcresult
