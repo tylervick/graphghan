@@ -14,6 +14,7 @@ final class AppModel {
     let patterns: PatternStore
     let charts: ChartLibrary
     let projects: ProjectService
+    let liveActivity: LiveActivityController
 
     var tab: Tab = .patterns
     var index: [IndexEntry] = []
@@ -26,11 +27,30 @@ final class AppModel {
 
     private var manifests: [String: PatternManifest] = [:]
     private var images: [String: UIImage] = [:]
+    /// Charts seen this launch, so the synchronous `onApply` hook can build activity info without an await.
+    private var chartCache: [String: Chart] = [:]
+    /// The activity refresh the last `apply` kicked off, so an intent can wait for it (below).
+    private var activityUpdate: Task<Void, Never>?
 
-    init(context: ModelContext, patterns: PatternStore, charts: ChartLibrary) {
+    init(context: ModelContext, patterns: PatternStore, charts: ChartLibrary,
+         activityBackend: ActivityBackend = ActivityKitBackend(),
+         defaults: UserDefaults = UserDefaults(suiteName: AppGroup.identifier) ?? .standard) {
         self.patterns = patterns
         self.charts = charts
         self.projects = ProjectService(context: context, charts: charts, patterns: patterns)
+        self.liveActivity = LiveActivityController(backend: activityBackend, defaults: defaults)
+        // One mutation path, one activity refresh: every step -- Work screen or lock-screen button --
+        // pushes the state it just wrote. The hook is synchronous, so it needs a cached chart; a
+        // project with an activity always has one, because starting or reconciling that activity
+        // read the chart. Without it the hook does nothing, which is what an activity-less project
+        // wants anyway.
+        projects.onApply = { [weak self] project, sequence, step in
+            guard let self, let chart = self.chartCache[project.chartID] else { return }
+            let info = LiveActivityState.info(projectID: project.id, chart: chart, sequence: sequence)
+            guard let state = LiveActivityState.make(cursor: step.cursor, sequence: sequence) else { return }
+            self.activityUpdate = Task { await self.liveActivity.update(projectID: project.id, info: info, state: state) }
+        }
+        WorkIntentHandler.shared.perform = { [weak self] action, id in await self?.performIntent(action, projectID: id) }
     }
 
     static func live(context: ModelContext) -> AppModel {
@@ -103,5 +123,54 @@ final class AppModel {
     func startProject(manifest: PatternManifest, chart: ManifestChart, title: String) async throws {
         _ = try await projects.startProject(manifest: manifest, chart: chart, title: title)
         tab = .projects
+    }
+
+    // MARK: live activity
+
+    /// The attributes and current state for a project, or nil when its chart cannot be read.
+    func activityState(for project: Project) async -> (WorkActivityInfo, WorkActivityState)? {
+        guard let chart = try? await projects.chart(for: project), let sequence = try? WorkSequence(chart: chart),
+              let state = LiveActivityState.make(cursor: project.cursor, sequence: sequence) else { return nil }
+        chartCache[project.chartID] = chart
+        return (LiveActivityState.info(projectID: project.id, chart: chart, sequence: sequence), state)
+    }
+
+    /// A lock-screen button: same mutation path as the Work screen, then the activity updates via
+    /// `onApply`. The intent waits for that refresh so the lock screen the system snapshots when
+    /// the intent returns already shows the new run.
+    func performIntent(_ action: WorkAction, projectID: UUID) async {
+        guard let project = try? projects.project(id: projectID) else {
+            await endActivityUnavailable(projectID: projectID)
+            return
+        }
+        guard let chart = try? await projects.chart(for: project), let sequence = try? WorkSequence(chart: chart) else {
+            await endActivityUnavailable(projectID: projectID)
+            return
+        }
+        chartCache[project.chartID] = chart
+        _ = projects.apply(action, to: project, in: sequence)
+        await activityUpdate?.value
+    }
+
+    private func endActivityUnavailable(projectID: UUID) async {
+        // The closure only reads the store and builds state -- never a public LiveActivityController
+        // method, which would deadlock on the mutex `reconcile` already holds.
+        await liveActivity.reconcile { [weak self] info in
+            guard info.projectID == projectID else {
+                // another project's activity is refreshed from its own stored cursor, never ended
+                guard let self, let p = try? self.projects.project(id: info.projectID) else { return nil }
+                return await self.activityState(for: p)?.1
+            }
+            return nil
+        }
+    }
+
+    /// Launch-time reconciliation (spec §7): the stored cursor wins; stale activities end.
+    func reconcileActivities() async {
+        // As above: the closure must not call a public LiveActivityController method.
+        await liveActivity.reconcile { [weak self] info in
+            guard let self, let project = try? self.projects.project(id: info.projectID) else { return nil }
+            return await self.activityState(for: project)?.1
+        }
     }
 }

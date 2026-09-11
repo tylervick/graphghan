@@ -218,4 +218,17 @@ import GraphghanCore
         #expect(step2?.cursor == Cursor(row: 1, run: 2))
         #expect(p.cursor == Cursor(row: 1, run: 2))
     }
+
+    @Test func applyInvokesTheHookAndProjectLookup() async throws {
+        let h = try await makeHarness()
+        let manifest = TestManifest.make(chartID: h.chartID)
+        let p = try await h.service.startProject(manifest: manifest, chart: manifest.charts[0], title: "x")
+        let seq = try await h.service.sequence(for: p)
+        var seen: [Cursor] = []
+        h.service.onApply = { project, _, step in seen.append(step.cursor); #expect(project.id == p.id) }
+        _ = h.service.apply(.advance, to: p, in: seq)
+        #expect(seen == [Cursor(row: 1, run: 1)])
+        #expect(try h.service.project(id: p.id)?.id == p.id)
+        #expect(try h.service.project(id: UUID()) == nil)
+    }
 }

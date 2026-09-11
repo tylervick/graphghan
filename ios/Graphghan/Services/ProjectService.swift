@@ -28,6 +28,8 @@ final class ProjectService {
     var now: @Sendable () -> Date = { Date() }
     /// The last storage error, for a one-time banner. Never blocks advancing.
     var lastError: String?
+    /// Called after every successful step (whether or not the save succeeded): the Live Activity updates from here.
+    var onApply: ((Project, WorkSequence, WorkStep) -> Void)?
 
     init(context: ModelContext, charts: ChartLibrary, patterns: PatternStore) {
         self.context = context
@@ -53,6 +55,14 @@ final class ProjectService {
         context.insert(project)
         try save()
         return project
+    }
+
+    /// Looks a project up by its stable `id`, for callers that only have the identifier -- the
+    /// Live Activity intents, which cross a process boundary and so cannot hold the object.
+    func project(id: UUID) throws -> Project? {
+        var descriptor = FetchDescriptor<Project>(predicate: #Predicate { $0.id == id })
+        descriptor.fetchLimit = 1
+        return try context.fetch(descriptor).first
     }
 
     func chart(for project: Project) async throws -> Chart {
@@ -90,6 +100,7 @@ final class ProjectService {
             // lastError is already set by save(); in-memory state and the pending event stay
             // queued for the next save.
         }
+        onApply?(project, sequence, step)
         return step
     }
 
