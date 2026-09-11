@@ -153,3 +153,56 @@ def test_pattern_chart_json_contract(tmp_path):
         first_runs = [int(n) for n, _ in re.findall(r"(\d+)\s+([A-Za-z]+)", body)]
         last_row_runs = [int(n) for n, _ in run_re.findall(doc["rows"][-1])]
         assert first_runs == list(reversed(last_row_runs)), slug
+
+
+def test_manifest_and_charts_tree(tmp_path):
+    out, index, _ = build(tmp_path / "dist")
+    entry = next(e for e in index if e["slug"] == "craigh-na-dun")
+    assert entry["manifest"] == "patterns/craigh-na-dun/pattern.json" and entry["charts"] == 2
+    pdir = out / "patterns" / "craigh-na-dun"
+    m = json.loads((pdir / "pattern.json").read_text(encoding="utf-8"))
+    assert m["schema"] == 1 and m["id"] == "craigh-na-dun" and m["title"] == "Craigh na Dun Blanket"
+    assert m["license"] == "CC-BY-NC-SA-4.0" and m["preview"] == "preview.png"
+    assert [p["code"] for p in m["palette"]] == ["C", "K", "G", "P", "Y"] and set(m["palette"][0]) == {
+        "code",
+        "name",
+        "hex",
+    }
+    assert re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z", m["updated"])
+    charts = m["charts"]
+    assert [c["gauge_key"] for c in charts] == ["sc", "hdc"] and [c["default"] for c in charts] == [
+        True,
+        False,
+    ]
+    top = json.loads((pdir / "chart.json").read_text(encoding="utf-8"))
+    assert charts[0]["id"] == top["chart"]["id"]
+    for c in charts:
+        assert (pdir / c["path"]).exists() and (pdir / c["preview"]).exists(), c
+        doc = json.loads((pdir / c["path"]).read_text(encoding="utf-8"))
+        assert doc["chart"]["id"] == c["id"]
+        assert {
+            "variant",
+            "width",
+            "height",
+            "size",
+            "stitch",
+            "colors",
+            "stitches",
+            "changes_per_row",
+            "yards_est",
+        } <= c.keys()
+        assert c["size"]["unit"] == "in" and c["stitches"] == c["width"] * c["height"]
+    assert charts[0]["size"] == {"width": 54.0, "height": 46.0, "unit": "in"}
+    assert charts[0]["path"] == "charts/final-sc/chart.json"
+
+
+def test_manifest_for_pattern_without_charts_dir(tmp_path, monkeypatch):
+    doc = fake_doc("solo", "Solo")
+    pattern_dir = _make_fake_pattern(tmp_path, "solo", doc)
+    monkeypatch.setattr(build_module, "load_patterns", lambda: [(pattern_dir, doc)])
+    out, index, _ = build_module.build(tmp_path / "dist")
+    m = json.loads((out / "patterns" / "solo" / "pattern.json").read_text(encoding="utf-8"))
+    assert (
+        len(m["charts"]) == 1 and m["charts"][0]["path"] == "chart.json" and m["charts"][0]["default"] is True
+    )
+    assert index[0]["charts"] == 1

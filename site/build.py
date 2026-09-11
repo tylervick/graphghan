@@ -7,6 +7,7 @@ import html
 import json
 import re
 import shutil
+from datetime import datetime, timezone
 from pathlib import Path
 
 from PIL import Image, ImageDraw
@@ -42,6 +43,74 @@ def index_entry(doc) -> dict:
     }
 
 
+CHART_FILES = ("chart.json", "chart.png", "preview.png", "preview-grid.png", "written-rows.txt")
+
+
+def published_docs(pattern_dir: Path) -> list[tuple[str, dict]]:
+    """(path relative to the pattern's site dir, doc) for every published chart, default first."""
+    dist = pattern_dir / "dist"
+    top = json.loads((dist / "chart.json").read_text(encoding="utf-8"))
+    charts = dist / "charts"
+    if not charts.exists():
+        return [("chart.json", top)]
+    docs = []
+    for sub in sorted(p for p in charts.iterdir() if p.is_dir()):
+        doc = json.loads((sub / "chart.json").read_text(encoding="utf-8"))
+        docs.append((f"charts/{sub.name}/chart.json", doc))
+    default = [x for x in docs if x[1]["chart"]["id"] == top["chart"]["id"]]
+    if not default:
+        raise ValueError(f"{pattern_dir.name}: top-level dist/chart.json is not one of dist/charts/*")
+    return default[:1] + [x for x in docs if x is not default[0]]
+
+
+def manifest(published: list[tuple[str, dict]], updated: str) -> dict:
+    top = published[0][1]
+    p = top["pattern"]
+    charts = []
+    for i, (path, doc) in enumerate(published):
+        c, g, st = doc["chart"], doc["gauge"], doc["stats"]
+        per = g["over"]["value"]
+        charts.append(
+            {
+                "id": c["id"],
+                "variant": c.get("variant", ""),
+                "gauge_key": c.get("gauge_key", ""),
+                "default": i == 0,
+                "path": path,
+                "preview": path.rsplit("/", 1)[0] + "/preview.png" if "/" in path else "preview.png",
+                "width": c["width"],
+                "height": c["height"],
+                "size": {
+                    "width": round(c["width"] / (g["stitches"] / per), 1),
+                    "height": round(c["height"] / (g["rows"] / per), 1),
+                    "unit": g["over"]["unit"],
+                },
+                "stitch": g.get("stitch", ""),
+                "colors": len(doc["palette"]),
+                "stitches": c["width"] * c["height"],
+                "changes_per_row": {
+                    "mean": st["color_changes_per_row"]["mean"],
+                    "max": st["color_changes_per_row"]["max"],
+                },
+                "yards_est": int(sum(st["yards_est"].values())),
+            }
+        )
+    return {
+        "schema": 1,
+        "id": p["id"],
+        "title": p["title"],
+        "version": p["version"],
+        "dedication": p.get("dedication", ""),
+        "quote": p.get("quote", ""),
+        "author": p.get("author", ""),
+        "license": p.get("license", ""),
+        "preview": "preview.png",
+        "palette": [{"code": x["code"], "name": x["name"], "hex": x["hex"]} for x in top["palette"]],
+        "charts": charts,
+        "updated": updated,
+    }
+
+
 def load_patterns():
     items = []
     for d in sorted((ROOT / "patterns").iterdir()):
@@ -66,6 +135,7 @@ def make_icons(out: Path):
 
 
 def build(out: Path):
+    updated = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     out = Path(out)
     if out.exists():
         shutil.rmtree(out)
@@ -87,7 +157,18 @@ def build(out: Path):
             .replace("{{dedication}}", html.escape(doc["pattern"].get("dedication", ""), quote=True))
         )
         (pdir / "index.html").write_text(page, encoding="utf-8")
+        charts_src = d / "dist" / "charts"
+        if charts_src.exists():
+            for sub in sorted(p for p in charts_src.iterdir() if p.is_dir()):
+                (pdir / "charts" / sub.name).mkdir(parents=True, exist_ok=True)
+                for name in CHART_FILES:
+                    if (sub / name).exists():
+                        shutil.copy(sub / name, pdir / "charts" / sub.name / name)
+        published = published_docs(d)
+        (pdir / "pattern.json").write_text(json.dumps(manifest(published, updated)), encoding="utf-8")
         entry = index_entry(doc)
+        entry["manifest"] = f"patterns/{slug}/pattern.json"
+        entry["charts"] = len(published)
         index.append(entry)
     (out / "patterns").mkdir(exist_ok=True)
     (out / "patterns" / "index.json").write_text(json.dumps(index), encoding="utf-8")
