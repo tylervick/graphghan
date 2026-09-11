@@ -43,7 +43,7 @@ import GraphghanCore
         await h.model.liveActivity.start(projectID: h.project.id, info: info, state: state)
         try h.model.projects.delete(h.project)
         _ = try await AdvanceRunIntent(projectID: h.project.id).perform()
-        #expect(h.backend.calls.last == .end("act1", LiveActivityController.unavailableMessage, false))
+        #expect(h.backend.calls.last == .end("act1", message: LiveActivityController.unavailableMessage, finished: true, immediately: false))
         #expect(h.backend.active().isEmpty)
     }
 
@@ -53,7 +53,7 @@ import GraphghanCore
         await h.model.liveActivity.start(projectID: h.project.id, info: info, state: state)
         try await h.model.charts.remove(id: h.project.chartID)
         _ = try await AdvanceRunIntent(projectID: h.project.id).perform()
-        #expect(h.backend.calls.last == .end("act1", LiveActivityController.unavailableMessage, false))
+        #expect(h.backend.calls.last == .end("act1", message: LiveActivityController.unavailableMessage, finished: true, immediately: false))
     }
 
     @Test func unparseableIDIsIgnored() async throws {

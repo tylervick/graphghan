@@ -10,7 +10,9 @@ import GraphghanCore
     static let info = LiveActivityState.info(projectID: UUID(uuidString: "00000000-0000-0000-0000-000000000001")!, chart: chart, sequence: seq)
     static let midway = LiveActivityState.make(cursor: Cursor(row: 42, run: 3), sequence: seq)!
     static let lastInRow = LiveActivityState.make(cursor: Cursor(row: 1, run: 0), sequence: seq)!
-    static let finished = WorkActivityState.unavailable("This project is no longer available.")
+    static let unavailable = WorkActivityState.unavailable("This project is no longer available.")
+    /// Past the last run of the last pass: the cursor the Work screen ends on.
+    static let finished = LiveActivityState.make(cursor: Cursor(row: seq.passes.count, run: seq.passes.last!.runs.count), sequence: seq)!
 
     @Test func hexColor() {
         #expect(HexColor.isLight("#F2E8D5") && !HexColor.isLight("#2B2F33"))
@@ -25,7 +27,11 @@ import GraphghanCore
     }
 
     @Test func lockScreenUnavailable() throws {
-        #expect(try Snapshots.assert(WorkLockScreenView(info: Self.info, state: Self.finished), named: "lock-unavailable", size: CGSize(width: 360, height: 120)))
+        #expect(try Snapshots.assert(WorkLockScreenView(info: Self.info, state: Self.unavailable), named: "lock-unavailable", size: CGSize(width: 360, height: 120)))
+    }
+
+    @Test func lockScreenFinished() throws {
+        #expect(try Snapshots.assert(WorkLockScreenView(info: Self.info, state: Self.finished), named: "lock-finished", size: CGSize(width: 360, height: 120)))
     }
 
     @Test func compactAndMinimal() throws {

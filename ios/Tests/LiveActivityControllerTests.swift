@@ -34,7 +34,7 @@ import GraphghanCore
         let h = make(); let a = UUID(), b = UUID()
         await h.controller.start(projectID: a, info: info(a), state: state(.start))
         await h.controller.start(projectID: b, info: info(b), state: state(.start))
-        #expect(h.backend.calls == [.start(a), .end("act1", nil, true), .start(b)])
+        #expect(h.backend.calls == [.start(a), .end("act1", message: nil, finished: nil, immediately: true), .start(b)])
         #expect(h.controller.currentID == "act2" && h.backend.active().map(\.id) == ["act2"])
     }
 
@@ -65,7 +65,7 @@ import GraphghanCore
         await h.controller.update(projectID: p, info: info(p), state: state(Cursor(row: 1, run: 2)))
         #expect(h.backend.calls.last == .start(p) && h.controller.currentID == "act2")
         await h.controller.update(projectID: p, info: info(p), state: state(Cursor(row: 2, run: 3)))  // finished
-        #expect(h.backend.calls.last == .end("act2", nil, false) && h.controller.currentID == nil)
+        #expect(h.backend.calls.last == .end("act2", message: nil, finished: true, immediately: false) && h.controller.currentID == nil)
     }
 
     @Test func updateForAnotherProjectIsIgnored() async {
@@ -80,7 +80,7 @@ import GraphghanCore
         let h = make(); let p = UUID()
         await h.controller.start(projectID: p, info: info(p), state: state(.start))
         await h.controller.end(projectID: p, finalState: state(Cursor(row: 1, run: 1)))
-        #expect(h.backend.calls.last == .end("act1", nil, true) && h.controller.currentID == nil && h.backend.active().isEmpty)
+        #expect(h.backend.calls.last == .end("act1", message: nil, finished: false, immediately: true) && h.controller.currentID == nil && h.backend.active().isEmpty)
     }
 
     @Test func reconcileRefreshesOrEnds() async {
@@ -89,7 +89,7 @@ import GraphghanCore
         _ = try? h.backend.start(info: info(gone), state: state(.start))
         h.backend.reset()
         await h.controller.reconcile { info in info.projectID == live ? self.state(Cursor(row: 2, run: 0)) : nil }
-        #expect(h.backend.calls == [.update("act1", 2, 0), .end("act2", "This project is no longer available.", false)])
+        #expect(h.backend.calls == [.update("act1", 2, 0), .end("act2", message: "This project is no longer available.", finished: true, immediately: false)])
         #expect(h.controller.currentID == "act1" && h.controller.currentProjectID == live)
     }
 
@@ -98,7 +98,7 @@ import GraphghanCore
         _ = try? h.backend.start(info: info(p), state: state(.start))
         h.backend.reset()
         await h.controller.reconcile { _ in self.state(Cursor(row: 2, run: 3)) }  // finished
-        #expect(h.backend.calls == [.end("act1", nil, false)])
+        #expect(h.backend.calls == [.end("act1", message: nil, finished: true, immediately: false)])
         #expect(h.controller.currentID == nil)
     }
 
@@ -106,7 +106,7 @@ import GraphghanCore
         let h = make(); let p = UUID()
         await h.controller.start(projectID: p, info: info(p), state: state(.start))
         await h.controller.endUnavailable(activityID: "act1", message: "Chart missing.")
-        #expect(h.backend.calls.last == .end("act1", "Chart missing.", false) && h.controller.currentID == nil)
+        #expect(h.backend.calls.last == .end("act1", message: "Chart missing.", finished: true, immediately: false) && h.controller.currentID == nil)
     }
 
     @Test func concurrentStartsForDifferentProjectsAreSerialized() async {

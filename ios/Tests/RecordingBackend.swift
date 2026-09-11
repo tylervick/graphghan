@@ -8,7 +8,9 @@ final class RecordingBackend: ActivityBackend {
     enum Call: Equatable {
         case start(UUID)
         case update(String, Int, Int)          // id, row, runIndex
-        case end(String, String?, Bool)        // id, message, immediately
+        /// `finished` is the final state's, so a test can tell "ended showing Finished" from
+        /// "ended showing nothing"; nil means the activity was ended without a final state.
+        case end(String, message: String?, finished: Bool?, immediately: Bool)
     }
     var areActivitiesEnabled = true
     var startError: Error?
@@ -30,7 +32,7 @@ final class RecordingBackend: ActivityBackend {
     func end(id: String, state: WorkActivityState?, immediately: Bool) async {
         if suspendOnEnd { await Task.yield() }
         actives.removeAll { $0.id == id }
-        calls.append(.end(id, state?.message, immediately))
+        calls.append(.end(id, message: state?.message, finished: state?.finished, immediately: immediately))
     }
     func active() -> [ActiveActivity] { actives }
     /// The system ended it (8-hour limit): it disappears from `active()` without an `end` call.

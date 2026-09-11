@@ -14,6 +14,9 @@ struct AdvanceRunIntent: LiveActivityIntent {
     static let title: LocalizedStringResource = "Done with this run"
     static let description = IntentDescription("Marks the current run done and moves to the next.")
     static let openAppWhenRun = false
+    // Lock-screen and island buttons only: the spec leaves the Shortcuts surface unbuilt,
+    // so these stay out of the Shortcuts app and Spotlight.
+    static var isDiscoverable: Bool { false }
 
     @Parameter(title: "Project") var projectID: String
 
@@ -31,6 +34,9 @@ struct BackRunIntent: LiveActivityIntent {
     static let title: LocalizedStringResource = "Back one run"
     static let description = IntentDescription("Undoes the last run.")
     static let openAppWhenRun = false
+    // Lock-screen and island buttons only: the spec leaves the Shortcuts surface unbuilt,
+    // so these stay out of the Shortcuts app and Spotlight.
+    static var isDiscoverable: Bool { false }
 
     @Parameter(title: "Project") var projectID: String
 

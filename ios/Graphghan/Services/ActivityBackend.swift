@@ -1,3 +1,7 @@
+// `@preconcurrency`: ActivityKit marks neither `Activity` nor `Activity.activities` Sendable, so
+// strict concurrency flags them crossing the awaits in `update`/`end`. This file holds the whole
+// ActivityKit seam -- everything else in the app goes through `ActivityBackend` -- so the
+// suppression is contained to it.
 @preconcurrency import ActivityKit
 import Foundation
 import GraphghanCore

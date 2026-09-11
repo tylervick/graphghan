@@ -53,12 +53,6 @@ final class LiveActivityController {
         await _end(projectID: projectID, finalState: finalState)
     }
 
-    func endAll() async {
-        await acquire()
-        defer { release() }
-        await _endAll()
-    }
-
     func endUnavailable(activityID: String, message: String) async {
         await acquire()
         defer { release() }
@@ -119,12 +113,6 @@ final class LiveActivityController {
         // A plain close stays immediate; a finished final state uses the default dismissal so
         // the lock screen briefly shows the explanatory final state instead of vanishing at once.
         await backend.end(id: id, state: finalState, immediately: !(finalState?.finished ?? false))
-        currentID = nil
-        currentProjectID = nil
-    }
-
-    private func _endAll() async {
-        for a in backend.active() { await backend.end(id: a.id, state: nil, immediately: true) }
         currentID = nil
         currentProjectID = nil
     }
