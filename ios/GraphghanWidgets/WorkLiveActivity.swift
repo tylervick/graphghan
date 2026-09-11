@@ -6,17 +6,21 @@ import GraphghanCore
 struct WorkLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: WorkActivityAttributes.self) { context in
-            Text("\(context.attributes.info.title) · Row \(context.state.row) of \(context.state.rowCount)")
-                .padding()
+            WorkLockScreenView(info: context.attributes.info, state: context.state)
         } dynamicIsland: { context in
             DynamicIsland {
-                DynamicIslandExpandedRegion(.center) { Text("Row \(context.state.row)") }
+                DynamicIslandExpandedRegion(.center) {
+                    WorkExpandedCenterView(info: context.attributes.info, state: context.state)
+                }
+                DynamicIslandExpandedRegion(.bottom) {
+                    WorkExpandedBottomView(info: context.attributes.info, state: context.state)
+                }
             } compactLeading: {
-                Text("\(context.state.currentCount ?? 0)")
+                WorkCompactLeadingView(info: context.attributes.info, state: context.state)
             } compactTrailing: {
-                Text("\(context.state.row)")
+                WorkCompactTrailingView(state: context.state)
             } minimal: {
-                Text("\(context.state.currentCount ?? 0)")
+                WorkMinimalView(info: context.attributes.info, state: context.state)
             }
         }
     }
