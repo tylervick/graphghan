@@ -35,6 +35,101 @@ jobs:
           if [ -f site/build.py ]; then uv run graphghan site build; else echo "no site yet"; mkdir -p site/dist; fi
       - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
         with: {path: site/dist}
+  # Cheap path filter so a docs-only or Python-only change never spins up a macOS runner.
+  # `on.pull_request.paths` would filter the whole workflow, and the Python job must always run.
+  ios-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      run: ${{ steps.filter.outputs.run }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with: {persist-credentials: false, fetch-depth: 0}
+      - id: filter
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          if [ "$EVENT" = "pull_request" ]; then RANGE="$BASE_SHA...HEAD"; else RANGE="$BEFORE_SHA..HEAD"; fi
+          # A force-push or a brand-new branch has no usable "before": run the job rather than skip it.
+          if ! CHANGED="$(git diff --name-only "$RANGE" 2>/dev/null)"; then CHANGED="ios/"; fi
+          if printf '%s\n' "$CHANGED" | grep -qE '^(ios/|fixtures/|schema/|\.github/workflows/ci\.yml)'; then
+            echo "run=true" >> "$GITHUB_OUTPUT"; echo "iOS-relevant paths changed."
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"; echo "No iOS-relevant paths changed; skipping the ios job."
+          fi
+
+  ios:
+    needs: ios-changes
+    if: ${{ needs.ios-changes.outputs.run == 'true' }}
+    runs-on: macos-26
+    timeout-minutes: 45
+    env:
+      XCODE_VERSION: "26.2"
+      SIMULATOR_DEVICE: iPhone 17
+      SIMULATOR_OS: "26.2"
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with: {persist-credentials: false}
+      - name: Select Xcode
+        env:
+          XCODE_VERSION: ${{ env.XCODE_VERSION }}
+        run: |
+          APP="/Applications/Xcode_${XCODE_VERSION}.app"
+          if [ ! -d "$APP" ]; then
+            echo "::error::$APP not found on this runner image. Installed:"; ls -d /Applications/Xcode*.app; exit 1
+          fi
+          sudo xcode-select -s "$APP"
+          xcodebuild -version
+      # jdx/mise-action v2.4.4 has no working_directory input (install_dir is deprecated), so this
+      # only installs the root mise.toml tools (uv/hk/...); the Core package tests step below
+      # installs ios/mise.toml's xcodegen via `mise install` run from ios/.
+      - uses: jdx/mise-action@c37c93293d6b742fc901e1406b8f764f6fb19dac # v2.4.4
+        with: {cache: true}
+      - name: Core package tests
+        working-directory: ios
+        run: mise install -q && mise run core-test
+      - name: Script tests
+        working-directory: ios
+        run: mise run script-test
+      - name: Verify the simulator is available
+        working-directory: ios
+        env:
+          SIMULATOR_DEVICE: ${{ env.SIMULATOR_DEVICE }}
+          SIMULATOR_OS: ${{ env.SIMULATOR_OS }}
+        run: Scripts/check-simulator-available.sh "$SIMULATOR_DEVICE" "$SIMULATOR_OS"
+      - name: Generate the project
+        working-directory: ios
+        run: mise run generate
+      # Snapshot references are pinned to a developer's simulator OS, so CI renders every layout
+      # (and checks sizes) instead of comparing pixels; the renders are uploaded for eyeballing.
+      - name: App tests (iPhone simulator)
+        working-directory: ios
+        env:
+          DESTINATION: platform=iOS Simulator,name=${{ env.SIMULATOR_DEVICE }},OS=${{ env.SIMULATOR_OS }}
+          TEST_RUNNER_GRAPHGHAN_SNAPSHOTS: render
+          TEST_RUNNER_GRAPHGHAN_SNAPSHOT_OUT: ${{ runner.temp }}/snapshots
+        run: |
+          xcodebuild test -project Graphghan.xcodeproj -scheme Graphghan \
+            -destination "$DESTINATION" -derivedDataPath build/DerivedData \
+            -resultBundlePath "$RUNNER_TEMP/TestResults.xcresult" | tail -n 60
+          test "${PIPESTATUS[0]}" -eq 0
+      - name: Upload rendered snapshots
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ios-snapshots
+          path: ${{ runner.temp }}/snapshots
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Upload test results
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ios-test-results
+          path: ${{ runner.temp }}/TestResults.xcresult
+          if-no-files-found: ignore
+          retention-days: 7
   deploy:
     if: github.ref == 'refs/heads/main'
     needs: test
