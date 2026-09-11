@@ -19,6 +19,8 @@
 - Fonts: only `Font.Heather.*` styles from Task 1. Live Activity views use system faces only (the widget bundles no fonts).
 - Yarn-colored surfaces (swatch, chip, palette entry, strip cell) get foreground and hairline from `YarnSurface` (Task 2), never from `ChartImage.isLight` or `HexColor.isLight` directly.
 - The weave is painted on Ground and on the Work screen's Moss field only. Panels are flat. Only the Work card has a shadow.
+- PR #24 (iOS CI and TestFlight) merges before this plan starts. Rebase `tylervick/style` on `main` first (`git rebase origin/main`); the branch holds only the spec and this plan, so nothing conflicts.
+- Snapshots: locally `mise run test` compares (and records a missing reference); CI's `ios` job runs the same tests in `render` mode and uploads the PNGs as the `ios-snapshots` artifact, so a drifted reference fails locally, not in CI. To re-record every reference in one run: `TEST_RUNNER_GRAPHGHAN_SNAPSHOTS=record mise run test`.
 - Commit after every task with a conventional message; branch `tylervick/style`; finish with a PR (never a local merge).
 - Copy stays as it is today unless the spec changes it: "then N Name", "next row starts in Name", "Finished", "Every row is done. Block it, weave in the ends, and take a picture."
 
@@ -36,7 +38,7 @@ Create:
 - `ios/Graphghan/Projects/ProjectCardView.swift` — stateless project row.
 - `ios/Graphghan/Patterns/PatternDetailContent.swift` — stateless pattern detail body.
 - `ios/Graphghan/Work/WorkScreen.swift`, `SwatchStack.swift`, `DoneField.swift`, `OnDeckRule.swift` — the Work screen.
-- `ios/scripts/make_icon.py` — writes the 1024 pt icon.
+- `ios/Scripts/make_icon.py` — writes the 1024 pt icon.
 - `ios/Tests/ThemeTests.swift`, `YarnSurfaceTests.swift`, `ComponentSnapshotTests.swift`, `ProjectCardTests.swift`, `PatternDetailTests.swift`, `WorkScreenTests.swift`, `OnDeckRuleTests.swift`.
 
 Modify:
@@ -1546,14 +1548,10 @@ git commit -m "feat(ios): the Work screen with Done as the ground and the next r
 - Consumes: `Color.moss`, `.cream`, `YarnSurface` (both in `Shared`, compiled into the widget), system fonts only.
 - Produces: unchanged view names and initializers.
 
-- [ ] **Step 1: Delete the old references so the tests re-record**
-
-```bash
-git rm -q Tests/__Snapshots__/lock-*.png Tests/__Snapshots__/compact-*.png Tests/__Snapshots__/expanded-*.png Tests/__Snapshots__/minimal.png
-```
+- [ ] **Step 1: Confirm the current references still pass**
 
 Run: `xcodebuild test -quiet ... -only-testing:GraphghanTests/WorkActivityViewsTests`
-Expected: each test fails once with "Recorded new snapshot" (this proves the harness re-records before the restyle; the PNGs get overwritten in Step 3).
+Expected: all pass (nothing has touched these views yet; this proves the baseline before the restyle).
 
 - [ ] **Step 2: Restyle `WorkActivityViews.swift`**
 
@@ -1584,8 +1582,14 @@ Apply these edits (spec §6.8):
 
 - [ ] **Step 3: Record, then compare**
 
-Run the suite twice: `xcodebuild test -quiet ... -only-testing:GraphghanTests/WorkActivityViewsTests`
-Expected: first run records nine PNGs and fails; second run passes. Inspect `lock-midway.png`: cream serif title, the swatch with its hairline, a capsule Back and a Moss Done. Confirm the card is still inside Apple's 160pt budget (the layout heights did not change: 44pt swatch, 40pt buttons, 12pt padding).
+Run once in record mode, then once in compare mode:
+
+```bash
+TEST_RUNNER_GRAPHGHAN_SNAPSHOTS=record xcodebuild test -quiet -project Graphghan.xcodeproj -scheme Graphghan -destination 'platform=iOS Simulator,name=iPhone 17' -derivedDataPath build/DerivedData -only-testing:GraphghanTests/WorkActivityViewsTests
+xcodebuild test -quiet -project Graphghan.xcodeproj -scheme Graphghan -destination 'platform=iOS Simulator,name=iPhone 17' -derivedDataPath build/DerivedData -only-testing:GraphghanTests/WorkActivityViewsTests
+```
+
+Expected: the first run overwrites the nine lock-screen, island, and minimal PNGs (the three render-mode tests PR #24 added pass their own environment and are unaffected); the second run passes. `git status` shows exactly nine modified PNGs. Inspect `lock-midway.png`: cream serif title, the swatch with its hairline, a capsule Back and a Moss Done. Confirm the card is still inside Apple's 160pt budget (the layout heights did not change: 44pt swatch, 40pt buttons, 12pt padding).
 
 - [ ] **Step 4: Widget target builds**
 
@@ -1604,15 +1608,15 @@ git commit -m "feat(ios): Live Activity in Heather colors and system faces"
 ### Task 8: App icon
 
 **Files:**
-- Create: `ios/scripts/make_icon.py`, `ios/Assets.xcassets/AppIcon.appiconset/icon-1024.png`
+- Create: `ios/Scripts/make_icon.py`, `ios/Assets.xcassets/AppIcon.appiconset/icon-1024.png`
 - Modify: `ios/Assets.xcassets/AppIcon.appiconset/Contents.json`, `ios/mise.toml`
 
 **Interfaces:**
-- Produces: `python ios/scripts/make_icon.py [--out PATH] [--size N]` writing a PNG; the `mise run icon` task in `ios/`.
+- Produces: `python ios/Scripts/make_icon.py [--out PATH] [--size N]` writing a PNG; the `mise run icon` task in `ios/`.
 
 - [ ] **Step 1: Write the script**
 
-`ios/scripts/make_icon.py`:
+`ios/Scripts/make_icon.py`:
 
 ```python
 """The app icon (spec §7): moss sky with the weave, a gold moon, the hill band, and a crocheted
@@ -1667,12 +1671,12 @@ if __name__ == "__main__":
 
 - [ ] **Step 2: Add the task and the icon set entry**
 
-`ios/mise.toml`, append:
+`ios/mise.toml`, append after the `ci-test` task PR #24 added:
 
 ```toml
 [tasks.icon]
-description = "Regenerate the app icon PNG from scripts/make_icon.py"
-run = "uv run --project .. python scripts/make_icon.py"
+description = "Regenerate the app icon PNG from Scripts/make_icon.py"
+run = "uv run --project .. python Scripts/make_icon.py"
 ```
 
 `ios/Assets.xcassets/AppIcon.appiconset/Contents.json`:
@@ -1687,7 +1691,7 @@ run = "uv run --project .. python scripts/make_icon.py"
 - [ ] **Step 3: Generate and look**
 
 Run from `ios/`: `mise run icon && open Assets.xcassets/AppIcon.appiconset/icon-1024.png`
-Expected: a 1024 square, moss sky with a faint weave, gold moon upper right, darker hill from 62% down, eight cream chevrons along the horizon reading as a chain. Also render at 58 (`uv run --project .. python scripts/make_icon.py --size 58 --out /tmp/icon-58.png`) and confirm the chain still reads.
+Expected: a 1024 square, moss sky with a faint weave, gold moon upper right, darker hill from 62% down, eight cream chevrons along the horizon reading as a chain. Also render at 58 (`uv run --project .. python Scripts/make_icon.py --size 58 --out /tmp/icon-58.png`) and confirm the chain still reads.
 
 - [ ] **Step 4: Build and check the home screen**
 
@@ -1696,7 +1700,7 @@ Run: `mise run generate && mise run build`, install to the simulator, and confir
 - [ ] **Step 5: Commit**
 
 ```bash
-git add scripts/make_icon.py mise.toml Assets.xcassets/AppIcon.appiconset
+git add Scripts/make_icon.py mise.toml Assets.xcassets/AppIcon.appiconset
 git commit -m "feat(ios): app icon, the chain on the horizon"
 ```
 
@@ -1715,10 +1719,10 @@ In `ios/README.md`, under "Layout", change the `UI/` bullet to:
   - `UI/` — shared components (card, chip, banner, button styles), the type ramp (`Typography.swift`), preview images
 - `Shared/` — compiles into the app and the widget: the color tokens (`Tokens.xcassets`, `Theme.swift`), yarn surfaces, Live Activity views and intents
 - `Fonts/` — Literata, Atkinson Hyperlegible, Nunito (all OFL), registered in `project.yml`
-- `scripts/make_icon.py` — the app icon; `mise run icon` regenerates it
+- `Scripts/make_icon.py` — the app icon; `mise run icon` regenerates it
 ```
 
-and add a section:
+and add a section before "## Device build" (PR #24 added that section and "## CI and releases"):
 
 ```markdown
 ## Design language
@@ -1761,7 +1765,7 @@ Applies the Heather design language (spec: docs/superpowers/specs/2026-09-11-ios
 - Shared color tokens in `Shared/Tokens.xcassets`, fonts under `Fonts/`, type ramp in `Typography.swift`
 - Card, chip, banner, button styles; every yarn-colored surface through `YarnSurface`
 - Work screen: Done is the ground, the work floats on one card, the next run sits on deck
-- Live Activity in the new colors with system faces; icon generated by `scripts/make_icon.py`
+- Live Activity in the new colors with system faces; icon generated by `Scripts/make_icon.py`
 - Snapshots for the components, project cards, pattern detail, four Work states, and the re-recorded activity views
 
 Canvas: https://claude.ai/code/artifact/ab079b20-bc2f-4deb-a529-08175ee12c85
