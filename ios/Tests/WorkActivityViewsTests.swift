@@ -44,4 +44,28 @@ import GraphghanCore
         #expect(try Snapshots.assert(WorkExpandedCenterView(info: Self.info, state: Self.midway), named: "expanded-center", size: CGSize(width: 340, height: 90)))
         #expect(try Snapshots.assert(WorkExpandedBottomView(info: Self.info, state: Self.midway), named: "expanded-bottom", size: CGSize(width: 340, height: 60)))
     }
+
+    @Test func renderModeWritesIntoTheOutputDirectoryWithoutComparing() throws {
+        let out = FileManager.default.temporaryDirectory.appendingPathComponent("snap-\(UUID().uuidString)", isDirectory: true)
+        let env = ["GRAPHGHAN_SNAPSHOTS": "render", "GRAPHGHAN_SNAPSHOT_OUT": out.path]
+        // A view that would fail a pixel comparison against lock-midway: same size, different content.
+        let ok = try Snapshots.assert(WorkLockScreenView(info: Self.info, state: Self.lastInRow), named: "lock-midway",
+                                      size: CGSize(width: 360, height: 170), environment: env)
+        #expect(ok)
+        #expect(FileManager.default.fileExists(atPath: out.appendingPathComponent("lock-midway.png").path))
+        try? FileManager.default.removeItem(at: out)
+    }
+
+    @Test func renderModeStillCatchesASizeMismatch() throws {
+        let out = FileManager.default.temporaryDirectory.appendingPathComponent("snap-\(UUID().uuidString)", isDirectory: true)
+        let env = ["GRAPHGHAN_SNAPSHOTS": "render", "GRAPHGHAN_SNAPSHOT_OUT": out.path]
+        // This SDK's `withKnownIssue` does not return the body's value (it returns Void), so the
+        // sanctioned fallback drops the value assertion and relies on the known-issue match itself:
+        // the test fails if `assert` does NOT record an Issue here.
+        withKnownIssue("size mismatch is reported in render mode") {
+            _ = try Snapshots.assert(WorkLockScreenView(info: Self.info, state: Self.midway), named: "lock-midway",
+                                     size: CGSize(width: 360, height: 200), environment: env)
+        }
+        try? FileManager.default.removeItem(at: out)
+    }
 }

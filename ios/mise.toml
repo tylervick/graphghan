@@ -21,3 +21,20 @@ run = "xcodebuild build -quiet -project Graphghan.xcodeproj -scheme Graphghan -d
 description = "Run the app target's unit tests on the iPhone 17 simulator"
 depends = ["generate"]
 run = "xcodebuild test -quiet -project Graphghan.xcodeproj -scheme Graphghan -destination 'platform=iOS Simulator,name=iPhone 17' -derivedDataPath build/DerivedData"
+
+[tasks.script-test]
+description = "Hermetic tests for the shell scripts under Scripts/"
+run = """
+for t in Scripts/test-*.sh; do echo "== $t"; "$t"; done
+"""
+
+[tasks.ci-test]
+description = "The app tests exactly as CI runs them: render-only snapshots into build/snapshots"
+depends = ["generate"]
+run = """
+rm -rf build/TestResults.xcresult
+mkdir -p build/snapshots
+TEST_RUNNER_GRAPHGHAN_SNAPSHOTS=render TEST_RUNNER_GRAPHGHAN_SNAPSHOT_OUT="$PWD/build/snapshots" \
+  xcodebuild test -quiet -project Graphghan.xcodeproj -scheme Graphghan \
+  -destination 'platform=iOS Simulator,name=iPhone 17' -derivedDataPath build/DerivedData -resultBundlePath build/TestResults.xcresult
+"""
