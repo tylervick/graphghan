@@ -62,7 +62,9 @@ public struct WorkSequence: Sendable {
     }
 
     public init(chart: Chart) throws {
-        if let raw = chart.document.passes {
+        // Python's `sequence()` uses `isinstance(doc.get("passes"), list)`: anything else -- a
+        // number, a string, an object -- falls through to technique derivation rather than failing.
+        if let raw = chart.document.passes, raw.arrayValue != nil {
             self.init(passes: try WorkSequence.explicitPasses(raw, chart: chart))
             return
         }
@@ -71,7 +73,9 @@ public struct WorkSequence: Sendable {
         guard type == "rows" || type == "rounds" else { throw SequenceError.unsupportedTechnique(type) }
         let firstSide = Side(rawValue: doc.techniqueFirstSide) ?? .rs
         let rsDirection = Direction(rawValue: doc.techniqueRSDirection) ?? .rtl
-        let fromBottom = doc.techniqueStart != "top"
+        // Python: `y = h - k if start == "bottom" else k - 1`; only the literal "bottom" (the
+        // default when the key is absent) works from the bottom up.
+        let fromBottom = doc.techniqueStart == "bottom"
         let label = type == "rows" ? "Row" : "Round"
         var passes: [Pass] = []
         passes.reserveCapacity(chart.height)
@@ -108,7 +112,13 @@ public struct WorkSequence: Sendable {
             guard !runs.isEmpty else { throw SequenceError.malformedPasses("passes[\(i)].runs is empty") }
             let side = o["side"]?.stringValue.flatMap(Side.init(rawValue:))
             let direction = o["direction"]?.stringValue.flatMap(Direction.init(rawValue:))
-            return Pass(label: o["label"]?.stringValue ?? "", side: side, direction: direction, gridRow: o["grid_row"]?.intValue, runs: runs)
+            // A grid row outside the chart would index `chart.runsByRow` out of bounds in the
+            // strip drawing, so refuse it here rather than crashing at the hook.
+            let gridRow = o["grid_row"]?.intValue
+            if let gridRow, gridRow < 0 || gridRow >= chart.height {
+                throw SequenceError.malformedPasses("passes[\(i)].grid_row out of range")
+            }
+            return Pass(label: o["label"]?.stringValue ?? "", side: side, direction: direction, gridRow: gridRow, runs: runs)
         }
     }
 

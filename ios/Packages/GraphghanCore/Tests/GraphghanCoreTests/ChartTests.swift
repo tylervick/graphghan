@@ -66,7 +66,9 @@ import Testing
         #expect(load(Self.doc(rows: ["2A2B", "3A"])) == .rowSum(row: 1, got: 3, expected: 4))
         #expect(load(Self.doc(rows: ["2A2C"])) == .unknownCode(row: 0, code: "C"))
         #expect(load(Self.doc(rows: ["2A2B", "4A"], width: 5)) == .rowSum(row: 0, got: 4, expected: 5))
-        #expect(load(Self.doc(rows: ["x"])) == .malformedRow(0))
+        // an explicit width, because an unparseable row leaves the helper computing width 0, which
+        // the empty-grid guard would catch first
+        #expect(load(Self.doc(rows: ["x"], width: 4)) == .malformedRow(0))
         #expect(load(Self.doc(rows: ["4A"], codes: ["A", "A"])) == .duplicateCode("A"))
         #expect(load(Self.doc(rows: ["4A"], codes: ["ABCD"])) == .invalidCode("ABCD"))
         #expect(load(Self.doc(rows: ["4A"], hexes: ["red", "#000000"])) == .invalidHex(code: "A", hex: "red"))
@@ -108,6 +110,21 @@ import Testing
         #expect(throws: ChartError.heightMismatch(rows: 1, height: 2)) { try Chart(document: ChartDocument.decode(Data(bad.utf8))) }
         let schema1 = String(decoding: Self.doc(rows: ["4A"]), as: UTF8.self).replacingOccurrences(of: "\"schema\":2", with: "\"schema\":1")
         #expect(throws: ChartError.unsupportedSchema(1)) { try Chart(document: ChartDocument.decode(Data(schema1.utf8))) }
+    }
+
+    /// The schema's minimum is 1 for both; an empty grid divides by zero in the size math.
+    @Test func rejectsEmptyGrids() throws {
+        let zeroWidth = Self.doc(rows: ["0A"], width: 0)  // a row that parses to no stitches at all
+        #expect(throws: ChartError.invalidSize(width: 0, height: 1)) { try Chart(document: ChartDocument.decode(zeroWidth)) }
+        let rows: [String] = []
+        let technique: JSONValue = .object(["type": .string("rows")])
+        let id = ChartID.compute(codes: ["A"], rows: rows, technique: technique, passes: nil)
+        let json = #"""
+        {"schema":2,"pattern":{"id":"t","title":"T","version":"1"},"chart":{"id":"\#(id)","width":4,"height":0},
+         "palette":[{"code":"A","name":"n0","hex":"#000000"}],"rows":[],
+         "gauge":{"stitches":14,"rows":16,"over":{"value":4,"unit":"in"}},"technique":{"type":"rows"}}
+        """#
+        #expect(throws: ChartError.invalidSize(width: 4, height: 0)) { try Chart(document: ChartDocument.decode(Data(json.utf8))) }
     }
 
     @Test func caseOnlyDuplicatesWarn() throws {

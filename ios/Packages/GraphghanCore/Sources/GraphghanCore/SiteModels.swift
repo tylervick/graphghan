@@ -19,22 +19,6 @@ public struct IndexEntry: Decodable, Sendable, Identifiable, Hashable {
         case slug, title, dedication, version, stitch, width, height, colors, preview, manifest, charts
         case sizeIn = "size_in"
     }
-
-    public init(from decoder: any Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        self.slug = try container.decode(String.self, forKey: .slug)
-        self.title = try container.decode(String.self, forKey: .title)
-        self.dedication = try container.decode(String.self, forKey: .dedication)
-        self.version = try container.decode(String.self, forKey: .version)
-        self.stitch = try container.decode(String.self, forKey: .stitch)
-        self.width = try container.decode(Int.self, forKey: .width)
-        self.height = try container.decode(Int.self, forKey: .height)
-        self.sizeIn = try container.decode([Double].self, forKey: .sizeIn)
-        self.colors = try container.decode(Int.self, forKey: .colors)
-        self.preview = try container.decode(String.self, forKey: .preview)
-        self.manifest = try container.decodeIfPresent(String.self, forKey: .manifest)
-        self.charts = try container.decodeIfPresent(Int.self, forKey: .charts)
-    }
 }
 
 public struct Swatch: Decodable, Sendable, Equatable {

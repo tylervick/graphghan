@@ -15,6 +15,21 @@ import Testing
         try WorkSequence(chart: Chart.load(Fixtures.data("\(name).chart.json")))
     }
 
+    /// A chart with no explicit passes, so the working order comes from `technique`.
+    static func derived(technique: JSONValue, rows: [String], codes: [String] = ["A", "B"]) throws -> WorkSequence {
+        let id = ChartID.compute(codes: codes, rows: rows, technique: technique, passes: nil)
+        let palette = codes.enumerated().map { i, c in
+            #"{"code":"\#(c)","name":"n\#(i)","hex":"\#(String(format: "#%06x", i * 0x111111))"}"#
+        }.joined(separator: ",")
+        let width = RunString.parse(rows[0])?.reduce(0) { $0 + $1.count } ?? 0
+        let json = #"""
+        {"schema":2,"pattern":{"id":"t","title":"T","version":"1"},"chart":{"id":"\#(id)","width":\#(width),"height":\#(rows.count)},
+         "palette":[\#(palette)],"rows":[\#(rows.map { "\"\($0)\"" }.joined(separator: ","))],
+         "gauge":{"stitches":14,"rows":16,"over":{"value":4,"unit":"in"}},"technique":\#(CanonicalJSON.encode(technique))}
+        """#
+        return try WorkSequence(chart: Chart.load(Data(json.utf8)))
+    }
+
     @Test(arguments: Fixtures.chartNames)
     func matchesFixture(name: String) throws {
         let path = Fixtures.directory.appendingPathComponent("\(name).sequence.json")
@@ -60,6 +75,39 @@ import Testing
     @Test func roundsLabelAndSides() throws {
         let seq = try Self.sequence("minimal-rounds")
         #expect(seq.passes[1].label == "Round 2" && seq.passes[1].side == .rs && seq.passes[1].direction == .rtl)
+    }
+
+    /// Python: `y = h - k if start == "bottom" else k - 1`, and the sides alternate from
+    /// `first_side`, so a top-down chart whose first row is the wrong side reads row 1 left to right.
+    @Test func topDownFromTheWrongSide() throws {
+        let seq = try Self.derived(technique: .object(["type": .string("rows"), "start": .string("top"), "first_side": .string("WS")]),
+                                   rows: ["2A2B", "4A"])
+        #expect(seq.passes.count == 2)
+        #expect(seq.passes[0].label == "Row 1" && seq.passes[0].gridRow == 0)
+        #expect(seq.passes[0].side == .ws && seq.passes[0].direction == .ltr)
+        #expect(seq.passes[0].runs.map(\.code) == ["A", "B"])   // ltr: grid order
+        #expect(seq.passes[1].label == "Row 2" && seq.passes[1].gridRow == 1)
+        #expect(seq.passes[1].side == .rs && seq.passes[1].direction == .rtl)
+    }
+
+    /// Python checks `isinstance(doc["passes"], list)`; anything else derives from the technique.
+    @Test func nonListPassesFallBackToTheTechnique() throws {
+        var json = try String(decoding: Fixtures.data("minimal-rows.chart.json"), as: UTF8.self)
+        json = json.replacingOccurrences(of: "\"instructions\": []", with: "\"instructions\": [], \"passes\": \"soon\"")
+        let seq = try WorkSequence(chart: Chart.load(Data(json.utf8)))  // the id ignores non-list passes
+        #expect(seq.passes.count == 12 && seq.passes[0].label == "Row 1")
+    }
+
+    @Test func explicitPassesRejectGridRowsOutsideTheChart() throws {
+        let json = try String(decoding: Fixtures.data("explicit-passes.chart.json"), as: UTF8.self)
+        for badRow in ["5", "-1"] {
+            // The chart is 2 rows tall, so the second pass's grid_row 1 becomes out of range.
+            let edited = json.replacingOccurrences(of: "\"grid_row\": 1", with: "\"grid_row\": \(badRow)")
+            let doc = try ChartDocument.decode(Data(edited.utf8))  // the id no longer matches
+            #expect(throws: SequenceError.malformedPasses("passes[1].grid_row out of range")) {
+                try WorkSequence(chart: try Chart.unchecked(document: doc))
+            }
+        }
     }
 
     @Test func explicitPassesRejectUnknownCodes() throws {

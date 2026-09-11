@@ -2,6 +2,7 @@ import Foundation
 
 public enum ChartError: Error, Equatable {
     case unsupportedSchema(Int)
+    case invalidSize(width: Int, height: Int)
     case tooManyColors(Int)
     case invalidCode(String)
     case duplicateCode(String)
@@ -69,6 +70,11 @@ public struct Chart: Sendable {
 
     init(document: ChartDocument, verifyID: Bool) throws {
         guard document.schema == 2 else { throw ChartError.unsupportedSchema(document.schema) }
+        // The schema's minimum is 1 for both; an empty grid would divide by zero in the size and
+        // strip math and index nothing safely.
+        guard document.chart.width >= 1, document.chart.height >= 1 else {
+            throw ChartError.invalidSize(width: document.chart.width, height: document.chart.height)
+        }
         guard document.palette.count <= 255 else { throw ChartError.tooManyColors(document.palette.count) }
         var index: [String: Int] = [:]
         var folded: [String: String] = [:]
