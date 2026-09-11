@@ -65,6 +65,14 @@ entry is also copied to `dist/` top level); the site and CI build from those com
 `graphghan render <slug> --check` (run in CI) fails if a fresh render drifts from what's
 committed. See `docs/superpowers/specs/2026-09-09-graphghan-design.md` for the full contract.
 
+## Chart format
+
+Charts are JSON documents in the graphghan chart format (schema 2): a palette, run-length rows,
+a gauge, and a `technique` that defines working order, with a content-hash id. The format is
+documented in `docs/chart-format.md`, has JSON Schemas under `schema/`, and ships conformance
+fixtures under `fixtures/chart-format/` that any reader (the PWA, the iOS app, yours) can test
+against. `graphghan export` writes 1-px PNG, OXS, and CSV.
+
 ## The skill
 
 `.claude/skills/graphghan/` packages the design workflow (gauge selection, composition, the
