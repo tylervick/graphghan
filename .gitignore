@@ -14,6 +14,7 @@ ios/GraphghanWidgets/Info.plist
 ios/GraphghanWidgets/GraphghanWidgets.entitlements
 ios/build/
 ios/DerivedData/
+ios/Scripts/.appstore.env
 ios/Packages/*/.build/
 ios/TestResults*.xcresult
 ios/Tests/__Snapshots__/*.actual.png

@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- CI-only. Manual signing is a safety property: with automatic signing plus
+         -allowProvisioningUpdates, a missing identity makes xcodebuild MINT a new Apple Distribution
+         certificate whose key dies with the runner. The profile names must match project.yml's
+         Release PROVISIONING_PROFILE_SPECIFIER values exactly: archive and export resolve the profile
+         independently, and a drifted name fails at export after a successful archive. Both profiles
+         are installed on the runner from PROVISIONING_PROFILE_APP_BASE64 and
+         PROVISIONING_PROFILE_WIDGETS_BASE64; they expire with the certificate they are bound to. -->
+    <key>method</key><string>app-store-connect</string>
+    <key>teamID</key><string>352UZEKYPP</string>
+    <key>signingStyle</key><string>manual</string>
+    <key>signingCertificate</key><string>Apple Distribution</string>
+    <key>provisioningProfiles</key>
+    <dict>
+        <key>com.tylervick.graphghan</key>
+        <string>Graphghan App Store CI</string>
+        <key>com.tylervick.graphghan.widgets</key>
+        <string>Graphghan Widgets App Store CI</string>
+    </dict>
+    <key>uploadSymbols</key><true/>
+</dict>
+</plist>
