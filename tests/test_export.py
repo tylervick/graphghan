@@ -78,7 +78,7 @@ def test_chart_json_schema_and_write_dist(tmp_path):
         "code": "A",
         "name": "Alpha",
         "hex": "#112233",
-        "yarn": "any",
+        "yarn": {"note": "any"},
         "use": "ground",
     }
     write_dist(small(), meta, "sc", {"panel": (1, 1, 4, 2)}, tmp_path)

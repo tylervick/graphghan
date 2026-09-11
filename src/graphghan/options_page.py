@@ -31,6 +31,6 @@ for (const [key,e] of Object.entries(DATA)) {{
   const hex=Object.fromEntries(e.palette.map(p=>[p.code,p.hex]));
   const cw=Math.max(2,Math.floor(1100/e.width)), ch=Math.max(2,Math.round(cw*e.cell_aspect));
   cv.width=e.width*cw; cv.height=e.height*ch;
-  e.rows.forEach((s,y)=>{{let x=0; for (const m of s.matchAll(/(\\d+)([A-Za-z])/g)) {{ctx.fillStyle=hex[m[2]]; ctx.fillRect(x*cw,y*ch,+m[1]*cw,ch); x+=+m[1];}}}});
+  e.rows.forEach((s,y)=>{{let x=0; for (const m of s.matchAll(/(\\d+)([A-Za-z]{1, 3})/g)) {{ctx.fillStyle=hex[m[2]]; ctx.fillRect(x*cw,y*ch,+m[1]*cw,ch); x+=+m[1];}}}});
 }}
 </script>"""

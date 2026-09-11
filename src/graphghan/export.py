@@ -12,7 +12,7 @@ from PIL import Image, ImageDraw
 from . import grid as gr
 
 SCHEMA = 1
-_RUN = re.compile(r"(\d+)([A-Za-z])")
+_RUN = re.compile(r"(\d+)([A-Za-z]{1,3})")
 
 
 def rle_rows(a):
