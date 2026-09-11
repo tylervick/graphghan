@@ -6,7 +6,9 @@ import UIKit
 /// Minimal snapshot testing: render with ImageRenderer at 2x, compare to a PNG under
 /// Tests/__Snapshots__. Three modes (compare/render/record) via GRAPHGHAN_SNAPSHOTS -- see `Mode`.
 /// A missing reference in compare mode is recorded and the test fails once, so the file gets
-/// committed and reviewed. Rendering is deterministic on one simulator model and OS.
+/// committed and reviewed. Rendering is deterministic on one simulator model and OS. `render` mode
+/// has no default output directory -- GRAPHGHAN_SNAPSHOT_OUT must be set, or it throws, so an
+/// accidental `GRAPHGHAN_SNAPSHOTS=render` run can never silently overwrite committed references.
 @MainActor
 enum Snapshots {
     enum Mode: String { case compare, render, record }
@@ -23,9 +25,12 @@ enum Snapshots {
         Mode(rawValue: environment["GRAPHGHAN_SNAPSHOTS"] ?? "") ?? .compare
     }
 
-    static func outputDirectory(_ environment: [String: String]) -> URL {
-        if let path = environment["GRAPHGHAN_SNAPSHOT_OUT"], !path.isEmpty { return URL(fileURLWithPath: path, isDirectory: true) }
-        return directory
+    /// `render` mode has no safe default: falling back to `directory` (`__Snapshots__`) would let an
+    /// accidental `GRAPHGHAN_SNAPSHOTS=render` run overwrite committed references. So the output
+    /// directory must be named explicitly via GRAPHGHAN_SNAPSHOT_OUT; an unset or empty value throws.
+    static func outputDirectory(_ environment: [String: String]) throws -> URL {
+        guard let path = environment["GRAPHGHAN_SNAPSHOT_OUT"], !path.isEmpty else { throw SnapshotError.missingOutputDirectory }
+        return URL(fileURLWithPath: path, isDirectory: true)
     }
 
     /// Returns true when the rendering matches the reference (compare), was written (record), or rendered at the
@@ -44,7 +49,7 @@ enum Snapshots {
             try png.write(to: reference)
             return true
         case .render:
-            let out = outputDirectory(environment)
+            let out = try outputDirectory(environment)
             try FileManager.default.createDirectory(at: out, withIntermediateDirectories: true)
             try png.write(to: out.appendingPathComponent("\(name).png"))
             guard FileManager.default.fileExists(atPath: reference.path),
@@ -97,5 +102,5 @@ enum Snapshots {
         return Double(differing) / Double(max(1, count))
     }
 
-    enum SnapshotError: Error { case renderFailed(String) }
+    enum SnapshotError: Error { case renderFailed(String), missingOutputDirectory }
 }
