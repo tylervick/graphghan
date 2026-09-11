@@ -69,3 +69,6 @@ validated row by row, delivered as an offline viewer page and a Stitch Fiddle im
   `patterns/<slug>/build/exports/`.
 - The chart JSON is schema 2 (`docs/chart-format.md`): `pattern.*`, `chart.*` (with a content-hash
   id), `gauge`, `technique`, `instructions`. Stats are under `stats` as before.
+- The iOS app (`ios/`) reads the published manifest and charts; anything the site publishes is
+  what the app can start a project from. `ios/Packages/GraphghanCore` must keep passing
+  `fixtures/chart-format` (run `cd ios && mise run core-test`).
