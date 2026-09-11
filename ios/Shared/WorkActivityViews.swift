@@ -27,8 +27,10 @@ struct WorkLockScreenView: View {
     let info: WorkActivityInfo
     let state: WorkActivityState
 
+    private static let cardBackground = Color(white: 0.08)
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 6) {
             HStack {
                 Text(info.title).font(.headline).lineLimit(1)
                 Spacer()
@@ -43,7 +45,7 @@ struct WorkLockScreenView: View {
                 // button widths squeeze the colour name and the "then …" line down to an ellipsis.
                 HStack(alignment: .center, spacing: 12) {
                     if let code = state.currentCode, let count = state.currentCount {
-                        RunSwatch(info: info, code: code, count: count, size: 52)
+                        RunSwatch(info: info, code: code, count: count, size: 44)
                         VStack(alignment: .leading, spacing: 2) {
                             Text(info.swatch(for: code)?.name ?? code).font(.title3.bold()).lineLimit(1)
                             Text(nextText).font(.footnote).foregroundStyle(.secondary).lineLimit(1)
@@ -58,17 +60,19 @@ struct WorkLockScreenView: View {
                     .buttonStyle(.bordered)
                     .accessibilityLabel("Back one run")
                     Button(intent: AdvanceRunIntent(projectID: info.projectID)) {
-                        Text("Done").font(.title3.bold()).frame(maxWidth: .infinity, minHeight: 44)
+                        Text("Done").font(.title3.bold()).frame(maxWidth: .infinity, minHeight: 40)
                     }
                     .buttonStyle(.borderedProminent)
                 }
             }
         }
-        .padding(14)
+        // Apple's Lock Screen activity budget is 160pt tall and the system clips past it, so the
+        // card is sized to stay inside that: 44pt swatch, 40pt button labels, 12pt padding, 6pt stack.
+        .padding(12)
         // The tint only applies inside a real activity; the opaque background of the same colour
         // keeps the white text legible everywhere else (previews, ImageRenderer snapshots).
-        .background(Color(white: 0.08))
-        .activityBackgroundTint(Color(white: 0.08))
+        .background(Self.cardBackground)
+        .activityBackgroundTint(Self.cardBackground)
         .foregroundStyle(.white)
     }
 
@@ -138,6 +142,7 @@ struct WorkExpandedBottomView: View {
                     Image(systemName: "arrow.uturn.backward").frame(width: 44, height: 40)
                 }
                 .buttonStyle(.bordered)
+                .accessibilityLabel("Back one run")
                 Button(intent: AdvanceRunIntent(projectID: info.projectID)) {
                     Text("Done").bold().frame(maxWidth: .infinity, minHeight: 40)
                 }

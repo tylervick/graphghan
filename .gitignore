@@ -16,3 +16,4 @@ ios/build/
 ios/DerivedData/
 ios/Packages/*/.build/
 ios/TestResults*.xcresult
+ios/Tests/__Snapshots__/*.actual.png
