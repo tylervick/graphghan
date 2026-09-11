@@ -1,17 +1,39 @@
-"""Exports: run-length rows, PNGs, stats, written rows, chart.json (schema 1)."""
+"""Exports: run-length rows, PNGs, stats, written rows, chart.json (schema 2)."""
 
 from __future__ import annotations
 
 import json
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as pkg_version
 from pathlib import Path
 
 import numpy as np
 from PIL import Image, ImageDraw
 
 from . import grid as gr
-from .chartdoc import RUN_RE
+from .chartdoc import RUN_RE, TECHNIQUE_ROWS, chart_id
 
-SCHEMA = 1
+SCHEMA = 2
+SITE_URL = "https://graphghan.milo.cat/"
+
+
+def generator_version() -> str:
+    try:
+        return pkg_version("graphghan")
+    except PackageNotFoundError:
+        return "0"
+
+
+def palette_entries(palette) -> list[dict]:
+    out = []
+    for c in palette.colors:
+        entry = {"code": c.code, "name": c.name, "hex": c.hex, "yarn": dict(c.yarn), "use": c.use}
+        if c.thread:
+            entry["thread"] = dict(c.thread)
+        if c.symbol:
+            entry["symbol"] = c.symbol
+        out.append(entry)
+    return out
 
 
 def rle_rows(a):
@@ -120,38 +142,50 @@ def written_rows(a, codes):
 
 
 def chart_json(a, meta, gauge_key, report, variant="final"):
-    st, rows = meta.gauges.get(gauge_key, gr.GAUGES[gauge_key])
-    if gr.current_gauge() != (st, rows):
+    st, rows_per_in = meta.gauges.get(gauge_key, gr.GAUGES[gauge_key])
+    if gr.current_gauge() != (st, rows_per_in):
         raise ValueError(
-            f"active gauge {gr.current_gauge()} does not match gauge_key {gauge_key!r} {(st, rows)}; "
+            f"active gauge {gr.current_gauge()} does not match gauge_key {gauge_key!r} {(st, rows_per_in)}; "
             "call gr.set_gauge first"
         )
     codes = meta.palette.codes
+    rows = rows_to_strings(a, codes)
+    technique = dict(TECHNIQUE_ROWS)
+    report_out = {k: (list(v) if isinstance(v, tuple) else v) for k, v in report.items()}
     return {
         "schema": SCHEMA,
-        "slug": meta.slug,
-        "title": meta.title,
-        "dedication": meta.dedication,
-        "quote": meta.quote,
-        "version": meta.version,
-        "variant": variant,
-        "stitch": gauge_key,
-        "gauge": {"st_per_in": st, "rows_per_in": rows},
-        "cell_aspect": round(st / rows, 4),
-        "hook": meta.hook,
-        "yarn_weight": meta.yarn_weight,
-        "first_row_color": meta.first_row_color,
-        "width": int(a.shape[1]),
-        "height": int(a.shape[0]),
-        "size_in": [round(a.shape[1] / st, 1), round(a.shape[0] / rows, 1)],
-        "palette": [
-            {"code": c.code, "name": c.name, "hex": c.hex, "yarn": c.yarn, "use": c.use}
-            for c in meta.palette.colors
-        ],
-        "rows": rows_to_strings(a, codes),
+        "pattern": {
+            "id": meta.slug,
+            "title": meta.title,
+            "version": meta.version,
+            "author": meta.author,
+            "license": meta.license,
+            "dedication": meta.dedication,
+            "quote": meta.quote,
+            "url": f"{SITE_URL}patterns/{meta.slug}/",
+        },
+        "chart": {
+            "id": chart_id(codes, rows, technique),
+            "variant": variant,
+            "gauge_key": gauge_key,
+            "width": int(a.shape[1]),
+            "height": int(a.shape[0]),
+        },
+        "generator": {"name": "graphghan", "version": generator_version()},
+        "palette": palette_entries(meta.palette),
+        "rows": rows,
+        "gauge": {
+            "stitches": st * 4,
+            "rows": rows_per_in * 4,
+            "over": {"value": 4, "unit": "in"},
+            "stitch": gauge_key,
+            "hook": meta.hook,
+            "yarn_weight": meta.yarn_weight,
+        },
+        "technique": technique,
+        "instructions": [dict(s) for s in meta.instructions],
         "stats": stats(a, codes),
-        "notes": meta.notes,
-        "report": {k: (list(v) if isinstance(v, tuple) else v) for k, v in report.items()},
+        "ext": {"graphghan": {"report": report_out}},
     }
 
 

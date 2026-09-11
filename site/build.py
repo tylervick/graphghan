@@ -13,8 +13,33 @@ from PIL import Image, ImageDraw
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "site" / "src"
-INDEX_KEYS = ("slug", "title", "dedication", "version", "stitch", "width", "height", "size_in")
 SLUG_RE = re.compile(r"[a-z0-9-]+")
+
+
+def finished_size_in(doc) -> list[float]:
+    g = doc["gauge"]
+    per = g["over"]["value"]
+    w = doc["chart"]["width"] / (g["stitches"] / per)
+    h = doc["chart"]["height"] / (g["rows"] / per)
+    if g["over"]["unit"] == "cm":
+        w, h = w / 2.54, h / 2.54
+    return [round(w, 1), round(h, 1)]
+
+
+def index_entry(doc) -> dict:
+    p, c = doc["pattern"], doc["chart"]
+    return {
+        "slug": p["id"],
+        "title": p["title"],
+        "dedication": p.get("dedication", ""),
+        "version": p["version"],
+        "stitch": doc["gauge"].get("stitch", ""),
+        "width": c["width"],
+        "height": c["height"],
+        "size_in": finished_size_in(doc),
+        "colors": len(doc["palette"]),
+        "preview": f"patterns/{p['id']}/preview.png",
+    }
 
 
 def load_patterns():
@@ -49,7 +74,7 @@ def build(out: Path):
     template = (SRC / "pattern.html").read_text(encoding="utf-8")
     index = []
     for d, doc in load_patterns():
-        slug = doc["slug"]
+        slug = doc["pattern"]["id"]
         if not SLUG_RE.fullmatch(slug):
             raise ValueError(f"invalid slug {slug!r}")
         pdir = out / "patterns" / slug
@@ -57,15 +82,12 @@ def build(out: Path):
         for name in ("chart.json", "chart.png", "preview.png", "written-rows.txt"):
             shutil.copy(d / "dist" / name, pdir / name)
         page = (
-            template.replace("{{title}}", html.escape(doc["title"], quote=True))
+            template.replace("{{title}}", html.escape(doc["pattern"]["title"], quote=True))
             .replace("{{slug}}", html.escape(slug, quote=True))
-            .replace("{{dedication}}", html.escape(doc.get("dedication", ""), quote=True))
+            .replace("{{dedication}}", html.escape(doc["pattern"].get("dedication", ""), quote=True))
         )
         (pdir / "index.html").write_text(page, encoding="utf-8")
-        entry = {k: doc[k] for k in INDEX_KEYS if k != "dedication"}
-        entry["dedication"] = doc.get("dedication", "")
-        entry["colors"] = len(doc["palette"])
-        entry["preview"] = f"patterns/{slug}/preview.png"
+        entry = index_entry(doc)
         index.append(entry)
     (out / "patterns").mkdir(exist_ok=True)
     (out / "patterns" / "index.json").write_text(json.dumps(index), encoding="utf-8")

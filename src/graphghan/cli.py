@@ -13,6 +13,7 @@ from pathlib import Path
 import numpy as np
 
 from . import grid as gr
+from .chartdoc import cell_aspect, finished_size
 from .export import chart_json, preview_png, write_dist
 from .motifs import CATALOG
 from .options_page import build_options_html
@@ -97,7 +98,7 @@ def cmd_render(args) -> int:
         return 0
     out = Path(args.out) if args.out else d / "dist"
     doc = write_dist(g.a, meta, gauge, report, out, variant=args.variant)
-    print(f"wrote {out} ({doc['width']}x{doc['height']}, {gauge}, variant {args.variant})")
+    print(f"wrote {out} ({doc['chart']['width']}x{doc['chart']['height']}, {gauge}, variant {args.variant})")
     return 0
 
 
@@ -160,24 +161,25 @@ def cmd_options(args) -> int:
                 doc["stats"]["stitches"] / per_hr
                 + sum(doc["stats"]["color_changes_per_row"]["per_row"]) * 3 / 3600
             )
+            w_in, h_in, _unit = finished_size(doc)
             entries.append(
                 {
                     "variant": variant,
                     "gauge": gauge,
-                    "width": doc["width"],
-                    "height": doc["height"],
-                    "size_in": doc["size_in"],
+                    "width": doc["chart"]["width"],
+                    "height": doc["chart"]["height"],
+                    "size_in": [w_in, h_in],
                     "colors": sorted({meta.palette.codes[i] for i in set(g.a.ravel().tolist())}),
                     "changes_mean": doc["stats"]["color_changes_per_row"]["mean"],
                     "changes_max": doc["stats"]["color_changes_per_row"]["max"],
                     "hours": round(hours),
                     "rows": doc["rows"],
                     "palette": doc["palette"],
-                    "cell_aspect": doc["cell_aspect"],
+                    "cell_aspect": cell_aspect(doc),
                 }
             )
             print(
-                f"{variant} {gauge}: {doc['width']}x{doc['height']} changes mean {doc['stats']['color_changes_per_row']['mean']} max {doc['stats']['color_changes_per_row']['max']}"
+                f"{variant} {gauge}: {doc['chart']['width']}x{doc['chart']['height']} changes mean {doc['stats']['color_changes_per_row']['mean']} max {doc['stats']['color_changes_per_row']['max']}"
             )
     (out / "options.html").write_text(build_options_html(meta.title, entries))
     print(f"wrote {out / 'options.html'}")

@@ -1,6 +1,6 @@
 [project]
 name = "graphghan"
-version = "0.1.0"
+version = "0.2.0"
 description = "Chart generator, viewer, and Claude skill for graphghan and other pixel-chart crafts"
 readme = "README.md"
 requires-python = ">=3.12"
