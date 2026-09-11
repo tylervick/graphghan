@@ -13,6 +13,7 @@ struct RowStripView: View {
             guard let pass = sequence.pass(at: cursor.row), let y = pass.gridRow else { return }
             let y0 = max(0, y - rowsAround)
             let y1 = min(chart.height - 1, y + rowsAround)
+            guard y0 <= y1 else { return }  // belt and braces: never build an empty or reversed range
             let rows = y1 - y0 + 1
             let cw = size.width / CGFloat(chart.width)
             let ch = size.height / CGFloat(rows)

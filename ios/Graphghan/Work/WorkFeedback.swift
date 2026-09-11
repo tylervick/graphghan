@@ -6,7 +6,7 @@ enum WorkFeedback: Equatable {
 
 /// Which haptic a step deserves. Pure so it is testable; Haptics plays it.
 enum WorkFeedbackRule {
-    static func feedback(for step: WorkStep, from previous: Cursor, in seq: WorkSequence) -> WorkFeedback? {
+    static func feedback(for step: WorkStep, in seq: WorkSequence) -> WorkFeedback? {
         if step.kind == .back { return nil }
         if step.finished { return .finished }
         guard let pass = seq.pass(at: step.cursor.row), step.cursor.run < pass.runs.count else { return nil }

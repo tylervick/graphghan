@@ -110,6 +110,26 @@ import GraphghanCore
         #expect(try h.context.fetchCount(FetchDescriptor<ProgressEvent>()) == 0)
     }
 
+    @Test func workingBackwardsReopensAFinishedProject() async throws {
+        let h = try await makeHarness()
+        let manifest = TestManifest.make(chartID: h.chartID)
+        let p = try await h.service.startProject(manifest: manifest, chart: manifest.charts[0], title: "x")
+        let seq = try await h.service.sequence(for: p)
+        while h.service.apply(.advance, to: p, in: seq) != nil {}  // advance returns nil once finished
+        #expect(p.isFinished)
+        _ = h.service.apply(.back, to: p, in: seq)
+        #expect(!p.isFinished)  // undoing the last stitch un-finishes it, so Work is offered again
+        while h.service.apply(.advance, to: p, in: seq) != nil {}
+        #expect(p.isFinished)
+        _ = h.service.apply(.jump(row: 1), to: p, in: seq)
+        #expect(!p.isFinished)
+        // and the explicit toggle both ways
+        try h.service.markFinished(p)
+        #expect(p.isFinished)
+        try h.service.markUnfinished(p)
+        #expect(!p.isFinished && p.finished == nil)
+    }
+
     @Test func versionNoticeOnlyWhenTheChartChanged() async throws {
         let h = try await makeHarness()
         let manifest = TestManifest.make(chartID: h.chartID, version: "1.0.0")

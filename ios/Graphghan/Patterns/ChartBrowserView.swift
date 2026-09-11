@@ -8,6 +8,8 @@ struct ChartBrowserView: View {
     let load: @MainActor () async throws -> Chart
     @State private var chart: Chart?
     @State private var image: CGImage?
+    /// Built once beside the image: deriving it per body evaluation walks every row of the chart.
+    @State private var sequence: WorkSequence?
     @State private var scale: CGFloat = 4
     @State private var pinchBase: CGFloat = 4
     @State private var error: String?
@@ -22,7 +24,7 @@ struct ChartBrowserView: View {
                             .interpolation(.none)
                             .frame(width: CGFloat(chart.width) * scale, height: CGFloat(chart.height) * scale * chart.cellAspect)
                         rowNumbers(chart)
-                        if let highlightRow, let y = gridRow(for: highlightRow, in: chart) {
+                        if let highlightRow, let y = gridRow(for: highlightRow) {
                             Rectangle().stroke(Color.accentColor, lineWidth: 2)
                                 .frame(width: CGFloat(chart.width) * scale, height: scale * chart.cellAspect)
                                 .offset(y: CGFloat(y) * scale * chart.cellAspect)
@@ -44,19 +46,19 @@ struct ChartBrowserView: View {
                 let c = try await load()
                 chart = c
                 image = ChartImage.make(c)
-            } catch { self.error = String(describing: error) }
+                // A chart with no derivable working order still browses; it just has no row numbers.
+                sequence = try? WorkSequence(chart: c)
+            } catch { self.error = "Couldn't load this chart. Check your connection and try again." }
         }
     }
 
-    private func gridRow(for row: Int, in chart: Chart) -> Int? {
-        guard let seq = try? WorkSequence(chart: chart), let pass = seq.pass(at: row) else { return nil }
-        return pass.gridRow
+    private func gridRow(for row: Int) -> Int? {
+        sequence?.pass(at: row)?.gridRow
     }
 
     @ViewBuilder private func rowNumbers(_ chart: Chart) -> some View {
-        let seq = try? WorkSequence(chart: chart)
         ForEach(Array(stride(from: 10, through: chart.height, by: 10)), id: \.self) { row in
-            if let y = seq?.pass(at: row)?.gridRow {
+            if let y = gridRow(for: row) {
                 Text("\(row)")
                     .font(.system(size: 9, design: .monospaced))
                     .offset(x: -20, y: CGFloat(y) * scale * chart.cellAspect)

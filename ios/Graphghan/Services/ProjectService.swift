@@ -74,7 +74,13 @@ final class ProjectService {
         let t = now()
         project.cursor = step.cursor
         project.lastWorked = t
-        if step.finished { project.finished = t }
+        if step.finished {
+            project.finished = t
+        } else if step.kind == .back || step.kind == .jump, !WorkEngine.isFinished(step.cursor, in: sequence) {
+            // Working backwards or jumping away from the end un-finishes the project, so Work is
+            // offered again instead of the detail screen becoming a dead end.
+            project.finished = nil
+        }
         let event = ProgressEvent(t: t, row: step.cursor.row, run: step.cursor.run, kind: step.kind)
         event.project = project
         context.insert(event)
@@ -103,6 +109,11 @@ final class ProjectService {
 
     func markFinished(_ project: Project) throws {
         project.finished = now()
+        try save()
+    }
+
+    func markUnfinished(_ project: Project) throws {
+        project.finished = nil
         try save()
     }
 

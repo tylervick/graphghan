@@ -16,9 +16,10 @@ Bundle id `com.tylervick.graphghan`, App Group `group.com.tylervick.graphghan`, 
 ## Layout
 
 - `Graphghan/` — the app
-  - `Storage/` — model queries and operations (projects, patterns, sessions)
+  - `Storage/` — App Group paths, the two SwiftData models (`Project`, `ProgressEvent`) and
+    `ChartLibrary`, the downloaded chart files
   - `Network/` — HTTP client and response handling
-  - `Services/` — higher-level logic (projects, patterns, work)
+  - `Services/` — `ProjectService`, through which every project mutation goes
   - `Patterns/` — Patterns tab with pattern browser and chart detail
   - `Projects/` — Projects tab with project list and detail
   - `Work/` — full-screen Work screen
@@ -28,5 +29,9 @@ Bundle id `com.tylervick.graphghan`, App Group `group.com.tylervick.graphghan`, 
 
 ## Data
 
-- SwiftData store and chart files under the App Group container (`group.com.tylervick.graphghan`)
-- Pattern cache under `Library/Caches/patterns/<id>/` (ETags and downloaded charts)
+Everything lives in the App Group container (`group.com.tylervick.graphghan`):
+
+- SwiftData store at `Library/Application Support/graphghan.store`, chart files at
+  `Library/Application Support/charts/<chart id>.json` (never evicted while a project uses one)
+- Pattern cache under `Library/Caches/patterns/<id>/`: the library index, manifests, previews and
+  their ETags

@@ -148,23 +148,10 @@ private struct ChartDetailsView: View {
                     Text(entry.code).font(.system(.body, design: .monospaced)).bold()
                     Text(entry.name)
                 }
-                if let secondary = secondaryLine(entry) {
+                if let secondary = YarnLabel.text(for: entry) {
                     Text(secondary).font(.caption).foregroundStyle(.secondary)
                 }
             }
-        }
-    }
-
-    /// `[yarn.brand, yarn.line, yarn.colorway]` joined, falling back to `yarn.note`, then `use`.
-    private func secondaryLine(_ entry: ChartDocument.PaletteEntry) -> String? {
-        let yarn = entry.yarn
-        let joined = [yarn?["brand"], yarn?["line"], yarn?["colorway"]].compactMap { $0 }.joined(separator: " ")
-        let yarnText = joined.isEmpty ? yarn?["note"] : joined
-        switch (yarnText, entry.use) {
-        case let (.some(y), .some(u)) where !u.isEmpty: return "\(y) · \(u)"
-        case let (.some(y), _): return y
-        case let (.none, .some(u)) where !u.isEmpty: return u
-        default: return nil
         }
     }
 }

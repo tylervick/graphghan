@@ -156,10 +156,9 @@ struct WorkView: View {
 
     private func perform(_ action: WorkAction, sequence: WorkSequence) {
         Haptics.prepare()  // warm the Taptic Engine again after a long pause
-        let previous = cursor
         guard let step = model.projects.apply(action, to: project, in: sequence) else { return }
         cursor = step.cursor
-        if let feedback = WorkFeedbackRule.feedback(for: step, from: previous, in: sequence) { Haptics.play(feedback) }
+        if let feedback = WorkFeedbackRule.feedback(for: step, in: sequence) { Haptics.play(feedback) }
         // A failed save never blocks advancing (spec 6.6): model.projects.lastError is already set
         // for the banner above, and the cursor still moves.
     }
