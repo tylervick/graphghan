@@ -17,9 +17,12 @@ struct PatternDetailView: View {
                 if let manifest {
                     if !manifest.quote.isEmpty { Text("“\(manifest.quote)”").font(.title3.italic()) }
                     specs(manifest)
-                    palette(manifest)
+                    if let chart = manifest.defaultChart {
+                        ChartDetailsView(slug: manifest.id, chart: chart)
+                    } else {
+                        palette(manifest)
+                    }
                     charts(manifest)
-                    instructions
                 } else if let loadError {
                     ContentUnavailableView("Couldn't load this pattern", systemImage: "wifi.slash", description: Text(loadError))
                 } else {
@@ -57,19 +60,6 @@ struct PatternDetailView: View {
         .font(.subheadline)
     }
 
-    @ViewBuilder private func palette(_ m: PatternManifest) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Colors").font(.headline)
-            ForEach(m.palette, id: \.code) { swatch in
-                HStack {
-                    RoundedRectangle(cornerRadius: 4).fill(ChartImage.color(swatch.hex)).frame(width: 28, height: 20)
-                    Text(swatch.code).font(.system(.body, design: .monospaced)).bold()
-                    Text(swatch.name)
-                }
-            }
-        }
-    }
-
     @ViewBuilder private func charts(_ m: PatternManifest) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Published charts").font(.headline)
@@ -93,34 +83,88 @@ struct PatternDetailView: View {
             }
         }
     }
+}
 
-    @ViewBuilder private var instructions: some View {
-        if let m = manifest, let chart = m.defaultChart {
-            InstructionsView(slug: m.id, chart: chart)
+/// The manifest's plain palette (code + name), shown until a chart's richer palette (with yarn
+/// notes) has loaded. Shared by `PatternDetailView` (when a pattern has no published chart at all)
+/// and `ChartDetailsView` (as its loading state).
+@ViewBuilder private func palette(_ m: PatternManifest) -> some View {
+    VStack(alignment: .leading, spacing: 8) {
+        Text("Colors").font(.headline)
+        ForEach(m.palette, id: \.code) { swatch in
+            HStack {
+                RoundedRectangle(cornerRadius: 4).fill(ChartImage.color(swatch.hex)).frame(width: 28, height: 20)
+                Text(swatch.code).font(.system(.body, design: .monospaced)).bold()
+                Text(swatch.name)
+            }
         }
     }
 }
 
-/// Instruction sections live in the chart file, so they load on demand.
-private struct InstructionsView: View {
+/// The chart's palette (with yarn notes) and instruction sections live in the chart file, so they
+/// load on demand; the manifest's plain palette covers the gap until then.
+private struct ChartDetailsView: View {
     @Environment(AppModel.self) private var model
     let slug: String
     let chart: ManifestChart
-    @State private var sections: [ChartDocument.Instruction] = []
+    @State private var loaded: Chart?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            ForEach(sections, id: \.title) { section in
-                Text(section.title).font(.headline)
-                ForEach(section.text.split(separator: "\n").map(String.init), id: \.self) { line in
-                    Text("• \(line)").font(.subheadline)
+        Group {
+            if let loaded {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Colors").font(.headline)
+                    ForEach(loaded.document.palette, id: \.code) { entry in
+                        paletteRow(entry)
+                    }
                 }
+                let sections = loaded.document.instructions
+                if !sections.isEmpty {
+                    VStack(alignment: .leading, spacing: 12) {
+                        ForEach(sections, id: \.title) { section in
+                            Text(section.title).font(.headline)
+                            ForEach(section.text.split(separator: "\n").map(String.init), id: \.self) { line in
+                                Text("• \(line)").font(.subheadline)
+                            }
+                        }
+                    }
+                }
+            } else if let manifest = model.cachedManifest(for: slug) {
+                palette(manifest)
             }
         }
         .task {
-            if let manifest = model.cachedManifest(for: slug), let chart = try? await model.browseChart(manifest: manifest, chart: chart) {
-                sections = chart.document.instructions
+            if let manifest = model.cachedManifest(for: slug) {
+                loaded = try? await model.browseChart(manifest: manifest, chart: chart)
             }
+        }
+    }
+
+    @ViewBuilder private func paletteRow(_ entry: ChartDocument.PaletteEntry) -> some View {
+        HStack(alignment: .top) {
+            RoundedRectangle(cornerRadius: 4).fill(ChartImage.color(entry.hex)).frame(width: 28, height: 20)
+            VStack(alignment: .leading, spacing: 2) {
+                HStack {
+                    Text(entry.code).font(.system(.body, design: .monospaced)).bold()
+                    Text(entry.name)
+                }
+                if let secondary = secondaryLine(entry) {
+                    Text(secondary).font(.caption).foregroundStyle(.secondary)
+                }
+            }
+        }
+    }
+
+    /// `[yarn.brand, yarn.line, yarn.colorway]` joined, falling back to `yarn.note`, then `use`.
+    private func secondaryLine(_ entry: ChartDocument.PaletteEntry) -> String? {
+        let yarn = entry.yarn
+        let joined = [yarn?["brand"], yarn?["line"], yarn?["colorway"]].compactMap { $0 }.joined(separator: " ")
+        let yarnText = joined.isEmpty ? yarn?["note"] : joined
+        switch (yarnText, entry.use) {
+        case let (.some(y), .some(u)) where !u.isEmpty: return "\(y) · \(u)"
+        case let (.some(y), _): return y
+        case let (.none, .some(u)) where !u.isEmpty: return u
+        default: return nil
         }
     }
 }

@@ -60,6 +60,9 @@ struct ChartBrowserView: View {
                 Text("\(row)")
                     .font(.system(size: 9, design: .monospaced))
                     .offset(x: -20, y: CGFloat(y) * scale * chart.cellAspect)
+                Text("\(row)")
+                    .font(.system(size: 9, design: .monospaced))
+                    .offset(x: CGFloat(chart.width) * scale + 6, y: CGFloat(y) * scale * chart.cellAspect)
             }
         }
     }
