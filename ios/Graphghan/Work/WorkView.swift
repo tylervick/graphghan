@@ -31,8 +31,10 @@ struct WorkView: View {
             do {
                 chart = try await model.projects.chart(for: project)
                 sequence = try await model.projects.sequence(for: project)
+                guard !Task.isCancelled else { return }
                 Haptics.prepare()
                 if let (info, state) = await model.activityState(for: project) {
+                    guard !Task.isCancelled else { return }
                     await model.liveActivity.start(projectID: project.id, info: info, state: state)
                 }
             } catch {
