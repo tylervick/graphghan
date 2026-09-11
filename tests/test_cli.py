@@ -115,3 +115,32 @@ def test_committed_dist_publishes_sc_and_hdc():
         top["chart"]["id"]
         == json.loads((dist / "charts" / "final-sc" / "chart.json").read_text())["chart"]["id"]
     )
+
+
+def test_export_formats_and_default_paths(tmp_path, monkeypatch):
+    monkeypatch.chdir(ROOT)
+    for fmt in ("png", "oxs", "csv"):
+        out = tmp_path / f"chart.{fmt}"
+        assert main(["export", "craigh-na-dun", "--format", fmt, "--out", str(out)]) == 0
+        assert out.exists() and out.stat().st_size > 0
+    assert (
+        main(
+            [
+                "export",
+                "craigh-na-dun",
+                "--format",
+                "csv",
+                "--chart",
+                "final-hdc",
+                "--out",
+                str(tmp_path / "hdc.csv"),
+            ]
+        )
+        == 0
+    )
+    assert len((tmp_path / "hdc.csv").read_text().splitlines()) == 115
+    assert main(["export", "craigh-na-dun", "--format", "csv", "--chart", "final-nope"]) == 1
+    assert main(["export", "craigh-na-dun", "--format", "csv"]) == 0
+    default = ROOT / "patterns" / "craigh-na-dun" / "build" / "exports" / "final-sc.csv"
+    assert default.exists()
+    default.unlink()

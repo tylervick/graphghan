@@ -46,6 +46,7 @@ uv run graphghan new <slug> --title "<Title>"    # scaffold patterns/<slug>/
 uv run graphghan options <slug>                  # compare variants/gauges, writes an HTML page
 uv run graphghan render <slug>                   # publish every [publish] chart to dist/
 uv run graphghan check <slug>                    # generic invariants + the pattern's own tests
+uv run graphghan export <slug> --format oxs        # also png (1 px/stitch) and csv; --chart final-hdc picks a chart
 uv run graphghan site serve                      # build and serve the viewer at :8765
 ```
 

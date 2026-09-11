@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import http.server
+import json
 import runpy
 import subprocess
 import sys
@@ -14,6 +15,7 @@ import numpy as np
 from . import grid as gr
 from .chartdoc import cell_aspect, finished_size
 from .export import chart_json, preview_png, write_dist
+from .exporters import to_csv, to_oxs, to_png
 from .motifs import CATALOG
 from .options_page import build_options_html
 from .pattern import find_repo_root, load_design, load_pattern, pattern_dir
@@ -230,6 +232,29 @@ def cmd_site(args) -> int:
     return 0
 
 
+def cmd_export(args) -> int:
+    d = _resolve_or_die(args.pattern)
+    if d is None:
+        return 2
+    dist = d / "dist"
+    src = dist / "charts" / args.chart / "chart.json" if args.chart else dist / "chart.json"
+    if not src.exists():
+        print(f"no committed chart at {src.relative_to(d)}; run 'graphghan render' first", file=sys.stderr)
+        return 1
+    doc = json.loads(src.read_text(encoding="utf-8"))
+    key = args.chart or chart_key(doc["chart"]["variant"], doc["chart"]["gauge_key"])
+    out = Path(args.out) if args.out else d / "build" / "exports" / f"{key}.{args.format}"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    if args.format == "png":
+        to_png(doc).save(out)
+    elif args.format == "oxs":
+        out.write_text(to_oxs(doc), encoding="utf-8")
+    else:
+        out.write_text(to_csv(doc), encoding="utf-8")
+    print(f"wrote {out}")
+    return 0
+
+
 def build_parser():
     p = argparse.ArgumentParser(prog="graphghan", description="charts for pixel-chart crafts")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -268,6 +293,17 @@ def build_parser():
         "--out", help="output directory for options.html and previews (default: <pattern>/build/options)"
     )
     o.set_defaults(fn=cmd_options)
+
+    e = sub.add_parser(
+        "export", help="export a committed chart as a 1-px PNG, OXS (cross stitch), or CSV grid"
+    )
+    e.add_argument("pattern", help="pattern slug (looked up under patterns/) or a path to a pattern folder")
+    e.add_argument("--format", required=True, choices=["png", "oxs", "csv"], help="output format")
+    e.add_argument(
+        "--chart", help="published chart key such as final-hdc (default: the pattern's default chart)"
+    )
+    e.add_argument("--out", help="output file (default: <pattern>/build/exports/<key>.<format>)")
+    e.set_defaults(fn=cmd_export)
 
     k = sub.add_parser("catalog", help="render thumbnail PNGs for every motif in the catalog")
     k.add_argument("--out", help="output directory for thumbnails (default: .claude/skills/graphghan/assets)")
