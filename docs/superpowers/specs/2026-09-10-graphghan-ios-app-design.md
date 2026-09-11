@@ -32,17 +32,20 @@ Swift, and it is tested from all three sides against shared fixtures.
 
 ## 3. Non-goals and follow-ons
 
-Not in this version, listed so nobody builds them by accident:
+Not in this version, listed so nobody builds them by accident. Follow-ons are tracked as
+issues (see `CLAUDE.md`, Backlog):
 
-- Spoken readout of the next run; Siri phrases and the Action Button (the intents exist, the
-  `AppShortcutsProvider` does not); Apple Watch; hardware keyboard, page-turner or foot-pedal keys.
-- "Where am I" from a stitch count; yarn and bobbin management; photos; sessions across devices.
-- Opening `.graphghan` bundles from Files or AirDrop (the bundle is defined; the document type
-  registration and importer are not built).
-- Importers (PNG, OXS, CSV into a pattern folder). Exporters are in scope.
-- Techniques other than `rows` and `rounds` (C2C is a reserved name, see 5.6).
-- CloudKit sync, sharing progress with the designer, accounts of any kind.
-- The in-app options page. The existing options HTML stays a designer's tool.
+- Spoken readout of the next run (#7); Siri phrases and the Action Button (#8; the intents exist,
+  the `AppShortcutsProvider` does not); Apple Watch (#9); hardware keyboard, page-turner or
+  foot-pedal keys (#10).
+- "Where am I" from a stitch count (#11); yarn and bobbin management (#12); photos (#13);
+  sessions across devices (#14).
+- Opening `.graphghan` bundles from Files or AirDrop (#16; the bundle is defined; the document
+  type registration and importer are not built).
+- Importers (PNG, OXS, CSV into a pattern folder) (#17). Exporters are in scope.
+- Techniques other than `rows` and `rounds` (C2C is a reserved name, see 5.6; #18).
+- CloudKit sync (#14), sharing progress with the designer (#15). Accounts of any kind: not planned.
+- The in-app options page: not planned. The existing options HTML stays a designer's tool.
 
 ## 4. Publishing contract (Python side)
 
