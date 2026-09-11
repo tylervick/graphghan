@@ -1,4 +1,4 @@
-import { rowSide, workingRuns } from './data.js';
+import { passLabel, rowSide, workingRuns, yOfRow } from './data.js';
 import { esc } from './util.js';
 
 export class WorkingMode {
@@ -67,8 +67,8 @@ export class WorkingMode {
 
   render() {
     const { chart } = this; const p = this.hooks.getProgress(); const runs = workingRuns(chart, p.row);
-    this.el.querySelector('#w-row').textContent = `Row ${p.row} of ${chart.H}`;
-    this.el.querySelector('#w-side').textContent = rowSide(p.row) === 'RS' ? 'Right side · chart reads right → left' : 'Wrong side · chart reads left → right';
+    this.el.querySelector('#w-row').textContent = `${passLabel(chart, p.row)} of ${chart.H}`;
+    this.el.querySelector('#w-side').textContent = rowSide(chart, p.row) === 'RS' ? 'Right side · chart reads right → left' : 'Wrong side · chart reads left → right';
     let total = 0;
     this.el.querySelector('#w-runs').innerHTML = runs.map(([c, n], i) => { total += n; return `<span class="chip ${i < p.run ? 'done' : ''} ${i === p.run ? 'current' : ''}" data-i="${esc(i)}" style="background:${esc(chart.hex[c])};color:${chart.light[c] ? '#fff' : '#111'}"><span>${esc(n)} ${esc(chart.codes[c])}</span><small>to ${esc(total)}</small></span>`; }).join('');
     this.el.querySelectorAll('.chip').forEach(ch => ch.addEventListener('click', () => { this.hooks.setRun(+ch.dataset.i); this.render(); }));
@@ -78,11 +78,13 @@ export class WorkingMode {
 
   drawStrip(row) {
     const { chart } = this; const cv = this.el.querySelector('#w-strip'); const ctx = cv.getContext('2d');
-    const cw = 6, ch = 8, rowsAround = 2; const y0 = Math.max(0, chart.H - row - rowsAround), y1 = Math.min(chart.H, chart.H - row + rowsAround + 1);
+    const cw = 6, ch = 8, rowsAround = 2; const yc = yOfRow(chart, row);
+    const y0 = Math.max(0, yc - rowsAround), y1 = Math.min(chart.H, yc + rowsAround + 1);
     cv.width = chart.W * cw; cv.height = (y1 - y0) * ch;
     for (let y = y0; y < y1; y++) { let x = 0; for (const [c, n] of chart.runsTop[y]) { ctx.fillStyle = chart.hex[c]; ctx.fillRect(x * cw, (y - y0) * ch, n * cw, ch); x += n; } }
-    const yy = chart.H - row - y0; ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.fillRect(0, 0, cv.width, yy * ch); ctx.fillRect(0, (yy + 1) * ch, cv.width, cv.height - (yy + 1) * ch);
+    const yy = yc - y0; ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.fillRect(0, 0, cv.width, yy * ch); ctx.fillRect(0, (yy + 1) * ch, cv.width, cv.height - (yy + 1) * ch);
     ctx.strokeStyle = '#D9A21B'; ctx.lineWidth = 2; ctx.strokeRect(1, yy * ch + 1, cv.width - 2, ch - 2);
-    if (rowSide(row) === 'RS') { ctx.fillStyle = '#D9A21B'; ctx.fillRect(cv.width - 8, yy * ch, 8, ch); } else { ctx.fillStyle = '#D9A21B'; ctx.fillRect(0, yy * ch, 8, ch); }   // marker on the side you start from
+    ctx.fillStyle = '#D9A21B';
+    if (rowSide(chart, row) === 'RS') ctx.fillRect(cv.width - 8, yy * ch, 8, ch); else ctx.fillRect(0, yy * ch, 8, ch);   // marker on the side you start from
   }
 }
