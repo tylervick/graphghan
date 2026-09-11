@@ -15,10 +15,10 @@
     },
     {
       "start": "2026-09-13T10:00:00Z",
-      "end": "2026-09-13T10:30:00Z",
+      "end": "2026-09-13T10:15:00Z",
       "stitches": 18
     }
   ],
-  "active_seconds": 2640,
-  "stitches_per_hour": 79.1
+  "active_seconds": 1740,
+  "stitches_per_hour": 120.0
 }

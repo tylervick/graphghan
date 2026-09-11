@@ -37,7 +37,7 @@ def test_summarize_sessions_pace_and_percent():
             ev("2026-09-12T19:02:00Z", 3, 1, "back"),
             ev("2026-09-12T19:04:00Z", 3, 2),
             ev("2026-09-13T10:00:00Z", 5, 0, "jump"),
-            ev("2026-09-13T10:30:00Z", 5, 1),
+            ev("2026-09-13T10:15:00Z", 5, 1),
         ],
     }
     s = progress.summarize(doc, PASSES)
@@ -48,10 +48,10 @@ def test_summarize_sessions_pace_and_percent():
         "sessions": [
             {"start": "2026-09-12T18:00:00Z", "end": "2026-09-12T18:10:00Z", "stitches": 30},
             {"start": "2026-09-12T19:00:00Z", "end": "2026-09-12T19:04:00Z", "stitches": 10},
-            {"start": "2026-09-13T10:00:00Z", "end": "2026-09-13T10:30:00Z", "stitches": 18},
+            {"start": "2026-09-13T10:00:00Z", "end": "2026-09-13T10:15:00Z", "stitches": 18},
         ],
-        "active_seconds": 2640,
-        "stitches_per_hour": 79.1,
+        "active_seconds": 1740,
+        "stitches_per_hour": 120.0,
     }
 
 

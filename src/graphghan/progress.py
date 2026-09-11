@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-GAP_SECONDS = 1800
+GAP_SECONDS = 1200
 
 
 def _parse(t: str) -> datetime:
