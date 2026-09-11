@@ -21,9 +21,11 @@ targets:
     platform: iOS
     sources:
       - path: Graphghan
+      - path: Shared
       - path: Assets.xcassets
     dependencies:
       - package: GraphghanCore
+      - target: GraphghanWidgets
     entitlements:
       path: Graphghan/Graphghan.entitlements
       properties:
@@ -36,6 +38,7 @@ targets:
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         UILaunchScreen: {}
         ITSAppUsesNonExemptEncryption: false
+        NSSupportsLiveActivities: true
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
           - UIInterfaceOrientationLandscapeLeft
@@ -57,11 +60,38 @@ targets:
     settings:
       base:
         GENERATE_INFOPLIST_FILE: YES
+  GraphghanWidgets:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: GraphghanWidgets
+      - path: Shared
+    dependencies:
+      - package: GraphghanCore
+    entitlements:
+      path: GraphghanWidgets/GraphghanWidgets.entitlements
+      properties:
+        com.apple.security.application-groups: [group.com.tylervick.graphghan]
+    info:
+      path: GraphghanWidgets/Info.plist
+      properties:
+        CFBundleDisplayName: Graphghan
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.tylervick.graphghan.widgets
+        CURRENT_PROJECT_VERSION: 1
+        MARKETING_VERSION: "0.1"
+        SKIP_INSTALL: YES
 schemes:
   Graphghan:
     build:
       targets:
         Graphghan: all
+        GraphghanWidgets: all
         GraphghanTests: [test]
     run:
       config: Debug
