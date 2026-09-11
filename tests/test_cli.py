@@ -96,3 +96,22 @@ def test_render_check_detects_drift(tmp_path):
     assert changed != original
     toml_path.write_text(changed)
     assert main(["render", str(copy), "--check"]) == 1
+
+
+def test_render_adhoc_requires_out_and_never_touches_dist(tmp_path):
+    assert main(["render", "craigh-na-dun", "--gauge", "hdc"]) == 2
+    assert main(["render", "craigh-na-dun", "--variant", "plain-foot"]) == 2
+    assert main(["render", "craigh-na-dun", "--gauge", "hdc", "--check"]) == 2
+    assert main(["render", "craigh-na-dun", "--variant", "plain-foot", "--out", str(tmp_path)]) == 0
+    assert json.loads((tmp_path / "chart.json").read_text())["chart"]["variant"] == "plain-foot"
+
+
+def test_committed_dist_publishes_sc_and_hdc():
+    dist = ROOT / "patterns" / "craigh-na-dun" / "dist"
+    for key in ("final-sc", "final-hdc"):
+        assert (dist / "charts" / key / "chart.json").exists()
+    top = json.loads((dist / "chart.json").read_text())
+    assert (
+        top["chart"]["id"]
+        == json.loads((dist / "charts" / "final-sc" / "chart.json").read_text())["chart"]["id"]
+    )

@@ -44,7 +44,7 @@ Then the tool itself:
 ```bash
 uv run graphghan new <slug> --title "<Title>"    # scaffold patterns/<slug>/
 uv run graphghan options <slug>                  # compare variants/gauges, writes an HTML page
-uv run graphghan render <slug>                   # write dist/chart.json, chart.png, etc.
+uv run graphghan render <slug>                   # publish every [publish] chart to dist/
 uv run graphghan check <slug>                    # generic invariants + the pattern's own tests
 uv run graphghan site serve                      # build and serve the viewer at :8765
 ```
@@ -58,9 +58,9 @@ fresh build against the committed `dist/` and fails on drift. Run `uv run graphg
 A pattern is a folder under `patterns/<slug>/` with a `pattern.toml` (metadata: title, dedication,
 gauges, palette, notes) and a `design.py` that exposes a `VARIANTS` dict and a
 `build(gauge_key, variant) -> (Grid, report)` function, where `report` is a dict of named boxes
-(at least `panel` and `text`) used by the pattern's own tests. Every pattern commits its default-
-gauge render under `dist/` (`chart.json`, `chart.png`, `preview.png`, `preview-grid.png`,
-`written-rows.txt`); the site and CI build from those committed files, and
+(at least `panel` and `text`) used by the pattern's own tests. Every pattern commits every published
+chart under `dist/charts/<variant>-<gauge>/` (declared in `[publish]` in `pattern.toml`; the first
+entry is also copied to `dist/` top level); the site and CI build from those committed files, and
 `graphghan render <slug> --check` (run in CI) fails if a fresh render drifts from what's
 committed. See `docs/superpowers/specs/2026-09-09-graphghan-design.md` for the full contract.
 

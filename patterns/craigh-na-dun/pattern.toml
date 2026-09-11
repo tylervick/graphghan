@@ -63,3 +63,6 @@ colors = [
   "Lettering rows are cream and charcoal only across the panel. Carry charcoal under the cream between letters, or use a bobbin per word.",
   "Scene rows are cream sky with charcoal stones and the gold moon; the hill rows are long green runs, the easiest in the blanket.",
 ]
+
+[publish]
+charts = [["final", "sc"], ["final", "hdc"]]
