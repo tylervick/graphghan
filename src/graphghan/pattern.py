@@ -27,6 +27,10 @@ class PatternMeta:
     gauges: dict[str, tuple[float, float]]
     palette: Palette
     notes: dict[str, list[str]]
+    publish: list[tuple[str, str]]
+    instructions: list[dict]
+    author: str
+    license: str
     dir: Path
 
 
@@ -50,6 +54,15 @@ def load_pattern(pattern_dir: str | Path) -> PatternMeta:
     for name, (st, rows) in gauges.items():
         gr.register_gauge(name, st, rows)
     notes = {k: list(v) for k, v in data.get("notes", {}).items()}
+    publish = [(str(v), str(g)) for v, g in data.get("publish", {}).get("charts", [])]
+    if not publish:
+        publish = [("final", p.get("stitch", "sc"))]
+    instructions = []
+    for key, title in (("setup", "Setup"), ("colors", "Colors")):
+        if notes.get(key):
+            instructions.append({"title": title, "text": "\n".join(notes[key])})
+    for sec in data.get("instructions", []):
+        instructions.append({"title": str(sec["title"]), "text": str(sec["text"])})
     return PatternMeta(
         slug=p["slug"],
         title=p["title"],
@@ -64,6 +77,10 @@ def load_pattern(pattern_dir: str | Path) -> PatternMeta:
         gauges=gauges,
         palette=Palette.from_toml(d / "pattern.toml"),
         notes=notes,
+        publish=publish,
+        instructions=instructions,
+        author=p.get("author", ""),
+        license=p.get("license", ""),
         dir=d,
     )
 
