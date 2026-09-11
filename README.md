@@ -73,6 +73,13 @@ documented in `docs/chart-format.md`, has JSON Schemas under `schema/`, and ship
 fixtures under `fixtures/chart-format/` that any reader (the PWA, the iOS app, yours) can test
 against. `graphghan export` writes 1-px PNG, OXS, and CSV.
 
+## iOS app
+
+`ios/` holds a SwiftUI app for working a published pattern on an iPhone (see `ios/README.md`):
+a Patterns tab fed from this site, a Projects tab with per-project progress, and a full-screen
+Work screen. `ios/Packages/GraphghanCore` is the Swift reader for the chart format and passes the
+same conformance fixtures as the Python package.
+
 ## The skill
 
 `.claude/skills/graphghan/` packages the design workflow (gauge selection, composition, the

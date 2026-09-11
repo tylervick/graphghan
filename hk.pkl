@@ -30,6 +30,20 @@ local largeFiles: Step = new Step {
   check = "hk util check-added-large-files --maxkb 5000 {{files}}"
 }
 
+local gitleaks: Step = new Step {
+  // Deliberately not Builtins.gitleaks, which runs `gitleaks dir ... {{files}}`.
+  // `gitleaks dir` accepts one positional path; handed more than one it silently
+  // ignores all of them and scans the working directory instead -- so the builtin
+  // never scanned the changed files it was given. In .worktrees/ios-core that
+  // pulled in 480MB of gitignored Xcode DerivedData under ios/build/, and the step
+  // then passed or failed on whatever the last simulator run happened to leave
+  // there: 31 false-positive "leaks" out of system.logarchive one minute, clean the
+  // next. Scanning git objects instead of the filesystem is both what a secret
+  // check means and structurally out of reach of untracked build output. All 80
+  // commits scan in ~0.5s, so there is no range to compute and nothing to exclude.
+  check = "gitleaks git --redact --verbose --no-banner"
+}
+
 local pytest: Step = new Step {
   // No glob: site/tests exercises the site build, patterns/*/tests exercise the
   // committed renders, and tests/test_drift.py compares a fresh render against
@@ -57,12 +71,13 @@ local fast = new Mapping<String, Step> {
 }
 
 // What `hk check --all` means, and therefore what CI enforces. The three added
-// here scan the workflow and the whole tree rather than one edited file, so they
-// are worth a couple of seconds on push and in CI but not on every commit.
+// here scan the workflow, or the repository's whole history, rather than one
+// edited file, so they are worth a couple of seconds on push and in CI but not on
+// every commit.
 local lint = (fast) {
   ["actionlint"] = Builtins.actionlint
   ["zizmor"] = Builtins.zizmor
-  ["gitleaks"] = Builtins.gitleaks
+  ["gitleaks"] = gitleaks
 }
 
 hooks {

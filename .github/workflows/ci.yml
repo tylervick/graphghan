@@ -11,8 +11,11 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         # Nothing in this job pushes; leaving the token in .git/config only widens
-        # what a compromised later step could reach.
-        with: {persist-credentials: false}
+        # what a compromised later step could reach. fetch-depth 0 because hk's
+        # gitleaks step scans commit history rather than the working tree, and a
+        # shallow clone would have it report a clean scan of a single commit --
+        # a green that means nothing was looked at.
+        with: {persist-credentials: false, fetch-depth: 0}
       # mise installs the uv/hk/linter versions mise.toml pins, so `hk check --all`
       # below runs the same tools as the local pre-commit hook rather than a
       # separately-maintained list that can drift from it.

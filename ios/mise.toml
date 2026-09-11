@@ -1,0 +1,23 @@
+# iOS tooling. The repo-root mise.toml still applies here (uv, node, hk); this file adds what only
+# ios/ needs. Run from ios/: `mise run generate && mise run test`.
+[tools]
+xcodegen = "2.46.0"
+
+[tasks.generate]
+description = "Generate Graphghan.xcodeproj from project.yml"
+run = "xcodegen generate --quiet"
+
+[tasks.core-test]
+description = "swift test for the GraphghanCore package (macOS host, no simulator)"
+dir = "Packages/GraphghanCore"
+run = "swift test --quiet"
+
+[tasks.build]
+description = "Build the app for the iPhone 17 simulator"
+depends = ["generate"]
+run = "xcodebuild build -quiet -project Graphghan.xcodeproj -scheme Graphghan -destination 'platform=iOS Simulator,name=iPhone 17' -derivedDataPath build/DerivedData"
+
+[tasks.test]
+description = "Run the app target's unit tests on the iPhone 17 simulator"
+depends = ["generate"]
+run = "xcodebuild test -quiet -project Graphghan.xcodeproj -scheme Graphghan -destination 'platform=iOS Simulator,name=iPhone 17' -derivedDataPath build/DerivedData"
