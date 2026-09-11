@@ -1,0 +1,50 @@
+{
+  "passes": [
+    {
+      "label": "Row 1",
+      "side": "RS",
+      "direction": "rtl",
+      "grid_row": 1,
+      "runs": [
+        {
+          "code": "Kb",
+          "count": 3,
+          "x0": 9
+        },
+        {
+          "code": "Gd",
+          "count": 7,
+          "x0": 2
+        },
+        {
+          "code": "G",
+          "count": 2,
+          "x0": 0
+        }
+      ]
+    },
+    {
+      "label": "Row 2",
+      "side": "WS",
+      "direction": "ltr",
+      "grid_row": 0,
+      "runs": [
+        {
+          "code": "Gd",
+          "count": 7,
+          "x0": 0
+        },
+        {
+          "code": "G",
+          "count": 2,
+          "x0": 7
+        },
+        {
+          "code": "Y",
+          "count": 3,
+          "x0": 9
+        }
+      ]
+    }
+  ]
+}

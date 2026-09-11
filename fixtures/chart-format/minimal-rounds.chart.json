@@ -1,0 +1,63 @@
+{
+  "schema": 2,
+  "pattern": {
+    "id": "minimal",
+    "title": "Minimal",
+    "version": "1.0.0",
+    "author": "graphghan fixtures",
+    "license": "MIT"
+  },
+  "chart": {
+    "id": "sha256:277e5bbe1cf949249e2f0b62c11af036fb1a36e522a6816859bb458e65ffd117",
+    "variant": "final",
+    "gauge_key": "sc",
+    "width": 14,
+    "height": 12
+  },
+  "generator": {
+    "name": "graphghan-fixtures",
+    "version": "1"
+  },
+  "palette": [
+    {
+      "code": "A",
+      "name": "Color A",
+      "hex": "#112233"
+    },
+    {
+      "code": "B",
+      "name": "Color B",
+      "hex": "#ffffff"
+    }
+  ],
+  "rows": [
+    "14A",
+    "14A",
+    "2A10B2A",
+    "2A10B2A",
+    "2A10B2A",
+    "2A10B2A",
+    "2A10B2A",
+    "2A10B2A",
+    "2A10B2A",
+    "2A10B2A",
+    "14A",
+    "14A"
+  ],
+  "gauge": {
+    "stitches": 14.0,
+    "rows": 16.0,
+    "over": {
+      "value": 4,
+      "unit": "in"
+    },
+    "stitch": "sc"
+  },
+  "technique": {
+    "type": "rounds",
+    "start": "bottom",
+    "first_side": "RS",
+    "rs_direction": "rtl"
+  },
+  "instructions": []
+}
