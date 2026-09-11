@@ -38,7 +38,7 @@ import GraphghanCore
         let p2 = try await h.service.startProject(manifest: manifest, chart: manifest.charts[0], title: "Second")
         let seq2 = try await h.service.sequence(for: p2)
         h.service.now = { Date(timeIntervalSince1970: 1_800_000_100) }
-        _ = try h.service.apply(.advance, to: p2, in: seq2)
+        _ = h.service.apply(.advance, to: p2, in: seq2)
         #expect(try h.service.projects().first?.id == p2.id)
     }
 
@@ -67,17 +67,17 @@ import GraphghanCore
         let seq = try await h.service.sequence(for: p)
         let t = Date(timeIntervalSince1970: 1_800_000_000)
         h.service.now = { t }
-        let step = try h.service.apply(.advance, to: p, in: seq)
+        let step = h.service.apply(.advance, to: p, in: seq)
         #expect(step?.cursor == Cursor(row: 1, run: 1))
         #expect(p.cursor == Cursor(row: 1, run: 1) && p.lastWorked == t)
         #expect(p.eventRecords == [ProgressEventRecord(t: t, row: 1, run: 1, kind: .advance)])
         #expect(try h.context.fetchCount(FetchDescriptor<ProgressEvent>()) == 1)
-        #expect(try h.service.apply(.back, to: p, in: seq)?.cursor == .start)
-        #expect(try h.service.apply(.back, to: p, in: seq) == nil)   // no-op at the start writes nothing
+        #expect(h.service.apply(.back, to: p, in: seq)?.cursor == .start)
+        #expect(h.service.apply(.back, to: p, in: seq) == nil)   // no-op at the start writes nothing
         #expect(try h.context.fetchCount(FetchDescriptor<ProgressEvent>()) == 2)
         // finishing the last run marks the project finished
-        _ = try h.service.apply(.jump(row: 2), to: p, in: seq)
-        for _ in 0..<3 { _ = try h.service.apply(.advance, to: p, in: seq) }
+        _ = h.service.apply(.jump(row: 2), to: p, in: seq)
+        for _ in 0..<3 { _ = h.service.apply(.advance, to: p, in: seq) }
         #expect(p.isFinished && h.service.summary(for: p, sequence: seq).percent == 100)
     }
 
@@ -87,7 +87,7 @@ import GraphghanCore
         let p = try await h.service.startProject(manifest: manifest, chart: manifest.charts[0], title: "x")
         let seq = try await h.service.sequence(for: p)
         h.service.now = { Date(timeIntervalSince1970: 1_800_000_000) }
-        _ = try h.service.apply(.advance, to: p, in: seq)  // Kb 3 stitches done
+        _ = h.service.apply(.advance, to: p, in: seq)  // Kb 3 stitches done
         let s = h.service.summary(for: p, sequence: seq)
         #expect(s.stitchesDone == 3 && s.totalStitches == 24 && s.sessions.count == 1)
         #expect(h.service.estimatedFinish(for: p, sequence: seq) == nil)  // fewer than 3 sessions
@@ -100,7 +100,7 @@ import GraphghanCore
         let manifest = TestManifest.make(chartID: h.chartID)
         let p = try await h.service.startProject(manifest: manifest, chart: manifest.charts[0], title: "x")
         let seq = try await h.service.sequence(for: p)
-        _ = try h.service.apply(.advance, to: p, in: seq)
+        _ = h.service.apply(.advance, to: p, in: seq)
         try h.service.setNotes("bobbin the gold", for: p)
         #expect(p.notes == "bobbin the gold")
         try h.service.markFinished(p)
@@ -118,7 +118,7 @@ import GraphghanCore
         let changed = TestManifest.make(chartID: "sha256:" + String(repeating: "b", count: 64), version: "2.0.0")
         #expect(h.service.versionNotice(for: p, manifest: changed) == .chartChanged(newChart: changed.charts[0], newVersion: "2.0.0", canSwitch: true))
         let seq = try await h.service.sequence(for: p)
-        _ = try h.service.apply(.advance, to: p, in: seq)
+        _ = h.service.apply(.advance, to: p, in: seq)
         #expect(h.service.versionNotice(for: p, manifest: changed) == .chartChanged(newChart: changed.charts[0], newVersion: "2.0.0", canSwitch: false))
         await #expect(throws: ProjectService.ServiceError.cursorNotAtStart) { try await h.service.switchChart(p, to: changed.charts[0], manifest: changed) }
         #expect(h.service.versionNotice(for: p, manifest: TestManifest.make(chartID: h.chartID, gaugeKey: "hdc")) == nil)  // no matching chart in the manifest: nothing to say
@@ -162,16 +162,13 @@ import GraphghanCore
         await #expect(throws: ProjectService.ServiceError.chartUnavailable(p.chartID)) { _ = try await h.service.sequence(for: p) }
     }
 
-    @Test func saveFailureSetsLastErrorAndRollsBackTheCursor() async throws {
+    @Test func saveFailureSetsLastErrorButNeverBlocksAdvancing() async throws {
         // `isStoredInMemoryOnly: true, allowsSave: false` fails to even *load* the container on this
         // SDK (it backs the in-memory store with a read-only handle on /dev/null, which the store
         // can't open at all -- confirmed empirically, see task-10-fix-report.md). So: persist a project
         // to a real file with a writable container first, then reopen that same file read-only. The
         // reopened context can fetch the already-persisted project fine and fails only on `save()`,
-        // which is the failure this test needs. It also gives `rollback()` something to roll back
-        // *to* -- a project inserted straight into a from-scratch context has no saved baseline, so
-        // rolling back leaves its in-memory properties exactly as this test set them, which proved
-        // nothing about `apply`'s rollback behavior.
+        // which is the failure this test needs.
         let dir = try temporaryDirectory()
         let url = dir.appendingPathComponent("readonly.store")
         let data = try TestFixtures.data("two-letter-codes.chart.json")
@@ -190,8 +187,15 @@ import GraphghanCore
         let p = try #require(try service.projects().first)
         #expect(p.cursor == .start)
         let seq = try WorkSequence(chart: chart)
-        #expect(throws: (any Error).self) { try service.apply(.advance, to: p, in: seq) }
+        // Spec 6.6: a storage failure never blocks advancing -- the cursor still moves in memory
+        // and `apply` still returns the step, even though the save behind it fails.
+        let step = service.apply(.advance, to: p, in: seq)
+        #expect(step?.cursor == Cursor(row: 1, run: 1))
+        #expect(p.cursor == Cursor(row: 1, run: 1))
         #expect(service.lastError != nil)
-        #expect(p.cursor == .start)  // the failed save rolled the mutation back to its last persisted state
+        // advancing again keeps working from the in-memory cursor, still unblocked by the failing store
+        let step2 = service.apply(.advance, to: p, in: seq)
+        #expect(step2?.cursor == Cursor(row: 1, run: 2))
+        #expect(p.cursor == Cursor(row: 1, run: 2))
     }
 }

@@ -53,6 +53,7 @@ struct WorkView: View {
                     Text("\(pass.label) of \(sequence.passes.count)").font(.title2.bold())
                         .onLongPressGesture { showJump = true }
                         .accessibilityHint("Long press to jump to a row")
+                        .accessibilityAction(named: "Jump to row") { showJump = true }
                     Text(sideText(pass)).font(.footnote).foregroundStyle(.secondary)
                 }
                 Spacer()
@@ -144,9 +145,9 @@ struct WorkView: View {
     }
 
     private func sideText(_ pass: Pass) -> String {
-        let side = pass.side == .ws ? "Wrong side" : "Right side"
-        let dir = pass.direction == .ltr ? "read left → right" : "read right → left"
-        return "\(side) · \(dir)"
+        let dir = pass.direction.map { $0 == .ltr ? "read left → right" : "read right → left" } ?? "read direction not specified"
+        guard let side = pass.side else { return dir }
+        return "\(side == .ws ? "Wrong side" : "Right side") · \(dir)"
     }
 
     private func colorName(_ code: String, _ chart: Chart) -> String {
@@ -154,13 +155,12 @@ struct WorkView: View {
     }
 
     private func perform(_ action: WorkAction, sequence: WorkSequence) {
+        Haptics.prepare()  // warm the Taptic Engine again after a long pause
         let previous = cursor
-        do {
-            guard let step = try model.projects.apply(action, to: project, in: sequence) else { return }
-            cursor = step.cursor
-            if let feedback = WorkFeedbackRule.feedback(for: step, from: previous, in: sequence) { Haptics.play(feedback) }
-        } catch {
-            // The store keeps lastError for the banner; the screen stays usable.
-        }
+        guard let step = model.projects.apply(action, to: project, in: sequence) else { return }
+        cursor = step.cursor
+        if let feedback = WorkFeedbackRule.feedback(for: step, from: previous, in: sequence) { Haptics.play(feedback) }
+        // A failed save never blocks advancing (spec 6.6): model.projects.lastError is already set
+        // for the banner above, and the cursor still moves.
     }
 }

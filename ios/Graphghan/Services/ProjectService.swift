@@ -64,16 +64,13 @@ final class ProjectService {
         try WorkSequence(chart: try await chart(for: project))
     }
 
+    /// Never blocks advancing on a storage failure (spec 6.6): the cursor and event are always
+    /// mutated in memory and returned, whether or not the save behind them succeeds. A failed save
+    /// sets `lastError` for the banner and leaves the mutated project and the inserted event queued
+    /// -- the next successful `save()` (from any mutator) persists them.
     @discardableResult
-    func apply(_ action: WorkAction, to project: Project, in sequence: WorkSequence) throws -> WorkStep? {
+    func apply(_ action: WorkAction, to project: Project, in sequence: WorkSequence) -> WorkStep? {
         guard let step = WorkEngine.apply(action, to: project.cursor, in: sequence) else { return nil }
-        // `context.rollback()` (inside `save()`) undoes the pending insert of `event` in the
-        // persistent store, but doesn't reliably re-fault an already-mutated `@Model` property back
-        // to its last-saved value -- so a failed save is restored by hand here, to keep the promise
-        // in this type's doc comment that cursor and event are always written together.
-        let previousCursor = project.cursor
-        let previousLastWorked = project.lastWorked
-        let previousFinished = project.finished
         let t = now()
         project.cursor = step.cursor
         project.lastWorked = t
@@ -84,11 +81,8 @@ final class ProjectService {
         do {
             try save()
         } catch {
-            project.cursor = previousCursor
-            project.lastWorked = previousLastWorked
-            project.finished = previousFinished
-            context.delete(event)
-            throw error
+            // lastError is already set by save(); in-memory state and the pending event stay
+            // queued for the next save.
         }
         return step
     }
@@ -147,7 +141,6 @@ final class ProjectService {
             try context.save()
             lastError = nil
         } catch {
-            context.rollback()
             lastError = error.localizedDescription
             throw error
         }

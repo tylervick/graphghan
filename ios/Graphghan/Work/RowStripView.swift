@@ -27,10 +27,12 @@ struct RowStripView: View {
             }
             let current = CGRect(x: 1, y: CGFloat(y - y0) * ch + 1, width: size.width - 2, height: ch - 2)
             context.stroke(Path(current), with: .color(.accentColor), lineWidth: 2)
-            let marker = pass.direction == .ltr
-                ? CGRect(x: 0, y: CGFloat(y - y0) * ch, width: 8, height: ch)
-                : CGRect(x: size.width - 8, y: CGFloat(y - y0) * ch, width: 8, height: ch)
-            context.fill(Path(marker), with: .color(.accentColor))
+            if let direction = pass.direction {
+                let marker = direction == .ltr
+                    ? CGRect(x: 0, y: CGFloat(y - y0) * ch, width: 8, height: ch)
+                    : CGRect(x: size.width - 8, y: CGFloat(y - y0) * ch, width: 8, height: ch)
+                context.fill(Path(marker), with: .color(.accentColor))
+            }
         }
         .frame(height: 56)
         .accessibilityHidden(true)

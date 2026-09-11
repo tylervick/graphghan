@@ -70,7 +70,7 @@ struct ProjectDetailView: View {
         .sheet(isPresented: $showJump) {
             if let sequence {
                 JumpToRowSheet(rowCount: sequence.passes.count, current: project.cursor.row) { row in
-                    try? model.projects.apply(.jump(row: row), to: project, in: sequence)
+                    model.projects.apply(.jump(row: row), to: project, in: sequence)
                 }
             }
         }
