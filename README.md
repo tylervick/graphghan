@@ -78,7 +78,8 @@ against. `graphghan export` writes 1-px PNG, OXS, and CSV.
 `ios/` holds a SwiftUI app for working a published pattern on an iPhone (see `ios/README.md`):
 a Patterns tab fed from this site, a Projects tab with per-project progress, and a full-screen
 Work screen. `ios/Packages/GraphghanCore` is the Swift reader for the chart format and passes the
-same conformance fixtures as the Python package.
+same conformance fixtures as the Python package. The Work screen also drives a Live Activity on
+the lock screen and Dynamic Island with Done and Back buttons.
 
 ## The skill
 
