@@ -55,6 +55,8 @@ import Testing
         #expect(RunString.parse("A7") == nil)
         #expect(RunString.parse("7ABCD") == nil)
         #expect(RunString.parse("7A-") == nil)
+        #expect(RunString.parse("2A0B3C")?.map(\.count) == [2, 0, 3])
+        #expect(RunString.parse(String(repeating: "9", count: 25) + "A") == nil)
     }
 
     @Test func rejectsMalformedDocuments() throws {
@@ -68,9 +70,36 @@ import Testing
         #expect(load(Self.doc(rows: ["4A"], codes: ["A", "A"])) == .duplicateCode("A"))
         #expect(load(Self.doc(rows: ["4A"], codes: ["ABCD"])) == .invalidCode("ABCD"))
         #expect(load(Self.doc(rows: ["4A"], hexes: ["red", "#000000"])) == .invalidHex(code: "A", hex: "red"))
+        let fullwidthHex = "#\u{FF11}\u{FF11}\u{FF11}\u{FF11}\u{FF11}\u{FF11}"
+        #expect(load(Self.doc(rows: ["4A"], hexes: [fullwidthHex, "#000000"])) == .invalidHex(code: "A", hex: fullwidthHex))
         #expect(load(Self.doc(rows: ["4A"], id: "sha256:" + String(repeating: "0", count: 64)))
             == .idMismatch(expected: ChartID.compute(codes: ["A", "B"], rows: ["4A"], technique: .object(["type": .string("rows")]), passes: nil),
                            found: "sha256:" + String(repeating: "0", count: 64)))
+    }
+
+    @Test func tooManyColorsIsRejected() throws {
+        var codes: [String] = []
+        for upper in "ABCDEFGHIJKLMNOPQRSTUVWXYZ" {
+            for lower in "abcdefghij" {
+                codes.append("\(upper)\(lower)")
+            }
+        }
+        codes = Array(codes.prefix(256))
+        #expect(codes.count == 256)
+        let rows = ["4" + codes[0]]
+        let technique: JSONValue = .object(["type": .string("rows")])
+        let chartID = ChartID.compute(codes: codes, rows: rows, technique: technique, passes: nil)
+        let hex = "#000000"
+        let palette = codes.enumerated().map { i, c in
+            #"{"code":"\#(c)","name":"n\#(i)","hex":"\#(hex)"}"#
+        }.joined(separator: ",")
+        let json = #"""
+        {"schema":2,"pattern":{"id":"t","title":"T","version":"1"},"chart":{"id":"\#(chartID)","width":4,"height":1},
+         "palette":[\#(palette)],"rows":["\#(rows[0])"],
+         "gauge":{"stitches":14,"rows":16,"over":{"value":4,"unit":"in"}},"technique":{"type":"rows"}}
+        """#
+        let doc = try ChartDocument.decode(Data(json.utf8))
+        #expect(throws: ChartError.tooManyColors(256)) { try Chart(document: doc) }
     }
 
     @Test func heightMismatchAndSchema() throws {

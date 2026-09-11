@@ -15,7 +15,10 @@ public enum RunString {
                     runs.append((code, count))
                     count = 0; digits = 0; code = ""
                 }
-                count = count * 10 + Int(ch.value - 0x30)
+                let (scaled, mulOverflow) = count.multipliedReportingOverflow(by: 10)
+                let (next, addOverflow) = scaled.addingReportingOverflow(Int(ch.value - 0x30))
+                guard !mulOverflow, !addOverflow else { return nil }
+                count = next
                 digits += 1
             } else if (ch.value >= 0x41 && ch.value <= 0x5A) || (ch.value >= 0x61 && ch.value <= 0x7A) {
                 guard digits > 0, code.count < codeMaxLength else { return nil }
@@ -26,7 +29,7 @@ public enum RunString {
         }
         guard digits > 0, !code.isEmpty else { return nil }
         runs.append((code, count))
-        return runs.allSatisfy { $0.count > 0 } ? runs : nil
+        return runs
     }
 
     public static func isValidCode(_ code: String) -> Bool {

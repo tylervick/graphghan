@@ -113,6 +113,6 @@ public struct Chart: Sendable {
     }
 
     static func isHex(_ s: String) -> Bool {
-        s.count == 7 && s.hasPrefix("#") && s.dropFirst().allSatisfy(\.isHexDigit)
+        s.count == 7 && s.hasPrefix("#") && s.dropFirst().allSatisfy { $0.isASCII && $0.isHexDigit }
     }
 }
