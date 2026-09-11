@@ -27,6 +27,7 @@ def test_fixture_set_matches_spec():
         "minimal-rows",
         "minimal-rounds",
         "two-letter-codes",
+        "layers-stitch",
         "explicit-passes",
         "unknown-technique",
         "craigh-na-dun",

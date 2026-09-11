@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import http.server
 import json
+import re
 import runpy
 import subprocess
 import sys
@@ -23,6 +24,7 @@ from .publish import chart_key, check_published, render_published
 from .validate import run_all
 
 TEMPLATES = Path(__file__).parent / "templates"
+CHART_KEY_RE = re.compile(r"[A-Za-z0-9_.-]+")  # a single dist/charts/<key> directory name
 
 
 def _resolve(slug_or_path: str) -> Path | None:
@@ -61,6 +63,9 @@ def cmd_render(args) -> int:
         return 2
     meta = load_pattern(d)
     design = load_design(d)
+    if args.check and args.out:
+        print("--check cannot be combined with --out (it never writes)", file=sys.stderr)
+        return 2
     adhoc = args.gauge is not None or args.variant is not None
     if adhoc:
         if args.check:
@@ -236,10 +241,17 @@ def cmd_export(args) -> int:
     d = _resolve_or_die(args.pattern)
     if d is None:
         return 2
+    if args.chart is not None and not CHART_KEY_RE.fullmatch(args.chart):
+        print(
+            f"invalid --chart {args.chart!r}: a chart key is a variant and gauge joined by '-', "
+            "such as final-hdc",
+            file=sys.stderr,
+        )
+        return 2
     dist = d / "dist"
     src = dist / "charts" / args.chart / "chart.json" if args.chart else dist / "chart.json"
     if not src.exists():
-        print(f"no committed chart at {src.relative_to(d)}; run 'graphghan render' first", file=sys.stderr)
+        print(f"no committed chart at {src}; run 'graphghan render' first", file=sys.stderr)
         return 1
     doc = json.loads(src.read_text(encoding="utf-8"))
     key = args.chart or chart_key(doc["chart"]["variant"], doc["chart"]["gauge_key"])

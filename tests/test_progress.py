@@ -67,6 +67,31 @@ def test_summarize_without_events():
     }
 
 
+def test_summarize_single_event_session_has_no_pace():
+    doc = {"cursor": {"row": 3, "run": 0}, "events": [ev("2026-09-12T18:00:00Z", 3, 0)]}
+    s = progress.summarize(doc, PASSES)
+    # one event is a session of zero length: its stitches still count, its pace is unknowable
+    assert s["sessions"] == [{"start": "2026-09-12T18:00:00Z", "end": "2026-09-12T18:00:00Z", "stitches": 28}]
+    assert s["active_seconds"] == 0 and s["stitches_per_hour"] is None
+    assert s["stitches_done"] == 28
+
+
+def test_summarize_clamps_a_session_that_went_backwards():
+    doc = {
+        "cursor": {"row": 2, "run": 0},
+        "events": [
+            ev("2026-09-12T18:00:00Z", 3, 2),
+            # an hour later, so a new session that starts at (3, 2) and frogs back to (2, 0)
+            ev("2026-09-12T19:00:00Z", 2, 0, "back"),
+            ev("2026-09-12T19:05:00Z", 2, 0, "back"),
+        ],
+    }
+    s = progress.summarize(doc, PASSES)
+    assert progress.stitches_before(PASSES, 2, 0) < progress.stitches_before(PASSES, 3, 2)
+    assert [x["stitches"] for x in s["sessions"]] == [40, 0]  # not -26
+    assert s["stitches_done"] == 14  # the cursor itself is free to move back
+
+
 def test_summarize_sorts_events_by_time():
     doc = {
         "cursor": {"row": 2, "run": 0},

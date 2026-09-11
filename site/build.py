@@ -12,19 +12,21 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw
 
+from graphghan.chartdoc import finished_size
+from graphghan.pattern import load_pattern
+from graphghan.publish import chart_key
+
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "site" / "src"
 SLUG_RE = re.compile(r"[a-z0-9-]+")
 
 
 def finished_size_in(doc) -> list[float]:
-    g = doc["gauge"]
-    per = g["over"]["value"]
-    w = doc["chart"]["width"] / (g["stitches"] / per)
-    h = doc["chart"]["height"] / (g["rows"] / per)
-    if g["over"]["unit"] == "cm":
-        w, h = w / 2.54, h / 2.54
-    return [round(w, 1), round(h, 1)]
+    """The index always quotes inches, whatever unit the gauge is stated in."""
+    w, h, unit = finished_size(doc)
+    if unit == "cm":
+        w, h = round(w / 2.54, 1), round(h / 2.54, 1)
+    return [w, h]
 
 
 def index_entry(doc) -> dict:
@@ -46,6 +48,17 @@ def index_entry(doc) -> dict:
 CHART_FILES = ("chart.json", "chart.png", "preview.png", "preview-grid.png", "written-rows.txt")
 
 
+def publish_order(pattern_dir: Path) -> list[str]:
+    """The chart keys in [publish] order, so the site lists charts the way the pattern declares them.
+
+    Directory names sort alphabetically, which is not the author's order; pattern.toml sits next to
+    dist/ and is the only record of it. A pattern folder without one (a fixture) falls back to sorted.
+    """
+    if not (pattern_dir / "pattern.toml").exists():
+        return []
+    return [chart_key(variant, gauge) for variant, gauge in load_pattern(pattern_dir).publish]
+
+
 def published_docs(pattern_dir: Path) -> list[tuple[str, dict]]:
     """(path relative to the pattern's site dir, doc) for every published chart, default first."""
     dist = pattern_dir / "dist"
@@ -53,11 +66,18 @@ def published_docs(pattern_dir: Path) -> list[tuple[str, dict]]:
     charts = dist / "charts"
     if not charts.exists():
         return [("chart.json", top)]
+    names = sorted(p.name for p in charts.iterdir() if p.is_dir())
+    order = publish_order(pattern_dir)
+    names.sort(key=lambda n: (order.index(n) if n in order else len(order), n))
     docs = []
-    for sub in sorted(p for p in charts.iterdir() if p.is_dir()):
-        doc = json.loads((sub / "chart.json").read_text(encoding="utf-8"))
-        docs.append((f"charts/{sub.name}/chart.json", doc))
-    default = [x for x in docs if x[1]["chart"]["id"] == top["chart"]["id"]]
+    for name in names:
+        doc = json.loads((charts / name / "chart.json").read_text(encoding="utf-8"))
+        docs.append((f"charts/{name}/chart.json", doc))
+    # The top-level copy is one of the published charts, not a chart of its own: match it on
+    # (variant, gauge_key), which is what names a chart. Two gauges of one design can share a
+    # chart.id when the grid happens to come out identical.
+    want = (top["chart"].get("variant"), top["chart"].get("gauge_key"))
+    default = [x for x in docs if (x[1]["chart"].get("variant"), x[1]["chart"].get("gauge_key")) == want]
     if not default:
         raise ValueError(f"{pattern_dir.name}: top-level dist/chart.json is not one of dist/charts/*")
     return default[:1] + [x for x in docs if x is not default[0]]
@@ -69,7 +89,7 @@ def manifest(published: list[tuple[str, dict]], updated: str) -> dict:
     charts = []
     for i, (path, doc) in enumerate(published):
         c, g, st = doc["chart"], doc["gauge"], doc["stats"]
-        per = g["over"]["value"]
+        size_w, size_h, size_unit = finished_size(doc)
         charts.append(
             {
                 "id": c["id"],
@@ -80,11 +100,7 @@ def manifest(published: list[tuple[str, dict]], updated: str) -> dict:
                 "preview": path.rsplit("/", 1)[0] + "/preview.png" if "/" in path else "preview.png",
                 "width": c["width"],
                 "height": c["height"],
-                "size": {
-                    "width": round(c["width"] / (g["stitches"] / per), 1),
-                    "height": round(c["height"] / (g["rows"] / per), 1),
-                    "unit": g["over"]["unit"],
-                },
+                "size": {"width": size_w, "height": size_h, "unit": size_unit},
                 "stitch": g.get("stitch", ""),
                 "colors": len(doc["palette"]),
                 "stitches": c["width"] * c["height"],
@@ -141,6 +157,10 @@ def build(out: Path):
         shutil.rmtree(out)
     shutil.copytree(SRC, out, ignore=shutil.ignore_patterns("pattern.html", "sw.js"))
     make_icons(out)
+    # The $id in each schema points at https://graphghan.milo.cat/schema/<name>.json; serve them.
+    (out / "schema").mkdir(parents=True, exist_ok=True)
+    for s in sorted((ROOT / "schema").glob("*.json")):
+        shutil.copy(s, out / "schema" / s.name)
     template = (SRC / "pattern.html").read_text(encoding="utf-8")
     index = []
     for d, doc in load_patterns():

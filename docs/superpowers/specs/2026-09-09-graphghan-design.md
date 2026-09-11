@@ -144,6 +144,9 @@ def build(gauge_key: str = "sc", variant: str = "final") -> tuple[Grid, dict]:
 
 ### 4.3 `chart.json` (schema 1)
 
+Superseded by chart schema 2 — see `docs/chart-format.md` and
+`docs/superpowers/specs/2026-09-10-graphghan-ios-app-design.md`.
+
 ```json
 {
   "schema": 1,

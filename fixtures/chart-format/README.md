@@ -11,3 +11,8 @@ package, the PWA, the iOS app) is expected to:
 - refuse to sequence a chart that has no `*.sequence.json` (unknown technique, no passes) while
   still decoding it for display;
 - reproduce `<name>.progress.expected.json` from `<name>.progress.json` (see docs/chart-format.md).
+
+`tests/test_js_parity.py` is how the PWA's conformance is enforced in this repo: for every fixture
+here it runs `site/src/app/data.js`'s `sequence()` under node and compares it pass for pass with
+`graphghan.chartdoc.sequence`, including the `null` for the unknown-technique fixture. node is
+pinned in `mise.toml`; the test skips if it is not on PATH.

@@ -43,12 +43,16 @@ def published(meta, design) -> list[tuple[str, str]]:
 def render_published(pattern_dir: str | Path, meta, design) -> list[dict]:
     d = Path(pattern_dir)
     entries = published(meta, design)
+    # Build every chart before touching the tree, so a design that raises half way through
+    # leaves the committed dist/ exactly as it was.
+    built = [(variant, gauge, *design.build(gauge, variant)) for variant, gauge in entries]
     charts = d / "dist" / "charts"
     if charts.exists():
         shutil.rmtree(charts)
     docs = []
-    for i, (variant, gauge) in enumerate(entries):
-        g, report = design.build(gauge, variant)
+    for i, (variant, gauge, g, report) in enumerate(built):
+        # design.build left the *last* gauge active; chart_json and stats read the global one.
+        gr.set_gauge(meta.gauges.get(gauge, gauge))
         out = chart_dir(d, variant, gauge)
         docs.append(write_dist(g.a, meta, gauge, report, out, variant=variant))
         if i == 0:
@@ -59,6 +63,9 @@ def render_published(pattern_dir: str | Path, meta, design) -> list[dict]:
 
 
 def drift_message(committed: dict, fresh: dict) -> str | None:
+    # `generator` records the package version, which moves on its own: a release bump is not drift.
+    committed = {k: v for k, v in committed.items() if k != "generator"}
+    fresh = {k: v for k, v in fresh.items() if k != "generator"}
     if committed == fresh:
         return None
     diff_keys = sorted(k for k in set(committed) | set(fresh) if committed.get(k) != fresh.get(k))

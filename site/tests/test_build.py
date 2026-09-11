@@ -58,6 +58,10 @@ def test_build_layout_and_contracts(tmp_path):
     assert doc["schema"] == 2 and len(doc["rows"]) == doc["chart"]["height"]
     for name in ("icon-192.png", "icon-512.png"):
         assert (out / "icons" / name).exists()
+    # the schemas are served at the $id each one claims
+    for name in ("chart.schema.json", "progress.schema.json"):
+        assert (out / "schema" / name).exists(), name
+        assert json.loads((out / "schema" / name).read_text())["$id"].endswith(f"/schema/{name}")
 
 
 def test_precache_covers_every_file(tmp_path):
@@ -83,6 +87,51 @@ def _make_fake_pattern(tmp_path, name, doc):
     (dist_dir / "preview.png").write_bytes(b"\x89PNG\r\n\x1a\n")
     (dist_dir / "written-rows.txt").write_text("Row 1 (RS): 1 A  (1 sts)\n", encoding="utf-8")
     return pattern_dir
+
+
+def _add_chart_dirs(pattern_dir, top, gauges):
+    """One dist/charts/final-<gauge>/ per gauge, all sharing top's chart.id."""
+    for gauge in gauges:
+        sub = pattern_dir / "dist" / "charts" / f"final-{gauge}"
+        sub.mkdir(parents=True)
+        doc = json.loads(json.dumps(top))
+        doc["chart"]["gauge_key"] = doc["gauge"]["stitch"] = gauge
+        (sub / "chart.json").write_text(json.dumps(doc), encoding="utf-8")
+        (sub / "preview.png").write_bytes(b"\x89PNG\r\n\x1a\n")
+
+
+def test_published_docs_picks_the_default_by_variant_and_gauge(tmp_path):
+    # Two gauges of one design can hash to the same chart.id; only (variant, gauge_key) names a
+    # chart. No pattern.toml here, so the fallback order is alphabetical and final-hdc comes first:
+    # matching on chart.id would pick it, and it is not the chart at the top level.
+    top = fake_doc("twin", "Twin")
+    pattern_dir = _make_fake_pattern(tmp_path, "twin", top)
+    _add_chart_dirs(pattern_dir, top, ("hdc", "sc"))
+    published = build_module.published_docs(pattern_dir)
+    assert [p[0] for p in published] == ["charts/final-sc/chart.json", "charts/final-hdc/chart.json"]
+    assert published[0][1]["chart"]["gauge_key"] == top["chart"]["gauge_key"] == "sc"
+
+
+def test_published_docs_orders_the_rest_the_way_publish_does(tmp_path):
+    top = fake_doc("triple", "Triple")
+    pattern_dir = _make_fake_pattern(tmp_path, "triple", top)
+    (pattern_dir / "pattern.toml").write_text(
+        (ROOT / "tests" / "fixtures" / "minimal" / "pattern.toml").read_text()
+        + '\n[publish]\ncharts = [["final", "sc"], ["final", "hdc"], ["final", "dc"]]\n',
+        encoding="utf-8",
+    )
+    _add_chart_dirs(pattern_dir, top, ("sc", "hdc", "dc"))
+    published = build_module.published_docs(pattern_dir)
+    # not the alphabetical final-dc, final-hdc, final-sc
+    assert [p[0] for p in published] == [f"charts/final-{g}/chart.json" for g in ("sc", "hdc", "dc")]
+
+
+def test_published_docs_rejects_a_top_level_chart_of_its_own(tmp_path):
+    top = fake_doc("orphan", "Orphan")
+    pattern_dir = _make_fake_pattern(tmp_path, "orphan", top)
+    _add_chart_dirs(pattern_dir, top, ("hdc",))
+    with pytest.raises(ValueError, match="not one of dist/charts"):
+        build_module.published_docs(pattern_dir)
 
 
 def test_build_escapes_title_dedication_and_slug(tmp_path, monkeypatch):

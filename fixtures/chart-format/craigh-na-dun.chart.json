@@ -255,8 +255,8 @@
     "189Y"
   ],
   "gauge": {
-    "stitches": 14.0,
-    "rows": 16.0,
+    "stitches": 14,
+    "rows": 16,
     "over": {
       "value": 4,
       "unit": "in"

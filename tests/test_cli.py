@@ -98,6 +98,17 @@ def test_render_check_detects_drift(tmp_path):
     assert main(["render", str(copy), "--check"]) == 1
 
 
+def test_render_check_rejects_out(tmp_path, capsys):
+    assert main(["render", "craigh-na-dun", "--check", "--out", str(tmp_path)]) == 2
+    assert "--check cannot be combined with --out" in capsys.readouterr().err
+    assert not (tmp_path / "chart.json").exists()
+
+
+def test_export_rejects_a_chart_key_that_is_a_path(capsys):
+    assert main(["export", "craigh-na-dun", "--format", "csv", "--chart", "../x"]) == 2
+    assert "invalid --chart '../x'" in capsys.readouterr().err
+
+
 def test_render_adhoc_requires_out_and_never_touches_dist(tmp_path):
     assert main(["render", "craigh-na-dun", "--gauge", "hdc"]) == 2
     assert main(["render", "craigh-na-dun", "--variant", "plain-foot"]) == 2

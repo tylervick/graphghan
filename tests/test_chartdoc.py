@@ -6,7 +6,7 @@ import pytest
 from graphghan import chartdoc
 
 
-def doc(rows, codes=("A", "B"), technique=None, passes=None, width=None):
+def doc(rows, codes=("A", "B"), technique=None, passes=None, width=None, layers=None):
     technique = technique or dict(chartdoc.TECHNIQUE_ROWS)
     d = {
         "schema": 2,
@@ -23,6 +23,8 @@ def doc(rows, codes=("A", "B"), technique=None, passes=None, width=None):
     }
     if passes is not None:
         d["passes"] = passes
+    if layers is not None:  # layers never enter chart.id
+        d["layers"] = layers
     return d
 
 
@@ -198,6 +200,53 @@ def test_validate_document_never_raises_on_malformed_passes():
     )
     d["passes"][0]["grid_row"] = "0"
     assert chartdoc.validate_document(d)
+
+
+def test_validate_document_short_row_with_in_width_pass_is_reported_not_raised():
+    # The pass fits chart.width but not the row as written: bounding on width alone indexed off
+    # the end of the parsed row and raised IndexError.
+    d = doc(
+        ["2A"],
+        width=4,
+        technique={"type": "none"},
+        passes=[{"label": "Row 1", "grid_row": 0, "runs": [{"code": "A", "count": 4, "x0": 0}]}],
+    )
+    problems = chartdoc.validate_document(d)
+    assert "passes[0].runs[0] lies outside the grid" in problems
+
+
+def test_validate_document_non_object_palette_entry_is_reported():
+    d = doc(["4A"])
+    d["palette"][1] = "B"  # a bare string where an object belongs
+    problems = chartdoc.validate_document(d)
+    assert "palette[1] is not an object" in problems
+
+
+def test_validate_document_two_codeless_entries_are_not_duplicates():
+    d = doc(["4A"])
+    del d["palette"][0]["code"]
+    del d["palette"][1]["code"]
+    problems = chartdoc.validate_document(d)
+    assert sum("is not 1-3 letters" in p for p in problems) == 2
+    assert not any("duplicate" in p for p in problems)
+
+
+def test_validate_document_checks_layers():
+    rows = ["2A2B", "4A"]
+
+    def layer(legend, lrows):
+        return {"stitch": {"legend": legend, "rows": lrows}}
+
+    knit = {"k": "knit", "p": "purl"}
+    assert chartdoc.validate_document(doc(rows, layers=layer(knit, ["4k", "2k2p"]))) == []
+    cases = {
+        "layers.stitch has 1 rows, chart has 2": layer(knit, ["4k"]),
+        "layers.stitch row 1 is not a run string": layer(knit, ["4k", "k4"]),
+        "layers.stitch row 1 does not sum to chart.width": layer(knit, ["4k", "3k"]),
+        "layers.stitch row 1 uses code 'p' missing from legend": layer({"k": "knit"}, ["4k", "4p"]),
+    }
+    for expected, layers in cases.items():
+        assert expected in chartdoc.validate_document(doc(rows, layers=layers)), expected
 
 
 def test_derived_sizes():

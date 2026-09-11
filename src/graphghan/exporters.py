@@ -64,7 +64,15 @@ def to_csv(doc) -> str:
 def read_csv(text: str, palette: list[dict]) -> np.ndarray:
     idx = {p["code"]: i for i, p in enumerate(palette)}
     rows = [line.split(",") for line in text.splitlines() if line.strip()]
-    return np.array([[idx[c] for c in row] for row in rows], dtype=np.uint8)
+    out = []
+    for y, row in enumerate(rows):
+        cells = []
+        for x, c in enumerate(row):
+            if c not in idx:
+                raise ValueError(f"row {y} column {x}: unknown code {c!r}")
+            cells.append(idx[c])
+        out.append(cells)
+    return np.array(out, dtype=np.uint8)
 
 
 # ---------- OXS: Open Cross Stitch (Ursa Software) ----------

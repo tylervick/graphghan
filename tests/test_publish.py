@@ -80,3 +80,36 @@ def test_drift_message_names_keys_and_first_row():
     assert (
         publish.drift_message(a, b) == "DRIFT: chart.json differs in keys: rows (first differing row index 1)"
     )
+
+
+def test_drift_message_ignores_the_generator_version():
+    a = {"rows": ["1A"], "generator": {"name": "graphghan", "version": "0.2.0"}}
+    b = {"rows": ["1A"], "generator": {"name": "graphghan", "version": "0.3.0"}}
+    assert publish.drift_message(a, b) is None
+    assert publish.drift_message(a, b | {"rows": ["1B"]}) is not None
+    assert a["generator"]["version"] == "0.2.0"  # inputs untouched
+
+
+def test_render_published_leaves_the_tree_alone_when_a_build_fails(tmp_path):
+    d = copy_minimal(tmp_path)
+    meta, design = load_pattern(d), load_design(d)
+    publish.render_published(d, meta, design)
+    before = {
+        p.relative_to(d).as_posix(): p.read_bytes() for p in sorted((d / "dist").rglob("*")) if p.is_file()
+    }
+    assert before
+
+    real_build = design.build
+
+    def build(gauge_key="sc", variant="final"):
+        if gauge_key == "square":  # the second [publish] entry
+            raise RuntimeError("boom")
+        return real_build(gauge_key, variant)
+
+    design.build = build
+    with pytest.raises(RuntimeError, match="boom"):
+        publish.render_published(d, meta, design)
+    after = {
+        p.relative_to(d).as_posix(): p.read_bytes() for p in sorted((d / "dist").rglob("*")) if p.is_file()
+    }
+    assert after == before

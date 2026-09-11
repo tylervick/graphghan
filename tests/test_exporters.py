@@ -53,6 +53,13 @@ def test_csv_round_trip(name):
     assert np.array_equal(exporters.read_csv(text, doc["palette"]), grid(doc))
 
 
+def test_read_csv_names_the_bad_cell():
+    doc = load("two-letter-codes")
+    text = exporters.to_csv(doc).replace("Y", "Q", 1)  # row 0, column 9
+    with pytest.raises(ValueError, match=r"row 0 column 9: unknown code 'Q'"):
+        exporters.read_csv(text, doc["palette"])
+
+
 @pytest.mark.parametrize("name", ["two-letter-codes", "craigh-na-dun"])
 def test_oxs_round_trip(name):
     doc = load(name)

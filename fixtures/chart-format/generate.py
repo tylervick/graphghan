@@ -26,7 +26,7 @@ ROUNDS_T = {"type": "rounds", "start": "bottom", "first_side": "RS", "rs_directi
 GAUGE = {"stitches": 14.0, "rows": 16.0, "over": {"value": 4, "unit": "in"}, "stitch": "sc"}
 
 
-def chart(pid, title, palette, rows, technique, passes=None):
+def chart(pid, title, palette, rows, technique, passes=None, layers=None):
     codes = [c for c, _ in palette]
     width = sum(int(n) for n, _ in re.findall(r"(\d+)([A-Za-z]{1,3})", rows[0]))
     doc = {
@@ -52,6 +52,8 @@ def chart(pid, title, palette, rows, technique, passes=None):
         "technique": technique,
         "instructions": [],
     }
+    if layers is not None:
+        doc["layers"] = layers
     if passes is not None:
         doc["passes"] = passes
     return doc
@@ -91,6 +93,14 @@ MINIMAL_ROUNDS_SEQ = [
 TWO_LETTER_PALETTE = [("G", "#1E4D3A"), ("Gd", "#D9A21B"), ("Kb", "#2B2F33"), ("Y", "#F2E8D5")]
 TWO_LETTER_ROWS = ["7Gd2G3Y", "2G7Gd3Kb"]
 TWO_LETTER_SEQ = [
+    p("Row 1", "RS", "rtl", 1, [run("Kb", 3, 9), run("Gd", 7, 2), run("G", 2, 0)]),
+    p("Row 2", "WS", "ltr", 0, [run("Gd", 7, 0), run("G", 2, 7), run("Y", 3, 9)]),
+]
+
+STITCH_LAYER = {"stitch": {"legend": {"k": "knit", "p": "purl"}, "rows": ["12k", "6k6p"]}}
+# Hand-written, and deliberately the same pass list as two-letter-codes: a layer is a parallel grid
+# a reader may not understand, and it must not change the colour sequence in any way.
+LAYERS_STITCH_SEQ = [
     p("Row 1", "RS", "rtl", 1, [run("Kb", 3, 9), run("Gd", 7, 2), run("G", 2, 0)]),
     p("Row 2", "WS", "ltr", 0, [run("Gd", 7, 0), run("G", 2, 7), run("Y", 3, 9)]),
 ]
@@ -167,6 +177,17 @@ def fixtures() -> dict[str, tuple[dict, dict | None]]:
         "two-letter-codes": (
             chart("two-letter-codes", "Two-letter codes", TWO_LETTER_PALETTE, TWO_LETTER_ROWS, ROWS_T),
             {"passes": TWO_LETTER_SEQ},
+        ),
+        "layers-stitch": (
+            chart(
+                "layers-stitch",
+                "Layers (stitch)",
+                TWO_LETTER_PALETTE,
+                TWO_LETTER_ROWS,
+                ROWS_T,
+                layers=STITCH_LAYER,
+            ),
+            {"passes": LAYERS_STITCH_SEQ},
         ),
         "explicit-passes": (
             chart(

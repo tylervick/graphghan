@@ -11,7 +11,7 @@ import numpy as np
 from PIL import Image, ImageDraw
 
 from . import grid as gr
-from .chartdoc import RUN_RE, TECHNIQUE_ROWS, chart_id
+from .chartdoc import RUN_RE, TECHNIQUE_ROWS, chart_id, validate_document
 
 SCHEMA = 2
 SITE_URL = "https://graphghan.milo.cat/"
@@ -141,6 +141,12 @@ def written_rows(a, codes):
     return lines
 
 
+def _gauge_number(v: float) -> float | int:
+    """14.0 -> 14, 6.5 -> 6.5: gauge counts are whole numbers far more often than not."""
+    f = float(v)
+    return int(f) if f.is_integer() else f
+
+
 def chart_json(a, meta, gauge_key, report, variant="final"):
     st, rows_per_in = meta.gauges.get(gauge_key, gr.GAUGES[gauge_key])
     if gr.current_gauge() != (st, rows_per_in):
@@ -175,8 +181,8 @@ def chart_json(a, meta, gauge_key, report, variant="final"):
         "palette": palette_entries(meta.palette),
         "rows": rows,
         "gauge": {
-            "stitches": st * 4,
-            "rows": rows_per_in * 4,
+            "stitches": _gauge_number(st * 4),
+            "rows": _gauge_number(rows_per_in * 4),
             "over": {"value": 4, "unit": "in"},
             "stitch": gauge_key,
             "hook": meta.hook,
@@ -190,9 +196,12 @@ def chart_json(a, meta, gauge_key, report, variant="final"):
 
 
 def write_dist(a, meta, gauge_key, report, out_dir, variant="final"):
+    doc = chart_json(a, meta, gauge_key, report, variant)
+    problems = validate_document(doc)
+    if problems:  # never write a chart no reader would accept
+        raise ValueError("chart failed validation: " + "; ".join(problems))
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
-    doc = chart_json(a, meta, gauge_key, report, variant)
     (out / "chart.json").write_text(json.dumps(doc, separators=(",", ":")) + "\n")
     chart_png(a, meta.palette.rgb, out / "chart.png")
     preview_png(a, meta.palette.rgb, out / "preview.png")

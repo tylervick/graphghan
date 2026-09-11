@@ -14,7 +14,6 @@ RUN_RE = re.compile(r"(\d+)([A-Za-z]{1,3})")
 ROW_RE = re.compile(r"^(\d+[A-Za-z]{1,3})+$")
 CODE_RE = re.compile(r"^[A-Za-z]{1,3}$")
 HEX_RE = re.compile(r"^#[0-9A-Fa-f]{6}$")
-ID_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 
 TECHNIQUE_ROWS = {"type": "rows", "start": "bottom", "first_side": "RS", "rs_direction": "rtl", "turn": True}
 
@@ -109,15 +108,19 @@ def validate_document(doc: dict) -> list[str]:
     """Structural checks the JSON Schema cannot express. Returns human-readable problems."""
     problems: list[str] = []
     palette = doc.get("palette", [])
-    codes = [p.get("code") for p in palette]
+    codes = [p.get("code") if isinstance(p, dict) else None for p in palette]
     seen: set[str] = set()
     for i, p in enumerate(palette):
+        if not isinstance(p, dict):
+            problems.append(f"palette[{i}] is not an object")
+            continue
         code = p.get("code", "")
         if not isinstance(code, str) or not CODE_RE.match(code):
             problems.append(f"palette[{i}].code {code!r} is not 1-3 letters")
-        if code in seen:
-            problems.append(f"palette[{i}].code {code!r} is a duplicate")
-        seen.add(code)
+        else:  # only a well-formed code can be a duplicate of another
+            if code in seen:
+                problems.append(f"palette[{i}].code {code!r} is a duplicate")
+            seen.add(code)
         if not HEX_RE.match(str(p.get("hex", ""))):
             problems.append(f"palette[{i}].hex {p.get('hex')!r} is not #RRGGBB")
     width = doc.get("chart", {}).get("width")
@@ -181,7 +184,9 @@ def validate_document(doc: dict) -> list[str]:
                     x0 = None
                 if gy is None or x0 is None:
                     continue
-                if not (0 <= gy < len(rows)) or x0 < 0 or x0 + count > (width or 0):
+                # Bound against the row as parsed, not chart.width: a short row with an in-width
+                # pass must report "outside the grid" rather than IndexError on the cell check.
+                if not (0 <= gy < len(cells)) or x0 < 0 or x0 + count > len(cells[gy]):
                     problems.append(f"passes[{i}].runs[{j}] lies outside the grid")
                     continue
                 if any(cells[gy][x] != r["code"] for x in range(x0, x0 + count)):
