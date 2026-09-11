@@ -1,5 +1,6 @@
 import Foundation
 import SwiftData
+import GraphghanCore
 @testable import Graphghan
 
 enum TestFixtures {
@@ -40,5 +41,17 @@ actor StubClient: HTTPClient {
         log.append(Recorded(path: url.path, ifNoneMatch: ifNoneMatch))
         guard let r = responses[url.path] else { throw URLError(.notConnectedToInternet) }
         return try r.get()
+    }
+}
+
+enum TestManifest {
+    static func make(chartID: String, variant: String = "final", gaugeKey: String = "sc", version: String = "1.0.0", path: String = "charts/final-sc/chart.json") -> PatternManifest {
+        let json = """
+        {"schema":1,"id":"two-letter-codes","title":"Two-letter codes","version":"\(version)","dedication":"","quote":"","author":"","license":"",
+         "preview":"preview.png","palette":[],"charts":[{"id":"\(chartID)","variant":"\(variant)","gauge_key":"\(gaugeKey)","default":true,
+         "path":"\(path)","preview":"charts/final-sc/preview.png","width":12,"height":2,"size":{"width":3.4,"height":0.5,"unit":"in"},
+         "stitch":"sc","colors":4,"stitches":24,"changes_per_row":{"mean":2,"max":2},"yards_est":10}],"updated":"2026-09-11T00:00:00Z"}
+        """
+        return try! JSONDecoder().decode(PatternManifest.self, from: Data(json.utf8))
     }
 }

@@ -1,0 +1,134 @@
+import Foundation
+import SwiftData
+import Testing
+import GraphghanCore
+@testable import Graphghan
+
+@MainActor
+@Suite struct ProjectServiceTests {
+    struct Harness {
+        let service: ProjectService
+        let client: StubClient
+        let context: ModelContext
+        let chartData: Data
+        let chartID: String
+    }
+
+    func makeHarness() async throws -> Harness {
+        let container = try makeInMemoryContainer()
+        let client = StubClient()
+        let patterns = PatternStore(baseURL: URL(string: "https://example.test/")!, cacheDirectory: try temporaryDirectory(), client: client)
+        let charts = ChartLibrary(directory: try temporaryDirectory())
+        let service = ProjectService(context: container.mainContext, charts: charts, patterns: patterns)
+        let data = try TestFixtures.data("two-letter-codes.chart.json")
+        let id = try Chart.load(data).id
+        await client.respond("/patterns/two-letter-codes/charts/final-sc/chart.json", data: data)
+        return Harness(service: service, client: client, context: container.mainContext, chartData: data, chartID: id)
+    }
+
+    @Test func startPinsChartAndVersion() async throws {
+        let h = try await makeHarness()
+        let manifest = TestManifest.make(chartID: h.chartID, version: "1.2.0")
+        let p = try await h.service.startProject(manifest: manifest, chart: manifest.charts[0], title: "Mine")
+        #expect(p.chartID == h.chartID && p.patternVersion == "1.2.0" && p.patternID == "two-letter-codes")
+        #expect(p.chartVariant == "final" && p.chartGaugeKey == "sc" && p.title == "Mine" && p.cursor == .start)
+        #expect(try h.service.projects().count == 1)
+        #expect(try await h.service.sequence(for: p).passes.count == 2)
+    }
+
+    @Test func failedDownloadOrDecodeLeavesNoProject() async throws {
+        let h = try await makeHarness()
+        let manifest = TestManifest.make(chartID: h.chartID)
+        await h.client.fail("/patterns/two-letter-codes/charts/final-sc/chart.json")
+        await #expect(throws: (any Error).self) { _ = try await h.service.startProject(manifest: manifest, chart: manifest.charts[0], title: "x") }
+        #expect(try h.service.projects().isEmpty)
+        await h.client.respond("/patterns/two-letter-codes/charts/final-sc/chart.json", body: "{\"schema\":2}")
+        await #expect(throws: (any Error).self) { _ = try await h.service.startProject(manifest: manifest, chart: manifest.charts[0], title: "x") }
+        #expect(try h.service.projects().isEmpty)
+        // a manifest whose id disagrees with the downloaded chart is refused too
+        let wrong = TestManifest.make(chartID: "sha256:" + String(repeating: "0", count: 64))
+        await h.client.respond("/patterns/two-letter-codes/charts/final-sc/chart.json", data: h.chartData)
+        await #expect(throws: ProjectService.ServiceError.chartMismatch(expected: wrong.charts[0].id, got: h.chartID)) {
+            _ = try await h.service.startProject(manifest: wrong, chart: wrong.charts[0], title: "x")
+        }
+        #expect(try h.service.projects().isEmpty)
+    }
+
+    @Test func applyWritesCursorAndEventTogether() async throws {
+        let h = try await makeHarness()
+        let manifest = TestManifest.make(chartID: h.chartID)
+        let p = try await h.service.startProject(manifest: manifest, chart: manifest.charts[0], title: "x")
+        let seq = try await h.service.sequence(for: p)
+        let t = Date(timeIntervalSince1970: 1_800_000_000)
+        h.service.now = { t }
+        let step = try h.service.apply(.advance, to: p, in: seq)
+        #expect(step?.cursor == Cursor(row: 1, run: 1))
+        #expect(p.cursor == Cursor(row: 1, run: 1) && p.lastWorked == t)
+        #expect(p.eventRecords == [ProgressEventRecord(t: t, row: 1, run: 1, kind: .advance)])
+        #expect(try h.context.fetchCount(FetchDescriptor<ProgressEvent>()) == 1)
+        #expect(try h.service.apply(.back, to: p, in: seq)?.cursor == .start)
+        #expect(try h.service.apply(.back, to: p, in: seq) == nil)   // no-op at the start writes nothing
+        #expect(try h.context.fetchCount(FetchDescriptor<ProgressEvent>()) == 2)
+        // finishing the last run marks the project finished
+        _ = try h.service.apply(.jump(row: 2), to: p, in: seq)
+        for _ in 0..<3 { _ = try h.service.apply(.advance, to: p, in: seq) }
+        #expect(p.isFinished && h.service.summary(for: p, sequence: seq).percent == 100)
+    }
+
+    @Test func summaryAndExport() async throws {
+        let h = try await makeHarness()
+        let manifest = TestManifest.make(chartID: h.chartID)
+        let p = try await h.service.startProject(manifest: manifest, chart: manifest.charts[0], title: "x")
+        let seq = try await h.service.sequence(for: p)
+        h.service.now = { Date(timeIntervalSince1970: 1_800_000_000) }
+        _ = try h.service.apply(.advance, to: p, in: seq)  // Kb 3 stitches done
+        let s = h.service.summary(for: p, sequence: seq)
+        #expect(s.stitchesDone == 3 && s.totalStitches == 24 && s.sessions.count == 1)
+        #expect(h.service.estimatedFinish(for: p, sequence: seq) == nil)  // fewer than 3 sessions
+        let doc = h.service.exportDocument(for: p)
+        #expect(doc.patternID == "two-letter-codes" && doc.chartID == h.chartID && doc.cursor == Cursor(row: 1, run: 1) && doc.events.count == 1)
+    }
+
+    @Test func deleteCascadesAndNotesAndFinish() async throws {
+        let h = try await makeHarness()
+        let manifest = TestManifest.make(chartID: h.chartID)
+        let p = try await h.service.startProject(manifest: manifest, chart: manifest.charts[0], title: "x")
+        let seq = try await h.service.sequence(for: p)
+        _ = try h.service.apply(.advance, to: p, in: seq)
+        try h.service.setNotes("bobbin the gold", for: p)
+        #expect(p.notes == "bobbin the gold")
+        try h.service.markFinished(p)
+        #expect(p.isFinished)
+        try h.service.delete(p)
+        #expect(try h.service.projects().isEmpty)
+        #expect(try h.context.fetchCount(FetchDescriptor<ProgressEvent>()) == 0)
+    }
+
+    @Test func versionNoticeOnlyWhenTheChartChanged() async throws {
+        let h = try await makeHarness()
+        let manifest = TestManifest.make(chartID: h.chartID, version: "1.0.0")
+        let p = try await h.service.startProject(manifest: manifest, chart: manifest.charts[0], title: "x")
+        #expect(h.service.versionNotice(for: p, manifest: TestManifest.make(chartID: h.chartID, version: "1.1.0")) == nil)
+        let changed = TestManifest.make(chartID: "sha256:" + String(repeating: "b", count: 64), version: "2.0.0")
+        #expect(h.service.versionNotice(for: p, manifest: changed) == .chartChanged(newChart: changed.charts[0], newVersion: "2.0.0", canSwitch: true))
+        let seq = try await h.service.sequence(for: p)
+        _ = try h.service.apply(.advance, to: p, in: seq)
+        #expect(h.service.versionNotice(for: p, manifest: changed) == .chartChanged(newChart: changed.charts[0], newVersion: "2.0.0", canSwitch: false))
+        await #expect(throws: ProjectService.ServiceError.cursorNotAtStart) { try await h.service.switchChart(p, to: changed.charts[0], manifest: changed) }
+        #expect(h.service.versionNotice(for: p, manifest: TestManifest.make(chartID: h.chartID, gaugeKey: "hdc")) == nil)  // no matching chart in the manifest: nothing to say
+    }
+
+    @Test func switchChartAtTheStart() async throws {
+        let h = try await makeHarness()
+        let manifest = TestManifest.make(chartID: h.chartID)
+        let p = try await h.service.startProject(manifest: manifest, chart: manifest.charts[0], title: "x")
+        // publish a "new" chart at the same variant/gauge: the minimal-rows fixture stands in for it
+        let newData = try TestFixtures.data("minimal-rows.chart.json")
+        let newID = try Chart.load(newData).id
+        let changed = TestManifest.make(chartID: newID, version: "2.0.0", path: "charts/final-sc/chart.json")
+        await h.client.respond("/patterns/two-letter-codes/charts/final-sc/chart.json", data: newData)
+        try await h.service.switchChart(p, to: changed.charts[0], manifest: changed)
+        #expect(p.chartID == newID && p.patternVersion == "2.0.0")
+        #expect(try await h.service.sequence(for: p).passes.count == 12)
+    }
+}
