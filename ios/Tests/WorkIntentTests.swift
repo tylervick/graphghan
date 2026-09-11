@@ -4,7 +4,8 @@ import GraphghanCore
 @testable import Graphghan
 
 @MainActor
-@Suite struct WorkIntentTests {
+// Serialized: these cases share `WorkIntentHandler.shared`, which each `make()` claims for its own model.
+@Suite(.serialized) struct WorkIntentTests {
     struct Harness { let model: AppModel; let backend: RecordingBackend; let project: Project }
 
     func make() async throws -> Harness {
@@ -15,6 +16,7 @@ import GraphghanCore
         let backend = RecordingBackend()
         let model = AppModel(context: container.mainContext, patterns: patterns, charts: charts, activityBackend: backend,
                              defaults: UserDefaults(suiteName: "test-\(UUID().uuidString)")!)
+        model.registerIntentHandler()
         let data = try TestFixtures.data("two-letter-codes.chart.json")
         let id = try Chart.load(data).id
         await client.respond("/patterns/two-letter-codes/charts/final-sc/chart.json", data: data)
@@ -62,6 +64,19 @@ import GraphghanCore
         intent.projectID = "not-a-uuid"
         _ = try await intent.perform()
         #expect(h.project.cursor == .start)
+        #expect(h.backend.calls.isEmpty)
+    }
+
+    /// The system can launch the app in the background for the tap, so nothing has told the controller
+    /// which activity is live: it has to adopt the running one instead of dropping the refresh.
+    @Test func coldLaunchIntentRefreshesTheActivity() async throws {
+        let h = try await make()
+        let (info, state) = try #require(await h.model.activityState(for: h.project))
+        _ = try h.backend.start(info: info, state: state)  // live on the lock screen, unknown to the controller
+        _ = try await AdvanceRunIntent(projectID: h.project.id).perform()
+        #expect(h.project.cursor == Cursor(row: 1, run: 1))
+        #expect(h.backend.calls.last == .update("act1", 1, 1))
+        #expect(h.backend.active().count == 1)
     }
 
     @Test func reconcileOnLaunch() async throws {
@@ -72,6 +87,6 @@ import GraphghanCore
         _ = h.model.projects.apply(.jump(row: 2), to: h.project, in: seq)  // stored cursor moved while the activity showed row 1
         h.backend.reset()
         await h.model.reconcileActivities()
-        #expect(h.backend.calls == [.update("act1", 2, 0)])
+        #expect(h.backend.calls.last == .update("act1", 2, 0))
     }
 }

@@ -50,13 +50,20 @@ final class AppModel {
             guard let state = LiveActivityState.make(cursor: step.cursor, sequence: sequence) else { return }
             self.activityUpdate = Task { await self.liveActivity.update(projectID: project.id, info: info, state: state) }
         }
+    }
+
+    /// Claims the process-wide handler the Live Activity intents call. Only the app's one live model
+    /// does this -- merely constructing an `AppModel` must not steal the handler from another one.
+    func registerIntentHandler() {
         WorkIntentHandler.shared.perform = { [weak self] action, id in await self?.performIntent(action, projectID: id) }
     }
 
     static func live(context: ModelContext) -> AppModel {
-        AppModel(context: context,
-                 patterns: PatternStore(cacheDirectory: AppGroup.patternsCacheURL, client: URLSessionHTTPClient()),
-                 charts: ChartLibrary(directory: AppGroup.chartsURL))
+        let model = AppModel(context: context,
+                             patterns: PatternStore(cacheDirectory: AppGroup.patternsCacheURL, client: URLSessionHTTPClient()),
+                             charts: ChartLibrary(directory: AppGroup.chartsURL))
+        model.registerIntentHandler()
+        return model
     }
 
     // MARK: library
@@ -148,6 +155,13 @@ final class AppModel {
             return
         }
         chartCache[project.chartID] = chart
+        // A tap can launch the app in the background, where the launch reconcile (a scene `.task`)
+        // may never run: the controller then holds no current activity and would drop the refresh.
+        // `start` adopts the activity that is already live for this project, so the refresh below lands.
+        if liveActivity.currentProjectID != projectID, let state = LiveActivityState.make(cursor: project.cursor, sequence: sequence) {
+            let info = LiveActivityState.info(projectID: projectID, chart: chart, sequence: sequence)
+            await liveActivity.start(projectID: projectID, info: info, state: state)
+        }
         _ = projects.apply(action, to: project, in: sequence)
         await activityUpdate?.value
     }
