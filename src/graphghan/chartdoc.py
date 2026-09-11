@@ -155,18 +155,36 @@ def validate_document(doc: dict) -> list[str]:
     if isinstance(passes, list):
         cells = [[c for c, n in parse_runs(s) for _ in range(n)] if isinstance(s, str) else [] for s in rows]
         for i, p in enumerate(passes):
+            if not isinstance(p, dict):
+                problems.append(f"passes[{i}] is not an object")
+                continue
             gy = p.get("grid_row")
-            for j, r in enumerate(p.get("runs", [])):
+            if not isinstance(gy, int) or isinstance(gy, bool):
+                gy = None
+            runs = p.get("runs")
+            if not isinstance(runs, list):
+                problems.append(f"passes[{i}].runs is not a list")
+                continue
+            for j, r in enumerate(runs):
+                if not isinstance(r, dict):
+                    problems.append(f"passes[{i}].runs[{j}] is not an object")
+                    continue
                 if r.get("code") not in known:
                     problems.append(f"passes[{i}].runs[{j}] uses unknown code {r.get('code')!r}")
                     continue
+                count = r.get("count")
+                if not isinstance(count, int) or isinstance(count, bool) or count < 1:
+                    problems.append(f"passes[{i}].runs[{j}].count {count!r} is not a positive integer")
+                    continue
                 x0 = r.get("x0")
+                if not isinstance(x0, int) or isinstance(x0, bool):
+                    x0 = None
                 if gy is None or x0 is None:
                     continue
-                if not (0 <= gy < len(rows)) or x0 < 0 or x0 + int(r["count"]) > (width or 0):
+                if not (0 <= gy < len(rows)) or x0 < 0 or x0 + count > (width or 0):
                     problems.append(f"passes[{i}].runs[{j}] lies outside the grid")
                     continue
-                if any(cells[gy][x] != r["code"] for x in range(x0, x0 + int(r["count"]))):
+                if any(cells[gy][x] != r["code"] for x in range(x0, x0 + count)):
                     problems.append(
                         f"passes[{i}].runs[{j}] does not match the cells at grid_row {gy}, x0 {x0}"
                     )

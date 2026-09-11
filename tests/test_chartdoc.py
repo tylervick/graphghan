@@ -147,6 +147,59 @@ def test_validate_document_checks_explicit_passes():
     assert chartdoc.validate_document(d) == []
 
 
+def test_validate_document_never_raises_on_malformed_passes():
+    # (a) a run missing "count" -- must be reported, not KeyError'd, and must mention "count"
+    d = doc(
+        ["2A"],
+        width=2,
+        technique={"type": "none"},
+        passes=[{"label": "Row 1", "grid_row": 0, "runs": [{"code": "A", "x0": 0}]}],
+    )
+    problems = chartdoc.validate_document(d)
+    assert problems and any("count" in p for p in problems)
+
+    # (b) a run that is a string, not an object
+    d = doc(
+        ["2A"],
+        width=2,
+        technique={"type": "none"},
+        passes=[{"label": "Row 1", "grid_row": 0, "runs": ["bad"]}],
+    )
+    assert chartdoc.validate_document(d)
+
+    # (c) "runs" that is a dict, not a list
+    d = doc(
+        ["2A"],
+        width=2,
+        technique={"type": "none"},
+        passes=[{"label": "Row 1", "grid_row": 0, "runs": {"code": "A", "count": 2, "x0": 0}}],
+    )
+    assert chartdoc.validate_document(d)
+
+    # (d) count = "7" (a string, not an int) -- must be reported and must mention "count"
+    d = doc(
+        ["2A"],
+        width=2,
+        technique={"type": "none"},
+        passes=[{"label": "Row 1", "grid_row": 0, "runs": [{"code": "A", "count": "7", "x0": 0}]}],
+    )
+    problems = chartdoc.validate_document(d)
+    assert problems and any("count" in p for p in problems)
+
+    # (e) grid_row = "0" (a string, not an int): the malformed run itself must not
+    # crash (the type guard treats it as absent and skips the cell check); mutating
+    # it in after construction also leaves chart.id stale, which is what surfaces
+    # the non-empty problems list here.
+    d = doc(
+        ["2A"],
+        width=2,
+        technique={"type": "none"},
+        passes=[{"label": "Row 1", "grid_row": 0, "runs": [{"code": "A", "count": 2, "x0": 0}]}],
+    )
+    d["passes"][0]["grid_row"] = "0"
+    assert chartdoc.validate_document(d)
+
+
 def test_derived_sizes():
     d = doc(["4A"], width=4)
     d["chart"]["width"], d["chart"]["height"] = 14, 12
