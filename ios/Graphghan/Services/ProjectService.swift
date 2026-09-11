@@ -45,11 +45,9 @@ final class ProjectService {
     /// Downloads and validates the chart first; a project exists only once its chart is on disk.
     func startProject(manifest: PatternManifest, chart: ManifestChart, title: String) async throws -> Project {
         let data = try await patterns.chartData(for: manifest.id, path: chart.path)
-        let decoded = try await charts.store(data)
-        guard decoded.id == chart.id else {
-            try? await charts.remove(id: decoded.id)
-            throw ServiceError.chartMismatch(expected: chart.id, got: decoded.id)
-        }
+        let decoded = try Chart.load(data)  // in memory; no file yet
+        guard decoded.id == chart.id else { throw ServiceError.chartMismatch(expected: chart.id, got: decoded.id) }
+        _ = try await charts.store(data)  // now safe to persist
         let project = Project(patternID: manifest.id, chartID: chart.id, chartVariant: chart.variant, chartGaugeKey: chart.gaugeKey,
                               patternVersion: manifest.version, title: title.isEmpty ? manifest.title : title, started: now())
         context.insert(project)
@@ -69,6 +67,13 @@ final class ProjectService {
     @discardableResult
     func apply(_ action: WorkAction, to project: Project, in sequence: WorkSequence) throws -> WorkStep? {
         guard let step = WorkEngine.apply(action, to: project.cursor, in: sequence) else { return nil }
+        // `context.rollback()` (inside `save()`) undoes the pending insert of `event` in the
+        // persistent store, but doesn't reliably re-fault an already-mutated `@Model` property back
+        // to its last-saved value -- so a failed save is restored by hand here, to keep the promise
+        // in this type's doc comment that cursor and event are always written together.
+        let previousCursor = project.cursor
+        let previousLastWorked = project.lastWorked
+        let previousFinished = project.finished
         let t = now()
         project.cursor = step.cursor
         project.lastWorked = t
@@ -76,7 +81,15 @@ final class ProjectService {
         let event = ProgressEvent(t: t, row: step.cursor.row, run: step.cursor.run, kind: step.kind)
         event.project = project
         context.insert(event)
-        try save()
+        do {
+            try save()
+        } catch {
+            project.cursor = previousCursor
+            project.lastWorked = previousLastWorked
+            project.finished = previousFinished
+            context.delete(event)
+            throw error
+        }
         return step
     }
 
@@ -114,8 +127,9 @@ final class ProjectService {
     func switchChart(_ project: Project, to chart: ManifestChart, manifest: PatternManifest) async throws {
         guard project.cursor == .start else { throw ServiceError.cursorNotAtStart }
         let data = try await patterns.chartData(for: manifest.id, path: chart.path)
-        let decoded = try await charts.store(data)
+        let decoded = try Chart.load(data)  // in memory; no file yet
         guard decoded.id == chart.id else { throw ServiceError.chartMismatch(expected: chart.id, got: decoded.id) }
+        _ = try await charts.store(data)  // now safe to persist
         project.chartID = chart.id
         project.chartVariant = chart.variant
         project.chartGaugeKey = chart.gaugeKey
