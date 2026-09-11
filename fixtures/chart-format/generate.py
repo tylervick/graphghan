@@ -101,6 +101,51 @@ EXPLICIT_PASSES = [
 ]
 
 
+def ev(t, row, run, kind="advance"):
+    return {"t": t, "row": row, "run": run, "kind": kind}
+
+
+PROGRESS_BASIC_EVENTS = [
+    ev("2026-09-12T18:00:00Z", 2, 0),
+    ev("2026-09-12T18:05:00Z", 3, 0),
+    ev("2026-09-12T18:10:00Z", 3, 1),
+    ev("2026-09-12T19:00:00Z", 3, 2),
+    ev("2026-09-12T19:02:00Z", 3, 1, "back"),
+    ev("2026-09-12T19:04:00Z", 3, 2),
+    ev("2026-09-13T10:00:00Z", 5, 0, "jump"),
+    ev("2026-09-13T10:30:00Z", 5, 1),
+]
+PROGRESS_BASIC_EXPECTED = {
+    "percent": 34.5,
+    "stitches_done": 58,
+    "total_stitches": 168,
+    "sessions": [
+        {"start": "2026-09-12T18:00:00Z", "end": "2026-09-12T18:10:00Z", "stitches": 30},
+        {"start": "2026-09-12T19:00:00Z", "end": "2026-09-12T19:04:00Z", "stitches": 10},
+        {"start": "2026-09-13T10:00:00Z", "end": "2026-09-13T10:30:00Z", "stitches": 18},
+    ],
+    "active_seconds": 2640,
+    "stitches_per_hour": 79.1,
+}
+
+
+def progress_fixtures(charts: dict) -> dict[str, tuple[dict, dict]]:
+    """name -> (progress doc, expected summary). Each names the chart fixture it runs against."""
+    minimal = charts["minimal-rows"][0]
+    doc = {
+        "schema": 1,
+        "pattern_id": "minimal",
+        "chart_id": minimal["chart"]["id"],
+        "pattern_version": "1.0.0",
+        "cursor": {"row": 5, "run": 1},
+        "started": "2026-09-12T18:00:00Z",
+        "finished": None,
+        "events": PROGRESS_BASIC_EVENTS,
+        "ext": {"fixture": {"chart": "minimal-rows"}},
+    }
+    return {"progress-basic": (doc, PROGRESS_BASIC_EXPECTED)}
+
+
 def canonical_passes(passes) -> bytes:
     return json.dumps(passes, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
 
@@ -155,10 +200,14 @@ def dump(obj) -> str:
 def main(out_dir: Path) -> None:
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
-    for name, (doc, seq) in fixtures().items():
+    charts = fixtures()
+    for name, (doc, seq) in charts.items():
         (out_dir / f"{name}.chart.json").write_text(dump(doc), encoding="utf-8")
         if seq is not None:
             (out_dir / f"{name}.sequence.json").write_text(dump(seq), encoding="utf-8")
+    for name, (doc, expected) in progress_fixtures(charts).items():
+        (out_dir / f"{name}.progress.json").write_text(dump(doc), encoding="utf-8")
+        (out_dir / f"{name}.progress.expected.json").write_text(dump(expected), encoding="utf-8")
 
 
 if __name__ == "__main__":

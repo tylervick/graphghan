@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 from jsonschema import Draft202012Validator
 
-from graphghan import chartdoc
+from graphghan import chartdoc, progress
 
 ROOT = Path(__file__).resolve().parents[1]
 FIX = ROOT / "fixtures" / "chart-format"
@@ -79,6 +79,25 @@ def test_craigh_fixture_equals_committed_dist():
         (ROOT / "patterns" / "craigh-na-dun" / "dist" / "chart.json").read_text(encoding="utf-8")
     )
     assert load("craigh-na-dun") == dist
+
+
+PROGRESS_SCHEMA = json.loads((ROOT / "schema" / "progress.schema.json").read_text(encoding="utf-8"))
+PROGRESS_NAMES = sorted(p.name[: -len(".progress.json")] for p in FIX.glob("*.progress.json"))
+
+
+def test_progress_schema_is_valid():
+    Draft202012Validator.check_schema(PROGRESS_SCHEMA)
+
+
+@pytest.mark.parametrize("name", PROGRESS_NAMES)
+def test_progress_fixture_validates_and_summarizes(name):
+    doc = json.loads((FIX / f"{name}.progress.json").read_text(encoding="utf-8"))
+    errors = list(Draft202012Validator(PROGRESS_SCHEMA).iter_errors(doc))
+    assert errors == [], [e.message for e in errors]
+    chart = load(doc["ext"]["fixture"]["chart"])
+    assert chart["chart"]["id"] == doc["chart_id"]
+    expected = json.loads((FIX / f"{name}.progress.expected.json").read_text(encoding="utf-8"))
+    assert progress.summarize(doc, chartdoc.sequence(chart)) == expected
 
 
 def test_schema_rejects_bad_documents():
