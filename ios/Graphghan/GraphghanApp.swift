@@ -33,6 +33,7 @@ struct GraphghanApp: App {
             RootView()
                 .environment(model)
                 .modelContainer(container)
+                .task { await model.reconcileActivities() }
         }
     }
 }

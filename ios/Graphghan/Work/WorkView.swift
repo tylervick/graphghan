@@ -31,13 +31,26 @@ struct WorkView: View {
             do {
                 chart = try await model.projects.chart(for: project)
                 sequence = try await model.projects.sequence(for: project)
+                guard !Task.isCancelled else { return }
                 Haptics.prepare()
+                if let (info, state) = await model.activityState(for: project) {
+                    guard !Task.isCancelled else { return }
+                    await model.liveActivity.start(projectID: project.id, info: info, state: state)
+                }
             } catch {
                 self.error = "This project's chart could not be read. Open the project and download it again."
             }
         }
         .onAppear { UIApplication.shared.isIdleTimerDisabled = true }
-        .onDisappear { UIApplication.shared.isIdleTimerDisabled = false }
+        .onDisappear {
+            UIApplication.shared.isIdleTimerDisabled = false
+            Task {
+                let final = sequence.flatMap { LiveActivityState.make(cursor: project.cursor, sequence: $0) }
+                await model.liveActivity.end(projectID: project.id, finalState: final)
+            }
+        }
+        .onChange(of: project.cursorRow) { _, _ in cursor = project.cursor }
+        .onChange(of: project.cursorRun) { _, _ in cursor = project.cursor }
         .statusBarHidden(true)
     }
 
@@ -73,6 +86,20 @@ struct WorkView: View {
                 .padding(8)
                 .frame(maxWidth: .infinity)
                 .background(.yellow.opacity(0.25))
+            }
+
+            if let hint = model.liveActivity.settingsHint {
+                HStack(spacing: 8) {
+                    Text(hint).font(.footnote)
+                    Spacer()
+                    if let url = URL(string: UIApplication.openSettingsURLString) {
+                        Link("Open Settings", destination: url).font(.footnote.bold())
+                    }
+                    Button("Dismiss") { model.liveActivity.dismissHint() }.font(.footnote)
+                }
+                .padding(8)
+                .frame(maxWidth: .infinity)
+                .background(.blue.opacity(0.15))
             }
 
             RowStripView(chart: chart, sequence: sequence, cursor: cursor).padding(.horizontal)
