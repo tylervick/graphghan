@@ -212,13 +212,15 @@ not use; Live Activity intents keep the system's feedback.
 
 ## 9. Implementation shape
 
-- `Graphghan/UI/Theme.swift`: the tokens as `Color` extensions over the asset catalog, the
-  text styles as `Font` helpers, the weave modifier, the yarn-surface helper (fill, foreground,
-  hairline) shared by swatch, chip, palette entry, and strip.
+- `Shared/Tokens.xcassets` and `Shared/Theme.swift`: the token color sets and their `Color`
+  accessors plus the weave modifier, compiled into the app and the widget; `Shared/YarnSurface.swift`:
+  the yarn-surface helper (fill, foreground, hairline) shared by swatch, chip, palette entry, and
+  strip. `Graphghan/UI/Typography.swift`: the text styles as `Font.Heather` and the navigation and
+  tab bar appearance.
 - `Graphghan/UI/`: `Chip`, `Card`, `Banner`, `PrimaryButton` as small views used by every
   screen; the Work screen composes `WorkCard`, `SwatchStack`, and `DoneField`.
-- `Shared/`: the Live Activity views take the same tokens through the asset catalog (colors
-  only) and system faces.
+- `Shared/WorkActivityViews.swift`: the Live Activity views take the same tokens (colors only)
+  and system faces.
 - `project.yml`: font registration, the `AccentColor` set repointed to Moss, the icon set.
 - The site's `styles.css` is not changed by this work.
 
