@@ -3,16 +3,15 @@
 from __future__ import annotations
 
 import json
-import re
 from pathlib import Path
 
 import numpy as np
 from PIL import Image, ImageDraw
 
 from . import grid as gr
+from .chartdoc import RUN_RE
 
 SCHEMA = 1
-_RUN = re.compile(r"(\d+)([A-Za-z]{1,3})")
 
 
 def rle_rows(a):
@@ -40,7 +39,7 @@ def decode_rows(strings, codes):
     rows = []
     for s in strings:
         row = []
-        for n, c in _RUN.findall(s):
+        for n, c in RUN_RE.findall(s):
             row += [idx[c]] * int(n)
         rows.append(row)
     return np.array(rows, dtype=np.uint8)

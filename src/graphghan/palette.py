@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-import re
 import tomllib
 import warnings
 from dataclasses import dataclass, field
 from pathlib import Path
 
-CODE_RE = re.compile(r"^[A-Za-z]{1,3}$")
+from .chartdoc import CODE_RE
+
 YARN_KEYS = ("brand", "line", "colorway", "weight", "lot", "note")
 THREAD_KEYS = ("system", "number")
 
