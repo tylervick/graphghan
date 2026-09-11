@@ -114,8 +114,12 @@ jobs:
             -destination "$DESTINATION" -derivedDataPath build/DerivedData \
             -resultBundlePath "$RUNNER_TEMP/TestResults.xcresult" | tail -n 60
           test "${PIPESTATUS[0]}" -eq 0
+      # The renders are an aid for eyeballing layouts, not a gate: the first run on this job went red
+      # on a green test suite because the artifact service was unreachable (ENOTFOUND), so an upload
+      # failure must not fail the job. The test results upload below stays fatal-on-failure only.
       - name: Upload rendered snapshots
         if: always()
+        continue-on-error: true
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ios-snapshots
