@@ -1,0 +1,21 @@
+name: Bug
+description: Something is wrong in the app, the site, the CLI, or the skill.
+labels: [bug]
+body:
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps
+      description: What you did, what happened, what you expected.
+    validations:
+      required: true
+  - type: input
+    id: where
+    attributes:
+      label: Where
+      description: Device and OS, or browser, or CLI version. For the app, the TestFlight build number.
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes
+      description: Screenshots, a pattern slug, a chart id, a log line.
