@@ -15,6 +15,29 @@ import Testing
         #expect(ChartID.compute(codes: ["A", "B"], rows: ["2A2B", "4A"], technique: technique, passes: .array([])) != id)
     }
 
+    @Test func passesOnlyCountsWhenItIsAList() {
+        let technique: JSONValue = .object(["type": .string("rows")])
+        let withoutPasses = ChartID.compute(codes: ["A"], rows: ["1A"], technique: technique, passes: nil)
+        // Non-list `passes` (null, an object) must be treated the same as absent, matching
+        // Python's `isinstance(passes, list)` gate in chartdoc.chart_id.
+        #expect(ChartID.compute(codes: ["A"], rows: ["1A"], technique: technique, passes: .null) == withoutPasses)
+        #expect(ChartID.compute(codes: ["A"], rows: ["1A"], technique: technique, passes: .object([:])) == withoutPasses)
+        // An actual list, even empty, is a real value and changes the id.
+        #expect(ChartID.compute(codes: ["A"], rows: ["1A"], technique: technique, passes: .array([])) != withoutPasses)
+    }
+
+    @Test func hexIsASCIIOnly() {
+        let technique: JSONValue = .object(["type": .string("rows")])
+        let id = ChartID.compute(codes: ["A"], rows: ["1A"], technique: technique, passes: nil)
+        #expect(ChartID.hex(id) == String(id.dropFirst(ChartID.prefix.count)))
+
+        #expect(ChartID.hex("nope") == nil)
+        #expect(ChartID.hex(ChartID.prefix + String(repeating: "a", count: 63)) == nil)
+        #expect(ChartID.hex(ChartID.prefix + String(repeating: "A", count: 64)) == nil)
+        // Fullwidth digits satisfy Character.isHexDigit/isUppercase but are not ASCII hex.
+        #expect(ChartID.hex(ChartID.prefix + String(repeating: "\u{FF10}", count: 64)) == nil)
+    }
+
     @Test(arguments: Fixtures.chartNames)
     func matchesEveryFixture(name: String) throws {
         let doc = try Fixtures.json("\(name).chart.json")

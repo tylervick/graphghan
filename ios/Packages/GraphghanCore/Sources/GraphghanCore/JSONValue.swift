@@ -2,6 +2,12 @@ import Foundation
 
 /// A generic JSON tree. Used wherever the format keeps a raw object we must hash or preserve
 /// verbatim (`technique`, `passes`), and for canonical serialization.
+///
+/// A whole-number float such as `5.0` decodes as `.int(5)`, not `.double(5.0)`, because
+/// `JSONDecoder` cannot expose whether the source token had a fractional part once it has been
+/// parsed as a number. This is harmless: every value the format ever hashes is typed as a
+/// string, bool, or integer in the schema, and `Chart` validation independently verifies
+/// `chart.id` against the file's own content.
 public enum JSONValue: Equatable, Sendable {
     case null
     case bool(Bool)
