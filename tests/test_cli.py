@@ -63,6 +63,7 @@ def test_options_page(tmp_path):
     assert main(["options", "craigh-na-dun", "--gauges", "sc", "--out", str(tmp_path)]) == 0
     html = (tmp_path / "options.html").read_text()
     assert "final" in html and "plain-foot" in html and (tmp_path / "final_sc.png").exists()
+    assert "[A-Za-z]{1,3}" in html
 
 
 def test_catalog(tmp_path):
