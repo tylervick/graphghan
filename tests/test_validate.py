@@ -29,3 +29,8 @@ def test_run_all_reports():
     names = [r[0] for r in results]
     assert "row totals" in names and "palette closure" in names and "solid edge" in names
     assert all(ok for _, ok, _ in results)
+
+
+def test_palette_codes_valid():
+    assert validate.palette_codes_valid(["A", "Gd", "Kbl"])
+    assert not validate.palette_codes_valid(["A", "ABCD"])

@@ -1,0 +1,45 @@
+{
+  "schema": 2,
+  "pattern": {
+    "id": "unknown-technique",
+    "title": "Unknown technique",
+    "version": "1.0.0",
+    "author": "graphghan fixtures",
+    "license": "MIT"
+  },
+  "chart": {
+    "id": "sha256:25c344d3325c566b981f4651074410e49356853d986cd7780b96a189d2e3cd29",
+    "variant": "final",
+    "gauge_key": "sc",
+    "width": 3,
+    "height": 2
+  },
+  "generator": {
+    "name": "graphghan-fixtures",
+    "version": "1"
+  },
+  "palette": [
+    {
+      "code": "A",
+      "name": "Color A",
+      "hex": "#000000"
+    }
+  ],
+  "rows": [
+    "3A",
+    "3A"
+  ],
+  "gauge": {
+    "stitches": 14.0,
+    "rows": 16.0,
+    "over": {
+      "value": 4,
+      "unit": "in"
+    },
+    "stitch": "sc"
+  },
+  "technique": {
+    "type": "tunisian"
+  },
+  "instructions": []
+}

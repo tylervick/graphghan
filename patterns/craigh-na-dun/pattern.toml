@@ -9,6 +9,8 @@ size_in = [54.0, 46.0]
 hook = "5 mm (US H-8)"
 yarn_weight = "worsted (#4)"
 first_row_color = "Y"
+author = "Tyler Vick"
+license = "CC-BY-NC-SA-4.0"
 
 [gauge]
 sc = [3.5, 4.0]
@@ -61,3 +63,6 @@ colors = [
   "Lettering rows are cream and charcoal only across the panel. Carry charcoal under the cream between letters, or use a bobbin per word.",
   "Scene rows are cream sky with charcoal stones and the gold moon; the hill rows are long green runs, the easiest in the blanket.",
 ]
+
+[publish]
+charts = [["final", "sc"], ["final", "hdc"]]

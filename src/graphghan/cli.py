@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import http.server
 import json
+import re
 import runpy
 import subprocess
 import sys
@@ -13,13 +14,17 @@ from pathlib import Path
 import numpy as np
 
 from . import grid as gr
+from .chartdoc import cell_aspect, finished_size
 from .export import chart_json, preview_png, write_dist
+from .exporters import to_csv, to_oxs, to_png
 from .motifs import CATALOG
 from .options_page import build_options_html
 from .pattern import find_repo_root, load_design, load_pattern, pattern_dir
+from .publish import chart_key, check_published, render_published
 from .validate import run_all
 
 TEMPLATES = Path(__file__).parent / "templates"
+CHART_KEY_RE = re.compile(r"[A-Za-z0-9_.-]+")  # a single dist/charts/<key> directory name
 
 
 def _resolve(slug_or_path: str) -> Path | None:
@@ -57,47 +62,67 @@ def cmd_render(args) -> int:
     if d is None:
         return 2
     meta = load_pattern(d)
-    if args.check and not (d / "dist" / "chart.json").exists():
-        print(f"no committed dist for {meta.slug}; run 'graphghan render {meta.slug}' first")
-        return 1
-    gauge = args.gauge or meta.stitch
-    bad = _bad_gauge(meta, gauge)
-    if bad:
-        print(bad, file=sys.stderr)
-        return 2
     design = load_design(d)
-    bad = _bad_variant(design, args.variant)
-    if bad:
-        print(bad, file=sys.stderr)
+    if args.check and args.out:
+        print("--check cannot be combined with --out (it never writes)", file=sys.stderr)
         return 2
-    g, report = design.build(gauge, args.variant)
+    adhoc = args.gauge is not None or args.variant is not None
+    if adhoc:
+        if args.check:
+            print("--check cannot be combined with --gauge/--variant", file=sys.stderr)
+            return 2
+        if not args.out:
+            print(
+                "--gauge/--variant build an ad-hoc chart and need --out (they never touch dist/)",
+                file=sys.stderr,
+            )
+            return 2
+        gauge = args.gauge or meta.stitch
+        variant = args.variant or "final"
+        bad = _bad_gauge(meta, gauge) or _bad_variant(design, variant)
+        if bad:
+            print(bad, file=sys.stderr)
+            return 2
+        g, report = design.build(gauge, variant)
+        doc = write_dist(g.a, meta, gauge, report, Path(args.out), variant=variant)
+        print(
+            f"wrote {args.out} ({doc['chart']['width']}x{doc['chart']['height']}, {gauge}, variant {variant})"
+        )
+        return 0
     if args.check:
-        committed = json.loads((d / "dist" / "chart.json").read_text())
-        # Round-trip through JSON so in-memory-only distinctions (e.g. tuples vs lists in
-        # `report`) don't register as drift; this mirrors how `committed` was serialized.
-        fresh = json.loads(json.dumps(chart_json(g.a, meta, gauge, report, args.variant)))
-        if committed != fresh:
-            diff_keys = sorted(k for k in set(committed) | set(fresh) if committed.get(k) != fresh.get(k))
-            msg = f"DRIFT: chart.json differs in keys: {', '.join(diff_keys)}"
-            if "rows" in diff_keys:
-                row_idx = next(
-                    (
-                        i
-                        for i, (x, y) in enumerate(
-                            zip(committed.get("rows", []), fresh.get("rows", []), strict=False)
-                        )
-                        if x != y
-                    ),
-                    None,
-                )
-                msg += f" (first differing row index {row_idx})"
-            print(msg)
+        if not (d / "dist" / "chart.json").exists():
+            print(f"no committed dist for {meta.slug}; run 'graphghan render {meta.slug}' first")
+            return 1
+        try:
+            problems = check_published(d, meta, design)
+        except ValueError as e:
+            print(e, file=sys.stderr)
+            return 2
+        for p in problems:
+            print(p)
+        if problems:
             return 1
         print("no drift")
         return 0
-    out = Path(args.out) if args.out else d / "dist"
-    doc = write_dist(g.a, meta, gauge, report, out, variant=args.variant)
-    print(f"wrote {out} ({doc['width']}x{doc['height']}, {gauge}, variant {args.variant})")
+    if args.out:
+        variant, gauge = meta.publish[0]
+        bad = _bad_gauge(meta, gauge) or _bad_variant(design, variant)
+        if bad:
+            print(bad, file=sys.stderr)
+            return 2
+        g, report = design.build(gauge, variant)
+        doc = write_dist(g.a, meta, gauge, report, Path(args.out), variant=variant)
+        print(
+            f"wrote {args.out} ({doc['chart']['width']}x{doc['chart']['height']}, {gauge}, variant {variant})"
+        )
+        return 0
+    try:
+        docs = render_published(d, meta, design)
+    except ValueError as e:
+        print(e, file=sys.stderr)
+        return 2
+    keys = ", ".join(chart_key(x["chart"]["variant"], x["chart"]["gauge_key"]) for x in docs)
+    print(f"wrote {d / 'dist'} ({len(docs)} chart(s): {keys})")
     return 0
 
 
@@ -160,24 +185,25 @@ def cmd_options(args) -> int:
                 doc["stats"]["stitches"] / per_hr
                 + sum(doc["stats"]["color_changes_per_row"]["per_row"]) * 3 / 3600
             )
+            w_in, h_in, _unit = finished_size(doc)
             entries.append(
                 {
                     "variant": variant,
                     "gauge": gauge,
-                    "width": doc["width"],
-                    "height": doc["height"],
-                    "size_in": doc["size_in"],
+                    "width": doc["chart"]["width"],
+                    "height": doc["chart"]["height"],
+                    "size_in": [w_in, h_in],
                     "colors": sorted({meta.palette.codes[i] for i in set(g.a.ravel().tolist())}),
                     "changes_mean": doc["stats"]["color_changes_per_row"]["mean"],
                     "changes_max": doc["stats"]["color_changes_per_row"]["max"],
                     "hours": round(hours),
                     "rows": doc["rows"],
                     "palette": doc["palette"],
-                    "cell_aspect": doc["cell_aspect"],
+                    "cell_aspect": cell_aspect(doc),
                 }
             )
             print(
-                f"{variant} {gauge}: {doc['width']}x{doc['height']} changes mean {doc['stats']['color_changes_per_row']['mean']} max {doc['stats']['color_changes_per_row']['max']}"
+                f"{variant} {gauge}: {doc['chart']['width']}x{doc['chart']['height']} changes mean {doc['stats']['color_changes_per_row']['mean']} max {doc['stats']['color_changes_per_row']['max']}"
             )
     (out / "options.html").write_text(build_options_html(meta.title, entries))
     print(f"wrote {out / 'options.html'}")
@@ -211,19 +237,52 @@ def cmd_site(args) -> int:
     return 0
 
 
+def cmd_export(args) -> int:
+    d = _resolve_or_die(args.pattern)
+    if d is None:
+        return 2
+    if args.chart is not None and not CHART_KEY_RE.fullmatch(args.chart):
+        print(
+            f"invalid --chart {args.chart!r}: a chart key is a variant and gauge joined by '-', "
+            "such as final-hdc",
+            file=sys.stderr,
+        )
+        return 2
+    dist = d / "dist"
+    src = dist / "charts" / args.chart / "chart.json" if args.chart else dist / "chart.json"
+    if not src.exists():
+        print(f"no committed chart at {src}; run 'graphghan render' first", file=sys.stderr)
+        return 1
+    doc = json.loads(src.read_text(encoding="utf-8"))
+    key = args.chart or chart_key(doc["chart"]["variant"], doc["chart"]["gauge_key"])
+    out = Path(args.out) if args.out else d / "build" / "exports" / f"{key}.{args.format}"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    if args.format == "png":
+        to_png(doc).save(out)
+    elif args.format == "oxs":
+        out.write_text(to_oxs(doc), encoding="utf-8")
+    else:
+        out.write_text(to_csv(doc), encoding="utf-8")
+    print(f"wrote {out}")
+    return 0
+
+
 def build_parser():
     p = argparse.ArgumentParser(prog="graphghan", description="charts for pixel-chart crafts")
     sub = p.add_subparsers(dest="cmd", required=True)
 
-    r = sub.add_parser("render", help="build a pattern's chart and write it (or check it for drift)")
+    r = sub.add_parser("render", help="publish a pattern's charts to dist/ (or check them for drift)")
     r.add_argument("pattern", help="pattern slug (looked up under patterns/) or a path to a pattern folder")
-    r.add_argument("--gauge", help="gauge name to build at (default: the pattern's own stitch gauge)")
-    r.add_argument("--variant", default="final", help="design variant to build (default: final)")
-    r.add_argument("--out", help="output directory for chart.json/png/etc (default: <pattern>/dist)")
+    r.add_argument("--gauge", help="ad-hoc build at this gauge (needs --out; never touches dist/)")
+    r.add_argument("--variant", help="ad-hoc build of this variant (needs --out; never touches dist/)")
+    r.add_argument(
+        "--out",
+        help="write one chart here instead of publishing to <pattern>/dist (default combination unless --gauge/--variant)",
+    )
     r.add_argument(
         "--check",
         action="store_true",
-        help="don't write; compare a fresh build against the committed dist and report drift",
+        help="don't write; compare a fresh build of every published combination against the committed dist",
     )
     r.set_defaults(fn=cmd_render)
 
@@ -246,6 +305,17 @@ def build_parser():
         "--out", help="output directory for options.html and previews (default: <pattern>/build/options)"
     )
     o.set_defaults(fn=cmd_options)
+
+    e = sub.add_parser(
+        "export", help="export a committed chart as a 1-px PNG, OXS (cross stitch), or CSV grid"
+    )
+    e.add_argument("pattern", help="pattern slug (looked up under patterns/) or a path to a pattern folder")
+    e.add_argument("--format", required=True, choices=["png", "oxs", "csv"], help="output format")
+    e.add_argument(
+        "--chart", help="published chart key such as final-hdc (default: the pattern's default chart)"
+    )
+    e.add_argument("--out", help="output file (default: <pattern>/build/exports/<key>.<format>)")
+    e.set_defaults(fn=cmd_export)
 
     k = sub.add_parser("catalog", help="render thumbnail PNGs for every motif in the catalog")
     k.add_argument("--out", help="output directory for thumbnails (default: .claude/skills/graphghan/assets)")

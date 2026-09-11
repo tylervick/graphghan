@@ -4,6 +4,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from graphghan import chartdoc
 from graphghan import grid as gr
 from graphghan.export import (
     chart_json,
@@ -49,42 +50,103 @@ def test_stats_sum_and_changes():
     assert s["size_in"] == [round(5 / 3.5, 1), 0.8]
 
 
-def test_chart_json_schema_and_write_dist(tmp_path):
+def test_chart_json_schema2_and_write_dist(tmp_path):
     meta = load_pattern(FIX)
     gr.set_gauge("sc")
     doc = chart_json(small(), meta, "sc", {"panel": (1, 1, 4, 2)})
-    for key in (
-        "schema",
-        "slug",
-        "title",
-        "dedication",
-        "quote",
-        "version",
-        "stitch",
-        "gauge",
-        "cell_aspect",
-        "width",
-        "height",
-        "size_in",
-        "palette",
-        "rows",
-        "stats",
-        "notes",
-        "report",
-    ):
-        assert key in doc
-    assert doc["schema"] == 1 and doc["gauge"] == {"st_per_in": 3.5, "rows_per_in": 4.0}
+    assert doc["schema"] == 2
+    assert doc["pattern"] == {
+        "id": "minimal",
+        "title": "Minimal",
+        "version": "0.0.1",
+        "author": "",
+        "license": "",
+        "dedication": "",
+        "quote": "",
+        "url": "https://graphghan.milo.cat/patterns/minimal/",
+    }
+    assert doc["chart"]["width"] == 5 and doc["chart"]["height"] == 3
+    assert doc["chart"]["variant"] == "final" and doc["chart"]["gauge_key"] == "sc"
+    assert doc["chart"]["id"] == chartdoc.chart_id(["A", "B"], doc["rows"], doc["technique"])
+    assert doc["generator"]["name"] == "graphghan" and doc["generator"]["version"]
+    assert doc["gauge"] == {
+        "stitches": 14,
+        "rows": 16,
+        "over": {"value": 4, "unit": "in"},
+        "stitch": "sc",
+        "hook": "5 mm",
+        "yarn_weight": "worsted",
+    }
+    # whole gauge counts are written as ints, so "14" not "14.0" in the JSON
+    assert isinstance(doc["gauge"]["stitches"], int) and isinstance(doc["gauge"]["rows"], int)
+    assert doc["technique"] == chartdoc.TECHNIQUE_ROWS
     assert doc["palette"][0] == {
         "code": "A",
         "name": "Alpha",
         "hex": "#112233",
-        "yarn": "any",
+        "yarn": {"note": "any"},
         "use": "ground",
     }
+    assert doc["instructions"] == [{"title": "Setup", "text": "Chain W + 1 in A."}]
+    assert doc["ext"]["graphghan"]["report"] == {"panel": [1, 1, 4, 2]}
+    assert "stats" in doc and doc["stats"]["stitches"] == 15
+    for gone in ("slug", "title", "size_in", "cell_aspect", "first_row_color", "notes", "report", "stitch"):
+        assert gone not in doc
+    assert chartdoc.validate_document(doc) == []
     write_dist(small(), meta, "sc", {"panel": (1, 1, 4, 2)}, tmp_path)
     assert json.loads((tmp_path / "chart.json").read_text())["rows"] == ["5A", "1A3B1A", "5A"]
     for name in ("chart.png", "preview.png", "preview-grid.png", "written-rows.txt"):
         assert (tmp_path / name).exists()
+
+
+def test_chart_json_palette_optional_fields(tmp_path):
+    (tmp_path / "pattern.toml").write_text(
+        (FIX / "pattern.toml")
+        .read_text()
+        .replace(
+            'use = "ground"', 'use = "ground"\nsymbol = "*"\n[colors.thread]\nsystem = "DMC"\nnumber = "310"'
+        )
+    )
+    meta = load_pattern(tmp_path)
+    gr.set_gauge("sc")
+    doc = chart_json(small(), meta, "sc", {})
+    assert (
+        doc["palette"][0]["thread"] == {"system": "DMC", "number": "310"}
+        and doc["palette"][0]["symbol"] == "*"
+    )
+    assert "thread" not in doc["palette"][1] and "symbol" not in doc["palette"][1]
+
+
+def test_chart_json_keeps_fractional_gauge_counts():
+    meta = load_pattern(FIX)
+    gr.set_gauge("square")  # 4.0 st/in, 4.0 rows/in -> 16 over 4 in
+    try:
+        doc = chart_json(small(), meta, "square", {})
+        assert doc["gauge"]["stitches"] == 16 and doc["gauge"]["rows"] == 16
+        gr.register_gauge("odd", 1.625, 4.0)  # 6.5 sts over 4 in is not whole
+        gr.set_gauge("odd")
+        doc = chart_json(small(), meta, "odd", {})
+        assert doc["gauge"]["stitches"] == 6.5 and doc["gauge"]["rows"] == 16
+    finally:
+        gr.GAUGES.pop("odd", None)
+        gr.set_gauge("sc")
+
+
+def test_write_dist_validates_before_writing(tmp_path, monkeypatch):
+    meta = load_pattern(FIX)
+    gr.set_gauge("sc")
+    real = chart_json
+
+    def broken(*args, **kwargs):
+        doc = real(*args, **kwargs)
+        doc["palette"][1]["code"] = "Zz"  # a code no row uses, so every row has an unknown code
+        return doc
+
+    monkeypatch.setattr("graphghan.export.chart_json", broken)
+    out = tmp_path / "dist"
+    with pytest.raises(ValueError, match="chart failed validation"):
+        write_dist(small(), meta, "sc", {}, out)
+    assert not out.exists()  # nothing written, not even a half-built directory
 
 
 def test_chart_json_requires_matching_active_gauge():

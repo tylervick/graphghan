@@ -1,0 +1,76 @@
+{
+  "schema": 2,
+  "pattern": {
+    "id": "layers-stitch",
+    "title": "Layers (stitch)",
+    "version": "1.0.0",
+    "author": "graphghan fixtures",
+    "license": "MIT"
+  },
+  "chart": {
+    "id": "sha256:2677c0a209f15e256e68dd5ab185151c2084b323c4ae60a85bdca60ddd8bc47d",
+    "variant": "final",
+    "gauge_key": "sc",
+    "width": 12,
+    "height": 2
+  },
+  "generator": {
+    "name": "graphghan-fixtures",
+    "version": "1"
+  },
+  "palette": [
+    {
+      "code": "G",
+      "name": "Color G",
+      "hex": "#1E4D3A"
+    },
+    {
+      "code": "Gd",
+      "name": "Color Gd",
+      "hex": "#D9A21B"
+    },
+    {
+      "code": "Kb",
+      "name": "Color Kb",
+      "hex": "#2B2F33"
+    },
+    {
+      "code": "Y",
+      "name": "Color Y",
+      "hex": "#F2E8D5"
+    }
+  ],
+  "rows": [
+    "7Gd2G3Y",
+    "2G7Gd3Kb"
+  ],
+  "gauge": {
+    "stitches": 14.0,
+    "rows": 16.0,
+    "over": {
+      "value": 4,
+      "unit": "in"
+    },
+    "stitch": "sc"
+  },
+  "technique": {
+    "type": "rows",
+    "start": "bottom",
+    "first_side": "RS",
+    "rs_direction": "rtl",
+    "turn": true
+  },
+  "instructions": [],
+  "layers": {
+    "stitch": {
+      "legend": {
+        "k": "knit",
+        "p": "purl"
+      },
+      "rows": [
+        "12k",
+        "6k6p"
+      ]
+    }
+  }
+}

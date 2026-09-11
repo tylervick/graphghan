@@ -2,13 +2,10 @@
 
 from __future__ import annotations
 
-import re
-
 import numpy as np
 
 from .export import decode_rows, rle_rows, rows_to_strings
-
-_CODE_RE = re.compile(r"^[A-Za-z]$")
+from .palette import CODE_RE
 
 
 def bad_rows(a, width):
@@ -21,8 +18,8 @@ def row_totals_match(a, codes):
     return decoded.shape == a.shape and bool(np.array_equal(decoded, a))
 
 
-def palette_codes_are_single_letters(codes):
-    return all(_CODE_RE.match(c) for c in codes)
+def palette_codes_valid(codes):
+    return all(CODE_RE.match(c) for c in codes)
 
 
 def used_indices(a):
@@ -63,7 +60,7 @@ def run_all(a, meta):
     codes = meta.palette.codes
     results = [
         ("row totals", row_totals_match(a, codes), f"{h} rows of {w}"),
-        ("palette codes", palette_codes_are_single_letters(codes), f"codes: {', '.join(codes)}"),
+        ("palette codes", palette_codes_valid(codes), f"codes: {', '.join(codes)}"),
         ("palette closure", used <= set(range(len(meta.palette))), f"indices used: {sorted(used)}"),
         (
             "solid edge",

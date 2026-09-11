@@ -1,0 +1,35 @@
+{
+  "passes": [
+    {
+      "label": "Row 1",
+      "side": "RS",
+      "direction": "ltr",
+      "grid_row": 0,
+      "runs": [
+        {
+          "code": "A",
+          "count": 2,
+          "x0": 0
+        },
+        {
+          "code": "B",
+          "count": 2,
+          "x0": 2
+        }
+      ]
+    },
+    {
+      "label": "Row 2",
+      "side": "RS",
+      "direction": "ltr",
+      "grid_row": 1,
+      "runs": [
+        {
+          "code": "A",
+          "count": 4,
+          "x0": 0
+        }
+      ]
+    }
+  ]
+}

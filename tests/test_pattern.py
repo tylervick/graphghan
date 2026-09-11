@@ -26,3 +26,37 @@ def test_load_design_builds():
 def test_find_repo_root():
     root = find_repo_root(Path(__file__))
     assert (root / "pyproject.toml").exists()
+
+
+def test_publish_defaults_to_final_at_pattern_stitch():
+    meta = load_pattern(FIX)
+    assert meta.publish == [("final", "sc")]
+    assert meta.author == "" and meta.license == ""
+
+
+def test_instructions_from_notes_and_extra_sections(tmp_path):
+    src = (FIX / "pattern.toml").read_text()
+    src += '\n[publish]\ncharts = [["final", "square"], ["final", "sc"]]\n'
+    src += '\n[[instructions]]\ntitle = "Blocking"\ntext = "Wet block to size."\n'
+    (tmp_path / "pattern.toml").write_text(src)
+    (tmp_path / "design.py").write_text((FIX / "design.py").read_text())
+    meta = load_pattern(tmp_path)
+    assert meta.publish == [("final", "square"), ("final", "sc")]
+    assert meta.instructions == [
+        {"title": "Setup", "text": "Chain W + 1 in A."},
+        {"title": "Blocking", "text": "Wet block to size."},
+    ]
+
+
+def test_notes_with_several_items_join_with_newlines(tmp_path):
+    src = (
+        (FIX / "pattern.toml")
+        .read_text()
+        .replace('setup = ["Chain W + 1 in A."]', 'setup = ["One.", "Two."]\ncolors = ["Carry B."]')
+    )
+    (tmp_path / "pattern.toml").write_text(src)
+    meta = load_pattern(tmp_path)
+    assert meta.instructions == [
+        {"title": "Setup", "text": "One.\nTwo."},
+        {"title": "Colors", "text": "Carry B."},
+    ]

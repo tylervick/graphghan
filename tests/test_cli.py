@@ -18,7 +18,9 @@ def run(*args):
 def test_render_writes_dist_and_check_passes(tmp_path):
     assert main(["render", "craigh-na-dun", "--out", str(tmp_path)]) == 0
     doc = json.loads((tmp_path / "chart.json").read_text())
-    assert doc["schema"] == 1 and doc["width"] == 189 and doc["dedication"] == "For Meaghan"
+    assert (
+        doc["schema"] == 2 and doc["chart"]["width"] == 189 and doc["pattern"]["dedication"] == "For Meaghan"
+    )
     assert (tmp_path / "chart.png").exists() and (tmp_path / "written-rows.txt").exists()
     assert main(["render", "craigh-na-dun", "--check"]) == 0  # committed dist matches
 
@@ -39,7 +41,7 @@ def test_new_scaffolds_and_renders(tmp_path, monkeypatch):
         and (d / "tests" / "test_design.py").exists()
     )
     assert main(["render", str(d), "--out", str(tmp_path / "out")]) == 0
-    assert json.loads((tmp_path / "out" / "chart.json").read_text())["slug"] == "test-scaffold"
+    assert json.loads((tmp_path / "out" / "chart.json").read_text())["pattern"]["id"] == "test-scaffold"
     assert main(["render", str(d), "--check"]) == 1  # no committed dist yet
     lint = subprocess.run(
         [sys.executable, "-m", "ruff", "check", "--config", str(ROOT / "pyproject.toml"), str(d)],
@@ -63,6 +65,7 @@ def test_options_page(tmp_path):
     assert main(["options", "craigh-na-dun", "--gauges", "sc", "--out", str(tmp_path)]) == 0
     html = (tmp_path / "options.html").read_text()
     assert "final" in html and "plain-foot" in html and (tmp_path / "final_sc.png").exists()
+    assert "[A-Za-z]{1,3}" in html
 
 
 def test_catalog(tmp_path):
@@ -93,3 +96,62 @@ def test_render_check_detects_drift(tmp_path):
     assert changed != original
     toml_path.write_text(changed)
     assert main(["render", str(copy), "--check"]) == 1
+
+
+def test_render_check_rejects_out(tmp_path, capsys):
+    assert main(["render", "craigh-na-dun", "--check", "--out", str(tmp_path)]) == 2
+    assert "--check cannot be combined with --out" in capsys.readouterr().err
+    assert not (tmp_path / "chart.json").exists()
+
+
+def test_export_rejects_a_chart_key_that_is_a_path(capsys):
+    assert main(["export", "craigh-na-dun", "--format", "csv", "--chart", "../x"]) == 2
+    assert "invalid --chart '../x'" in capsys.readouterr().err
+
+
+def test_render_adhoc_requires_out_and_never_touches_dist(tmp_path):
+    assert main(["render", "craigh-na-dun", "--gauge", "hdc"]) == 2
+    assert main(["render", "craigh-na-dun", "--variant", "plain-foot"]) == 2
+    assert main(["render", "craigh-na-dun", "--gauge", "hdc", "--check"]) == 2
+    assert main(["render", "craigh-na-dun", "--variant", "plain-foot", "--out", str(tmp_path)]) == 0
+    assert json.loads((tmp_path / "chart.json").read_text())["chart"]["variant"] == "plain-foot"
+
+
+def test_committed_dist_publishes_sc_and_hdc():
+    dist = ROOT / "patterns" / "craigh-na-dun" / "dist"
+    for key in ("final-sc", "final-hdc"):
+        assert (dist / "charts" / key / "chart.json").exists()
+    top = json.loads((dist / "chart.json").read_text())
+    assert (
+        top["chart"]["id"]
+        == json.loads((dist / "charts" / "final-sc" / "chart.json").read_text())["chart"]["id"]
+    )
+
+
+def test_export_formats_and_default_paths(tmp_path, monkeypatch):
+    monkeypatch.chdir(ROOT)
+    for fmt in ("png", "oxs", "csv"):
+        out = tmp_path / f"chart.{fmt}"
+        assert main(["export", "craigh-na-dun", "--format", fmt, "--out", str(out)]) == 0
+        assert out.exists() and out.stat().st_size > 0
+    assert (
+        main(
+            [
+                "export",
+                "craigh-na-dun",
+                "--format",
+                "csv",
+                "--chart",
+                "final-hdc",
+                "--out",
+                str(tmp_path / "hdc.csv"),
+            ]
+        )
+        == 0
+    )
+    assert len((tmp_path / "hdc.csv").read_text().splitlines()) == 115
+    assert main(["export", "craigh-na-dun", "--format", "csv", "--chart", "final-nope"]) == 1
+    assert main(["export", "craigh-na-dun", "--format", "csv"]) == 0
+    default = ROOT / "patterns" / "craigh-na-dun" / "build" / "exports" / "final-sc.csv"
+    assert default.exists()
+    default.unlink()

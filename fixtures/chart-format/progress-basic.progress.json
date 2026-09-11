@@ -1,0 +1,67 @@
+{
+  "schema": 1,
+  "pattern_id": "minimal",
+  "chart_id": "sha256:23fcf7822cebc43e4fb601a946b22c974294dd106eff4fcc87469a769c1f42c1",
+  "pattern_version": "1.0.0",
+  "cursor": {
+    "row": 5,
+    "run": 1
+  },
+  "started": "2026-09-12T18:00:00Z",
+  "finished": null,
+  "events": [
+    {
+      "t": "2026-09-12T18:00:00Z",
+      "row": 2,
+      "run": 0,
+      "kind": "advance"
+    },
+    {
+      "t": "2026-09-12T18:05:00Z",
+      "row": 3,
+      "run": 0,
+      "kind": "advance"
+    },
+    {
+      "t": "2026-09-12T18:10:00Z",
+      "row": 3,
+      "run": 1,
+      "kind": "advance"
+    },
+    {
+      "t": "2026-09-12T19:00:00Z",
+      "row": 3,
+      "run": 2,
+      "kind": "advance"
+    },
+    {
+      "t": "2026-09-12T19:02:00Z",
+      "row": 3,
+      "run": 1,
+      "kind": "back"
+    },
+    {
+      "t": "2026-09-12T19:04:00Z",
+      "row": 3,
+      "run": 2,
+      "kind": "advance"
+    },
+    {
+      "t": "2026-09-13T10:00:00Z",
+      "row": 5,
+      "run": 0,
+      "kind": "jump"
+    },
+    {
+      "t": "2026-09-13T10:15:00Z",
+      "row": 5,
+      "run": 1,
+      "kind": "advance"
+    }
+  ],
+  "ext": {
+    "fixture": {
+      "chart": "minimal-rows"
+    }
+  }
+}
