@@ -63,7 +63,11 @@ public struct Chart: Sendable {
         try Chart(document: ChartDocument.decode(data))
     }
 
-    public init(document: ChartDocument) throws {
+    public init(document: ChartDocument) throws { try self.init(document: document, verifyID: true) }
+
+    static func unchecked(document: ChartDocument) throws -> Chart { try Chart(document: document, verifyID: false) }
+
+    init(document: ChartDocument, verifyID: Bool) throws {
         guard document.schema == 2 else { throw ChartError.unsupportedSchema(document.schema) }
         guard document.palette.count <= 255 else { throw ChartError.tooManyColors(document.palette.count) }
         var index: [String: Int] = [:]
@@ -100,8 +104,10 @@ public struct Chart: Sendable {
             guard x == width else { throw ChartError.rowSum(row: y, got: x, expected: width) }
             runsByRow.append(runs)
         }
-        let expected = ChartID.compute(codes: document.palette.map(\.code), rows: document.rows, technique: document.technique, passes: document.passes)
-        guard expected == document.chart.id else { throw ChartError.idMismatch(expected: expected, found: document.chart.id) }
+        if verifyID {
+            let expected = ChartID.compute(codes: document.palette.map(\.code), rows: document.rows, technique: document.technique, passes: document.passes)
+            guard expected == document.chart.id else { throw ChartError.idMismatch(expected: expected, found: document.chart.id) }
+        }
         self.document = document
         self.width = width
         self.height = height
