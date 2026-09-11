@@ -180,7 +180,10 @@ fi
 STATE=""; BUILD_ID=""; attempt=0
 while [ "$attempt" -lt "$POLL_ATTEMPTS" ]; do
     attempt=$((attempt + 1))
-    RESP="$(api_get "/v1/builds?filter%5Bapp%5D=$APP_ID&filter%5Bversion%5D=$BUILD")" || { echo "error: could not query builds" >&2; exit 1; }
+    # limit=1 with the newest upload first: read_json_field only ever looks at data[0], and a
+    # re-used version string (a build deleted and re-uploaded) would otherwise hand it whichever
+    # record Apple happened to list first.
+    RESP="$(api_get "/v1/builds?filter%5Bapp%5D=$APP_ID&filter%5Bversion%5D=$BUILD&limit=1&sort=-uploadedDate")" || { echo "error: could not query builds" >&2; exit 1; }
     if BUILD_ID="$(read_json_field "$RESP" id)"; then :; else rc=$?; [ "$rc" -eq 3 ] || { echo "error: could not parse the builds response" >&2; exit 1; }; fi
     if STATE="$(read_json_field "$RESP" attributes.processingState)"; then :; else rc=$?; [ "$rc" -eq 3 ] || { echo "error: could not parse the builds response" >&2; exit 1; }; fi
     if [ -n "$BUILD_ID" ] && [ "$STATE" != "PROCESSING" ]; then break; fi
@@ -188,6 +191,14 @@ while [ "$attempt" -lt "$POLL_ATTEMPTS" ]; do
 done
 [ -n "$BUILD_ID" ] || { echo "error: build $BUILD never appeared in App Store Connect after $attempt attempts; notes not attached." >&2; exit 1; }
 [ "$STATE" != "PROCESSING" ] || { echo "error: build $BUILD still PROCESSING after $POLL_ATTEMPTS attempts; notes not attached." >&2; exit 1; }
+
+# The token minted above lives 19 minutes (see Scripts/asc-jwt.sh), and the poll budget is
+# POLL_ATTEMPTS x POLL_DELAY -- 15 minutes by default, more if either is raised. The calls below are
+# the ones that actually attach the notes, and they run AFTER the upload has consumed a build number,
+# so they get a fresh token rather than the tail end of an old one; Apple answers an expired token
+# with a bare 401 and no diagnostic.
+TOKEN="$("$ASC_JWT")" || { echo "error: could not re-mint an App Store Connect token after the ingestion poll" >&2; exit 1; }
+if [ -n "${GITHUB_ACTIONS:-}" ]; then echo "::add-mask::$TOKEN"; fi
 
 LOC_RESP="$(api_get "/v1/betaBuildLocalizations?filter%5Bbuild%5D=$BUILD_ID&filter%5Blocale%5D=en-US")" || { echo "error: could not look up localizations" >&2; exit 1; }
 if LOC_ID="$(read_json_field "$LOC_RESP" id)"; then :; else rc=$?; [ "$rc" -eq 3 ] || { echo "error: could not parse the localizations response" >&2; exit 1; }; fi

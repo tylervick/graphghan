@@ -18,3 +18,4 @@ ios/Scripts/.appstore.env
 ios/Packages/*/.build/
 ios/TestResults*.xcresult
 ios/Tests/__Snapshots__/*.actual.png
+ios/Tests/__Snapshots__/render-*.png

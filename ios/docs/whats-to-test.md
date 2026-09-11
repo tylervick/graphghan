@@ -1,1 +1,1 @@
-<!-- Optional hand-written preamble for the next TestFlight build's What to Test notes. Leave empty to ship only the derived changelog. -->
+<!-- Optional hand-written preamble for the next TestFlight build's What to Test notes. Leave empty to ship only the derived changelog. Keep every HTML comment on ONE line: whats-to-test.sh strips comments line by line, so a comment wrapped across lines leaks its middle into the notes testers read. -->

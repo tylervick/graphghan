@@ -21,6 +21,9 @@ concurrency:
   group: testflight
   cancel-in-progress: false
 
+# Nothing by default; the one job below opts into the single scope it needs.
+permissions: {}
+
 env:
   XCODE_VERSION: "26.2"
   # A new app: no build numbers are consumed, so the first CI release is 1. Numbers have gaps whenever
@@ -56,6 +59,15 @@ jobs:
           if [ -n "$OVERRIDE" ]; then N="$OVERRIDE"; else N=$(( OFFSET + RUN_NUMBER )); fi
           [[ "$N" =~ ^[0-9]+$ ]] || { echo "::error::build number '$N' is not numeric"; exit 1; }
           [ "$N" -ge 1 ] || { echo "::error::build number must be at least 1"; exit 1; }
+          # App Store Connect needs a build number strictly above every number already used for this
+          # version, and the ios-build-* tags are the local record of those. Catching it here costs
+          # seconds; letting it through costs a 20-minute archive and then a rejected upload. The
+          # checkout above uses fetch-depth 0, so the tags are present.
+          NEWEST="$(git tag --list 'ios-build-*' --sort=-v:refname | head -n 1 | sed 's/^ios-build-//')"
+          if [ -n "$NEWEST" ] && [ "$N" -le "$NEWEST" ]; then
+            echo "::error::build number $N is not above the newest shipped build $NEWEST"
+            exit 1
+          fi
           echo "value=$N" >> "$GITHUB_OUTPUT"
           echo "Build number: $N"
 
@@ -109,15 +121,31 @@ jobs:
           security set-key-partition-list -S apple-tool:,apple:,codesign: -k "$KC_PW" "$KC" >/dev/null
 
           # Both profile directories: Xcode 16+ reads the Developer/Xcode path, older tooling the MobileDevice one.
+          # The profile's own Name is asserted too: the export step matches profiles by name, and a
+          # secret holding the wrong profile otherwise surfaces 20 minutes later as an opaque
+          # 'No "iOS App Store" profiles ... matching' from xcodebuild.
           UUIDS=""
-          for P in "$RUNNER_TEMP/app.mobileprovision" "$RUNNER_TEMP/widgets.mobileprovision"; do
-            UUID="$(security cms -D -i "$P" | plutil -extract UUID raw -)"
+          WRONG=""
+          for SPEC in "app.mobileprovision:Graphghan App Store CI" "widgets.mobileprovision:Graphghan Widgets App Store CI"; do
+            P="$RUNNER_TEMP/${SPEC%%:*}"
+            WANT="${SPEC#*:}"
+            PLIST="$(security cms -D -i "$P")"
+            UUID="$(printf '%s' "$PLIST" | plutil -extract UUID raw -)"
+            NAME="$(printf '%s' "$PLIST" | plutil -extract Name raw -)"
             for d in "$HOME/Library/MobileDevice/Provisioning Profiles" "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"; do
               mkdir -p "$d"; cp "$P" "$d/$UUID.mobileprovision"
             done
             UUIDS="$UUIDS $UUID"
+            if [ "$NAME" != "$WANT" ]; then
+              echo "::error::${SPEC%%:*} carries profile name '$NAME', expected '$WANT'"
+              WRONG="yes"
+            fi
           done
+          # Written before the checks below, not after: GITHUB_ENV is read once the step ends, so
+          # recording both UUIDs first is what lets the cleanup step remove the installed copies
+          # even when a check below fails the step.
           echo "PROFILE_UUIDS=$UUIDS" >> "$GITHUB_ENV"
+          [ -z "$WRONG" ] || exit 1
 
           # Scoped to $KC: the search-list-wide form would pass on ANY Distribution identity.
           if ! security find-identity -v -p codesigning "$KC" | grep -q 'Apple Distribution'; then
@@ -136,6 +164,19 @@ jobs:
           EXPORT_OPTIONS_PLIST: ExportOptions-ci.plist
         run: ios/Scripts/archive.sh
 
+      # The tag, the notes range, and the App Store Connect build query all key off BUILD_NUMBER; if it
+      # failed to reach the binary the upload would consume a number for a build nothing can find.
+      - name: Verify the IPA carries the build number
+        env:
+          BUILD_NUMBER: ${{ steps.buildnum.outputs.value }}
+        run: |
+          IPA="$(ls ios/build/archive/export/*.ipa)"
+          for PLIST in 'Payload/*.app/Info.plist' 'Payload/*.app/PlugIns/*.appex/Info.plist'; do
+            VER="$(unzip -p "$IPA" "$PLIST" | plutil -extract CFBundleVersion raw -)"
+            [ "$VER" = "$BUILD_NUMBER" ] || { echo "::error::$PLIST has CFBundleVersion $VER, expected $BUILD_NUMBER"; exit 1; }
+            echo "$PLIST: CFBundleVersion $VER"
+          done
+
       # BEFORE the upload, so a failed upload does not discard the build.
       - name: Upload IPA artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -143,6 +184,7 @@ jobs:
           name: Graphghan-${{ steps.buildnum.outputs.value }}-ipa
           path: ios/build/archive/export/*.ipa
           retention-days: 7
+          if-no-files-found: error
 
       - name: Upload to TestFlight
         env:
@@ -183,16 +225,21 @@ jobs:
           fi
 
       # Raw xcodebuild writes these into TMPDIR. Artifact contents are not covered by secret masking
-      # on a public repo, so the key id is scrubbed first.
+      # on a public repo, so the two identifiers altool echoes back -- the key id and the issuer id --
+      # are scrubbed first.
       - name: Collect distribution logs
         if: failure()
         env:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
         run: |
           mkdir -p "$RUNNER_TEMP/distlogs"
           cp -R "$TMPDIR"/*.xcdistributionlogs "$RUNNER_TEMP/distlogs/" 2>/dev/null || true
-          if [ -n "${ASC_KEY_ID:-}" ]; then
-            find "$RUNNER_TEMP/distlogs" -type f -print0 2>/dev/null | xargs -0 sed -i '' "s/${ASC_KEY_ID}/ASC_KEY_ID_REDACTED/g" 2>/dev/null || true
+          SEDARGS=()
+          if [ -n "${ASC_KEY_ID:-}" ]; then SEDARGS+=(-e "s/${ASC_KEY_ID}/ASC_KEY_ID_REDACTED/g"); fi
+          if [ -n "${ASC_ISSUER_ID:-}" ]; then SEDARGS+=(-e "s/${ASC_ISSUER_ID}/ASC_ISSUER_ID_REDACTED/g"); fi
+          if [ "${#SEDARGS[@]}" -gt 0 ]; then
+            find "$RUNNER_TEMP/distlogs" -type f -print0 2>/dev/null | xargs -0 sed -i '' "${SEDARGS[@]}" 2>/dev/null || true
           fi
           ls -la "$RUNNER_TEMP/distlogs" || true
       - name: Upload distribution logs

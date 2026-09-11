@@ -31,5 +31,6 @@ printf '%s\n' "$OUT"
 if [ "$RC" -ne 0 ]; then echo "error: altool exited $RC" >&2; exit "$RC"; fi
 if grep -qE 'ERROR ITMS-|error:' <<<"$OUT"; then
     echo "error: altool reported an error but exited 0 (known Xcode 26 behaviour); treating as FAILED." >&2
+    echo "error: the build MAY still have been uploaded; check App Store Connect before re-running (a re-run consumes another build number)" >&2
     exit 1
 fi

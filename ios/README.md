@@ -64,11 +64,12 @@ in the developer portal. Nothing else does that registration.
 `.github/workflows/ci.yml`'s `ios` job runs on a pull request that touches `ios/`, `fixtures/`,
 `schema/`, or `ci.yml` itself: `mise run core-test`, `mise run script-test`, then the app's unit
 tests on the iPhone 17 simulator with snapshots in `render` mode, uploaded as the `ios-snapshots`
-artifact for eyeballing. `mise run ci-test` reproduces that last step locally. To re-record every
-snapshot reference in one run, run `TEST_RUNNER_GRAPHGHAN_SNAPSHOTS=record mise run test` — plain
-`GRAPHGHAN_SNAPSHOTS=record` has no effect, because `mise run test` drives `xcodebuild`, which only
-forwards `TEST_RUNNER_`-prefixed variables into the test host. `render` mode itself refuses to run
-without `GRAPHGHAN_SNAPSHOT_OUT` set, so it can never overwrite a committed reference by accident.
+artifact for eyeballing. `mise run ci-test` reproduces that last step locally (without CI's `OS=26.2`
+destination pin). To re-record every snapshot reference in one run, run
+`TEST_RUNNER_GRAPHGHAN_SNAPSHOTS=record mise run test` — plain `GRAPHGHAN_SNAPSHOTS=record` has no
+effect, because `mise run test` drives `xcodebuild`, which only forwards `TEST_RUNNER_`-prefixed
+variables into the test host. `render` mode itself refuses to run without `GRAPHGHAN_SNAPSHOT_OUT`
+set, so it can never overwrite a committed reference by accident.
 
 `mise run script-test` runs the hermetic tests for the shell scripts under `Scripts/`.
 
