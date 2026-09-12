@@ -72,3 +72,35 @@ Search: `"US terms" "UK terms" designer` (87 matches; first page read).
 - Some patterns carry "a 'key' for US/UK terms" inline — a conversion table inside the pattern.
 
 Consequence: declared per document, `both` is a real state, and the app must never guess.
+
+## Working a graphghan, in crocheters' own words (RQ1, RQ4)
+
+Search: `graphghan` (570 topics). Threads read: *graphghan tips, tricks, and advice?*, *Carrying
+yarn for a graphghan*, *Graphghan Yarn Amount and HELP*.
+
+- **Losing the direction is the failure people guard against.** "I do mine 1 block to 1 sc and
+  just when I turn the work start on the next block up … So you will read it from left to right
+  then right to left. And a highlighter is great for marking what you have already done. When I
+  would stop for the evening I would make sure I was into a row so I would know which way I was
+  going or I would mark the end of the row with an arrow telling me which way to start." That is
+  the cursor, the direction line and the row strip, described by someone who had none of them.
+- **Yarn management is the dominant question**, and it is a per-region decision, not a pattern-
+  level one: "for different portions I used different carrying techniques"; "I did NOT carry
+  yarns underneath the white parts … you could really see the grey background yarn underneath";
+  "large stretches of background color … would be best worked in intarsia rather than stranded";
+  "2 bobbins going for each letter … and tapestry-carry the main color"; "I hate weaving [in
+  ends] with a passion." Nothing in any format models this; the closest is prose in
+  `instructions`, and the app shows none of it (#40).
+- **Working every row from the right side** is a real practice for tapestry: "This afghan was
+  done all from the right side, I started and ended each row" — the mosaic-style boundary
+  (`rejoin`) used on a plain tapestry graphghan by choice; and "you could crochet a row of sc
+  backwards" to avoid turning. The boundary vocabulary in the proposal covers both; a fixed
+  `turn: true` does not.
+- **Charts are placed inside plain fields**: "work as normal until you get to where you want the
+  graph to start and then work the graph" — a 20"×20" logo in a 60"×80" blanket. Our chart is the
+  whole blanket; an offset-within-margins is a cheap generator feature and a cheap format note.
+- **Mirroring by reading direction**: "I followed the pattern right to left for the first
+  [dragon], and then left to right for the second one. Not sure I'll do that again – it was
+  confusing." A `mirror` flag on a pass is a plausible authored feature; noted, not filed.
+- People design their own graphghans in Stitch Fiddle and post the link when asking for help —
+  the chart tool is upstream of the forum, and a format they could hand over would be too.
