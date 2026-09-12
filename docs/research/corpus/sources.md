@@ -11,7 +11,13 @@ committed. Every raw file starts with a `SOURCE:` line.
 | indie | Designer blogs (Make & Do Crew, Repeat Crafter Me, Meghan Makes Do, Nana's Crafty Home, Cypress Textiles, Freese-Works, Crochetverse, The Loopy Lamb, Joanna's Crochet, Daisy Farm Crafts) | `curl` + `tools/html2txt.py` | 14 pages (mix of patterns and tutorials; coder marks which) |
 | indie | Ravelry | needs sign-in in the extension's Chrome window and `ravelry.com` allowed | blocked |
 | on-hand | 10 purchased/free PDFs in ~/Downloads | `pdftotext` | 10 |
-| cross-stitch | xstitchify free patterns | `curl` + html2txt | 1 page; PDF link needs sign-up — find another source |
+| cross-stitch | xstitchify free patterns | the page's `/download/pdf/` path serves the PDF to `curl` without an account → `pdftotext` | 1 chart (rose, 139×200, 8 DMC colours) |
+| indie | Tunisian (Make & Do Crew, KnitterKnotter ×2, TL Yarn Crafts) | `curl` + html2txt | 4 |
+| indie | Overlay/inset mosaic (The Loopy Lamb ×2, Jera's Jamboree, Bella Coco, Juniper & Oakes) | `curl` + html2txt | 5 |
+| indie | Filet (Bella Coco, Kristin Omdahl, Crochetpop) | `curl` + html2txt | 3 |
+| indie | Amigurumi (Supergurumi, Once Upon a Cheerio, Craft Passion) + 3 how-tos | `curl` + html2txt | 6 |
+| indie | Stranded knit hats (Handy Little Me, Tin Can Knits, Spruce Hill) | `curl` + html2txt; marlybird.com is JS-only (68 words) | 3 |
+| indie | Tapestry (Truly Crochet, Treasurie, Two of Wands, Spotted Horse, LillaBjörn, Meghan Makes Do, KnitterKnotter roundup) | `curl` + html2txt | 7 |
 | marketplace forms | LoveCrafts designer handbook | 404/500 on every URL tried | thin; FAQ says "Who is it for?" and "Type of pattern" are required |
 
 ## Rate limits and manners
@@ -26,6 +32,6 @@ committed. Every raw file starts with a `SOURCE:` line.
 ## Stratification target (from README.md)
 
 At least three patterns per craft × technique × source cell where the cell exists in the wild.
-Current gaps: joined-rounds and spiral-rounds (Yarnspirations amigurumi and granny patterns are
-in the fetch list); knit stranded (DROPS 157-21, 120-3 pending); cross-stitch (need 3 charts);
-Tunisian (Yarnspirations list pending); magazine/book (none yet).
+Current gaps (after batch 4 sources): yarn-company coverage of mosaic/filet/Tunisian/rounds
+(Yarnspirations, blocked on browser permission); magazine/book (none); cross-stitch has 1 chart,
+wants 3; knit stranded blankets (only hats so far). Ravelry indie designers (blocked on sign-in).
