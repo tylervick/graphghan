@@ -70,3 +70,13 @@ Inter-coder disagreement 29/280 (10%), up from 3%: the new strata hit codebook g
 v5. Corpus at 68 rows, 50 usable. New: The Loopy Lamb's mosaic rounds close with a reverse
 slip-stitch colour change whose `ch 1` is in the *next* colour — `tc_color: next` stated in
 rounds, where the row corpus almost never states it.
+
+## 2026-09-12 — batch 4, Ravelry, cumulative
+
+Batch 4 (4 Tunisian, 1 cross-stitch PDF): 7 agents, 0 errors, all usable. Corpus: 73 rows, 55
+usable; 21 double-coded; cumulative disagreement 73/1288 fields (6%). Ravelry signed in: the
+designer "add a pattern" form read in full (`formats/ravelry-form.md`) — gauge has a *repeats*
+unit, hook sizes are mm-first, and "Universal – no written language" is a recognised class.
+Claims and the design note now cite n=55. Two additions queued for Phase 2 from Ravelry:
+`craft` on `pattern`, and `gauge.unit`. Genre probes complete for 7 genres; matrix in
+`genres/README.md`; filet remains the only "silently wrong".

@@ -80,23 +80,25 @@ patterns with multiples, repeats marked on charts, finishing details, and a sche
 
 ## 4. Findings that drive the design
 
-Evidence is the coded corpus under `docs/research/` — 38 sources coded against a fixed codebook
-in the first batch (28 usable patterns: 10 on-hand PDFs, 7 yarn-company, 6 DROPS including US/UK
-twins, 5 independent designers), with 10% double-coded — plus the CYC standard, BANA, the WIF
+Evidence is the coded corpus under `docs/research/` — 73 sources coded against a fixed codebook
+in four batches (55 usable patterns: 11 on-hand, 7 yarn-company, 12 DROPS including US/UK twins,
+25 independent designers, across rows, rounds, C2C, filet, mosaic, tapestry, Tunisian, stranded
+knit and cross-stitch), 21 of them double-coded — plus the CYC standard, BANA, the WIF
 specification read in full, and tool teardowns. The research plan, claim register with stopping
 criteria, and per-batch log are `docs/research/README.md`, `claims.md`, `log.md`. Counts below
 are from batch 1 and will move; the register is the source of truth.
 
 **The turning chain is not derivable from the stitch.** A convention table (sc 1, hdc 2, dc 3)
 fails on the one stitch where it matters. From the coded corpus (`docs/research/corpus/corpus.csv`,
-pilot batch of 28 usable patterns, 16 of them row-worked crochet):
+55 usable patterns after four batches, 32 of them row-worked crochet or Tunisian):
 
 | Row stitch | Turning chain stated | Split |
 |---|---|---|
 | sc | 5 | ch 1 in 5/5 |
 | hdc | 3 | ch 1 in 3/3 (the table says 2) |
 | dc | 6 | **ch 3 in 3/6, ch 2 in 3/6** |
-| custom (hhdc, waistcoat, pattern stitch) | 4 | ch 1 or ch 2, per designer |
+| custom (hhdc, waistcoat, pattern stitch, Tunisian) | 9 | ch 1 or ch 2, per designer |
+| filet block / space | 2 | ch 3 before a block, ch 4 before a space — keyed on the *next row's first cell* |
 
 Two patterns alternate ch 1 and ch 2 within one piece because the chain depends on the height of
 the row about to be worked; one designer uses a different chain for the same stitch in their own
@@ -104,8 +106,8 @@ gauge swatch; DROPS 203-1 states both rules in one pattern (ch 1 not counting be
 row, ch 3 counting before a dc-height row). The response is to stop deriving, not to derive more
 carefully. Full counts and their stopping criteria: `docs/research/claims.md`, claim 1.
 
-**"Counts as a stitch" is a separate, load-bearing fact.** Stated in 8 of 16 row-worked corpus
-patterns, both ways (yes 5, no 3). Waffle Washcloth: "Ch 2 [counts as 1st dc]" — so you skip the first stitch *and* work into
+**"Counts as a stitch" is a separate, load-bearing fact.** Stated in 13 of 32 row-worked corpus
+patterns, both ways (yes 6, no 7). Waffle Washcloth: "Ch 2 [counts as 1st dc]" — so you skip the first stitch *and* work into
 the turning chain at the end of the next row. That changes the working sequence at both ends of
 every row. Craigh na Dun's own note says the opposite, and the format cannot currently say
 either.
@@ -113,19 +115,19 @@ either.
 **The chain has a colour, and almost nobody writes it down.** Orca Bag writes `R 51: (Black) ch 1,
 turn, 1 sc, (Gray) 4 sc…` — the chain in the *next* row's colour. Craigh na Dun chains at the end
 of the row in the *old* colour. Different coloured edge; both valid — but the corpus states it in
-1 of 16. So `turning_chain.color` stays optional, is never derived, and the UI says nothing about
+3 of 32 (two of those in rounds, where a reverse-slip-stitch colour change makes the closing
+chain in the next colour). So `turning_chain.color` stays optional, is never derived, and the UI says nothing about
 colour unless it is present (claim 3).
 
 **`dc` is ambiguous without a terminology declaration.** CYC's own table: US `sc` is UK `dc`, US
 `hdc` is UK `htr`, US `dc` is UK `tr`, US `tr` is UK `dtr`. So `dc`, `tr` and `htr` each name
-different stitches in the two systems. 17 of 28 corpus patterns declare their system; the other
-11 are only inferable, and DROPS' UK edition of one pattern carries a leftover US "double
+different stitches in the two systems. 39 of 55 corpus patterns declare their system, 12 are only inferable, 2 carry both, and DROPS' UK edition of one pattern carries a leftover US "double
 crochet" in a sentence its US edition also has — publishers' own dual-terms text drifts. We are about to start spelling `sc` out as
 "single crochet" on the Work screen; for any chart we did not generate that is a coin flip.
 
-**The stitch vocabulary is open.** 13 of 28 corpus patterns define a custom stitch inline (puff,
-herringbone hdc, camel/third-loop hdc, picot sc, waistcoat, split hdc, thermal) and 17 of 28 use a
-placement modifier (BLO/FLO/third loop/post/chain space). CYC says as much:
+**The stitch vocabulary is open.** 23 of 55 corpus patterns define a custom stitch inline (puff,
+herringbone hdc, camel/third-loop hdc, picot sc, waistcoat, split hdc, thermal, drop-down dc) and
+27 of 55 use a placement modifier (BLO/FLO/third loop/post/chain space). CYC says as much:
 "designers and publishers may use special abbreviations in a pattern, which you might not find on
 this list". A closed enum is the wrong shape; a known table with a documented escape is right.
 
