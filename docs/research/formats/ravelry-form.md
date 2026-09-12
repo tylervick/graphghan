@@ -114,3 +114,9 @@ external reference for `technique` values and for a future `craft`/`attributes` 
   clones knot 160 · cro-tatting 113. Filet outnumbers tapestry; mosaic (9,796, under Colorwork)
   is close behind both. The three grid-chart genres we cannot yet represent or refuse correctly
   (#44, #36) are ≈36k patterns on Ravelry alone.
+- **Construction** (sub-attributes): **worked in the round 173,120 · worked flat 109,102** ·
+  one-piece 100,982 · bottom up 64,850 · seamless 59,746 · seamed 57,980 · top down 40,185 ·
+  motifs 23,400 · modular / join as you go 14,062 · sideways 13,381 · buttonholes 6,573 · short
+  rows 6,544 · bias 2,253 · felted 1,404 · icord 991 · moebius 743 · selvedge 639 · gusset 531 ·
+  freeform 399 · entrelac 366. Rounds outnumber flat rows across crochet as a whole; our corpus
+  is blanket-heavy and under-weights them.
