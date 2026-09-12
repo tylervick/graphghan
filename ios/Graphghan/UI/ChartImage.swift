@@ -4,22 +4,11 @@ import GraphghanCore
 
 enum ChartImage {
     static func rgb(_ hex: String) -> (r: UInt8, g: UInt8, b: UInt8) {
-        var s = Substring(hex)
-        if s.hasPrefix("#") { s = s.dropFirst() }
-        guard s.count == 6, let v = UInt32(s, radix: 16) else { return (0x88, 0x88, 0x88) }
-        return (UInt8((v >> 16) & 0xFF), UInt8((v >> 8) & 0xFF), UInt8(v & 0xFF))
+        let c = HexColor.rgb(hex)
+        return (UInt8(c.r * 255), UInt8(c.g * 255), UInt8(c.b * 255))
     }
 
-    static func color(_ hex: String) -> Color {
-        let c = rgb(hex)
-        return Color(red: Double(c.r) / 255, green: Double(c.g) / 255, blue: Double(c.b) / 255)
-    }
-
-    /// Same rule as the PWA: perceived luminance under 140 gets white text.
-    static func isLight(_ hex: String) -> Bool {
-        let c = rgb(hex)
-        return (Double(c.r) * 299 + Double(c.g) * 587 + Double(c.b) * 114) / 1000 >= 140
-    }
+    static func color(_ hex: String) -> Color { HexColor.color(hex) }
 
     /// One pixel per cell, RGBA, top row first. Scale it with nearest-neighbour to keep cells crisp.
     static func make(_ chart: Chart) -> CGImage? {

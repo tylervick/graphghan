@@ -27,6 +27,15 @@ import Testing
         #expect(s.finished && s.currentCode == nil && s.currentCount == nil && s.percent == 100 && s.isLastInRow)
     }
 
+    @Test func previousRunCrossesRows() throws {
+        let start = try #require(LiveActivityState.make(cursor: .start, sequence: Self.seq))
+        #expect(start.previousCode == nil && start.previousCount == nil)
+        let second = try #require(LiveActivityState.make(cursor: Cursor(row: 1, run: 1), sequence: Self.seq))
+        #expect(second.previousCode == "Kb" && second.previousCount == 3)
+        let row2 = try #require(LiveActivityState.make(cursor: Cursor(row: 2, run: 0), sequence: Self.seq))
+        #expect(row2.previousCode == "G" && row2.previousCount == 2)  // the last run of row 1
+    }
+
     @Test func invalidCursorIsNil() {
         #expect(LiveActivityState.make(cursor: Cursor(row: 9, run: 0), sequence: Self.seq) == nil)
     }

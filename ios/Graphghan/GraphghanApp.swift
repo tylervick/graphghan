@@ -8,6 +8,7 @@ struct GraphghanApp: App {
     private let model: AppModel
 
     init() {
+        Theme.installAppearance()
         // A store that won't open is a bad session, not a crash: fall back to an in-memory
         // container so the app still browses and works, and say so through the existing banner.
         var storeError: String?

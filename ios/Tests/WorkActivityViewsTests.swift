@@ -19,19 +19,19 @@ import GraphghanCore
     }
 
     @Test func lockScreenMidway() throws {
-        #expect(try Snapshots.assert(WorkLockScreenView(info: Self.info, state: Self.midway), named: "lock-midway", size: CGSize(width: 360, height: 170)))
+        #expect(try Snapshots.assert(WorkLockScreenView(info: Self.info, state: Self.midway).background(Color.activityCard).environment(\.colorScheme, .dark), named: "lock-midway", size: CGSize(width: 360, height: 170)))
     }
 
     @Test func lockScreenLastInRow() throws {
-        #expect(try Snapshots.assert(WorkLockScreenView(info: Self.info, state: Self.lastInRow), named: "lock-last-in-row", size: CGSize(width: 360, height: 170)))
+        #expect(try Snapshots.assert(WorkLockScreenView(info: Self.info, state: Self.lastInRow).background(Color.activityCard).environment(\.colorScheme, .dark), named: "lock-last-in-row", size: CGSize(width: 360, height: 170)))
     }
 
     @Test func lockScreenUnavailable() throws {
-        #expect(try Snapshots.assert(WorkLockScreenView(info: Self.info, state: Self.unavailable), named: "lock-unavailable", size: CGSize(width: 360, height: 120)))
+        #expect(try Snapshots.assert(WorkLockScreenView(info: Self.info, state: Self.unavailable).background(Color.activityCard).environment(\.colorScheme, .dark), named: "lock-unavailable", size: CGSize(width: 360, height: 120)))
     }
 
     @Test func lockScreenFinished() throws {
-        #expect(try Snapshots.assert(WorkLockScreenView(info: Self.info, state: Self.finished), named: "lock-finished", size: CGSize(width: 360, height: 120)))
+        #expect(try Snapshots.assert(WorkLockScreenView(info: Self.info, state: Self.finished).background(Color.activityCard).environment(\.colorScheme, .dark), named: "lock-finished", size: CGSize(width: 360, height: 120)))
     }
 
     @Test func compactAndMinimal() throws {
@@ -41,8 +41,8 @@ import GraphghanCore
     }
 
     @Test func expanded() throws {
-        #expect(try Snapshots.assert(WorkExpandedCenterView(info: Self.info, state: Self.midway), named: "expanded-center", size: CGSize(width: 340, height: 90)))
-        #expect(try Snapshots.assert(WorkExpandedBottomView(info: Self.info, state: Self.midway), named: "expanded-bottom", size: CGSize(width: 340, height: 60)))
+        #expect(try Snapshots.assert(WorkExpandedCenterView(info: Self.info, state: Self.midway).background(Color.activityCard).environment(\.colorScheme, .dark), named: "expanded-center", size: CGSize(width: 340, height: 90)))
+        #expect(try Snapshots.assert(WorkExpandedBottomView(info: Self.info, state: Self.midway).background(Color.activityCard).environment(\.colorScheme, .dark), named: "expanded-bottom", size: CGSize(width: 340, height: 60)))
     }
 
     @Test func renderModeWritesIntoTheOutputDirectoryWithoutComparing() throws {

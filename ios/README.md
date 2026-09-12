@@ -23,7 +23,10 @@ Bundle id `com.tylervick.graphghan`, App Group `group.com.tylervick.graphghan`, 
   - `Patterns/` — Patterns tab with pattern browser and chart detail
   - `Projects/` — Projects tab with project list and detail
   - `Work/` — full-screen Work screen
-  - `UI/` — shared components and colors
+  - `UI/` — shared components (card, chip, banner, button styles), the type ramp (`Typography.swift`), preview images
+- `Shared/` — compiles into the app and the widget: the color tokens (`Tokens.xcassets`, `Theme.swift`), yarn surfaces, Live Activity views and intents
+- `Fonts/` — Literata, Atkinson Hyperlegible, Nunito (all OFL), registered in `project.yml`
+- `Scripts/make_icon.py` — the app icon; `mise run icon` regenerates it
 - `Packages/GraphghanCore/` — Swift reader for the chart format (JSON decoder, engine)
 - `Tests/` — app unit tests (Swift Testing, in-memory SwiftData, stub HTTP client)
 
@@ -49,6 +52,16 @@ the stored cursor winning. `project.yml` sets `NSSupportsLiveActivities` in the 
 Snapshots of the lock screen and Dynamic Island layouts live under `Tests/__Snapshots__`; delete a
 PNG to re-record it. Those references are tied to the iPhone 17 simulator, so re-record on that
 device if they drift after an OS update.
+
+## Design language
+
+The spec is `../docs/superpowers/specs/2026-09-11-ios-design-language-design.md` ("Heather"). Colors are the
+named sets in `Shared/Tokens.xcassets` and nothing else; fonts are `Font.Heather.*`; every yarn-colored
+surface goes through `YarnSurface`. Screen snapshots live under `Tests/__Snapshots__` (delete a PNG to
+re-record it on the iPhone 17 simulator). The chip row on the Work screen scrolls and `ImageRenderer`
+leaves scrolling content blank, so the Work snapshots do not show the chips; the components sheet
+covers their states and the QA checklist covers them in place. Dark values are declared in the catalog
+but not yet tuned.
 
 ## Device build
 

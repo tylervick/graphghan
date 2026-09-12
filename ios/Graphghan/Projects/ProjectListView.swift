@@ -24,27 +24,25 @@ struct ProjectListView: View {
                     ContentUnavailableView("No projects", systemImage: "checklist", description: Text("Start one from a pattern."))
                 } else {
                     List(ordered) { project in
-                        NavigationLink(value: project.id) { ProjectRow(project: project) }
+                        ProjectRow(project: project)
+                            .overlay { NavigationLink(value: project.id) { EmptyView() }.opacity(0) }
+                            .listRowBackground(Color.clear)
+                            .listRowSeparator(.hidden)
+                            .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
                     }
                     .listStyle(.plain)
+                    .scrollContentBackground(.hidden)
                 }
             }
+            .background(Color.ground.weave().ignoresSafeArea())
+            .tint(.moss)
             .navigationTitle("Projects")
             .navigationDestination(for: UUID.self) { id in
                 if let project = ordered.first(where: { $0.id == id }) { ProjectDetailView(project: project) }
             }
             .safeAreaInset(edge: .top) {
                 if let error = model.projects.lastError {
-                    HStack {
-                        Text("Couldn't save your progress: \(error)")
-                            .font(.footnote)
-                        Spacer()
-                        Button("Dismiss") { model.projects.lastError = nil }
-                            .font(.footnote)
-                    }
-                    .padding(8)
-                    .frame(maxWidth: .infinity)
-                    .background(.yellow.opacity(0.25))
+                    Banner(text: "Couldn't save your progress: \(error)", kind: .failure, action: .init(label: "Dismiss") { model.projects.lastError = nil })
                 }
             }
         }

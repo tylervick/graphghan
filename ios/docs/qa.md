@@ -20,5 +20,15 @@ Run this on a device build (`ios/README.md`) before dispatching the TestFlight w
 - [ ] Kill the app while the activity is showing, then relaunch: the activity is refreshed to the stored cursor (or ended if the project was deleted).
 - [ ] Settings › Graphghan › Live Activities off, open Work: the one-time hint appears with Open Settings.
 
+## Looks right
+- [ ] Home screen: the icon shows the moon, hill, and chain; it reads at the settings size too.
+- [ ] Patterns and Projects: cards on the stone weave, Literata titles, Moss tab tint, no system blue anywhere.
+- [ ] Pattern detail: quote in italic, palette chips with a visible edge on the cream chip, a Moss "Start project" pill.
+- [ ] Work: green ground, the card does not advance when tapped, the on-deck bar shows the next run in its color, "next row starts in …" on the last run, Back rail steps back, Done slides the swatch.
+- [ ] Work: the chip row shows the row's runs between the strip and the swatch, done runs dimmed, the current run ringed in heather, and a long row scrolls.
+- [ ] Work at Settings › Accessibility › Larger Text (max): nothing overlaps the Done field.
+- [ ] Reduce Motion on: the swatch crossfades instead of sliding.
+- [ ] Lock screen activity: cream serif title, the swatch with its edge, capsule Back, Moss Done.
+
 ## Offline
 - [ ] Airplane mode on the library (cached list + banner) and on a project (works normally).

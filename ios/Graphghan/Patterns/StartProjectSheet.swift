@@ -33,8 +33,10 @@ struct StartProjectSheet: View {
                 Section("Name") {
                     TextField("Project name", text: $title)
                 }
-                if let error { Section { Text(error).foregroundStyle(.red) } }
+                if let error { Section { Text(error).foregroundStyle(Color.brick) } }
             }
+            .scrollContentBackground(.hidden)
+            .background(Color.ground.weave().ignoresSafeArea())
             .navigationTitle("Start project")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

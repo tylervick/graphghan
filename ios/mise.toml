@@ -38,3 +38,7 @@ TEST_RUNNER_GRAPHGHAN_SNAPSHOTS=render TEST_RUNNER_GRAPHGHAN_SNAPSHOT_OUT="$PWD/
   xcodebuild test -quiet -project Graphghan.xcodeproj -scheme Graphghan \
   -destination 'platform=iOS Simulator,name=iPhone 17' -derivedDataPath build/DerivedData -resultBundlePath build/TestResults.xcresult
 """
+
+[tasks.icon]
+description = "Regenerate the app icon PNG from Scripts/make_icon.py"
+run = "uv run --project .. python Scripts/make_icon.py"

@@ -5,29 +5,26 @@ struct ProjectRow: View {
     @Environment(AppModel.self) private var model
     let project: Project
     @State private var sequence: WorkSequence?
+    @State private var preview: UIImage?
 
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            PreviewImage(slug: project.patternID, sitePath: "patterns/\(project.patternID)/preview.png")
-                .frame(width: 96, height: 80)
-                .clipShape(RoundedRectangle(cornerRadius: 6))
-            VStack(alignment: .leading, spacing: 4) {
-                Text(project.title).font(.headline)
-                if let sequence {
-                    let summary = model.projects.summary(for: project, sequence: sequence)
-                    ProgressView(value: summary.percent, total: 100)
-                    Text(project.isFinished ? "Finished" : "Row \(project.cursor.row) of \(sequence.passes.count) · \(summary.percent.formatted())%")
-                        .font(.caption).foregroundStyle(.secondary)
-                    if let finish = model.projects.estimatedFinish(for: project, sequence: sequence), !project.isFinished {
-                        Text("Done around \(finish.formatted(date: .abbreviated, time: .omitted))").font(.caption2).foregroundStyle(.secondary)
-                    }
-                }
-                if let last = project.lastWorked {
-                    Text("Last worked \(last.formatted(.relative(presentation: .named)))").font(.caption2).foregroundStyle(.tertiary)
-                }
-            }
-        }
-        .padding(.vertical, 4)
+        let summary = sequence.map { model.projects.summary(for: project, sequence: $0) }
+        ProjectCardView(
+            title: project.title,
+            percent: summary?.percent,
+            line: line(summary),
+            estimate: sequence.flatMap { seq in
+                project.isFinished ? nil : model.projects.estimatedFinish(for: project, sequence: seq).map { "Done around \($0.formatted(date: .abbreviated, time: .omitted))" }
+            },
+            lastWorked: project.lastWorked.map { "Last worked \($0.formatted(.relative(presentation: .named)))" },
+            finished: project.isFinished,
+            preview: preview)
         .task(id: project.chartID) { sequence = try? await model.projects.sequence(for: project) }
+        .task { preview = await model.preview(for: project.patternID, sitePath: "patterns/\(project.patternID)/preview.png") }
+    }
+
+    private func line(_ summary: ProgressSummary?) -> String {
+        guard let sequence, let summary else { return "" }
+        return project.isFinished ? "Finished" : "Row \(project.cursor.row) of \(sequence.passes.count) · \(summary.percent.formatted())%"
     }
 }

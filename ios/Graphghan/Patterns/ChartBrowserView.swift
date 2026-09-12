@@ -25,13 +25,14 @@ struct ChartBrowserView: View {
                             .frame(width: CGFloat(chart.width) * scale, height: CGFloat(chart.height) * scale * chart.cellAspect)
                         rowNumbers(chart)
                         if let highlightRow, let y = gridRow(for: highlightRow) {
-                            Rectangle().stroke(Color.accentColor, lineWidth: 2)
+                            Rectangle().stroke(Color.heather, lineWidth: 2)
                                 .frame(width: CGFloat(chart.width) * scale, height: scale * chart.cellAspect)
                                 .offset(y: CGFloat(y) * scale * chart.cellAspect)
                         }
                     }
                     .padding(24)
                 }
+                .background(Color.panel)
                 .gesture(MagnifyGesture().onChanged { scale = min(40, max(1, pinchBase * $0.magnification)) }.onEnded { _ in pinchBase = scale })
             } else if let error {
                 ContentUnavailableView("Couldn't load the chart", systemImage: "exclamationmark.triangle", description: Text(error))
@@ -39,6 +40,7 @@ struct ChartBrowserView: View {
                 ProgressView()
             }
         }
+        .background(Color.ground.weave().ignoresSafeArea())
         .navigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)
         .task {
@@ -61,9 +63,11 @@ struct ChartBrowserView: View {
             if let y = gridRow(for: row) {
                 Text("\(row)")
                     .font(.system(size: 9, design: .monospaced))
+                    .foregroundStyle(Color.ink2)
                     .offset(x: -20, y: CGFloat(y) * scale * chart.cellAspect)
                 Text("\(row)")
                     .font(.system(size: 9, design: .monospaced))
+                    .foregroundStyle(Color.ink2)
                     .offset(x: CGFloat(chart.width) * scale + 6, y: CGFloat(y) * scale * chart.cellAspect)
             }
         }
