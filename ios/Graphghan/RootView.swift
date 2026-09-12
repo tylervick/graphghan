@@ -13,6 +13,9 @@ struct RootView: View {
                 .tabItem { Label("Projects", systemImage: "checklist") }
                 .tag(AppModel.Tab.projects)
         }
+        .tint(.moss)
+        .font(Font.Heather.body)
+        .foregroundStyle(Color.ink)
         .fullScreenCover(item: $model.workingProject) { project in
             WorkView(project: project)
         }
