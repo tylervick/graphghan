@@ -3,6 +3,7 @@
 Date: 2026-09-12
 Status: approved design (sections reviewed in conversation), awaiting spec review
 Builds on: `2026-09-10-graphghan-ios-app-design.md` (chart format v2)
+Research coverage and stopping rule: `2026-09-12-pattern-data-model-research.md`
 Closes the design step for: #25
 
 ## 1. Purpose
@@ -48,6 +49,8 @@ The v2 spec said "nothing open exists for crochet or knitting charts". That hold
 | Source | What it standardises | What we should take |
 |---|---|---|
 | [Craft Yarn Council](https://www.craftyarncouncil.com/standards) | Abbreviations, US/UK terms, chart symbols, yarn weight 0-7, hook mm↔US, project levels, care symbols, submission checklist | The vocabulary, and the checklist as a gap list |
+| [BANA](https://brailleauthority.org/sites/default/files/hobbies/Guidelines%20for%20Transcribing%20Knit%20and%20Crochet%20Patterns%202024.pdf) | Transcribing knit and crochet patterns for braille and screen readers | Charts need a written parallel; chart direction rules |
+| [Seitz et al., Onward! 2022](https://patrickrein.de/publications/SeitzReinLinckeHirschfeld_2022_DigitalCrochet_preprint.pdf) | Survey of crochet notation and its ambiguities | The genre boundary, stated below |
 | ISO/Ginetex + ASTM | Care symbols, five categories | Deferred, #35 |
 | [OXS](https://www.ursasoftware.com/OXSFormat/) | Cross-stitch chart interchange: `properties`, palette, stitches | Benchmark only; we already export it |
 | [Ravelry](https://www.ravelry.com/api) | Catalogue model: `gauge`, `gauge_divisor`, `gauge_pattern`, `row_gauge`, `yardage` | Confirmation that our gauge shape is right |
@@ -57,6 +60,15 @@ Two consequences.
 
 **Our working model has no standard to conform to.** Nothing anywhere models pass order, runs and
 a cursor. `technique` / `passes` / `Cursor` stay ours.
+
+**Our genre has a name and a known boundary.** The academic survey calls a grid chart like ours a
+"crochet graph", and its assessment is the one to design against: charts like these "leave little
+room for ambiguities" but are "very limited with regard to the types of patterns that they can
+represent", usable only for patterns "that are flat and whose arrangement of stitches matches a
+grid". That is a fair description of the niche and a defensible one. What matters is that
+patterns outside it are refused rather than silently mis-measured — today filet crochet would
+validate against our schema and then report a wrong stitch count, because one filet cell is a
+block of three double crochet, not a stitch (#44).
 
 **Where a standard exists, adopt its vocabulary rather than invent.** The CYC abbreviation list
 already names the thing we are missing: `tch` / `t-ch`, turning chain. Their pattern submission
@@ -307,13 +319,18 @@ Adopting the CYC vocabulary: hook as `{mm, us}` and yarn weight as category 0-7 
 level and notions (#33); authored yarn amounts — put-up, balls, colorway number, MC/CC role
 (#34); care instructions and ISO symbols (#35).
 
-Structural: per-cell stitch through `layers.stitch` (#36); shaped rows whose counts change with
-increases and decreases (#37); border and edging as a phase after the chart (#38); stitch
+Structural: one cell is not always one stitch, which is the highest-value gap because it is the
+only one that is silently wrong rather than refused (#44); per-cell stitch through
+`layers.stitch`, for which overlay mosaic is the real motivating genre (#36); shaped rows whose
+counts change with increases and decreases (#37); joined versus spiral rounds, the round-shaped
+half of this spec's own problem (#43); border and edging as a phase after the chart (#38); stitch
 multiples and chart repeat markers (#39, with #22 as the app-side counterpart).
 
 App: the iOS app displays `instructions[]` nowhere, so setup, colour-change technique and
 blocking are invisible while working (#40). Phase 1 covers one of those four notes; the rest
-still have no home.
+still have no home. Accessibility: abbreviations must be expanded for VoiceOver — screen readers
+render "st" as "street" — and `written-rows.txt` should be named as the guaranteed chart-free
+path the accessibility standards require (#45).
 
 Bug: `[notes].setup` ships single-crochet prose on the hdc chart (#41).
 
