@@ -13,6 +13,7 @@ the body of a pattern that the page does not contain is `n/a`, not `unstated`.
 
 Revision 2 (2026-09-12): rules above added from the pilot's inter-coder disagreements
 (28 of 560 fields; all formatting or n/a-vs-unstated).
+Revision 6 (2026-09-12, after batch 6a): `rows-below` placement.
 Revision 5 (2026-09-12, after batch 3): `square`, `inset-mosaic`, `counted`, `rounds-over-4in`, `rsscc`/`circular-knit`/`both` joins, `tbl`, `fdc`; `tc_color` covers round boundaries; year = original.
 Revision 4 (2026-09-12, after batch 2): knit analogues — `cast-on-count`, needles under the hook fields, bind off = `fasten-off`.
 Revision 3 (2026-09-12, after batch 2): `unextracted` for charts lost by text extraction;
@@ -41,7 +42,7 @@ Revision 3 (2026-09-12, after batch 2): `unextracted` for charts lost by text ex
 | `abbrev_list` | `yes`, `no` — is there an abbreviations section |
 | `special_stitches` | `yes`, `no` — a section defining non-standard stitches |
 | `special_stitch_names` | semicolon-separated, **abbreviation only** when the pattern gives one (`fpdc`, `hhdc`, `splhdc`), else the name in lower case; standard CYC stitches that merely appear in an abbreviations list do not count as special; `none` |
-| `placement_modifiers` | semicolon-separated from `BLO`, `FLO`, `3rd-loop`, `FP`, `BP`, `ch-sp`, `tbl` (knit), `none` |
+| `placement_modifiers` | semicolon-separated from `BLO`, `FLO`, `3rd-loop`, `FP`, `BP`, `ch-sp`, `rows-below` (a stitch worked into a row below the previous one — mosaic drop-downs, spike stitches), `tbl` (knit), `none` |
 
 ## Structure at the hook
 
