@@ -70,3 +70,11 @@ rather than an enum that forbids what Ravelry records.
 
 Attribute tags are the closest thing to a technique taxonomy in the wild; `in-the-round` versus
 worked flat is one of them, which is #43's field from the catalogue side.
+
+## Population counts (advanced search, "Crochet terminology" filter, 2026-09-12)
+
+Across all crochet patterns on Ravelry: **United States 456,772 · United Kingdom 56,507 ·
+Unknown 157,211** (≈ 670k total: 68% US, 8% UK, **23% unknown**). Nearly a quarter of the
+catalogue has no recorded terminology, and the ratio shows why both systems must be first-class:
+UK is a minority but 56k patterns is not a rounding error. (The filter has no "both" bucket;
+pattern pages can still say "both US and UK".)
