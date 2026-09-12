@@ -32,6 +32,7 @@ targets:
       - path: Graphghan
       - path: Shared
       - path: Assets.xcassets
+      - path: Fonts
     dependencies:
       - package: GraphghanCore
       - target: GraphghanWidgets
@@ -48,6 +49,12 @@ targets:
         UILaunchScreen: {}
         ITSAppUsesNonExemptEncryption: false
         NSSupportsLiveActivities: true
+        UIAppFonts:
+          - Literata-SemiBold.ttf
+          - Literata-MediumItalic.ttf
+          - AtkinsonHyperlegible-Regular.ttf
+          - AtkinsonHyperlegible-Bold.ttf
+          - Nunito[wght].ttf
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
           - UIInterfaceOrientationLandscapeLeft
