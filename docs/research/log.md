@@ -52,3 +52,11 @@ Phase 1 keeps the field but the UI must not promote it. Claim 9: `care` (#35) dr
 priority; hook mm, finished size, abbreviations, notions and yarn weight are what publishers
 actually write. The design note's section 4 now cites these counts instead of the ten on-hand
 patterns.
+
+## 2026-09-12 — batch 2 (13 files: 7 indie tapestry, 6 DROPS)
+
+17 agents, 0 errors; 12 usable. Inter-coder disagreement 7/224 (3%), down from 5% after v2.
+Codebook v3 (charts lost by extraction → `unextracted`; `tc_color` n/a; ounces/meters; more
+finishing steps; short rows are shaping) and v4 (knit analogues). Corpus at 51 rows, 40 usable.
+dc turning chain still 3/3 split; hdc 3/3 at ch 1; "counts as a stitch" stated in 12/24, yes 5 /
+no 7. Batch 3 (18 files: mosaic, filet, amigurumi, stranded knit, cross-stitch) launched.

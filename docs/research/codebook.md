@@ -13,6 +13,7 @@ the body of a pattern that the page does not contain is `n/a`, not `unstated`.
 
 Revision 2 (2026-09-12): rules above added from the pilot's inter-coder disagreements
 (28 of 560 fields; all formatting or n/a-vs-unstated).
+Revision 4 (2026-09-12, after batch 2): knit analogues — `cast-on-count`, needles under the hook fields, bind off = `fasten-off`.
 Revision 3 (2026-09-12, after batch 2): `unextracted` for charts lost by text extraction;
 `tc_color` n/a; ounces and meters; more finishing steps; short rows count as shaping.
 
@@ -45,7 +46,7 @@ Revision 3 (2026-09-12, after batch 2): `unextracted` for charts lost by text ex
 
 | Field | Values |
 |---|---|
-| `stitches_used` | semicolon-separated CYC abbreviations in **US terms and CYC spelling** (`sl st` not `slst`, `fsc`, `sc2tog`), lower case, e.g. `sc;hdc;dc;sl st`. Structural ops (`ch`, `inc`, `dec`, `turn`) are not stitches; omit them |
+| `stitches_used` | semicolon-separated CYC abbreviations in **US terms and CYC spelling** (`sl st` not `slst`, `fsc`, `sc2tog`), lower case, e.g. `sc;hdc;dc;sl st`. Knit: CYC knit abbreviations (`k`, `p`, `yo`, `k2tog`, `ssk`). Structural ops (`ch`, `inc`, `dec`, `turn`, `cast on`, `bind off`) are not stitches; omit them |
 | `gauge_stitch` | the stitch gauge is measured over, or `pattern` if "in pattern", or `unstated` |
 | `gauge_form` | `sts-and-rows-over-4in`, `sts-and-rows-over-other`, `over-2in`, `tiles`, `blocks`, `unstated` — **quote** |
 | `turning_chain` | integer, or `varies`, or `n/a` (rounds/spiral), or `unstated` — **quote** |
@@ -53,7 +54,7 @@ Revision 3 (2026-09-12, after batch 2): `unextracted` for charts lost by text ex
 | `tc_counts_as_stitch` | `yes`, `no`, `unstated` — **quote** |
 | `tc_position` | `start-of-row` (chain then work), `end-of-row` (work, chain, turn), `unstated` |
 | `tc_color` | `next`, `current`, `unstated`, `n/a` (no colour change ever coincides with a turn in this pattern) |
-| `foundation_form` | `chain-count`, `chain-multiple` (e.g. "multiple of 6 + 1"), `chain-unspecified` (chain "as many as you need"), `fsc`, `magic-ring`, `other`, `n/a`, `unstated` — **quote** |
+| `foundation_form` | `chain-count`, `chain-multiple` (e.g. "multiple of 6 + 1"), `chain-unspecified` (chain "as many as you need"), `fsc`, `magic-ring`, `cast-on-count` (knit), `cast-on-multiple` (knit), `other`, `n/a`, `unstated` — **quote** |
 | `first_stitch_in` | integer chain from hook, or `unstated`, or `n/a` |
 | `round_join` | `slst`, `slst-and-ch`, `spiral`, `n/a`, `unstated` — **quote** |
 | `stitch_marker_instructed` | `yes`, `no` |
@@ -61,7 +62,7 @@ Revision 3 (2026-09-12, after batch 2): `unextracted` for charts lost by text ex
 | `shaping` | `yes`, `no` — any inc/dec or short row in the body |
 | `repeats_stated` | `multiple` (a stitch multiple is given), `rows` ("repeat rows 4-5"), `both`, `none` |
 | `border` | `yes`, `no` |
-| `finishing_steps` | semicolon-separated from `fasten-off`, `weave-ends`, `block`, `seam`, `stuff`, `attach` (dowel, fringe, hardware), `embroider`, `none` |
+| `finishing_steps` | semicolon-separated from `fasten-off` (knit: bind off), `weave-ends`, `block`, `seam`, `stuff`, `attach` (dowel, fringe, hardware), `embroider`, `none` |
 
 ## Chart
 
@@ -81,8 +82,8 @@ Revision 3 (2026-09-12, after batch 2): `unextracted` for charts lost by text ex
 | Field | Values |
 |---|---|
 | `skill_level` | as printed, mapped to `basic`, `easy`, `intermediate`, `complex`, or `other:<text>`, or `unstated` |
-| `hook_mm` | `yes`, `no` — is a millimetre size given |
-| `hook_us` | `yes`, `no` — is a US letter/number given |
+| `hook_mm` | `yes`, `no` — is a millimetre size given (knit: needle size) |
+| `hook_us` | `yes`, `no` — is a US letter/number given (knit: US needle number) |
 | `yarn_weight_form` | `cyc-number`, `name-only` (e.g. "worsted"), `both`, `unstated` |
 | `yarn_brand_line` | `yes`, `no` |
 | `yarn_putup` | `yes`, `no` — grams and/or yards per ball stated |
