@@ -60,3 +60,13 @@ Codebook v3 (charts lost by extraction → `unextracted`; `tc_color` n/a; ounces
 finishing steps; short rows are shaping) and v4 (knit analogues). Corpus at 51 rows, 40 usable.
 dc turning chain still 3/3 split; hdc 3/3 at ch 1; "counts as a stitch" stated in 12/24, yes 5 /
 no 7. Batch 3 (18 files: mosaic, filet, amigurumi, stranded knit, cross-stitch) launched.
+
+## 2026-09-12 — batch 3 (18 files: mosaic, filet, amigurumi, stranded knit, cross-stitch page)
+
+23 agents, 0 errors; 10 usable (8 of 18 were tutorials/roundups at low confidence — the
+technique-specific strata are thinner in complete free patterns than the blanket strata).
+Inter-coder disagreement 29/280 (10%), up from 3%: the new strata hit codebook gaps (no
+`square`, `inset-mosaic`, `counted`; knit joins; round-end chains in the next colour). Codebook
+v5. Corpus at 68 rows, 50 usable. New: The Loopy Lamb's mosaic rounds close with a reverse
+slip-stitch colour change whose `ch 1` is in the *next* colour — `tc_color: next` stated in
+rounds, where the row corpus almost never states it.

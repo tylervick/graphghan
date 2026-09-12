@@ -13,6 +13,7 @@ the body of a pattern that the page does not contain is `n/a`, not `unstated`.
 
 Revision 2 (2026-09-12): rules above added from the pilot's inter-coder disagreements
 (28 of 560 fields; all formatting or n/a-vs-unstated).
+Revision 5 (2026-09-12, after batch 3): `square`, `inset-mosaic`, `counted`, `rounds-over-4in`, `rsscc`/`circular-knit`/`both` joins, `tbl`, `fdc`; `tc_color` covers round boundaries; year = original.
 Revision 4 (2026-09-12, after batch 2): knit analogues — `cast-on-count`, needles under the hook fields, bind off = `fasten-off`.
 Revision 3 (2026-09-12, after batch 2): `unextracted` for charts lost by text extraction;
 `tc_color` n/a; ounces and meters; more finishing steps; short rows count as shaping.
@@ -27,9 +28,9 @@ Revision 3 (2026-09-12, after batch 2): `unextracted` for charts lost by text ex
 | `source_type` | `yarn-company`, `european`, `indie`, `magazine`, `book`, `on-hand` |
 | `source_url` | where obtained; `local` for the on-hand PDFs |
 | `craft` | `crochet`, `knit`, `cross-stitch`, `tunisian` |
-| `technique` | `rows`, `joined-rounds`, `spiral-rounds`, `c2c`, `filet`, `tapestry`, `overlay-mosaic`, `interlocking`, `stranded`, `intarsia`, `mixed` |
-| `object` | `blanket`, `washcloth`, `garment`, `accessory`, `toy`, `bag`, `wall-hanging`, `tutorial` (a how-to with no complete pattern), `roundup` (a listing of links), `other` |
-| `year` | as printed, or `unstated` |
+| `technique` | `rows`, `joined-rounds`, `spiral-rounds`, `c2c`, `filet`, `tapestry`, `overlay-mosaic`, `inset-mosaic`, `interlocking`, `stranded`, `intarsia`, `counted` (cross-stitch), `mixed` |
+| `object` | `blanket`, `square` (a blanket motif or granny square), `washcloth`, `garment`, `accessory`, `toy`, `bag`, `wall-hanging`, `tutorial` (a how-to with no complete pattern), `roundup` (a listing of links), `other` |
+| `year` | original publication year as printed or from the URL path; an "updated" date goes in notes; else `unstated` |
 
 ## Terminology and vocabulary
 
@@ -40,7 +41,7 @@ Revision 3 (2026-09-12, after batch 2): `unextracted` for charts lost by text ex
 | `abbrev_list` | `yes`, `no` — is there an abbreviations section |
 | `special_stitches` | `yes`, `no` — a section defining non-standard stitches |
 | `special_stitch_names` | semicolon-separated, **abbreviation only** when the pattern gives one (`fpdc`, `hhdc`, `splhdc`), else the name in lower case; standard CYC stitches that merely appear in an abbreviations list do not count as special; `none` |
-| `placement_modifiers` | semicolon-separated from `BLO`, `FLO`, `3rd-loop`, `FP`, `BP`, `ch-sp`, `none` |
+| `placement_modifiers` | semicolon-separated from `BLO`, `FLO`, `3rd-loop`, `FP`, `BP`, `ch-sp`, `tbl` (knit), `none` |
 
 ## Structure at the hook
 
@@ -48,15 +49,15 @@ Revision 3 (2026-09-12, after batch 2): `unextracted` for charts lost by text ex
 |---|---|
 | `stitches_used` | semicolon-separated CYC abbreviations in **US terms and CYC spelling** (`sl st` not `slst`, `fsc`, `sc2tog`), lower case, e.g. `sc;hdc;dc;sl st`. Knit: CYC knit abbreviations (`k`, `p`, `yo`, `k2tog`, `ssk`). Structural ops (`ch`, `inc`, `dec`, `turn`, `cast on`, `bind off`) are not stitches; omit them |
 | `gauge_stitch` | the stitch gauge is measured over, or `pattern` if "in pattern", or `unstated` |
-| `gauge_form` | `sts-and-rows-over-4in`, `sts-and-rows-over-other`, `over-2in`, `tiles`, `blocks`, `unstated` — **quote** |
+| `gauge_form` | `sts-and-rows-over-4in`, `sts-and-rows-over-other`, `over-2in`, `rounds-over-4in` (a motif measured by rounds), `tiles`, `blocks`, `unstated` — **quote** |
 | `turning_chain` | integer, or `varies`, or `n/a` (rounds/spiral), or `unstated` — **quote** |
 | `turning_chain_by_stitch` | e.g. `sc=1;dc=2` when the pattern chains differently before rows of different stitches; else `single`. For C2C use the keys `inc-row`, `dec-row`, `last-row` (e.g. `inc-row=6;dec-row=3`) |
 | `tc_counts_as_stitch` | `yes`, `no`, `unstated` — **quote** |
 | `tc_position` | `start-of-row` (chain then work), `end-of-row` (work, chain, turn), `unstated` |
-| `tc_color` | `next`, `current`, `unstated`, `n/a` (no colour change ever coincides with a turn in this pattern) |
-| `foundation_form` | `chain-count`, `chain-multiple` (e.g. "multiple of 6 + 1"), `chain-unspecified` (chain "as many as you need"), `fsc`, `magic-ring`, `cast-on-count` (knit), `cast-on-multiple` (knit), `other`, `n/a`, `unstated` — **quote** |
+| `tc_color` | `next`, `current`, `unstated`, `n/a` (no colour change ever coincides with a row or round boundary). Applies to rounds too: a join that ends "ch 1 in the new colour" is `next` |
+| `foundation_form` | `chain-count`, `chain-multiple` (e.g. "multiple of 6 + 1"), `chain-unspecified` (chain "as many as you need"), `fsc`, `fdc`, `magic-ring`, `cast-on-count` (knit), `cast-on-multiple` (knit), `other`, `n/a`, `unstated` — **quote** |
 | `first_stitch_in` | integer chain from hook, or `unstated`, or `n/a` |
-| `round_join` | `slst`, `slst-and-ch`, `spiral`, `n/a`, `unstated` — **quote** |
+| `round_join` | `slst`, `slst-and-ch`, `rsscc` (reverse slip-stitch colour change: join + ch 1 in the next colour), `spiral`, `circular-knit` (knit in the round, no join), `both` (a tutorial showing more than one), `n/a`, `unstated` — **quote** |
 | `stitch_marker_instructed` | `yes`, `no` |
 | `stitch_counts_given` | `every-row` (a count after every row/round), `changes-only` (only after rows whose count changes), `none`. A count given once at the foundation only is `none` |
 | `shaping` | `yes`, `no` — any inc/dec or short row in the body |
