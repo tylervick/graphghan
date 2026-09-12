@@ -15,20 +15,14 @@ struct RunChipsView: View {
                     ForEach(Array(pass.runs.enumerated()), id: \.offset) { i, run in
                         let hex = chart.palette[chart.colorIndex(of: run.code) ?? 0].hex
                         Button { onSelect(i) } label: {
-                            Text("\(run.count) \(run.code)")
-                                .font(.system(.subheadline, design: .monospaced).bold())
-                                .foregroundStyle(YarnSurface.foreground(hex))
-                                .padding(.horizontal, 10).padding(.vertical, 6)
-                                .background(ChartImage.color(hex), in: RoundedRectangle(cornerRadius: 8))
-                                .overlay(RoundedRectangle(cornerRadius: 8).stroke(i == cursor.run ? Color.accentColor : .clear, lineWidth: 3))
-                                .opacity(i < cursor.run ? 0.35 : 1)
+                            Chip(text: "\(run.count) \(run.code)", hex: hex, state: i < cursor.run ? .done : i == cursor.run ? .current : .upcoming)
                         }
                         .buttonStyle(.plain)
                         .id(i)
                         .accessibilityLabel("\(run.count) \(chart.palette[chart.colorIndex(of: run.code) ?? 0].name)\(i == cursor.run ? ", current" : i < cursor.run ? ", done" : "")")
                     }
                 }
-                .padding(.horizontal)
+                .padding(.horizontal, 4)
             }
             .onChange(of: cursor, initial: true) { _, new in withAnimation { proxy.scrollTo(min(new.run, max(0, pass.runs.count - 1)), anchor: .center) } }
         }
