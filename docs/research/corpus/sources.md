@@ -19,7 +19,7 @@ committed. Every raw file starts with a `SOURCE:` line.
 | indie | Amigurumi (Supergurumi, Once Upon a Cheerio, Craft Passion) + 3 how-tos | `curl` + html2txt | 6 |
 | indie | Stranded knit hats (Handy Little Me, Tin Can Knits, Spruce Hill) | `curl` + html2txt; marlybird.com is JS-only (68 words) | 3 |
 | indie | Tapestry (Truly Crochet, Treasurie, Two of Wands, Spotted Horse, LillaBjörn, Meghan Makes Do, KnitterKnotter roundup) | `curl` + html2txt | 7 |
-| marketplace forms | LoveCrafts designer handbook | 404/500 on every URL tried | thin; FAQ says "Who is it for?" and "Type of pattern" are required |
+| marketplace forms | LoveCrafts designer handbook | the handbook site itself returns a WordPress "critical error" in a real browser (2026-09-12); not an access problem | thin; FAQ says "Who is it for?" and "Type of pattern" are required. Ravelry's form is the primary marketplace source instead (`formats/ravelry-form.md`) |
 
 ## Rate limits and manners
 
