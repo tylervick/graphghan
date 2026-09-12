@@ -32,3 +32,15 @@ Evidence tiers: **C** = coded corpus count; **S** = a standard says so (CYC, BAN
 After a batch: run the counts script (to be added as `corpus/counts.py`), paste the numbers into
 "Evidence now", change status only when README's criterion is met, and record the delta in
 `log.md`.
+
+## New observations awaiting a claim number
+
+- **Row 1 is often a different stitch from the body.** Red Heart RHC0502 works row 1 in hdc into
+  the chain and every later row in splhdc; DROPS 0-1396 and the Nancy Afghan open with a plain
+  row before the pattern. Chart-level `gauge.stitch` cannot say this. Cheap answer:
+  `foundation.note`; structural answer: a per-pass stitch override (#36). Watch `notes` in the
+  corpus for how often it recurs. (from `genres/tapestry.md`)
+- **Intarsia vs tapestry is a stated technique choice on the same chart** ("Work color changes
+  using intarsia technique"). One pattern so far; a field only if publishers state it routinely.
+- **C2C gauge has two incompatible conventions**: Bernat states it in sc ("16 sc and 19 rows =
+  4""), Make & Do Crew in tiles ("5.5 tiles = 4""). (from `genres/c2c.md`, feeds #18)
