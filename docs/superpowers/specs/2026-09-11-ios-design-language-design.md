@@ -114,28 +114,33 @@ semibold for display, SF Pro for text, SF Rounded heavy for the count.
 
 ### 6.1 Work screen
 
-Moss with the weave is the screen ground, and the whole ground is the Done target.
+Ground with the weave is the screen ground. Below the card, the chart itself is the Done target.
 
-- Header on the green: close glyph at the leading edge, row number (Row number style) and the
-  side line (Caption, 75% Cream) centered, all in Cream. Long press on the row number jumps.
-- One stone card, 12 pt inset, 22 pt radius, Ground with the weave, drop shadow (0, 8) blur 24
-  at 18% black. It holds the strip, the chips, and the swatch stack, 12 pt apart. The card
-  swallows taps; nothing inside advances by accident.
-- Strip: rows around the current one drawn from the grid in a Panel box with a Line border and
-  14 pt radius; the current row outlined 2 pt Heather; rows already worked dimmed 45% toward
-  black, upcoming rows at full contrast; a Heather marker on the starting edge.
-- Chips: section 6.3.
+- Header: close glyph at the leading edge in Ink 2, row number (Row number style) in Ink and the
+  side line (Caption, Ink 2) centered. Long press on the row number jumps.
+- One Panel card, 12 pt inset, 22 pt radius, Line hairline, drop shadow (0, 8) blur 24 at 12%
+  black. It holds the chips and the swatch stack, 12 pt apart. The card swallows taps; nothing
+  inside advances by accident.
+- Chips: section 6.3, in a row with 4 pt of vertical room so the current chip's ring is not
+  clipped; the row scrolls when it does not fit.
 - Swatch stack: the current run on top (Count, Code, and the color name in Heading, on its own
   yarn color, 16 pt radius); the next run on deck beneath it, 12 pt tucked under, in its own yarn
   color, reading "then 4 Charcoal" in Label. Last run in a row: the bar reads "next row starts in
   Gold". Last run of the pattern: no bar.
-- Done field: everything below the card. "Done" in the Done style, centered in the field beside
-  the rail. Tapping anywhere in the field advances. The Back rail sits on the leading edge of the field, 84 pt wide, Moss Deep,
-  top trailing corner 22 pt, with the return arrow and "Back" in Label at 85% Cream. Swipe right
-  anywhere still goes back.
-- Finished: the card holds the strip and a Cream panel with a Line hairline, "Finished" in the
-  Title style, and the send-off line in Body; the field reads "Close" and dismisses.
-- Landscape keeps the same order in a two-column layout: card leading, field trailing.
+- Field: everything below the card, down to the display edge. Its backdrop is the chart: the
+  eleven grid rows around the cursor drawn full width, the current row pinned to the middle at
+  full contrast with a 3 pt Heather outline and the starting-edge marker, every other row
+  softened 60% toward Ground, rows already worked darkened a further 25%, Ground where the chart
+  runs out. Tapping anywhere on the backdrop advances. Swipe right anywhere still goes back.
+- Controls float over the backdrop, 16 pt from the sides and 44 pt from the display bottom, as
+  Liquid Glass capsules (iOS 26; flat tinted capsules with the yarn hairline before that): Back
+  at the leading edge, 84 × 72 pt, tinted Moss Deep with the arrow and "Back" in Cream, at 40%
+  when there is nothing to go back to; Done filling the rest, 72 pt tall, tinted with the current
+  run's yarn color and labeled in that yarn's readable foreground in the Done style. The pill is
+  the visible handle; the backdrop is the target.
+- Finished: the card holds a Cream panel with a Line hairline, "Finished" in the Title style, and
+  the send-off line in Body; the field's pill turns Cream and reads "Close", which dismisses.
+- Landscape keeps the same pieces in two columns: card leading, field trailing.
 
 ### 6.2 Cards and list rows
 

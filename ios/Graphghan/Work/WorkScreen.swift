@@ -1,8 +1,9 @@
 import SwiftUI
 import GraphghanCore
 
-/// The Work screen without the model (spec §6.1): Moss is the ground and the Done target; the work
-/// floats on one stone card. `WorkView` owns state and haptics and feeds this.
+/// The Work screen without the model (spec §6.1): stone ground, the run on one card, and below it
+/// the chart itself as the Done target, with the glass Back and Done controls floating over the
+/// stitches. `WorkView` owns state and haptics and feeds this.
 struct WorkScreen: View {
     let chart: Chart
     let sequence: WorkSequence
@@ -28,10 +29,10 @@ struct WorkScreen: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        // The field is the tap target down to the display edge: the rail and Done reach under the
-        // home indicator, and their own bottom padding keeps the labels above it.
+        // The field is the tap target down to the display edge; the controls' own bottom padding
+        // keeps them above the home indicator.
         .ignoresSafeArea(edges: .bottom)
-        .background(Color.moss.weave(.cream, opacity: 0.05).ignoresSafeArea())
+        .background(Color.ground.weave().ignoresSafeArea())
     }
 
     private var header: some View {
@@ -40,19 +41,19 @@ struct WorkScreen: View {
                 Image(systemName: "xmark").font(.system(size: 20, weight: .semibold)).frame(width: 44, height: 44)
             }
             .buttonStyle(.plain)
-            .foregroundStyle(Color.cream.opacity(0.75))
+            .foregroundStyle(Color.ink2)
             .accessibilityLabel("Close")
             Spacer()
             VStack(spacing: 4) {
                 if let pass = sequence.pass(at: cursor.row) {
-                    (Text("\(pass.label) ") + Text("of").fontWeight(.medium).foregroundStyle(Color.cream.opacity(0.7)) + Text(" \(sequence.passes.count)"))
+                    (Text("\(pass.label) ") + Text("of").fontWeight(.medium).foregroundStyle(Color.ink2) + Text(" \(sequence.passes.count)"))
                         .font(Font.Heather.rowNumber).monospacedDigit()
                         .lineLimit(1)
                         .minimumScaleFactor(0.6)
                         .onLongPressGesture(perform: onJump)
                         .accessibilityHint("Long press to jump to a row")
                         .accessibilityAction(named: "Jump to row", onJump)
-                    Text(finished ? "Every row worked" : sideText(pass)).font(Font.Heather.caption).foregroundStyle(Color.cream.opacity(0.75))
+                    Text(finished ? "Every row worked" : sideText(pass)).font(Font.Heather.caption).foregroundStyle(Color.ink2)
                         .lineLimit(2)
                         .multilineTextAlignment(.center)
                         .minimumScaleFactor(0.8)
@@ -61,14 +62,13 @@ struct WorkScreen: View {
             Spacer()
             Color.clear.frame(width: 44, height: 44)
         }
-        .foregroundStyle(Color.cream)
+        .foregroundStyle(Color.ink)
         .padding(.horizontal, 16)
         .padding(.top, 8)
     }
 
     private var card: some View {
         VStack(spacing: 12) {
-            RowStripView(chart: chart, sequence: sequence, cursor: cursor)
             if finished {
                 VStack(spacing: 8) {
                     Text("Finished").font(Font.Heather.title)
@@ -89,19 +89,31 @@ struct WorkScreen: View {
             }
         }
         .padding(12)
-        .background(Color.ground.weave().clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous)))
+        .background(Color.panel, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).strokeBorder(Color.line, lineWidth: 1))
         .compositingGroup()
-        .shadow(color: .black.opacity(0.18), radius: 12, y: 8)
+        .shadow(color: .black.opacity(0.12), radius: 12, y: 8)
         .contentShape(Rectangle())
         .onTapGesture {}  // the card swallows taps: nothing inside advances by accident
         .padding(.horizontal, 12)
         .foregroundStyle(Color.ink)
     }
 
+    /// The chart rows around the cursor, full width, are the Done target; the controls float on them.
     private var field: some View {
-        DoneField(finished: finished, canGoBack: cursor != .start, doneLabel: doneLabel, doneHex: currentEntry?.hex,
-                  onDone: finished ? onClose : onDone, onBack: onBack)
-            .frame(maxHeight: .infinity)
+        ZStack(alignment: .bottom) {
+            Button(action: finished ? onClose : onDone) {
+                RowStripView(chart: chart, sequence: sequence, cursor: cursor, rowsAround: 5, backdrop: true)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(doneLabel)
+            DoneField(finished: finished, canGoBack: cursor != .start, doneLabel: doneLabel, doneHex: currentEntry?.hex,
+                      onDone: finished ? onClose : onDone, onBack: onBack)
+                .padding(.horizontal, 16)
+                .padding(.bottom, 44)
+        }
+        .frame(maxHeight: .infinity)
     }
 
     /// The palette entry of the run under the cursor; nil once finished or past the last run.

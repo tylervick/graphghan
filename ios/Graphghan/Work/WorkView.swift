@@ -19,7 +19,7 @@ struct WorkView: View {
             } else if let error {
                 VStack(spacing: 16) {
                     Text(error)
-                        .foregroundStyle(Color.cream)
+                        .foregroundStyle(Color.ink)
                         .font(Font.Heather.body)
                     Button("Close") { dismiss() }
                         .buttonStyle(.secondary)
@@ -30,7 +30,7 @@ struct WorkView: View {
                 ProgressView()
             }
         }
-        .background(Color.moss.weave(.cream, opacity: 0.05).ignoresSafeArea())
+        .background(Color.ground.weave().ignoresSafeArea())
         .task {
             cursor = project.cursor
             do {

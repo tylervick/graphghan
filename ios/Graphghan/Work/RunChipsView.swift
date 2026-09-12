@@ -15,9 +15,6 @@ struct RunChipsView: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     chipRow
                 }
-                // The current chip's Heather ring sits 3pt outside the pill; without these the
-                // scroll view clips it top and bottom on any row long enough to scroll.
-                .scrollClipDisabled()
                 .onChange(of: cursor, initial: true) { _, new in withAnimation { proxy.scrollTo(min(new.run, max(0, pass.runs.count - 1)), anchor: .center) } }
             }
         }
