@@ -77,10 +77,25 @@ is a four-level scale with their own labels ("Level 2 - Easy (Beginner+)"), yarn
 CYC number and name. This is a large publisher's catalogue vocabulary for RQ2; it aligns with
 CYC on yarn weight and diverges on skill-level labels.
 
+## knitCompanion (read; PDF-based project keeper, mobile)
+
+Works from the designer's PDF, not from a chart model. Per project it keeps: row and stitch
+markers (with width, colour, transparency), up to six simple counters plus linked and "smart"
+counters (name, direction, min/max), colour highlights per page, text and audio notes per page,
+project notes, a timer, ruler measurements and video links. Imports PDFs from anywhere and
+images converted to PDF; "kCDesigns" are pre-configured PDFs sold by the vendor. Exports are
+whole projects (`.kc`) to cloud storage or other apps — a backup, not an interchange. No shared
+format.
+
+**For us:** the most-used working app for knitters stores *annotations on a PDF*: counters,
+markers, highlights. Its "one-tap markers" for charted patterns is the closest thing to our
+cursor. Everything it knows about the pattern it learned by the user drawing rectangles on a
+page. Same conclusion as Pattern Keeper: the working-app layer runs on PDFs because there is no
+data to run on.
+
 ## Pending
 
 - Chart Minder (429 on fetch; retry).
-- knitCompanion (feature page).
 - Driving Stitch Fiddle and Crochetpop once `stitchfiddle.com` / `crochetpop.app` are allowed in
   the Chrome extension: capture export formats, aspect-ratio and in-the-round settings.
 - Row-counter apps (top three by installs): what per-project state they keep.
