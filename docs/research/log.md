@@ -119,3 +119,15 @@ Yarnspirations: 51/52 fetched after the rate limit lifted; batches 6a (15, C2C +
 at 97 rows before 6b/6c. Stitch Fiddle wizard driven (imports OXS and 1-px PNG). LoveCrafts
 handbook is down server-side. Phase 1 revision proposal written, not applied
 (`proposal-phase1-revision.md`).
+
+## 2026-09-12 — corpus pass complete (batches 6b, 6c)
+
+128 coded, 109 usable, 37 double-coded, 5.0% cumulative field disagreement. Final counts in
+`corpus/runs/counts-final.txt` and `claims.md`. Claims 1, 2, 4, 5, 7 marked settled; 3 revised
+to genre-bound; 9 settled for priority. Design note §4 cites n=109/56. Yarnspirations house
+style: US stitches, UK verb "miss" (Bernat). Motif blanket (Caron Spirals) uses unjoined spirals
+sewn into panels with joined edging — `round_join: both` widened beyond tutorials.
+
+Open for the next pass: print stratum (book/magazine, ≈17% of Ravelry); Meaghan's session
+(RQ1 first-hand evidence still zero); tool teardowns behind logins (Stitch Fiddle editor,
+Crochetpop); the Phase 1 revision decision.

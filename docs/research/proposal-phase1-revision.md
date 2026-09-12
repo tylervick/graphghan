@@ -64,8 +64,9 @@ that spells both. Readers spell out from `terms` only.
 
 ## 4. Two things the corpus says *not* to do
 
-- Do not derive `boundary.color`; it is stated in 3 of 32 row patterns. Show it only when present.
-- Do not promote `care` (#35): 1 of 55 patterns carries it.
+- Do not derive `boundary.color`; it is stated in 3 of 32 plain row patterns and 13 of 15 mosaic
+  ones — genre-bound. Show it only when present.
+- Do not promote `care` (#35): 2 of 109 patterns carry it.
 
 ## Effect on the implementation plan
 
