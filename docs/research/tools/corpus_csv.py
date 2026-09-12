@@ -94,7 +94,7 @@ def load(csv_path: Path) -> dict[str, dict]:
 def save(rows: dict[str, dict], csv_path: Path) -> None:
     csv_path.parent.mkdir(parents=True, exist_ok=True)
     with csv_path.open("w", newline="", encoding="utf-8") as f:
-        w = csv.DictWriter(f, fieldnames=FIELDS, extrasaction="ignore")
+        w = csv.DictWriter(f, fieldnames=FIELDS, extrasaction="ignore", lineterminator="\n")
         w.writeheader()
         for rid in sorted(rows):
             w.writerow({k: rows[rid].get(k, "") for k in FIELDS})
