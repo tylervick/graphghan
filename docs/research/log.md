@@ -88,3 +88,16 @@ chain (zero chains, counts as a dc); joined rounds that are also turned. A motif
 (each cell one square). UK-terms stratum attempt via UK designer sites mostly failed (Typepad
 and Squarespace pages are JS-only; one non-UTF-8 page crashed html2txt, now fixed). UK docs in
 corpus: 5. Yarnspirations fetch running throttled at 20 s; batch 6 will be the whole stratum.
+
+## 2026-09-12 — Ravelry community threads; Stitch Fiddle driven; saturation amended
+
+Ravelry signed in. Forum threads read on chart-keeping apps, graphghan working practice, US/UK
+terms from the designer side, filet portraits and technique choice (`users/community-threads.md`).
+First-hand statement of the failure the Work screen prevents ("mark the end of the row with an
+arrow telling me which way to start"). Stitch Fiddle wizard driven: genre list with definitions,
+yarn-line palettes, **.oxs and 1-px PNG import** (our two exports), gauge dialog identical to ours.
+Yarnspirations fetch resumed at 20 s cadence after the 429 lifted; batch 6a (15 files) coding.
+
+**Saturation amended**: a fourteenth structural axis — cell geometry (offset rows, stitch slant)
+— surfaced from community threads, not from patterns. Recorded in `claims.md`; no corpus
+pattern exhibits it yet, so no field is proposed.

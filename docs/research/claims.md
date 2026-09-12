@@ -75,3 +75,10 @@ After a batch: run the counts script (to be added as `corpus/counts.py`), paste 
   graph bought "shown in crochet", planned in C2C, advised back to sc). Supports publishing one
   grid at several gauge keys, and `gauge.unit` for tile-based variants. Cell aspect is a real
   maker problem ("stretch the height by 25%"); `cell_aspect` from gauge is its modelled answer.
+- **Cell geometry beyond aspect — a new axis (14).** Ravelry threads describe tapestry charts
+  "where the rows are offset", "Tapestry Crochet paper … slightly staggered effect", and "the
+  diagonal lines produced by standard tapestry crochet techniques" on a 300×225 chart. Our cells
+  are axis-aligned rectangles with one aspect ratio; a staggered grid or a per-row lean is not
+  expressible. Community source, not corpus; the earlier "converged at 13 axes" claim in the
+  superseded research doc is amended here. Whether it needs a field or a note depends on whether
+  any published chart-driven pattern actually ships an offset grid — none in the corpus does.
