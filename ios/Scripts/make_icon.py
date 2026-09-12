@@ -1,19 +1,11 @@
-"""The app icon (spec §7): moss sky with the weave, a gold moon, the hill band, and a crocheted
-chain along the horizon. Geometry is in fractions of the side so the PWA icon can share it later."""
+"""The app icon (spec §7): moss sky with the weave, a gold moon, and the hill band. Geometry is in
+fractions of the side so the PWA icon can share it later."""
 
 import argparse
 
 from PIL import Image, ImageDraw
 
 MOSS, MOSS_DEEP, CREAM, GOLD = (30, 77, 58), (22, 59, 45), (244, 245, 240), (217, 162, 27)
-
-
-def polyline(draw, points, fill, width):
-    """A stroked path with round joins and caps (Pillow's line() has neither)."""
-    draw.line(points, fill=fill, width=width, joint="curve")
-    r = width / 2
-    for x, y in (points[0], points[-1]):
-        draw.ellipse([x - r, y - r, x + r, y + r], fill=fill)
 
 
 def make_icon(size: int) -> Image.Image:
@@ -30,14 +22,6 @@ def make_icon(size: int) -> Image.Image:
     # hill band from 62% down, then the moon
     d.rectangle([0, 62 * s, size, size], fill=MOSS_DEEP)
     d.ellipse([(74 - 9) * s, (30 - 9) * s, (74 + 9) * s, (30 + 9) * s], fill=GOLD)
-    # eight chevrons along the horizon, tips leading (the chain travels right), halo in the hill color
-    n, step, y = 8, 9.5, 62
-    x0 = 50 - step * (n - 1) / 2
-    for i in range(n):
-        cx = x0 + step * i
-        pts = [((cx + 9.5) * s, (y - 8.5) * s), ((cx - 3.5) * s, y * s), ((cx + 9.5) * s, (y + 8.5) * s)]
-        polyline(d, pts, MOSS_DEEP, int(10 * s))
-        polyline(d, pts, CREAM, int(6 * s))
     return img
 
 
