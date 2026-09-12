@@ -50,3 +50,23 @@ online? **Languages**: a long list plus **"Universal - no written language"**.
 2. **`craft` is missing.** Every catalogue (Ravelry, Lion Brand tags, LoveCrafts' "type of
    pattern") keys on it first. It belongs on `pattern`, is not hashed, and is a one-line
    addition to Phase 2.
+
+## Pattern pages (read 2026-09-12: *Which Way Filet Blanket*, *Happy Winter Mosaic*)
+
+Beyond the form, a published pattern page shows: Craft · Category path ("Blanket → Throw") ·
+Published (month year) · Suggested yarn (linked, with fibre and put-up "317 yards / 100 grams")
+· Yarn weight ("DK (11 wpi)", or "Any gauge - designed for any gauge") · Gauge, sometimes as a
+swatch measurement ("Gauge swatch in pattern (13 sts x 9 rows) measures 7 cm x 6 cm") · Hook
+size(s) · Yardage range · Sizes available ("115 cm x 150 cm") · **Crochet terminology: `US` or
+`both US and UK`** · Languages · attribute tags (`in-the-round`, `one-piece`, `square`,
+`mosaic`, `written-pattern`, `video-tutorial`, `captioned-video`) · ratings for overall,
+**clarity**, and difficulty · first published / page created / last updated.
+
+**Crochet terminology is a first-class catalogue field on Ravelry**, with a `both` value. That
+is the strongest external confirmation of claim 4, and it settles the `both` question: the
+catalogue records "both", so a document may too — the format's single primary value should be
+accompanied by a way to say a second system is also given (`terms: "US"`, `terms_also: "UK"`),
+rather than an enum that forbids what Ravelry records.
+
+Attribute tags are the closest thing to a technique taxonomy in the wild; `in-the-round` versus
+worked flat is one of them, which is #43's field from the catalogue side.
