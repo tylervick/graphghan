@@ -51,3 +51,11 @@ After a batch: run the counts script (to be added as `corpus/counts.py`), paste 
   in 5. Rendering choice, not data; the on-deck line can say either. (pilot 1)
 - **Chart row 1 corner is not universal**: bottom-right 5, bottom-left 2 of those that say. The
   direction fields must be written out, never defaulted silently, when we publish. (pilot 1)
+- **A third turning-chain rule: keyed on the first cell of the next row.** Filet (Bella Coco):
+  "3 ch (counts as tr)" before a row starting with a filled block, "4 ch (counts as tr and 1 ch)"
+  before one starting with an open block. Not derivable from the row's stitch *or* from the
+  previous row — it depends on the chart cell about to be worked. (from `genres/filet.md`; #44)
+- **Dual-terms documents exist**: "written in UK, US terms in brackets" (Jera's Jamboree mosaic).
+  `terms` stays a single primary value; a dual document declares its primary. (`genres/mosaic.md`)
+- **Overlay mosaic rows end with fasten-off and a re-join, not a turn.** The turning-chain
+  object needs a row-boundary variant beyond `count` (claim 10's row-shaped sibling).
