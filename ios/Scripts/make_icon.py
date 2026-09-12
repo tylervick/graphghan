@@ -1,11 +1,17 @@
-"""The app icon (spec §7): moss sky with the weave, a gold moon, and the hill band. Geometry is in
-fractions of the side so the PWA icon can share it later."""
+"""The app icon (spec §7): the PWA icon with the weave. Moss sky, a gold moon, three charcoal
+standing stones on the hill band, on the site's 16-unit grid so `site/build.py` can share it."""
 
 import argparse
 
 from PIL import Image, ImageDraw
 
-MOSS, MOSS_DEEP, CREAM, GOLD = (30, 77, 58), (22, 59, 45), (244, 245, 240), (217, 162, 27)
+MOSS, MOSS_DEEP, CREAM, GOLD, CHARCOAL = (
+    (30, 77, 58),
+    (22, 59, 45),
+    (244, 245, 240),
+    (217, 162, 27),
+    (43, 47, 51),
+)
 
 
 def make_icon(size: int) -> Image.Image:
@@ -19,9 +25,13 @@ def make_icon(size: int) -> Image.Image:
         wd.line([(x, size), (x + size, 0)], fill=(*CREAM, 13), width=max(1, int(0.6 * s)))
     img.paste(Image.alpha_composite(img.convert("RGBA"), weave).convert("RGB"))
     d = ImageDraw.Draw(img)
-    # hill band from 62% down, then the moon
-    d.rectangle([0, 62 * s, size, size], fill=MOSS_DEEP)
-    d.ellipse([(74 - 9) * s, (30 - 9) * s, (74 + 9) * s, (30 + 9) * s], fill=GOLD)
+    # the PWA icon's geometry (site/build.py make_icons) on a 16-unit grid: hill band from 12
+    # units down, the moon at (12.75, 4.25) with radius 1.75, three stones standing on the horizon
+    u = size / 16
+    d.rectangle([0, 12 * u, size, size], fill=MOSS_DEEP)
+    d.ellipse([11 * u, 2.5 * u, 14.5 * u, 6 * u], fill=GOLD)
+    for x0, h in ((3.5, 5), (6.5, 7), (9.5, 5.5)):
+        d.rectangle([x0 * u, (12 - h) * u, (x0 + 1.8) * u, 12 * u], fill=CHARCOAL)
     return img
 
 
