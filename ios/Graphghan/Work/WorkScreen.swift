@@ -44,10 +44,15 @@ struct WorkScreen: View {
                 if let pass = sequence.pass(at: cursor.row) {
                     (Text("\(pass.label) ") + Text("of").fontWeight(.medium).foregroundStyle(Color.cream.opacity(0.7)) + Text(" \(sequence.passes.count)"))
                         .font(Font.Heather.rowNumber).monospacedDigit()
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.6)
                         .onLongPressGesture(perform: onJump)
                         .accessibilityHint("Long press to jump to a row")
                         .accessibilityAction(named: "Jump to row", onJump)
                     Text(finished ? "Every row worked" : sideText(pass)).font(Font.Heather.caption).foregroundStyle(Color.cream.opacity(0.75))
+                        .lineLimit(2)
+                        .multilineTextAlignment(.center)
+                        .minimumScaleFactor(0.8)
                 }
             }
             Spacer()
@@ -72,17 +77,20 @@ struct WorkScreen: View {
                 .padding(.horizontal, 16)
                 .yarnSurface("#F2E8D5", radius: 16)
             } else {
-                RunChipsView(chart: chart, pass: sequence.pass(at: cursor.row)!, cursor: cursor, onSelect: onSelectRun)
+                if let pass = sequence.pass(at: cursor.row) {
+                    RunChipsView(chart: chart, pass: pass, cursor: cursor, onSelect: onSelectRun)
+                }
                 SwatchStack(chart: chart, sequence: sequence, cursor: cursor)
             }
         }
         .padding(12)
         .background(Color.ground.weave().clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous)))
+        .compositingGroup()
         .shadow(color: .black.opacity(0.18), radius: 12, y: 8)
-        .padding(.horizontal, 12)
-        .foregroundStyle(Color.ink)
         .contentShape(Rectangle())
         .onTapGesture {}  // the card swallows taps: nothing inside advances by accident
+        .padding(.horizontal, 12)
+        .foregroundStyle(Color.ink)
     }
 
     private var field: some View {

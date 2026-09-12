@@ -14,8 +14,8 @@ struct WorkView: View {
 
     var body: some View {
         Group {
-            if let chart, let sequence, let pass = sequence.pass(at: cursor.row) {
-                content(chart: chart, sequence: sequence, pass: pass)
+            if let chart, let sequence, sequence.pass(at: cursor.row) != nil {
+                content(chart: chart, sequence: sequence)
             } else if let error {
                 VStack(spacing: 16) {
                     Text(error)
@@ -55,7 +55,7 @@ struct WorkView: View {
     }
 
     @ViewBuilder
-    private func content(chart: Chart, sequence: WorkSequence, pass: Pass) -> some View {
+    private func content(chart: Chart, sequence: WorkSequence) -> some View {
         WorkScreen(chart: chart, sequence: sequence, cursor: cursor,
                    onDone: { perform(.advance, sequence: sequence) },
                    onBack: { perform(.back, sequence: sequence) },
@@ -70,8 +70,7 @@ struct WorkView: View {
                 if let hint = model.liveActivity.settingsHint {
                     Banner(text: hint, kind: .info, action: .init(label: "Open Settings") {
                         if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
-                        model.liveActivity.dismissHint()
-                    })
+                    }, dismiss: { model.liveActivity.dismissHint() })
                 }
             }
             .padding(.top, 60)

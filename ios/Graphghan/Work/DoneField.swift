@@ -15,6 +15,8 @@ struct DoneField: View {
                         Spacer()
                         Image(systemName: "arrow.uturn.backward").font(.system(size: 26, weight: .semibold))
                         Text("Back").font(Font.Heather.label)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
                     }
                     .padding(.bottom, 40)
                     .frame(width: 84)

@@ -11,6 +11,7 @@ struct Banner: View {
     let text: String
     var kind: Kind = .info
     var action: Action?
+    var dismiss: (() -> Void)?
 
     var body: some View {
         HStack(spacing: 0) {
@@ -22,6 +23,10 @@ struct Banner: View {
                 Spacer(minLength: 0)
                 if let action {
                     Button(action.label, action: action.run).font(Font.Heather.label).tint(.moss)
+                        .fixedSize()
+                }
+                if let dismiss {
+                    Button("Dismiss", action: dismiss).font(Font.Heather.label).tint(.moss)
                         .fixedSize()
                 }
             }
