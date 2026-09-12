@@ -20,6 +20,8 @@ struct JumpToRowSheet: View {
                 Stepper(value: $row, in: 1...max(1, rowCount)) { Text("Row \(row) of \(rowCount)") }
                 TextField("Row", value: $row, format: .number).keyboardType(.numberPad)
             }
+            .scrollContentBackground(.hidden)
+            .background(Color.ground.weave().ignoresSafeArea())
             .navigationTitle("Jump to row")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

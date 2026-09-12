@@ -28,13 +28,13 @@ public struct Swatch: Decodable, Sendable, Equatable {
 }
 
 /// One published chart in a pattern manifest. Paths are relative to `patterns/<id>/` on the site.
-public struct ManifestChart: Decodable, Sendable, Identifiable, Equatable {
-    public struct Size: Decodable, Sendable, Equatable {
+public struct ManifestChart: Decodable, Sendable, Identifiable, Equatable, Hashable {
+    public struct Size: Decodable, Sendable, Equatable, Hashable {
         public let width: Double
         public let height: Double
         public let unit: String
     }
-    public struct Changes: Decodable, Sendable, Equatable {
+    public struct Changes: Decodable, Sendable, Equatable, Hashable {
         public let mean: Double
         public let max: Double
     }

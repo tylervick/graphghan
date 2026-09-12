@@ -21,7 +21,7 @@ struct ProjectDetailView: View {
             if let sequence {
                 let summary = model.projects.summary(for: project, sequence: sequence)
                 Section {
-                    ProgressView(value: summary.percent, total: 100)
+                    ProgressView(value: summary.percent, total: 100).tint(.heather)
                     LabeledContent("Row", value: project.isFinished ? "Finished" : "\(project.cursor.row) of \(sequence.passes.count)")
                     LabeledContent("Stitches", value: "\(summary.stitchesDone.formatted()) of \(summary.totalStitches.formatted())")
                     if let rate = summary.stitchesPerHour { LabeledContent("Pace", value: "\(rate.formatted()) stitches per hour") }
@@ -75,6 +75,9 @@ struct ProjectDetailView: View {
         }
         .navigationTitle(project.title)
         .navigationBarTitleDisplayMode(.inline)
+        .scrollContentBackground(.hidden)
+        .background(Color.ground.weave().ignoresSafeArea())
+        .listRowBackgroundPanel()
         .sheet(isPresented: $showJump) {
             if let sequence {
                 JumpToRowSheet(rowCount: sequence.passes.count, current: project.cursor.row) { row in
@@ -107,16 +110,7 @@ struct ProjectDetailView: View {
         }
         .safeAreaInset(edge: .top) {
             if let error = model.projects.lastError {
-                HStack {
-                    Text("Couldn't save your progress: \(error)")
-                        .font(.footnote)
-                    Spacer()
-                    Button("Dismiss") { model.projects.lastError = nil }
-                        .font(.footnote)
-                }
-                .padding(8)
-                .frame(maxWidth: .infinity)
-                .background(.yellow.opacity(0.25))
+                Banner(text: "Couldn't save your progress: \(error)", kind: .failure, action: .init(label: "Dismiss") { model.projects.lastError = nil })
             }
         }
         .task { await load() }
