@@ -21,6 +21,7 @@ in the current format and records exactly where it fails. Verdicts:
 | Tunisian | **partly** — via explicit `passes` | `tunisian.md` | Make & Do Crew, KnitterKnotter blankets | two passes per grid row fit `passes`; return pass has no stitches but `run.count ≥ 1`; per-pass start chain rather than a turning chain |
 | Cross-stitch | works (by construction; OXS export) | — | xstitchify rose PDF (139×200, 8 DMC) | key is Symbol → DMC number → name; our palette carries all three |
 | Shaped tapestry panel | refuses | — | Orca bag (on-hand) | rows must sum to width (#37) |
+| Motif-grid blanket (each cell one square) | **partly** | `joined-rounds.md` | Divine Debris *Glenda Ghost* (380 squares, 19×20 graph) | colour grid fits; a cell is a motif, not a stitch (#44); the motif itself is out of grid |
 
 The single "silently wrong" is filet. Every probe should either move it to "refuses" (a `cells`
 declaration that readers honour) or be the reason #44 is implemented.

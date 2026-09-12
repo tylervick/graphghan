@@ -9,7 +9,8 @@ committed. Every raw file starts with a `SOURCE:` line.
 | yarn-company | Lion Brand | product `.json` works (tags = catalogue taxonomy); PDFs are injected by JS from `cdn.accentuate.io` and not in the JSON | 1 PDF via a search-found URL; taxonomy captured |
 | european | DROPS / Garnstudio | Chrome only (WebFetch and curl get 403); full text on page; `cid=17` = English (US/in), `cid=19` = English (UK/cm) — the same pattern in both term systems | 4 US + 2 UK twins; knit colourwork in progress |
 | indie | Designer blogs (Make & Do Crew, Repeat Crafter Me, Meghan Makes Do, Nana's Crafty Home, Cypress Textiles, Freese-Works, Crochetverse, The Loopy Lamb, Joanna's Crochet, Daisy Farm Crafts) | `curl` + `tools/html2txt.py` | 14 pages (mix of patterns and tutorials; coder marks which) |
-| indie | Ravelry | needs sign-in in the extension's Chrome window and `ravelry.com` allowed | blocked |
+| indie | Ravelry | signed in; pattern pages give craft, category, gauge, hook, yardage, sizes, **Crochet terminology**, attributes, and the designer's URL; pattern text is fetched from the designer's site with `curl` + html2txt (Ravelry downloads themselves need the session) | 9 designer pages (6 usable); `formats/ravelry-form.md` |
+| european/UK | UK designer sites (Attic24 on Typepad, Crystals & Crochet, HanJan on Squarespace) | JS-only pages; `curl` gets 130-400 words | failed — UK stratum stays at 5 docs (Bella Coco ×2, Jera's, DROPS UK twins ×2) |
 | on-hand | 10 purchased/free PDFs in ~/Downloads | `pdftotext` | 10 |
 | cross-stitch | xstitchify free patterns | the page's `/download/pdf/` path serves the PDF to `curl` without an account → `pdftotext` | 1 chart (rose, 139×200, 8 DMC colours) |
 | indie | Tunisian (Make & Do Crew, KnitterKnotter ×2, TL Yarn Crafts) | `curl` + html2txt | 4 |
