@@ -4,6 +4,7 @@ import SwiftUI
 struct DoneField: View {
     let finished: Bool
     let canGoBack: Bool
+    let doneLabel: String
     let onDone: () -> Void
     let onBack: () -> Void
 
@@ -16,7 +17,7 @@ struct DoneField: View {
                         Image(systemName: "arrow.uturn.backward").font(.system(size: 26, weight: .semibold))
                         Text("Back").font(Font.Heather.label)
                             .lineLimit(1)
-                            .minimumScaleFactor(0.7)
+                            .minimumScaleFactor(0.5)
                     }
                     .padding(.bottom, 40)
                     .frame(width: 84)
@@ -37,6 +38,7 @@ struct DoneField: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .accessibilityLabel(doneLabel)
         }
     }
 }

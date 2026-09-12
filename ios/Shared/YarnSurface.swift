@@ -4,6 +4,9 @@ import SwiftUI
 /// foreground that reads on it, and the hairline that keeps cream visible on cream.
 enum YarnSurface {
     static let hairline = Color.black.opacity(0.14)
+    /// A run whose color code isn't in the palette (stale or corrupt chart data): neutral gray
+    /// rather than nothing, so the swatch still renders.
+    static let unknownHex = "#888888"
     /// Dark ink for light yarn (#2B2723), warm cream for dark yarn (#F4EFE6).
     private static let darkText = Color(red: 0x2B / 255, green: 0x27 / 255, blue: 0x23 / 255)
     private static let lightText = Color(red: 0xF4 / 255, green: 0xEF / 255, blue: 0xE6 / 255)

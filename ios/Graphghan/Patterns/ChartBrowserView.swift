@@ -40,6 +40,7 @@ struct ChartBrowserView: View {
                 ProgressView()
             }
         }
+        .background(Color.ground.weave().ignoresSafeArea())
         .navigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)
         .task {

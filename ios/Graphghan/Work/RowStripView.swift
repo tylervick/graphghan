@@ -11,6 +11,7 @@ struct RowStripView: View {
     var body: some View {
         Canvas { context, size in
             guard let pass = sequence.pass(at: cursor.row), let y = pass.gridRow else { return }
+            let workedGridRows = Set((1..<cursor.row).compactMap { sequence.pass(at: $0)?.gridRow })
             let y0 = max(0, y - rowsAround)
             let y1 = min(chart.height - 1, y + rowsAround)
             guard y0 <= y1 else { return }  // belt and braces: never build an empty or reversed range
@@ -22,7 +23,7 @@ struct RowStripView: View {
                     let rect = CGRect(x: CGFloat(run.x0) * cw, y: CGFloat(gy - y0) * ch, width: CGFloat(run.count) * cw, height: ch)
                     context.fill(Path(rect), with: .color(ChartImage.color(chart.palette[run.colorIndex].hex)))
                 }
-                if gy != y {
+                if workedGridRows.contains(gy) {
                     context.fill(Path(CGRect(x: 0, y: CGFloat(gy - y0) * ch, width: size.width, height: ch)), with: .color(.black.opacity(0.45)))
                 }
             }

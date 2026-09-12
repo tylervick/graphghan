@@ -10,7 +10,7 @@ struct RunSwatch: View {
     var size: CGFloat = 44
 
     var body: some View {
-        let hex = info.swatch(for: code)?.hex ?? "#888888"
+        let hex = info.swatch(for: code)?.hex ?? YarnSurface.unknownHex
         Text("\(count)")
             .font(.system(size: size * 0.55, weight: .heavy, design: .rounded))
             .monospacedDigit()
@@ -88,7 +88,7 @@ struct WorkLockScreenView: View {
     let info: WorkActivityInfo
     let state: WorkActivityState
 
-    private static let cardBackground = Color(white: 0.08)
+    private static let cardBackground = Color.activityCard
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {

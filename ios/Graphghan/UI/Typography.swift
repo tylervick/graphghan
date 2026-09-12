@@ -35,6 +35,17 @@ enum Theme {
         tab.configureWithOpaqueBackground()
         tab.backgroundColor = ground
         tab.shadowColor = UIColor(named: "Line")
+        let ink2 = UIColor(named: "Ink2")
+        let moss = UIColor(named: "Moss")
+        let styleItem: (UITabBarItemAppearance) -> Void = { item in
+            item.normal.iconColor = ink2
+            item.normal.titleTextAttributes = [.foregroundColor: ink2 ?? .secondaryLabel]
+            item.selected.iconColor = moss
+            item.selected.titleTextAttributes = [.foregroundColor: moss ?? .label]
+        }
+        styleItem(tab.stackedLayoutAppearance)
+        styleItem(tab.inlineLayoutAppearance)
+        styleItem(tab.compactInlineLayoutAppearance)
         UITabBar.appearance().standardAppearance = tab
         UITabBar.appearance().scrollEdgeAppearance = tab
     }

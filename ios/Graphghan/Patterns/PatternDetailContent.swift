@@ -98,23 +98,25 @@ struct PatternDetailContent: View {
         }
     }
 
-    private var charts: some View {
-        Card(padding: 14) {
-            VStack(alignment: .leading, spacing: 10) {
-                Text("Published charts").font(Font.Heather.heading).foregroundStyle(Color.ink)
-                ForEach(manifest.charts) { chart in
-                    Button { onBrowse(chart) } label: {
-                        HStack {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("\(chart.variant) · \(chart.gaugeKey)").font(Font.Heather.label).foregroundStyle(Color.ink)
-                                Text("\(chart.size.width.formatted()) × \(chart.size.height.formatted()) \(chart.size.unit) · \(chart.height) rows · \(chart.stitches.formatted()) stitches")
-                                    .font(Font.Heather.caption).foregroundStyle(Color.ink2)
+    @ViewBuilder private var charts: some View {
+        if !manifest.charts.isEmpty {
+            Card(padding: 14) {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Published charts").font(Font.Heather.heading).foregroundStyle(Color.ink)
+                    ForEach(manifest.charts) { chart in
+                        Button { onBrowse(chart) } label: {
+                            HStack {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("\(chart.variant) · \(chart.gaugeKey)").font(Font.Heather.label).foregroundStyle(Color.ink)
+                                    Text("\(chart.size.width.formatted()) × \(chart.size.height.formatted()) \(chart.size.unit) · \(chart.height) rows · \(chart.stitches.formatted()) stitches")
+                                        .font(Font.Heather.caption).foregroundStyle(Color.ink2)
+                                }
+                                Spacer()
+                                Image(systemName: "chevron.right").foregroundStyle(Color.ink2)
                             }
-                            Spacer()
-                            Image(systemName: "chevron.right").foregroundStyle(Color.ink2)
                         }
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
                 }
             }
         }

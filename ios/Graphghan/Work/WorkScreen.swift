@@ -75,7 +75,9 @@ struct WorkScreen: View {
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 24)
                 .padding(.horizontal, 16)
-                .yarnSurface("#F2E8D5", radius: 16)
+                .foregroundStyle(Color.ink)
+                .background(Color.cream, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(Color.line, lineWidth: 1))
             } else {
                 if let pass = sequence.pass(at: cursor.row) {
                     RunChipsView(chart: chart, pass: pass, cursor: cursor, onSelect: onSelectRun)
@@ -94,8 +96,17 @@ struct WorkScreen: View {
     }
 
     private var field: some View {
-        DoneField(finished: finished, canGoBack: cursor != .start, onDone: finished ? onClose : onDone, onBack: onBack)
+        DoneField(finished: finished, canGoBack: cursor != .start, doneLabel: doneLabel,
+                  onDone: finished ? onClose : onDone, onBack: onBack)
             .frame(maxHeight: .infinity)
+    }
+
+    private var doneLabel: String {
+        guard !finished else { return "Close" }
+        guard let pass = sequence.pass(at: cursor.row), cursor.run < pass.runs.count else { return "Done" }
+        let run = pass.runs[cursor.run]
+        let entry = chart.palette[chart.colorIndex(of: run.code) ?? 0]
+        return "Done with \(run.count) \(entry.name)"
     }
 
     private func sideText(_ pass: Pass) -> String {

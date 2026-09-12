@@ -154,7 +154,7 @@ struct ProjectDetailView: View {
         switch notice {
         case .chartChanged(let newChart, let newVersion, let canSwitch):
             Text("Version \(newVersion) of this pattern changed the \(newChart.variant) · \(newChart.gaugeKey) chart. This project keeps the chart it started with.")
-                .font(.footnote)
+                .font(Font.Heather.caption)
             if canSwitch, let manifest {
                 Button(switching ? "Switching…" : "Switch to the new chart") {
                     switching = true
@@ -173,7 +173,7 @@ struct ProjectDetailView: View {
                 }
                 .disabled(switching)
             } else {
-                Text("Switching is only offered before the first row is worked.").font(.footnote).foregroundStyle(.secondary)
+                Text("Switching is only offered before the first row is worked.").font(Font.Heather.caption).foregroundStyle(Color.ink2)
             }
         }
     }

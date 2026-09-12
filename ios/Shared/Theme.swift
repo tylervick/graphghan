@@ -14,6 +14,8 @@ extension Color {
     static let cream = Color(red: 0xF4 / 255, green: 0xF5 / 255, blue: 0xF0 / 255)
     /// The save-failure rule (#9C3B3B).
     static let brick = Color(red: 0x9C / 255, green: 0x3B / 255, blue: 0x3B / 255)
+    /// The lock-screen card behind the activity tint.
+    static let activityCard = Color(white: 0.08)
 }
 
 /// The tweed weave (spec §4): 1pt hairlines at 135°, 5pt pitch. Painted behind whatever the caller

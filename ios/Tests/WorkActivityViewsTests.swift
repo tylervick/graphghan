@@ -41,8 +41,8 @@ import GraphghanCore
     }
 
     @Test func expanded() throws {
-        #expect(try Snapshots.assert(WorkExpandedCenterView(info: Self.info, state: Self.midway), named: "expanded-center", size: CGSize(width: 340, height: 90)))
-        #expect(try Snapshots.assert(WorkExpandedBottomView(info: Self.info, state: Self.midway), named: "expanded-bottom", size: CGSize(width: 340, height: 60)))
+        #expect(try Snapshots.assert(WorkExpandedCenterView(info: Self.info, state: Self.midway).background(Color.activityCard), named: "expanded-center", size: CGSize(width: 340, height: 90)))
+        #expect(try Snapshots.assert(WorkExpandedBottomView(info: Self.info, state: Self.midway).background(Color.activityCard), named: "expanded-bottom", size: CGSize(width: 340, height: 60)))
     }
 
     @Test func renderModeWritesIntoTheOutputDirectoryWithoutComparing() throws {
