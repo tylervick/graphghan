@@ -120,3 +120,10 @@ external reference for `technique` values and for a future `craft`/`attributes` 
   rows 6,544 · bias 2,253 · felted 1,404 · icord 991 · moebius 743 · selvedge 639 · gusset 531 ·
   freeform 399 · entrelac 366. Rounds outnumber flat rows across crochet as a whole; our corpus
   is blanket-heavy and under-weights them.
+- **Pattern source type**: Website 263,291 · Magazine 49,959 · eBook 42,933 · Book 39,615 ·
+  Pamphlet/Booklet 23,485 · Webzine 1,461. Print (book + magazine + pamphlet) ≈ 113k, about
+  17% — the stratum the coded corpus has none of.
+- **Colors used (typical)**: 1 → 94,442 · 2 → 19,312 · 3 → 7,143 · 4 → 3,561 · 5 → 1,835 ·
+  6 or more → 2,275 (where recorded). Multicolour work — the whole grid-chart domain — is a
+  minority of published crochet; a format for it is a niche format, which is fine, and worth
+  saying in the G3 pitch.
