@@ -29,7 +29,9 @@ RC=$?
 set -e
 printf '%s\n' "$OUT"
 if [ "$RC" -ne 0 ]; then echo "error: altool exited $RC" >&2; exit "$RC"; fi
-if grep -qE 'ERROR ITMS-|error:' <<<"$OUT"; then
+# Xcode 26's altool prints "ERROR: [altool...] Validation failed (409) ..." and "VERIFY FAILED with N
+# errors" while exiting 0; the ITMS- form is the older spelling. Case-insensitive so both survive.
+if grep -qiE 'ERROR ITMS-|error:|VERIFY FAILED|Validation failed' <<<"$OUT"; then
     echo "error: altool reported an error but exited 0 (known Xcode 26 behaviour); treating as FAILED." >&2
     echo "error: the build MAY still have been uploaded; check App Store Connect before re-running (a re-run consumes another build number)" >&2
     exit 1
