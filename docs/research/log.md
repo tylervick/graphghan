@@ -38,3 +38,17 @@ pilot counts):
 **Open.** Pilot results and inter-coder disagreements; codebook revision; Yarnspirations batch
 through Chrome; Ravelry designer form and forums; Meaghan session; genre probes; cross-stitch
 corpus (every free source needs an account or a cart).
+
+## 2026-09-12 — pilot coding results (batch 1, 38 files)
+
+48 agents, 0 errors; 28 usable patterns (10 listings/tutorials at low confidence). Inter-coder
+disagreement 28/560 fields (5%), all formatting or n/a-vs-unstated; codebook revised to v2.
+Counts in `claims.md`. Headlines: dc turning chain splits 3/3 between ch 2 and ch 3; sc and hdc
+consistent at ch 1 (5/5, 3/3); `tc_color` stated in 1/16; written rows accompany only 28% of
+charts; care instructions appear in 1/28; `first_stitch_in` follows stitch height (2nd vs 4th).
+
+**Design consequences.** Claim 3 (chain colour) is demoted to optional-never-shown-unless-stated;
+Phase 1 keeps the field but the UI must not promote it. Claim 9: `care` (#35) drops to lowest
+priority; hook mm, finished size, abbreviations, notions and yarn weight are what publishers
+actually write. The design note's section 4 now cites these counts instead of the ten on-hand
+patterns.
