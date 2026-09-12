@@ -63,3 +63,11 @@ After a batch: run the counts script (to be added as `corpus/counts.py`), paste 
   Lion Brand tags, LoveCrafts). Unhashed, one line, Phase 2. (`formats/ravelry-form.md`)
 - **Held-together strands** is a real, small field: CYC's checklist, Ravelry's form and one corpus
   pattern all state it. Belongs with yarn (#34).
+- **A boundary can be a stitch instead of a chain.** Little Puffs (Pattern Princess): rows start
+  "ch 1 (does not count)" then a *stacked single crochet* that "counts as a dc" — zero-chain
+  boundary with a stitch as the post. Divine Debris's Glenda Ghost squares are joined rounds that
+  are also *turned* ("ch 1, turn" at round start) — `join` and `turn` are not exclusive. Both
+  fit the proposed `boundary` object (`kind`, `chain`, plus a `post` stitch) and neither fits an
+  integer. (batch 5)
+- **A chart whose cell is a whole motif is a real, published object**: Glenda Ghost's assembly
+  graph, "each block in the graph represents a square". `cells` (#44) should allow `motif`.

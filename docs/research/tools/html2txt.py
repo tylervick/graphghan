@@ -52,7 +52,7 @@ class TextExtractor(HTMLParser):
 
 def main():
     parser = TextExtractor()
-    parser.feed(sys.stdin.read())
+    parser.feed(sys.stdin.buffer.read().decode("utf-8", errors="replace"))
     text = "".join(parser.out)
     text = re.sub(r"[ \t]+", " ", text)
     text = re.sub(r"\n\s*\n+", "\n\n", text)

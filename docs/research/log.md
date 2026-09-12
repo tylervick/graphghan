@@ -80,3 +80,11 @@ unit, hook sizes are mm-first, and "Universal – no written language" is a reco
 Claims and the design note now cite n=55. Two additions queued for Phase 2 from Ravelry:
 `craft` on `pattern`, and `gauge.unit`. Genre probes complete for 7 genres; matrix in
 `genres/README.md`; filet remains the only "silently wrong".
+
+## 2026-09-12 — batch 5 (Ravelry-listed indie designers, 9 files)
+
+12 agents, 0 errors; 6 usable. New boundary variants: a stacked sc standing in for the turning
+chain (zero chains, counts as a dc); joined rounds that are also turned. A motif-grid chart
+(each cell one square). UK-terms stratum attempt via UK designer sites mostly failed (Typepad
+and Squarespace pages are JS-only; one non-UTF-8 page crashed html2txt, now fixed). UK docs in
+corpus: 5. Yarnspirations fetch running throttled at 20 s; batch 6 will be the whole stratum.
