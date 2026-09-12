@@ -83,3 +83,14 @@ After a batch: run the counts script (to be added as `corpus/counts.py`), paste 
   superseded research doc is amended here. Whether it needs a field or a note depends on whether
   any published chart-driven pattern actually ships an offset grid — none in the corpus does.
   Sub-cell colour (half stitches for diagonals) has an OXS precedent (half/quarter stitches).
+- **Publishers rely on house style instead of declaring terms** (batch 6a): Yarnspirations
+  declares in 0/15; every one is US by house convention. Independent designers declare far more
+  often. A document travelling outside its publisher's site loses the house style, so the field
+  must be written, not inferred (claim 4, strengthened).
+- **Chain colour is genre-dependent** (batch 6a): stated in 13/15 Yarnspirations mosaic
+  patterns (the colour changes at the row start and the chain is in the new colour) versus 3/32
+  plain row patterns. Claim 3 stays optional, but "rarely stated" was a rows-only observation.
+- **C2C turning chain at a yarn company**: `inc-row=6; dec-row=3` in 4/5 Caron/Red Heart C2C
+  patterns and `inc-row=5; dec-row=2` in the hdc one — the row-start chain tracks the block's
+  stitch height, and "Ch 2 at beg of row counts as hdc" is stated. Consistent with claim 1's
+  filet finding: the chain is keyed on what is about to be worked.
