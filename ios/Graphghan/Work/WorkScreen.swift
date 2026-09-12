@@ -1,9 +1,9 @@
 import SwiftUI
 import GraphghanCore
 
-/// The Work screen without the model (spec §6.1): stone ground, the run on one card, and below it
-/// the chart itself as the Done target, with the glass Back and Done controls floating over the
-/// stitches. `WorkView` owns state and haptics and feeds this.
+/// The Work screen without the model (spec §6.1): stone ground, the work on one card, and below it
+/// the Done field with the glass Back and Done controls floating at its bottom. `WorkView` owns
+/// state and haptics and feeds this.
 struct WorkScreen: View {
     let chart: Chart
     let sequence: WorkSequence
@@ -82,6 +82,7 @@ struct WorkScreen: View {
                 .background(Color.cream, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                 .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(Color.line, lineWidth: 1))
             } else {
+                RowStripView(chart: chart, sequence: sequence, cursor: cursor)
                 if let pass = sequence.pass(at: cursor.row) {
                     RunChipsView(chart: chart, pass: pass, cursor: cursor, onSelect: onSelectRun)
                 }
@@ -99,16 +100,18 @@ struct WorkScreen: View {
         .foregroundStyle(Color.ink)
     }
 
-    /// The chart rows around the cursor, full width, are the Done target; the controls float on them.
+    /// Everything below the card is the Done target; the controls float at its bottom.
     private var field: some View {
         ZStack(alignment: .bottom) {
             Button(action: finished ? onClose : onDone) {
-                RowStripView(chart: chart, sequence: sequence, cursor: cursor, rowsAround: 5, backdrop: true)
-                    .contentShape(Rectangle())
+                Color.clear.contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .accessibilityLabel(doneLabel)
-            DoneField(finished: finished, canGoBack: cursor != .start, doneLabel: doneLabel, doneHex: currentEntry?.hex,
+            DoneField(finished: finished, canGoBack: cursor != .start, doneLabel: doneLabel,
+                      doneForeground: (currentEntry?.hex).map(YarnSurface.foreground) ?? Color.ink,
+                      backForeground: (previousEntry?.hex).map(YarnSurface.foreground) ?? Color.ink2,
+                      stops: trackStops,
                       onDone: finished ? onClose : onDone, onBack: onBack)
                 .padding(.horizontal, 16)
                 .padding(.bottom, 44)
@@ -116,11 +119,39 @@ struct WorkScreen: View {
         .frame(maxHeight: .infinity)
     }
 
-    /// The palette entry of the run under the cursor; nil once finished or past the last run.
-    private var currentEntry: ChartDocument.PaletteEntry? {
-        guard !finished, let pass = sequence.pass(at: cursor.row), cursor.run < pass.runs.count else { return nil }
-        return chart.palette[chart.colorIndex(of: pass.runs[cursor.run].code) ?? 0]
+    /// The run Back returns to: the one before the cursor, or the last run of the previous row.
+    private var previousEntry: ChartDocument.PaletteEntry? {
+        guard let step = WorkEngine.apply(.back, to: cursor, in: sequence) else { return nil }
+        return entry(at: step.cursor)
     }
+
+    /// The runs two back through two ahead of the cursor, walked with the engine so row boundaries
+    /// behave exactly as Back and Done do; the ones off screen are what make the slide possible.
+    private var trackStops: [TrackStop] {
+        var stops: [TrackStop] = []
+        var back = cursor
+        for offset in 1...2 {
+            guard let step = WorkEngine.apply(.back, to: back, in: sequence) else { break }
+            back = step.cursor
+            stops.insert(TrackStop(cursor: back, offset: -offset, hex: entry(at: back)?.hex), at: 0)
+        }
+        stops.append(TrackStop(cursor: cursor, offset: 0, hex: entry(at: cursor)?.hex))
+        var ahead = cursor
+        for offset in 1...2 {
+            guard let step = WorkEngine.apply(.advance, to: ahead, in: sequence) else { break }
+            ahead = step.cursor
+            stops.append(TrackStop(cursor: ahead, offset: offset, hex: entry(at: ahead)?.hex))
+        }
+        return stops
+    }
+
+    private func entry(at c: Cursor) -> ChartDocument.PaletteEntry? {
+        guard let pass = sequence.pass(at: c.row), c.run < pass.runs.count else { return nil }
+        return chart.palette[chart.colorIndex(of: pass.runs[c.run].code) ?? 0]
+    }
+
+    /// The palette entry of the run under the cursor; nil once finished or past the last run.
+    private var currentEntry: ChartDocument.PaletteEntry? { finished ? nil : entry(at: cursor) }
 
     private var doneLabel: String {
         guard !finished else { return "Close" }

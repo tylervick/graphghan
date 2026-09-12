@@ -127,19 +127,20 @@ Ground with the weave is the screen ground. Below the card, the chart itself is 
   yarn color, 16 pt radius); the next run on deck beneath it, 12 pt tucked under, in its own yarn
   color, reading "then 4 Charcoal" in Label. Last run in a row: the bar reads "next row starts in
   Gold". Last run of the pattern: no bar.
-- Field: everything below the card, down to the display edge. Its backdrop is the chart: the
-  eleven grid rows around the cursor drawn full width, the current row pinned to the middle at
-  full contrast with a 3 pt Heather outline and the starting-edge marker, every other row
-  softened 60% toward Ground, rows already worked darkened a further 25%, Ground where the chart
-  runs out. Tapping anywhere on the backdrop advances. Swipe right anywhere still goes back.
-- Controls float over the backdrop, 16 pt from the sides and 44 pt from the display bottom, as
-  Liquid Glass capsules (iOS 26; flat tinted capsules with the yarn hairline before that): Back
-  at the leading edge, 84 × 72 pt, tinted Moss Deep with the arrow and "Back" in Cream, at 40%
-  when there is nothing to go back to; Done filling the rest, 72 pt tall, tinted with the current
-  run's yarn color and labeled in that yarn's readable foreground in the Done style. The pill is
-  the visible handle; the backdrop is the target.
+- Field: everything below the card, down to the display edge, on the Ground weave. Tapping
+  anywhere in it advances. Swipe right anywhere still goes back.
+- Controls float at the field's bottom, 16 pt from the sides and 44 pt from the display edge:
+  two clear Liquid Glass capsules (iOS 26; thin material capsules with the yarn hairline before
+  that), Back at the leading edge, 92 × 88 pt, with the arrow and "Back" in Label, and Done filling
+  the rest, 88 pt tall, in the Done style. Under them runs a color track: capsules the size of
+  each zone, blurred 2 pt, in the yarn colors of the runs around the cursor, keyed by cursor
+  position. The previous run's color pools under Back and the current run's under Done; the runs
+  two back and two ahead wait off screen. On Done the track slides left on the swatch's spring,
+  so the color just finished moves under Back and the next arrives under Done; Back reverses it.
+  Each label takes its yarn's readable foreground. Back is at 40% when there is nothing to return
+  to. The glass is the visible handle; the field is the target.
 - Finished: the card holds a Cream panel with a Line hairline, "Finished" in the Title style, and
-  the send-off line in Body; the field's pill turns Cream and reads "Close", which dismisses.
+  the send-off line in Body; the track turns Cream under a single "Close" capsule, which dismisses.
 - Landscape keeps the same pieces in two columns: card leading, field trailing.
 
 ### 6.2 Cards and list rows
