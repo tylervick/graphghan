@@ -107,3 +107,10 @@ external reference for `technique` values and for a future `craft`/`attributes` 
 - **Colorwork** (sub-attributes): stripes/colorwork 68,487 · other 23,437 · **mosaic 9,796** ·
   intarsia 4,515 · stranded 562 · illusion/shadow 143 · corrugated ribbing 4. (Tapestry and C2C
   are filed under Crochet Techniques, below.)
+- **Crochet Techniques** (sub-attributes): front/back post stitch 31,882 · granny square 23,899
+  · **filet crochet 13,884** · **tapestry crochet 12,526** · Tunisian/afghan crochet 8,831 ·
+  surface crochet 6,482 · pineapple 4,477 · slip stitch crochet 3,007 · Irish 1,887 ·
+  broomstick 672 · lover's knot 657 · bullion 643 · hairpin 511 · bruges 437 · cro-hook 288 ·
+  clones knot 160 · cro-tatting 113. Filet outnumbers tapestry; mosaic (9,796, under Colorwork)
+  is close behind both. The three grid-chart genres we cannot yet represent or refuse correctly
+  (#44, #36) are ≈36k patterns on Ravelry alone.
