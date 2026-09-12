@@ -28,6 +28,9 @@ struct WorkScreen: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        // The field is the tap target down to the display edge: the rail and Done reach under the
+        // home indicator, and their own bottom padding keeps the labels above it.
+        .ignoresSafeArea(edges: .bottom)
         .background(Color.moss.weave(.cream, opacity: 0.05).ignoresSafeArea())
     }
 

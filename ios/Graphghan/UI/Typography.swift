@@ -22,9 +22,11 @@ enum Theme {
     @MainActor static func installAppearance() {
         let ground = UIColor(named: "Ground") ?? .systemBackground
         let ink = UIColor(named: "Ink") ?? .label
+        // Transparent, not opaque: the screen behind the bar already paints Ground with the weave
+        // under the safe area, and an opaque bar hid it (and on iOS 26 fought the system bar's
+        // scroll transitions). The bar contributes only its type.
         let nav = UINavigationBarAppearance()
-        nav.configureWithOpaqueBackground()
-        nav.backgroundColor = ground
+        nav.configureWithTransparentBackground()
         nav.shadowColor = .clear
         nav.titleTextAttributes = [.foregroundColor: ink, .font: UIFont(name: "Literata-SemiBold", size: 17) ?? .preferredFont(forTextStyle: .headline)]
         nav.largeTitleTextAttributes = [.foregroundColor: ink, .font: UIFont(name: "Literata-SemiBold", size: 34) ?? .preferredFont(forTextStyle: .largeTitle)]
