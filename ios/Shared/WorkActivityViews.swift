@@ -14,10 +14,9 @@ struct RunSwatch: View {
         Text("\(count)")
             .font(.system(size: size * 0.55, weight: .heavy, design: .rounded))
             .monospacedDigit()
-            .foregroundStyle(HexColor.isLight(hex) ? .black : .white)
             .frame(minWidth: size * 1.3, minHeight: size)
             .padding(.horizontal, 6)
-            .background(HexColor.color(hex), in: RoundedRectangle(cornerRadius: size * 0.22))
+            .yarnSurface(hex, radius: size * 0.22)
             .accessibilityLabel("\(count) \(info.swatch(for: code)?.name ?? code)")
     }
 }
@@ -34,8 +33,8 @@ private struct RunRow: View {
             if let code = state.currentCode, let count = state.currentCount {
                 RunSwatch(info: info, code: code, count: count, size: swatchSize)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(info.swatch(for: code)?.name ?? code).font(.title3.bold()).lineLimit(1)
-                    Text(nextText).font(.footnote).foregroundStyle(.secondary).lineLimit(1)
+                    Text(info.swatch(for: code)?.name ?? code).font(.system(.title3, design: .serif).weight(.semibold)).lineLimit(1)
+                    Text(nextText).font(.footnote).foregroundStyle(Color.cream.opacity(0.75)).lineLimit(1)
                 }
             }
             Spacer()
@@ -56,7 +55,7 @@ private struct RunButtons: View {
     enum Size {
         case lockScreen, island
         var symbolFont: Font { self == .lockScreen ? .title3 : .body }
-        var doneFont: Font { self == .lockScreen ? .title3.bold() : .body.bold() }
+        var doneFont: Font { self == .lockScreen ? .system(.title3, design: .default).weight(.bold) : .body.bold() }
         var height: CGFloat { 40 }
     }
 
@@ -69,11 +68,15 @@ private struct RunButtons: View {
                 Image(systemName: "arrow.uturn.backward").font(size.symbolFont).frame(width: 44, height: size.height)
             }
             .buttonStyle(.bordered)
+            .tint(Color.cream.opacity(0.7))
+            .clipShape(Capsule())
             .accessibilityLabel("Back one run")
             Button(intent: AdvanceRunIntent(projectID: info.projectID)) {
                 Text("Done").font(size.doneFont).frame(maxWidth: .infinity, minHeight: size.height)
             }
             .buttonStyle(.borderedProminent)
+            .tint(.moss)
+            .clipShape(Capsule())
         }
     }
 }
@@ -90,14 +93,14 @@ struct WorkLockScreenView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
-                Text(info.title).font(.headline).lineLimit(1)
+                Text(info.title).font(.system(.headline, design: .serif).weight(.semibold)).lineLimit(1)
                 Spacer()
-                if state.message == nil { Text("Row \(state.row) of \(state.rowCount)").font(.subheadline.bold()) }
+                if state.message == nil { Text("Row \(state.row) of \(state.rowCount)").font(.subheadline.bold()).monospacedDigit().foregroundStyle(Color.cream.opacity(0.75)) }
             }
             if let message = state.message {
                 Text(message).font(.subheadline)
             } else if state.finished {
-                Text("Finished").font(.title2.bold())
+                Text("Finished").font(.system(.title2, design: .serif).weight(.semibold))
             } else {
                 // Two rows: the run, then the buttons. On one row at lock-screen width the fixed
                 // button widths squeeze the colour name and the "then …" line down to an ellipsis.
@@ -109,10 +112,10 @@ struct WorkLockScreenView: View {
         // card is sized to stay inside that: 44pt swatch, 40pt button labels, 12pt padding, 6pt stack.
         .padding(12)
         // The tint only applies inside a real activity; the opaque background of the same colour
-        // keeps the white text legible everywhere else (previews, ImageRenderer snapshots).
+        // keeps the cream text legible everywhere else (previews, ImageRenderer snapshots).
         .background(Self.cardBackground)
         .activityBackgroundTint(Self.cardBackground)
-        .foregroundStyle(.white)
+        .foregroundStyle(Color.cream)
     }
 }
 
@@ -161,14 +164,14 @@ struct WorkExpandedCenterView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
-                Text(info.title).font(.headline).lineLimit(1)
+                Text(info.title).font(.system(.headline, design: .serif).weight(.semibold)).lineLimit(1)
                 Spacer()
-                if state.message == nil { Text("Row \(state.row) of \(state.rowCount)").font(.subheadline.bold()) }
+                if state.message == nil { Text("Row \(state.row) of \(state.rowCount)").font(.subheadline.bold()).monospacedDigit().foregroundStyle(Color.cream.opacity(0.75)) }
             }
             if let message = state.message {
                 Text(message).font(.subheadline)
             } else if state.finished {
-                Text("Finished").font(.title2.bold())
+                Text("Finished").font(.system(.title2, design: .serif).weight(.semibold))
             } else {
                 RunRow(info: info, state: state)
             }
