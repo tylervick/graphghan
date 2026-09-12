@@ -51,3 +51,24 @@ instructions. Search: `"pattern keeper" chart` (122 matches; first page read).
 | "Picture" charts and scans do not work; PDFs from *some* companies do | The whole reason a data format exists; the demand is explicit |
 | People buy a device to run the one app that reads their charts | Adoption follows the charts, not the app: G3 depends on designers writing the format |
 | Written and chart together, each covering the other's gaps | Claim 8; the written rows export is a feature, not a fallback |
+
+## US and UK terms, from the designer and tester side (RQ6, claim 4)
+
+Search: `"US terms" "UK terms" designer` (87 matches; first page read).
+
+- Designers routinely publish two versions and recruit testers per system: "Both US Terms and UK
+  Terms available … Testers: 5 (3 for US Terms, 2 for UK Terms)"; "written in both US Terms and
+  UK Terms"; "Choice of UK or US terms; please state which you prefer". Errata are tracked per
+  version ("Corrections: US Terms … UK Terms Finished Measurements should read …").
+- Inference from the designer's country fails: "Just because a designer lives in the UK …
+  [doesn't] necessarily mean they will use UK terms (depends on where they learned)"; "I'm UK
+  too but learnt US terms as made more sense and 95% patterns are in US terms I've found."
+- "Is this pattern UK or US terms?" is a recurring thread type, resolved by forensic reading
+  ("if it has a sc … it is in US terms"; "honestly, after looking at the designer's [photos] …
+  I do feel this is US terms"). Undeclared terms cost readers a forum thread.
+- A designer's own poll: buyers "would buy one written in US terms and 36% would buy one written
+  in UK terms … For a designer who wishes to sell their [patterns] …" — a market reason to
+  write both, which is why `terms_also` exists in the proposal.
+- Some patterns carry "a 'key' for US/UK terms" inline — a conversion table inside the pattern.
+
+Consequence: declared per document, `both` is a real state, and the app must never guess.
