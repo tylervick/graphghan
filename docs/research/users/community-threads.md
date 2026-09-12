@@ -131,3 +131,28 @@ Threads: *Filet crochet graphghan?*, *Graphghan Help for a Novice Crocheter*.
 - Filet colourwork exists ("carry your colors up vertically behind the front of your work") and
   one designer "cuts his color changes and does not weave in ends … more suitable for wall
   hangings".
+
+## Cell geometry and sub-cell colour (axis 14)
+
+Threads: *Tapestry crochet charting* (Stitch Fiddle group), *Best tapestry crochet technique for
+precise detail?*
+
+- Offset grids are a common request: "chart my tapestry crochet designs where the rows are
+  offset. A chart using offset circles is used to design a circle motif such as … the bottom of
+  a bag or a mandala". Stitch Fiddle's reply: "your case is a very common case … we will create
+  predefined shapes for these particular cases (mochila bags, tapestry, mandala)".
+- A 300 × 225 tapestry (30+ colours, "7' x 5.25'", 14 sc × 17 rows = 4 in) fights "the stair-step
+  effect because of the shape of the stitches" on diagonals. Remedies offered: finer gauge;
+  "half stitches … allows for more detail on diagonal type things (like circle edges)"; a
+  "non-decrease double sc" where "you change colour in the middle of the stitch. So one half SC
+  is the angled colour and the other half is the next colour"; long sc reaching rows below;
+  motifs worked at angles and joined.
+- One-direction rows have a cost: "each new row leaned slightly to the right — resulting in
+  swatch corners that weren't 90°."
+- The maker "made the chart by converting an image to grid in StitchFiddle" — again the chart
+  tool is upstream of the forum.
+
+**For the format:** sub-cell colour has a precedent — OXS carries half and quarter stitches for
+cross-stitch — so a `cells` declaration (#44) could admit `half` as a value without inventing
+anything. Offset/circular grids are a different coordinate system and stay out of genre; the
+honest move is to say so in `chart-format.md`.

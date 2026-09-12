@@ -82,3 +82,4 @@ After a batch: run the counts script (to be added as `corpus/counts.py`), paste 
   expressible. Community source, not corpus; the earlier "converged at 13 axes" claim in the
   superseded research doc is amended here. Whether it needs a field or a note depends on whether
   any published chart-driven pattern actually ships an offset grid — none in the corpus does.
+  Sub-cell colour (half stitches for diagonals) has an OXS precedent (half/quarter stitches).
