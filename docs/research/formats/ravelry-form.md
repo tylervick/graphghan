@@ -98,3 +98,9 @@ pattern pages can still say "both US and UK".)
 Ravelry's attribute taxonomy is the largest technique vocabulary in existence for these crafts;
 its sub-groups (Colorwork, Construction, Pattern Instructions, Crochet Techniques) are the
 external reference for `technique` values and for a future `craft`/`attributes` manifest field.
+- **Pattern Instructions** (sub-attributes): written pattern 493,847 · photo tutorial 167,245 ·
+  **chart 102,826** · video tutorial 58,559 · has schematic 25,811 · captioned video 7,081 ·
+  recipe/percentage 2,180 · color blind accessible 590 · low vision 316 · screen reader access
+  285 · machine instructions 24 · digital braille 10 · press braille 5 · digital audio 3.
+  Charts are ≈15% of the catalogue, written ≈74%; the accessibility tags together are under
+  0.2%, which is the population that BANA and the Accessible Patterns Index serve (claim 8, #45).
