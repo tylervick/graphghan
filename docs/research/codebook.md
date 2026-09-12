@@ -13,6 +13,8 @@ the body of a pattern that the page does not contain is `n/a`, not `unstated`.
 
 Revision 2 (2026-09-12): rules above added from the pilot's inter-coder disagreements
 (28 of 560 fields; all formatting or n/a-vs-unstated).
+Revision 3 (2026-09-12, after batch 2): `unextracted` for charts lost by text extraction;
+`tc_color` n/a; ounces and meters; more finishing steps; short rows count as shaping.
 
 ## Identity
 
@@ -50,27 +52,27 @@ Revision 2 (2026-09-12): rules above added from the pilot's inter-coder disagree
 | `turning_chain_by_stitch` | e.g. `sc=1;dc=2` when the pattern chains differently before rows of different stitches; else `single`. For C2C use the keys `inc-row`, `dec-row`, `last-row` (e.g. `inc-row=6;dec-row=3`) |
 | `tc_counts_as_stitch` | `yes`, `no`, `unstated` — **quote** |
 | `tc_position` | `start-of-row` (chain then work), `end-of-row` (work, chain, turn), `unstated` |
-| `tc_color` | `next`, `current`, `unstated` — only codeable when a color change coincides with a turn |
+| `tc_color` | `next`, `current`, `unstated`, `n/a` (no colour change ever coincides with a turn in this pattern) |
 | `foundation_form` | `chain-count`, `chain-multiple` (e.g. "multiple of 6 + 1"), `chain-unspecified` (chain "as many as you need"), `fsc`, `magic-ring`, `other`, `n/a`, `unstated` — **quote** |
 | `first_stitch_in` | integer chain from hook, or `unstated`, or `n/a` |
 | `round_join` | `slst`, `slst-and-ch`, `spiral`, `n/a`, `unstated` — **quote** |
 | `stitch_marker_instructed` | `yes`, `no` |
 | `stitch_counts_given` | `every-row` (a count after every row/round), `changes-only` (only after rows whose count changes), `none`. A count given once at the foundation only is `none` |
-| `shaping` | `yes`, `no` — any inc/dec in the body |
+| `shaping` | `yes`, `no` — any inc/dec or short row in the body |
 | `repeats_stated` | `multiple` (a stitch multiple is given), `rows` ("repeat rows 4-5"), `both`, `none` |
 | `border` | `yes`, `no` |
-| `finishing_steps` | semicolon-separated from `fasten-off`, `weave-ends`, `block`, `seam`, `none` |
+| `finishing_steps` | semicolon-separated from `fasten-off`, `weave-ends`, `block`, `seam`, `stuff`, `attach` (dowel, fringe, hardware), `embroider`, `none` |
 
 ## Chart
 
 | Field | Values |
 |---|---|
 | `has_chart` | `yes`, `no` |
-| `chart_type` | `color-grid`, `symbol-grid`, `symbol-diagram`, `both`, `n/a` |
-| `chart_cell_means` | `one-stitch`, `block`, `tile`, `two-stitches`, `stitch-and-return`, `n/a` — **quote** any statement |
+| `chart_type` | `color-grid`, `symbol-grid`, `symbol-diagram`, `both`, `unextracted` (the page says there is a chart but it is an image the text extraction lost), `n/a` |
+| `chart_cell_means` | `one-stitch`, `block`, `tile`, `two-stitches`, `stitch-and-return`, `unstated`, `n/a` — **quote** any statement |
 | `chart_direction_stated` | `yes`, `no`, `n/a` |
-| `chart_row1_position` | `bottom-right`, `bottom-left`, `top`, `unstated`, `n/a` |
-| `chart_key` | `yes`, `no`, `n/a` |
+| `chart_row1_position` | `bottom-right`, `bottom-left`, `top`, `unstated`, `n/a` — code from the text or from arrows the text preserves; never from the image |
+| `chart_key` | `yes`, `no`, `unextracted`, `n/a` |
 | `written_also` | `yes`, `no` — full written instructions alongside a chart; `n/a` when `has_chart` is `no` |
 | `rs_ws_stated` | `yes`, `no` |
 
@@ -84,7 +86,7 @@ Revision 2 (2026-09-12): rules above added from the pilot's inter-coder disagree
 | `yarn_weight_form` | `cyc-number`, `name-only` (e.g. "worsted"), `both`, `unstated` |
 | `yarn_brand_line` | `yes`, `no` |
 | `yarn_putup` | `yes`, `no` — grams and/or yards per ball stated |
-| `yarn_amount_form` | `yards`, `grams`, `balls`, `mixed`, `unstated` |
+| `yarn_amount_form` | `yards`, `meters`, `grams`, `ounces`, `balls`, `mixed`, `unstated` |
 | `yarn_per_color` | `yes`, `no`, `n/a` (single color) |
 | `fiber_content` | `yes`, `no` |
 | `notions` | `yes`, `no` |
