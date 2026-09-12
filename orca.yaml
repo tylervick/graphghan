@@ -27,3 +27,20 @@ scripts:
     # absolute paths, so a copied one still points at the main checkout. uv
     # rebuilds it from uv.lock against the shared package cache in a second or two.
     mise run setup
+
+    # Pin which Xcode this worktree builds with, when asked. Unset, xcodebuild follows the
+    # global `xcode-select`, which on the mini is the toolchain that ships releases -- so
+    # trying a beta in one worktree would silently change what every other worktree, and the
+    # release lane itself, builds with. GRAPHGHAN_XCODE keeps that experiment local:
+    #
+    #   GRAPHGHAN_XCODE=/Applications/Xcode-beta.app orca worktree create --name xcode-beta ...
+    #
+    # ios/mise.local.toml is gitignored, so the pin lives and dies with the worktree.
+    if [ -n "${GRAPHGHAN_XCODE:-}" ]; then
+      if [ ! -d "$GRAPHGHAN_XCODE/Contents/Developer" ]; then
+        echo "GRAPHGHAN_XCODE=$GRAPHGHAN_XCODE is not an Xcode bundle (no Contents/Developer)." >&2
+        exit 1
+      fi
+      printf '[env]\nDEVELOPER_DIR = "%s/Contents/Developer"\n' "$GRAPHGHAN_XCODE" > ios/mise.local.toml
+      echo "pinned DEVELOPER_DIR -> $GRAPHGHAN_XCODE/Contents/Developer"
+    fi
