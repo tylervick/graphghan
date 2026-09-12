@@ -71,3 +71,7 @@ After a batch: run the counts script (to be added as `corpus/counts.py`), paste 
   integer. (batch 5)
 - **A chart whose cell is a whole motif is a real, published object**: Glenda Ghost's assembly
   graph, "each block in the graph represents a square". `cells` (#44) should allow `motif`.
+- **The chart is technique-agnostic and the maker chooses the stitch** (Ravelry threads: a 180×225
+  graph bought "shown in crochet", planned in C2C, advised back to sc). Supports publishing one
+  grid at several gauge keys, and `gauge.unit` for tile-based variants. Cell aspect is a real
+  maker problem ("stretch the height by 25%"); `cell_aspect` from gauge is its modelled answer.

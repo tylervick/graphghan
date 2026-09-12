@@ -104,3 +104,30 @@ yarn for a graphghan*, *Graphghan Yarn Amount and HELP*.
   confusing." A `mirror` flag on a pass is a plausible authored feature; noted, not filed.
 - People design their own graphghans in Stitch Fiddle and post the link when asking for help —
   the chart tool is upstream of the forum, and a format they could hand over would be too.
+
+## The chart is technique-agnostic; the gauge decides everything (RQ3, RQ6)
+
+Threads: *Filet crochet graphghan?*, *Graphghan Help for a Novice Crocheter*.
+
+- A novice bought "a graph pattern … 180 squares by 225 squares", planned C2C, and computed
+  "about 6 squares over 4 inches, I'll have a 120" x 150"" blanket. The reply: "You really
+  should consider working this where 1 SC is 1 square, which is how the pattern is undoubtedly
+  meant to be done." **The same graph is worked in sc, hdc, dc, C2C or filet at the maker's
+  choice, and the cell size — the gauge — decides the finished object.** Our published sc and hdc
+  variants of one chart are exactly this; a `gauge.unit` of tiles would let a C2C variant be
+  honest about its size.
+- **Cell aspect is a known pain**: "my SC are not square, so my portraits tend to look squashed
+  … I put my image thru Paint and stretch the height by 25%"; "you can adjust Excel so that the
+  cells (rows and columns) are square"; "substitute a tr for every dc … our tr stitches are
+  usually the exact height we need to make our blocks square". Our `cell_aspect` from
+  `gauge.stitches / rows` is the modelled answer to a problem makers solve by hand in Paint.
+- **Makers design graphghans in cross-stitch software and spreadsheets**: KG-Chart, PCStitch
+  Pro, knitPro (microrevolt), Excel with an X per filled block, Photoshop Elements to posterise
+  and pixelate. "For me the biggest part of a graphgan has been the creation of a good chart."
+  So the cross-stitch interchange formats (OXS, `.pat`) *are* graphghan formats in practice —
+  our OXS export and Stitch Fiddle's OXS import are the bridge that already exists.
+- **Shadow filet** uses a half-filled block as a third cell value (tr blocks, "guess where to put
+  the stitch half way through the block") — filet's cell vocabulary is not binary (#44).
+- Filet colourwork exists ("carry your colors up vertically behind the front of your work") and
+  one designer "cuts his color changes and does not weave in ends … more suitable for wall
+  hangings".
