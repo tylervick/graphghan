@@ -94,3 +94,8 @@ After a batch: run the counts script (to be added as `corpus/counts.py`), paste 
   patterns and `inc-row=5; dec-row=2` in the hdc one — the row-start chain tracks the block's
   stitch height, and "Ch 2 at beg of row counts as hdc" is stated. Consistent with claim 1's
   filet finding: the chain is keyed on what is about to be worked.
+- **Hook size is mm-first at scale** (Ravelry): the five sizes with no US letter (2.5, 3.0, 4.5,
+  7.0, 7.5 mm) are used by ≈123k patterns. #32's `{mm, us}` with mm required is confirmed.
+- **Difficulty is not a catalogue fact**: 82% of Ravelry crochet patterns are unrated; the three
+  scales in use (CYC 1-4, Lion Brand levels, Ravelry 1-10) do not map. `skill_level` (#33) is a
+  designer's own label, stored as printed with a CYC mapping where one is claimed.

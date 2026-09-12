@@ -127,3 +127,14 @@ external reference for `technique` values and for a future `craft`/`attributes` 
   6 or more → 2,275 (where recorded). Multicolour work — the whole grid-chart domain — is a
   minority of published crochet; a format for it is a niche format, which is fine, and worth
   saying in the G3 pitch.
+- **Difficulty** (crowd-rated 1–10): **unknown 549,974** · 1 "piece of cake" 5,207 · 2 "easy"
+  34,127 · 3 29,468 · 4 "medium" 14,134 · 5 5,823 · 6 2,051 · 7 495 · 8 "difficult" 85 · 9 9.
+  82% unrated; among rated, the mass sits at 2–4. Ravelry's scale is neither CYC's four levels
+  nor Lion Brand's; skill level is designer-declared or nothing (#33).
+- **Hook size** (mm, US letter where one exists): 4.0 mm (G) 102,681 · 5.0 mm (H) 101,184 ·
+  3.5 mm (E) 62,075 · 5.5 mm (I) 50,128 · **3.0 mm 47,383** · 6.0 mm (J) 40,676 · **2.5 mm
+  37,169** · **4.5 mm 32,315** · 3.75 mm (F) 26,018 · 6.5 mm (K) 20,410 · 3.25 mm (D) 13,358 ·
+  8.0 mm (L) 11,430 · 2.75 mm (C) 10,434 · 2.25 mm (B) 10,240 · 9.0 mm (M/N) 9,128 · 7.0 mm
+  5,967 · 7.5 mm 102 · small hooks 81,027 · large hooks 11,707. Sizes with **no US letter**
+  (2.5, 3.0, 4.5, 7.0, 7.5 mm) cover ≈123k patterns: the mm value is the identity, the letter is
+  a courtesy (#32).
