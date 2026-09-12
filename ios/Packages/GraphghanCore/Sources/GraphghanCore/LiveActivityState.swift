@@ -36,12 +36,16 @@ public struct WorkActivityState: Codable, Hashable, Sendable {
     public var finished: Bool
     /// Only set for the explanatory final state (project or chart gone).
     public var message: String?
+    /// The run Back returns to (the one before the cursor, or the last of the previous row); nil at the start.
+    public var previousCode: String?
+    public var previousCount: Int?
 
     public init(row: Int, rowCount: Int, side: String?, runIndex: Int, currentCode: String?, currentCount: Int?, nextCode: String?, nextCount: Int?,
-                isLastInRow: Bool, percent: Double, finished: Bool, message: String? = nil) {
+                isLastInRow: Bool, percent: Double, finished: Bool, message: String? = nil, previousCode: String? = nil, previousCount: Int? = nil) {
         self.row = row; self.rowCount = rowCount; self.side = side; self.runIndex = runIndex
         self.currentCode = currentCode; self.currentCount = currentCount; self.nextCode = nextCode; self.nextCount = nextCount
         self.isLastInRow = isLastInRow; self.percent = percent; self.finished = finished; self.message = message
+        self.previousCode = previousCode; self.previousCount = previousCount
     }
 
     public static func unavailable(_ message: String) -> WorkActivityState {
@@ -59,10 +63,14 @@ public enum LiveActivityState {
         let next: Run? = cursor.run + 1 < pass.runs.count ? pass.runs[cursor.run + 1] : nil
         let total = sequence.totalStitches
         let percent = total > 0 ? (100 * Double(done) / Double(total) * 10).rounded(.toNearestOrEven) / 10 : 0
+        let previous: Run? = WorkEngine.apply(.back, to: cursor, in: sequence).flatMap { step in
+            sequence.pass(at: step.cursor.row).flatMap { step.cursor.run < $0.runs.count ? $0.runs[step.cursor.run] : nil }
+        }
         return WorkActivityState(
             row: cursor.row, rowCount: sequence.passes.count, side: pass.side?.rawValue, runIndex: cursor.run,
             currentCode: current?.code, currentCount: current?.count, nextCode: next?.code, nextCount: next?.count,
-            isLastInRow: next == nil, percent: percent, finished: finished, message: nil)
+            isLastInRow: next == nil, percent: percent, finished: finished, message: nil,
+            previousCode: previous?.code, previousCount: previous?.count)
     }
 
     public static func info(projectID: UUID, chart: Chart, sequence: WorkSequence) -> WorkActivityInfo {

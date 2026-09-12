@@ -21,34 +21,41 @@ struct RunSwatch: View {
     }
 }
 
-/// The current run: swatch, colour name, and what comes after it. Shared by the lock screen and
-/// the expanded Dynamic Island so the two stay the same view (spec §7).
-private struct RunRow: View {
+/// The current run as the Work screen shows it: count, code, and name on a panel in its own yarn
+/// color, with the next run on deck at the trailing end. Shared by the lock screen and the
+/// expanded Dynamic Island so the two stay the same view (spec §6.8).
+private struct RunPanel: View {
     let info: WorkActivityInfo
     let state: WorkActivityState
-    var swatchSize: CGFloat = 44
 
     var body: some View {
-        HStack(alignment: .center, spacing: 12) {
-            if let code = state.currentCode, let count = state.currentCount {
-                RunSwatch(info: info, code: code, count: count, size: swatchSize)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(info.swatch(for: code)?.name ?? code).font(.system(.title3, design: .serif).weight(.semibold)).lineLimit(1)
-                    Text(nextText).font(.footnote).foregroundStyle(Color.cream.opacity(0.75)).lineLimit(1)
-                }
+        if let code = state.currentCode, let count = state.currentCount {
+            let hex = info.swatch(for: code)?.hex ?? YarnSurface.unknownHex
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                Text("\(count)")
+                    .font(.system(size: 30, weight: .heavy, design: .rounded))
+                    .monospacedDigit()
+                Text(code).font(.system(.title3, design: .default).weight(.bold))
+                Text(info.swatch(for: code)?.name ?? code).font(.system(.title3, design: .serif).weight(.semibold)).lineLimit(1)
+                Spacer(minLength: 0)
+                Text(nextText).font(.footnote.weight(.semibold)).opacity(0.8).lineLimit(2).multilineTextAlignment(.trailing)
             }
-            Spacer()
+            .padding(.horizontal, 12)
+            .frame(minHeight: 44)
+            .yarnSurface(hex, radius: 12)
+            .accessibilityElement(children: .combine)
         }
     }
 
     private var nextText: String {
         if let code = state.nextCode, let count = state.nextCount { return "then \(count) \(info.swatch(for: code)?.name ?? code)" }
-        return state.isLastInRow ? "last run in this row" : ""
+        return state.isLastInRow ? "last in row" : ""
     }
 }
 
-/// Back + Done, wired to the intents. Shared by the lock screen and the expanded Dynamic Island's
-/// bottom region; `size` picks the lock screen's roomy labels or the island's compact ones.
+/// Back + Done, wired to the intents, each tinted with the run it takes you to: Back the previous
+/// run's yarn color, Done the current one's, as on the Work screen. `size` picks the lock screen's
+/// roomy labels or the island's compact ones.
 private struct RunButtons: View {
     /// The island has less room for text than the lock screen, so its labels drop to the body
     /// font. Both keep 40pt-tall labels: anything shorter stops being a comfortable tap target.
@@ -60,43 +67,56 @@ private struct RunButtons: View {
     }
 
     let info: WorkActivityInfo
+    let state: WorkActivityState
     var size: Size = .lockScreen
 
     var body: some View {
+        let doneHex = state.currentCode.flatMap { info.swatch(for: $0)?.hex }
+        let backHex = state.previousCode.flatMap { info.swatch(for: $0)?.hex }
         HStack(spacing: 10) {
             Button(intent: BackRunIntent(projectID: info.projectID)) {
                 Image(systemName: "arrow.uturn.backward").font(size.symbolFont).frame(width: 44, height: size.height)
-            }
-            .buttonStyle(.bordered)
-            .buttonBorderShape(.capsule)
-            .tint(Color.cream.opacity(0.7))
-            .accessibilityLabel("Back one run")
-            Button(intent: AdvanceRunIntent(projectID: info.projectID)) {
-                Text("Done").font(size.doneFont).frame(maxWidth: .infinity, minHeight: size.height)
+                    .foregroundStyle(backHex.map(YarnSurface.foreground) ?? Color.cream)
             }
             .buttonStyle(.borderedProminent)
             .buttonBorderShape(.capsule)
-            .tint(.moss)
+            .tint(backHex.map(YarnSurface.fill) ?? Color.mossDeep)
+            .disabled(backHex == nil)
+            .accessibilityLabel("Back one run")
+            Button(intent: AdvanceRunIntent(projectID: info.projectID)) {
+                Text("Done").font(size.doneFont).frame(maxWidth: .infinity, minHeight: size.height)
+                    .foregroundStyle(doneHex.map(YarnSurface.foreground) ?? Color.cream)
+            }
+            .buttonStyle(.borderedProminent)
+            .buttonBorderShape(.capsule)
+            .tint(doneHex.map(YarnSurface.fill) ?? Color.moss)
         }
     }
 }
 
-/// Lock screen content (spec §7). The expanded Dynamic Island is the same thing without the
-/// opaque card: `WorkExpandedCenterView` reuses the header and `RunRow`, `WorkExpandedBottomView`
-/// reuses `RunButtons`.
+/// Title and "Row 42 of 184", shared by the lock screen and the expanded island.
+private struct ActivityHeader: View {
+    let info: WorkActivityInfo
+    let state: WorkActivityState
+    var body: some View {
+        HStack {
+            Text(info.title).font(.system(.headline, design: .serif).weight(.semibold)).lineLimit(1)
+            Spacer()
+            if state.message == nil { Text("Row \(state.row) of \(state.rowCount)").font(.subheadline.bold()).monospacedDigit().opacity(0.75) }
+        }
+    }
+}
+
+/// Lock screen content (spec §6.8). No painted card: the system supplies the activity's material
+/// (Liquid Glass on iOS 26), so the text uses the adaptive primary color and only the run panel
+/// and the buttons carry our colors. The expanded Dynamic Island is the same content.
 struct WorkLockScreenView: View {
     let info: WorkActivityInfo
     let state: WorkActivityState
 
-    private static let cardBackground = Color.activityCard
-
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Text(info.title).font(.system(.headline, design: .serif).weight(.semibold)).lineLimit(1)
-                Spacer()
-                if state.message == nil { Text("Row \(state.row) of \(state.rowCount)").font(.subheadline.bold()).monospacedDigit().foregroundStyle(Color.cream.opacity(0.75)) }
-            }
+        VStack(alignment: .leading, spacing: 8) {
+            ActivityHeader(info: info, state: state)
             if let message = state.message {
                 Text(message).font(.subheadline)
             } else if state.finished {
@@ -104,18 +124,14 @@ struct WorkLockScreenView: View {
             } else {
                 // Two rows: the run, then the buttons. On one row at lock-screen width the fixed
                 // button widths squeeze the colour name and the "then …" line down to an ellipsis.
-                RunRow(info: info, state: state)
-                RunButtons(info: info, size: .lockScreen)
+                RunPanel(info: info, state: state)
+                RunButtons(info: info, state: state, size: .lockScreen)
             }
         }
         // Apple's Lock Screen activity budget is 160pt tall and the system clips past it, so the
-        // card is sized to stay inside that: 44pt swatch, 40pt button labels, 12pt padding, 6pt stack.
+        // card is sized to stay inside that: 44pt panel, 40pt button labels, 12pt padding, 8pt stack.
         .padding(12)
-        // The tint only applies inside a real activity; the opaque background of the same colour
-        // keeps the cream text legible everywhere else (previews, ImageRenderer snapshots).
-        .background(Self.cardBackground)
-        .activityBackgroundTint(Self.cardBackground)
-        .foregroundStyle(Color.cream)
+        .foregroundStyle(.primary)
     }
 }
 
@@ -155,28 +171,24 @@ struct WorkMinimalView: View {
     }
 }
 
-/// Spec §7 wants the expanded island to read as the lock screen does: the same header and the
-/// same `RunRow`, minus the buttons (they live in the bottom region) and minus the opaque card
-/// (the island paints its own background).
+/// Spec §6.8 wants the expanded island to read as the lock screen does: the same header and the
+/// same run panel, minus the buttons (they live in the bottom region); the island paints its own
+/// background.
 struct WorkExpandedCenterView: View {
     let info: WorkActivityInfo
     let state: WorkActivityState
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Text(info.title).font(.system(.headline, design: .serif).weight(.semibold)).lineLimit(1)
-                Spacer()
-                if state.message == nil { Text("Row \(state.row) of \(state.rowCount)").font(.subheadline.bold()).monospacedDigit().foregroundStyle(Color.cream.opacity(0.75)) }
-            }
+        VStack(alignment: .leading, spacing: 8) {
+            ActivityHeader(info: info, state: state)
             if let message = state.message {
                 Text(message).font(.subheadline)
             } else if state.finished {
                 Text("Finished").font(.system(.title2, design: .serif).weight(.semibold))
             } else {
-                RunRow(info: info, state: state)
+                RunPanel(info: info, state: state)
             }
         }
-        .foregroundStyle(Color.cream)
+        .foregroundStyle(.primary)
     }
 }
 
@@ -185,8 +197,8 @@ struct WorkExpandedBottomView: View {
     let state: WorkActivityState
     var body: some View {
         if state.message == nil, !state.finished {
-            RunButtons(info: info, size: .island)
-                .foregroundStyle(Color.cream)
+            RunButtons(info: info, state: state, size: .island)
+                .foregroundStyle(.primary)
         }
     }
 }

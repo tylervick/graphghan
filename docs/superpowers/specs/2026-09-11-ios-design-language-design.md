@@ -184,15 +184,19 @@ primary button.
 
 ### 6.8 Live Activity
 
-The lock screen card mirrors the Work card in system faces on the system dark material: title
-(New York headline semibold) and "Row 42 of 184" (SF subheadline bold, 75% Cream) on one line;
-the current run as a 44 pt swatch through the yarn-surface helper with the count in SF Rounded
-heavy at 55% of the swatch height, beside the name (New York title3 semibold) and the next line
-(SF footnote, 75% Cream); Back as a bordered capsule tinted 70% Cream, 44 × 40 pt; Done as a
-Moss prominent capsule, 40 pt tall. These sizes are smaller than the canvas mockup because
-Apple clips a lock-screen activity past 160 pt, and 12 pt padding plus a 44 pt swatch and 40 pt
-buttons is what fits. The Dynamic Island keeps its current layout with the swatch and count.
-Cream text throughout, on both the lock screen and the expanded island.
+The lock screen mirrors the Work screen in system faces and paints no card of its own: the
+system supplies the activity's material (Liquid Glass on iOS 26), text uses the adaptive primary
+color, and only the run panel and the buttons carry our colors. Title (New York headline
+semibold) and "Row 42 of 184" (SF subheadline bold at 75%) on one line; the current run as a 44 pt
+panel in its yarn color through the yarn-surface helper, with the count in SF Rounded heavy 30,
+the code in SF title3 bold, the name in New York title3 semibold, and the on-deck line ("then 4
+Charcoal" or "last in row") in SF footnote at the trailing end; then Back and Done as prominent
+capsules, 40 pt tall, Back tinted with the previous run's yarn color (Moss Deep and disabled at
+the start) and Done with the current run's, labels in each yarn's readable foreground. These
+sizes are smaller than the Work screen because Apple clips a lock-screen activity past 160 pt.
+The Dynamic Island keeps its current layout with the swatch and count; its expanded view shows
+the same header, panel, and buttons. The activity state carries the previous run's code and
+count alongside the current and next.
 
 ## 7. App icon
 
