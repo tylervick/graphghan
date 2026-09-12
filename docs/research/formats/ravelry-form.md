@@ -138,3 +138,10 @@ external reference for `technique` values and for a future `craft`/`attributes` 
   5,967 · 7.5 mm 102 · small hooks 81,027 · large hooks 11,707. Sizes with **no US letter**
   (2.5, 3.0, 4.5, 7.0, 7.5 mm) cover ≈123k patterns: the mm value is the identity, the letter is
   a courtesy (#32).
+- **Language**: English 594,425 · German 31,765 · Spanish 28,074 · French 26,142 · Dutch 18,980
+  · Japanese 9,163 · Polish 8,953 · Italian 8,207 · Danish 7,891 · Swedish 7,208 · Portuguese
+  5,486 · Finnish 5,315 · **Universal – no written language 5,107** · Norwegian 4,972 · Russian
+  4,702 · Hungarian 3,521 · Czech 2,976 · Estonian 2,495 · Icelandic 2,402 · more 4,491. About
+  12% of patterns are not in English, and five thousand are chart-only. `instructions[]` and
+  `terms` are language-bound; `pattern.language` (BCP 47) belongs with `craft` in Phase 2, and
+  "no written language" is a legitimate state for a chart document.

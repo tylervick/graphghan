@@ -58,8 +58,9 @@ field and `technique.type` only implies crochet. Ravelry records terminology as 
 catalogue records.
 
 **Proposed:** `pattern.craft: "crochet" | "knit" | "tunisian" | "cross-stitch"` (unhashed; the
-site manifest gains it too), and `gauge.terms_also: "UK"` for a document that spells both. Readers
-spell out from `terms` only.
+site manifest gains it too), `pattern.language` (BCP 47; Ravelry lists 5,107 "Universal – no
+written language" patterns and ~12% non-English), and `gauge.terms_also: "UK"` for a document
+that spells both. Readers spell out from `terms` only.
 
 ## 4. Two things the corpus says *not* to do
 
