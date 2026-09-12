@@ -104,3 +104,6 @@ external reference for `technique` values and for a future `craft`/`attributes` 
   285 · machine instructions 24 · digital braille 10 · press braille 5 · digital audio 3.
   Charts are ≈15% of the catalogue, written ≈74%; the accessibility tags together are under
   0.2%, which is the population that BANA and the Accessible Patterns Index serve (claim 8, #45).
+- **Colorwork** (sub-attributes): stripes/colorwork 68,487 · other 23,437 · **mosaic 9,796** ·
+  intarsia 4,515 · stranded 562 · illusion/shadow 143 · corrugated ribbing 4. (Tapestry and C2C
+  are filed under Crochet Techniques, below.)
