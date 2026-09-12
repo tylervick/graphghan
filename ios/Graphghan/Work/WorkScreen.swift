@@ -1,9 +1,9 @@
 import SwiftUI
 import GraphghanCore
 
-/// The Work screen without the model (spec §6.1): stone ground, the work on one card, and below it
-/// the Done field with the glass Back and Done controls floating at its bottom. `WorkView` owns
-/// state and haptics and feeds this.
+/// The Work screen without the model (spec §6.1): stone ground, the strip and chips on a small
+/// card, and below them the color columns under glass that carry the run and the actions.
+/// `WorkView` owns state and haptics and feeds this.
 struct WorkScreen: View {
     let chart: Chart
     let sequence: WorkSequence
@@ -67,56 +67,38 @@ struct WorkScreen: View {
         .padding(.top, 8)
     }
 
+    /// The strip and the chips: the row's context, in a small Panel card above the field.
     private var card: some View {
-        VStack(spacing: 12) {
-            if finished {
-                VStack(spacing: 8) {
-                    Text("Finished").font(Font.Heather.title)
-                    Text("Every row is done. Block it, weave in the ends, and take a picture.")
-                        .font(Font.Heather.body).multilineTextAlignment(.center)
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 24)
-                .padding(.horizontal, 16)
-                .foregroundStyle(Color.ink)
-                .background(Color.cream, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(Color.line, lineWidth: 1))
-            } else {
-                RowStripView(chart: chart, sequence: sequence, cursor: cursor)
-                if let pass = sequence.pass(at: cursor.row) {
-                    RunChipsView(chart: chart, pass: pass, cursor: cursor, onSelect: onSelectRun)
-                }
-                SwatchStack(chart: chart, sequence: sequence, cursor: cursor)
+        VStack(spacing: 10) {
+            RowStripView(chart: chart, sequence: sequence, cursor: cursor)
+            if !finished, let pass = sequence.pass(at: cursor.row) {
+                RunChipsView(chart: chart, pass: pass, cursor: cursor, onSelect: onSelectRun)
             }
         }
-        .padding(12)
-        .background(Color.panel, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).strokeBorder(Color.line, lineWidth: 1))
-        .compositingGroup()
-        .shadow(color: .black.opacity(0.12), radius: 12, y: 8)
+        .padding(10)
+        .background(Color.panel, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).strokeBorder(Color.line, lineWidth: 1))
         .contentShape(Rectangle())
         .onTapGesture {}  // the card swallows taps: nothing inside advances by accident
         .padding(.horizontal, 12)
         .foregroundStyle(Color.ink)
     }
 
-    /// Everything below the card is the Done target; the controls float at its bottom.
+    /// The color columns under glass: previous, current, and a sliver of the next.
     private var field: some View {
-        ZStack(alignment: .bottom) {
-            Button(action: finished ? onClose : onDone) {
-                Color.clear.contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(doneLabel)
-            DoneField(finished: finished, canGoBack: cursor != .start, doneLabel: doneLabel,
-                      doneForeground: (currentEntry?.hex).map(YarnSurface.foreground) ?? Color.ink,
-                      backForeground: (previousEntry?.hex).map(YarnSurface.foreground) ?? Color.ink2,
-                      stops: trackStops,
-                      onDone: finished ? onClose : onDone, onBack: onBack)
-                .padding(.horizontal, 16)
-                .padding(.bottom, 44)
-        }
-        .frame(maxHeight: .infinity)
+        WorkField(finished: finished, canGoBack: cursor != .start, content: fieldContent, doneLabel: doneLabel,
+                  doneForeground: (currentEntry?.hex).map(YarnSurface.foreground) ?? Color.ink,
+                  backForeground: (previousEntry?.hex).map(YarnSurface.foreground) ?? Color.ink2,
+                  stops: trackStops,
+                  onDone: finished ? onClose : onDone, onBack: onBack)
+            .frame(maxHeight: .infinity)
+            .padding(.bottom, 44)
+    }
+
+    private var fieldContent: WorkFieldContent? {
+        guard !finished, let pass = sequence.pass(at: cursor.row), let entry = currentEntry else { return nil }
+        return WorkFieldContent(count: pass.runs[cursor.run].count, code: entry.code, name: entry.name,
+                                onDeck: OnDeckRule.onDeck(cursor: cursor, chart: chart, sequence: sequence)?.text)
     }
 
     /// The run Back returns to: the one before the cursor, or the last run of the previous row.

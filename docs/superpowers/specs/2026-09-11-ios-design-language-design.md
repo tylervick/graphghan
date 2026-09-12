@@ -118,29 +118,27 @@ Ground with the weave is the screen ground. Below the card, the chart itself is 
 
 - Header: close glyph at the leading edge in Ink 2, row number (Row number style) in Ink and the
   side line (Caption, Ink 2) centered. Long press on the row number jumps.
-- One Panel card, 12 pt inset, 22 pt radius, Line hairline, drop shadow (0, 8) blur 24 at 12%
-  black. It holds the chips and the swatch stack, 12 pt apart. The card swallows taps; nothing
-  inside advances by accident.
-- Chips: section 6.3, in a row with 4 pt of vertical room so the current chip's ring is not
-  clipped; the row scrolls when it does not fit.
-- Swatch stack: the current run on top (Count, Code, and the color name in Heading, on its own
-  yarn color, 16 pt radius); the next run on deck beneath it, 12 pt tucked under, in its own yarn
-  color, reading "then 4 Charcoal" in Label. Last run in a row: the bar reads "next row starts in
-  Gold". Last run of the pattern: no bar.
-- Field: everything below the card, down to the display edge, on the Ground weave. Tapping
-  anywhere in it advances. Swipe right anywhere still goes back.
-- Controls float at the field's bottom, 16 pt from the sides and 44 pt from the display edge:
-  two clear Liquid Glass capsules (iOS 26; thin material capsules with the yarn hairline before
-  that), Back at the leading edge, 92 × 88 pt, with the arrow and "Back" in Label, and Done filling
-  the rest, 88 pt tall, in the Done style. Under them runs a color track: capsules the size of
-  each zone, blurred 2 pt, in the yarn colors of the runs around the cursor, keyed by cursor
-  position. The previous run's color pools under Back and the current run's under Done; the runs
-  two back and two ahead wait off screen. On Done the track slides left on the swatch's spring,
-  so the color just finished moves under Back and the next arrives under Done; Back reverses it.
-  Each label takes its yarn's readable foreground. Back is at 40% when there is nothing to return
-  to. The glass is the visible handle; the field is the target.
-- Finished: the card holds a Cream panel with a Line hairline, "Finished" in the Title style, and
-  the send-off line in Body; the track turns Cream under a single "Close" capsule, which dismisses.
+- One Panel card, 12 pt inset, 18 pt radius, Line hairline, 10 pt padding, holding the strip
+  (section 6.1 strip rules: Panel box, current row outlined 2 pt Heather, worked rows dimmed 45%,
+  Heather marker on the starting edge) and the chip row (section 6.3, 4 pt of vertical room so the
+  current chip's ring is not clipped; the row scrolls when it does not fit). The card swallows
+  taps; nothing inside advances by accident.
+- Field: everything below the card down to 44 pt above the display edge, on the Ground weave.
+  It is made of full-height color columns under clear Liquid Glass (iOS 26; thin material panels
+  with the yarn hairline before that), 28 pt radius, keyed by cursor position so they slide:
+  the previous run's color as a 72 pt Back column at the leading edge, the current run's color as
+  the wide column beside it, and the next run's color as a 28 pt sliver peeking in at the
+  trailing edge with no glass and no label, so it reads as what's coming rather than a button.
+  Runs two back and two ahead wait off screen. The current column's glass carries the Count,
+  the Code, the name in Heading, the on-deck line in Label at 75% ("then 4 Charcoal", or "next
+  row starts in Gold" on the last run of a row), and "Done" in the Done style; tapping it, or any
+  bare part of the field, advances. Back's glass carries the arrow and "Back" in Label, at 40%
+  when there is nothing to return to. Each label takes its column's readable foreground. On Done
+  the columns slide left on the swatch's spring: the color just finished becomes the Back
+  column and the sliver widens into the current one; Back reverses it. Swipe right anywhere
+  still goes back.
+- Finished: the field is a single Cream column under glass with "Finished" in the Title style,
+  the send-off line in Body, and "Close", which dismisses; the card keeps the strip.
 - Landscape keeps the same pieces in two columns: card leading, field trailing.
 
 ### 6.2 Cards and list rows
