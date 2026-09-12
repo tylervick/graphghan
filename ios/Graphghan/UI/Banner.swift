@@ -17,9 +17,12 @@ struct Banner: View {
             Rectangle().fill(kind == .info ? Color.heather : Color.brick).frame(width: 4)
             HStack(spacing: 10) {
                 Text(text).font(Font.Heather.caption).foregroundStyle(Color.ink)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: 0)
                 if let action {
                     Button(action.label, action: action.run).font(Font.Heather.label).tint(.moss)
+                        .fixedSize()
                 }
             }
             .padding(.horizontal, 12)
