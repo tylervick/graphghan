@@ -78,3 +78,23 @@ Unknown 157,211** (≈ 670k total: 68% US, 8% UK, **23% unknown**). Nearly a qua
 catalogue has no recorded terminology, and the ratio shows why both systems must be first-class:
 UK is a minority but 56k patterns is not a rounding error. (The filter has no "both" bucket;
 pattern pages can still say "both US and UK".)
+
+## Catalogue-wide filter counts (crochet, 2026-09-12)
+
+- **Attributes** (top-level groups): Pattern Instructions 858,782 · Construction 677,485 ·
+  Shapes 207,426 · Fabric Characteristics 185,282 · Design Elements 165,294 · Crochet Techniques
+  110,356 · Colorwork 106,944 · Regional/Ethnic Styles 78,499 · Sock Techniques 3,990 ·
+  Mature Content 1,803 · **Accessibility 525**.
+- **Yarn weight**: Aran 123,263 · Worsted 114,097 · DK 94,876 · Sport 57,378 · Thread 48,458 ·
+  Fingering 43,056 · Super Bulky 32,988 · Bulky 27,722 · Any gauge 13,443 · Light Fingering 9,211
+  · Lace 6,269 · Jumbo 2,196 · Cobweb 170 · **No weight specified 68,246** (≈10%).
+- **Yarn held together**: single strand 631,153 · 2 yarns 7,915 · 2 yarns same weight 6,214 ·
+  3 yarns 488 · individual yarn weights 12,245 — held-together is ≈2% of patterns: small, real,
+  and CYC's checklist asks for it (#34).
+- **Availability**: Ravelry download 321,032 · purchase online 317,120 · free 182,409 · in print
+  64,007 · discontinued 65,542.
+- **Yardage** buckets from 0–150 yards (118,360) upward — yardage is a range field in practice.
+
+Ravelry's attribute taxonomy is the largest technique vocabulary in existence for these crafts;
+its sub-groups (Colorwork, Construction, Pattern Instructions, Crochet Techniques) are the
+external reference for `technique` values and for a future `craft`/`attributes` manifest field.
