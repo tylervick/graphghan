@@ -5,7 +5,7 @@ committed. Every raw file starts with a `SOURCE:` line.
 
 | Stratum | Source | Mechanics | Status |
 |---|---|---|---|
-| yarn-company | Yarnspirations (Red Heart, Bernat, Caron, Patons, Lily) | product page → `cdn.shopify.com/...pdf` → `pdftotext`; `fetch-yarnspirations.sh` | 4 fetched; the site then challenged every request from this IP (HTTP 429, "Verifying your connection"), including the `.json` endpoint. Remaining ~48 to be done through Chrome once `yarnspirations.com` is allowed in the extension |
+| yarn-company | Yarnspirations (Red Heart, Bernat, Caron, Patons, Lily) | product page → `cdn.shopify.com/...pdf` → `pdftotext`; `fetch-yarnspirations.sh` | 51 of 52 fetched (one product page returned HTTP 500). After ~5 rapid requests the site challenges every request (HTTP 429, "Verifying your connection"), including `.json`; the block lifted after ~1 h and a 20 s cadence completed the list. Coded in batches 6a–6c |
 | yarn-company | Lion Brand | product `.json` works (tags = catalogue taxonomy); PDFs are injected by JS from `cdn.accentuate.io` and not in the JSON | 1 PDF via a search-found URL; taxonomy captured |
 | european | DROPS / Garnstudio | Chrome only (WebFetch and curl get 403); full text on page; `cid=17` = English (US/in), `cid=19` = English (UK/cm) — the same pattern in both term systems | 4 US + 2 UK twins; knit colourwork in progress |
 | indie | Designer blogs (Make & Do Crew, Repeat Crafter Me, Meghan Makes Do, Nana's Crafty Home, Cypress Textiles, Freese-Works, Crochetverse, The Loopy Lamb, Joanna's Crochet, Daisy Farm Crafts) | `curl` + `tools/html2txt.py` | 14 pages (mix of patterns and tutorials; coder marks which) |

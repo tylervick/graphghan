@@ -101,3 +101,21 @@ Yarnspirations fetch resumed at 20 s cadence after the 429 lifted; batch 6a (15 
 **Saturation amended**: a fourteenth structural axis — cell geometry (offset rows, stitch slant)
 — surfaced from community threads, not from patterns. Recorded in `claims.md`; no corpus
 pattern exhibits it yet, so no field is proposed.
+
+## 2026-09-12 — Ravelry population data; Yarnspirations stratum complete
+
+Ravelry advanced-search filters read as population data (`formats/ravelry-form.md`):
+terminology US 456,772 / UK 56,507 / unknown 157,211; Pattern Instructions chart 102,826 vs
+written 493,847, accessibility tags < 0.2%; Colorwork mosaic 9,796; Crochet Techniques filet
+13,884, tapestry 12,526, Tunisian 8,831; Construction in-the-round 173,120 vs flat 109,102;
+yarn weight "no weight specified" 68,246; held-together ≈2%. Claims 4, 8, 10 updated with
+these. Community threads on chart-keeping apps, graphghan working practice, terms from the
+designer side, filet portraits and tapestry charting (`users/community-threads.md`); a
+fourteenth axis (cell geometry: offset rows, slant; sub-cell colour with an OXS precedent) is
+recorded, amending the earlier "converged at 13".
+
+Yarnspirations: 51/52 fetched after the rate limit lifted; batches 6a (15, C2C + mosaic) coded,
+6b (18, filet/Tunisian/stranded/amigurumi) and 6c (13, rows/rounds/dishcloths) running. Corpus
+at 97 rows before 6b/6c. Stitch Fiddle wizard driven (imports OXS and 1-px PNG). LoveCrafts
+handbook is down server-side. Phase 1 revision proposal written, not applied
+(`proposal-phase1-revision.md`).
