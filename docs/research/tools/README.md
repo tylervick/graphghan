@@ -21,8 +21,27 @@ statement of the axes that matter to a chart tool:
 That is our representability matrix from a different direction. Tunisian appears twice —
 "colorwork" (one cell one stitch) versus "with return pass" (two passes per row) — which is
 exactly the passes-per-grid-row axis. Filet and C2C are separate because a cell is not a stitch.
-Overlay mosaic is separate because a cell carries a stitch type. Export options, aspect ratio
-and in-the-round settings still to be captured by driving the tool.
+Overlay mosaic is separate because a cell carries a stitch type.
+
+**Driven (2026-09-12), wizard for "Crochet colorwork":**
+
+- The wizard's own descriptions: C2C — "Crochet colorwork in diagonal direction, e.g. 2 or 3
+  hdc/dc stitches" (tile cardinality is a *choice*, 2 or 3); Crochet colorwork — "graphgan,
+  pixel crochet, picture crochet, tunisian colorwork, tapestry"; Overlay mosaic — "One color for
+  one row and change color every row, starting on same side each time"; Tunisian with return
+  pass — "Single color / chart with symbols only / with return pass".
+- **Yarn step**: the palette is a *yarn line* with its colourways (Bernat Super Value 49
+  colours, Caron One Pound 43, Red Heart Super Saver 64, Scheepjes Catona 150, Stylecraft Special
+  DK 120 …) or "My own colors". So a chart's palette is brand + line + colourway — the same
+  three fields our `palette[].yarn` carries.
+- **How to start**: Empty · From picture · Create QR code · **.oxs (MacStitch / WinStitch)** ·
+  **PNG pattern (1px)**. Those two imports are exactly our two exports (`graphghan export
+  --format oxs|png`). Our charts already round-trip into the most-used chart tool.
+- **Grid size**: width × height in stitches, with the stitch count shown (w×h — the same
+  one-cell-one-stitch assumption, applied here to a genre where it holds).
+- **Gauge**: "make a sample swatch … of 4 inch by 4 inch; how many horizontal stitches in 4
+  inches; how many vertical stitches (rows) in 4 inches", inches or centimetres. Field for field
+  our `gauge.stitches / rows / over {value, unit}` (claim 14, fourth independent source).
 
 ## Crochetpop (read; chart + written-instruction generator, web)
 
