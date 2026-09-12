@@ -68,15 +68,15 @@ private struct RunButtons: View {
                 Image(systemName: "arrow.uturn.backward").font(size.symbolFont).frame(width: 44, height: size.height)
             }
             .buttonStyle(.bordered)
+            .buttonBorderShape(.capsule)
             .tint(Color.cream.opacity(0.7))
-            .clipShape(Capsule())
             .accessibilityLabel("Back one run")
             Button(intent: AdvanceRunIntent(projectID: info.projectID)) {
                 Text("Done").font(size.doneFont).frame(maxWidth: .infinity, minHeight: size.height)
             }
             .buttonStyle(.borderedProminent)
+            .buttonBorderShape(.capsule)
             .tint(.moss)
-            .clipShape(Capsule())
         }
     }
 }
@@ -176,6 +176,7 @@ struct WorkExpandedCenterView: View {
                 RunRow(info: info, state: state)
             }
         }
+        .foregroundStyle(Color.cream)
     }
 }
 
@@ -185,6 +186,7 @@ struct WorkExpandedBottomView: View {
     var body: some View {
         if state.message == nil, !state.finished {
             RunButtons(info: info, size: .island)
+                .foregroundStyle(Color.cream)
         }
     }
 }
