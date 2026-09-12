@@ -24,7 +24,8 @@ struct ProjectListView: View {
                     ContentUnavailableView("No projects", systemImage: "checklist", description: Text("Start one from a pattern."))
                 } else {
                     List(ordered) { project in
-                        NavigationLink(value: project.id) { ProjectRow(project: project) }
+                        ProjectRow(project: project)
+                            .overlay { NavigationLink(value: project.id) { EmptyView() }.opacity(0) }
                             .listRowBackground(Color.clear)
                             .listRowSeparator(.hidden)
                             .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))

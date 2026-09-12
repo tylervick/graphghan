@@ -19,7 +19,8 @@ struct LibraryView: View {
                     ProgressView("Loading patterns…")
                 } else {
                     List(model.index) { entry in
-                        NavigationLink(value: entry) { LibraryRow(entry: entry) }
+                        LibraryRow(entry: entry)
+                            .overlay { NavigationLink(value: entry) { EmptyView() }.opacity(0) }
                             .listRowBackground(Color.clear)
                             .listRowSeparator(.hidden)
                             .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
@@ -53,11 +54,12 @@ struct LibraryRow: View {
             HStack(alignment: .top, spacing: 12) {
                 PreviewFrame(image: preview)
                 VStack(alignment: .leading, spacing: 5) {
-                    Text(entry.title).font(Font.Heather.heading).foregroundStyle(Color.ink).lineLimit(2)
+                    Text(entry.title).font(Font.Heather.heading).foregroundStyle(Color.ink).lineLimit(2).fixedSize(horizontal: false, vertical: true)
                     if !entry.dedication.isEmpty { Text(entry.dedication).font(Font.Heather.caption).foregroundStyle(Color.ink2) }
                     Text("\(entry.sizeIn[0].formatted()) × \(entry.sizeIn[1].formatted()) in · \(entry.stitch) · \(entry.colors) colors")
                         .font(Font.Heather.caption).foregroundStyle(Color.ink2)
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
                 Spacer(minLength: 0)
                 Image(systemName: "chevron.right").font(Font.Heather.label).foregroundStyle(Color.ink2).padding(.top, 4)
             }
