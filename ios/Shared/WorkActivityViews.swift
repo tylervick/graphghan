@@ -27,13 +27,15 @@ struct RunSwatch: View {
 private struct RunPanel: View {
     let info: WorkActivityInfo
     let state: WorkActivityState
+    /// The expanded island has less vertical room than the lock screen, so its panel is shorter.
+    var height: CGFloat = 44
 
     var body: some View {
         if let code = state.currentCode, let count = state.currentCount {
             let hex = info.swatch(for: code)?.hex ?? YarnSurface.unknownHex
             HStack(alignment: .firstTextBaseline, spacing: 10) {
                 Text("\(count)")
-                    .font(.system(size: 30, weight: .heavy, design: .rounded))
+                    .font(.system(size: height * 0.68, weight: .heavy, design: .rounded))
                     .monospacedDigit()
                 Text(code).font(.system(.title3, design: .default).weight(.bold))
                 Text(info.swatch(for: code)?.name ?? code).font(.system(.title3, design: .serif).weight(.semibold)).lineLimit(1)
@@ -41,7 +43,7 @@ private struct RunPanel: View {
                 Text(nextText).font(.footnote.weight(.semibold)).opacity(0.8).lineLimit(2).multilineTextAlignment(.trailing)
             }
             .padding(.horizontal, 12)
-            .frame(minHeight: 44)
+            .frame(minHeight: height)
             .yarnSurface(hex, radius: 12)
             .accessibilityElement(children: .combine)
         }
@@ -63,7 +65,9 @@ private struct RunButtons: View {
         case lockScreen, island
         var symbolFont: Font { self == .lockScreen ? .title3 : .body }
         var doneFont: Font { self == .lockScreen ? .system(.title3, design: .default).weight(.bold) : .body.bold() }
-        var height: CGFloat { 40 }
+        /// The island's expanded regions clip a hair sooner than the lock screen's 160pt budget
+        /// (seen on an iPhone 15 Pro), so its controls give back a few points.
+        var height: CGFloat { self == .lockScreen ? 40 : 34 }
     }
 
     let info: WorkActivityInfo
@@ -178,14 +182,14 @@ struct WorkExpandedCenterView: View {
     let info: WorkActivityInfo
     let state: WorkActivityState
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 6) {
             ActivityHeader(info: info, state: state)
             if let message = state.message {
                 Text(message).font(.subheadline)
             } else if state.finished {
                 Text("Finished").font(.system(.title2, design: .serif).weight(.semibold))
             } else {
-                RunPanel(info: info, state: state)
+                RunPanel(info: info, state: state, height: 38)
             }
         }
         .foregroundStyle(.primary)
