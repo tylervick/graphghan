@@ -15,7 +15,7 @@ struct PatternDetailContent: View {
             previewImage
             VStack(alignment: .leading, spacing: 4) {
                 Text(manifest.title).font(Font.Heather.title).foregroundStyle(Color.ink)
-                if !manifest.dedication.isEmpty { Text("For \(manifest.dedication)").font(Font.Heather.body).foregroundStyle(Color.ink2) }
+                if !manifest.dedication.isEmpty { Text(manifest.dedication).font(Font.Heather.body).foregroundStyle(Color.ink2) }
                 if !manifest.quote.isEmpty { Text("“\(manifest.quote)”").font(Font.Heather.quote).foregroundStyle(Color.ink).padding(.top, 4) }
             }
             specs
