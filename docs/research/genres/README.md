@@ -14,9 +14,9 @@ in the current format and records exactly where it fails. Verdicts:
 | C2C | **refuses** (+ manifest silently wrong) | `c2c.md` | Bernat BRC0302 (Yarnspirations) | `stitches = w×h` in `pattern.json` and `stats`; tile gauge; two turning chains (#18, #44) |
 | Filet | **silently wrong** | `filet.md` | Bella Coco free filet (UK) | block ≠ stitch; shared edge posts; turning chain keyed on next row's first cell (#44) |
 | Overlay mosaic | **refuses on stitch, wrong on direction** | `mosaic.md` | Jera's Jamboree free chart (UK/US) | per-cell stitch not surfaced (#36); one-direction rows with fasten-off (#43 sibling) |
-| Joined-round granny | partly | — (from DROPS 120-3 in corpus) | DROPS 120-3 | join and counting starting chain unstated (#43) |
+| Joined-round motifs | **partly** | `joined-rounds.md` | DROPS 120-3; The Loopy Lamb mosaic square | motif is not a grid (#37); join, counting starting chain, colour-change-at-join unstated (#43); a blanket of motifs is a grid whose cell is a motif (#44) |
 | Spiral-round amigurumi | **refuses**, correctly | `amigurumi.md` | Supergurumi bunny | counts change every round (#37); spiral, no join (#43); non-stitch steps ("stuff the head") have no slot |
-| Knit texture chart (k/p) | partly | — (DROPS 159-26, 221-45 in corpus) | DROPS | `layers.stitch` not surfaced; RS/WS symbol rule now documented (#36) |
+| Knit texture chart (k/p) | **partly** | `knit-texture.md` | DROPS 159-26, 221-45, 157-21 | `layers.stitch` not surfaced (#36); legend symbols are RS/WS pairs — documented rule suffices; repeats and edge stitches (#39) |
 | Knit stranded | **works** for a panel; partly for a hat | `stranded-knit.md` | Spruce Hill, Tin Can Knits hats | chart repeats unrolled (#39); `hook` is the wrong word for needles (#32); crown decreases are shaping (#37) |
 | Tunisian | **partly** — via explicit `passes` | `tunisian.md` | Make & Do Crew, KnitterKnotter blankets | two passes per grid row fit `passes`; return pass has no stitches but `run.count ≥ 1`; per-pass start chain rather than a turning chain |
 | Cross-stitch | works (by construction; OXS export) | — | xstitchify rose PDF (139×200, 8 DMC) | key is Symbol → DMC number → name; our palette carries all three |
