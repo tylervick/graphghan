@@ -152,7 +152,7 @@ struct WorkView: View {
             }
             Text(colorName(run.code, chart)).font(.title3)
         }
-        .foregroundStyle(ChartImage.isLight(hex) ? .black : .white)
+        .foregroundStyle(YarnSurface.foreground(hex))
         .frame(maxWidth: .infinity)
         .padding(.vertical, 20)
         .background(ChartImage.color(hex), in: RoundedRectangle(cornerRadius: 16))

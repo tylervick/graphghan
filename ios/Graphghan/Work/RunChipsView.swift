@@ -17,7 +17,7 @@ struct RunChipsView: View {
                         Button { onSelect(i) } label: {
                             Text("\(run.count) \(run.code)")
                                 .font(.system(.subheadline, design: .monospaced).bold())
-                                .foregroundStyle(ChartImage.isLight(hex) ? .black : .white)
+                                .foregroundStyle(YarnSurface.foreground(hex))
                                 .padding(.horizontal, 10).padding(.vertical, 6)
                                 .background(ChartImage.color(hex), in: RoundedRectangle(cornerRadius: 8))
                                 .overlay(RoundedRectangle(cornerRadius: 8).stroke(i == cursor.run ? Color.accentColor : .clear, lineWidth: 3))
