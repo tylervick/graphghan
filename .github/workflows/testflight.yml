@@ -1,0 +1,276 @@
+name: TestFlight
+
+# Manual only. Shipping is a deliberate act: no push, merge, or tag ships anything.
+on:
+  workflow_dispatch:
+    inputs:
+      validate_only:
+        description: Validate the build without uploading (does not consume a build number)
+        type: boolean
+        required: false
+        default: false
+      build_number:
+        description: Override the derived build number (use when retrying a release)
+        type: string
+        required: false
+        default: ''
+
+# Ref-independent so two dispatches on different refs serialize; no cancel, because cancelling
+# mid-upload burns a build number server-side while reporting nothing.
+concurrency:
+  group: testflight
+  cancel-in-progress: false
+
+# Nothing by default; the one job below opts into the single scope it needs.
+permissions: {}
+
+env:
+  XCODE_VERSION: "26.2"
+  # A new app: no build numbers are consumed, so the first CI release is 1. Numbers have gaps whenever
+  # a run fails before the upload; App Store Connect needs unique and increasing, not contiguous.
+  BUILD_NUMBER_OFFSET: 0
+
+jobs:
+  testflight:
+    name: Archive and upload
+    runs-on: macos-26
+    timeout-minutes: 60
+    # contents: write exists only for the ios-build-N tag push.
+    permissions:
+      contents: write
+    steps:
+      # Full history: whats-to-test.sh walks git log since the newest ios-build-* tag.
+      # persist-credentials stays true (the default) and is written explicitly: the "Tag the shipped
+      # build" step below pushes with it, and zizmor's artipacked audit wants the trade-off spelled out
+      # rather than left implicit.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+
+      # Fails in seconds instead of after a 20-minute archive.
+      - name: Resolve and validate the build number
+        id: buildnum
+        env:
+          OVERRIDE: ${{ inputs.build_number }}
+          OFFSET: ${{ env.BUILD_NUMBER_OFFSET }}
+          RUN_NUMBER: ${{ github.run_number }}
+        run: |
+          if [ -n "$OVERRIDE" ]; then N="$OVERRIDE"; else N=$(( OFFSET + RUN_NUMBER )); fi
+          [[ "$N" =~ ^[0-9]+$ ]] || { echo "::error::build number '$N' is not numeric"; exit 1; }
+          [ "$N" -ge 1 ] || { echo "::error::build number must be at least 1"; exit 1; }
+          # App Store Connect needs a build number strictly above every number already used for this
+          # version, and the ios-build-* tags are the local record of those. Catching it here costs
+          # seconds; letting it through costs a 20-minute archive and then a rejected upload. The
+          # checkout above uses fetch-depth 0, so the tags are present.
+          NEWEST="$(git tag --list 'ios-build-*' --sort=-v:refname | head -n 1 | sed 's/^ios-build-//')"
+          if [ -n "$NEWEST" ] && [ "$N" -le "$NEWEST" ]; then
+            echo "::error::build number $N is not above the newest shipped build $NEWEST"
+            exit 1
+          fi
+          echo "value=$N" >> "$GITHUB_OUTPUT"
+          echo "Build number: $N"
+
+      - name: Select Xcode
+        env:
+          XCODE_VERSION: ${{ env.XCODE_VERSION }}
+        run: |
+          APP="/Applications/Xcode_${XCODE_VERSION}.app"
+          [ -d "$APP" ] || { echo "::error::$APP not found on this runner image."; ls -d /Applications/Xcode*.app; exit 1; }
+          sudo xcode-select -s "$APP"
+          xcodebuild -version
+
+      - uses: jdx/mise-action@c37c93293d6b742fc901e1406b8f764f6fb19dac # v2.4.4
+        with: {cache: true}
+
+      # jdx/mise-action v2.4.4 has no working_directory input; this installs ios/mise.toml's
+      # xcodegen, which archive.sh below needs.
+      - name: Install iOS tool versions
+        working-directory: ios
+        run: mise install -q
+
+      # No set -x anywhere here: a decoded .p8 is multi-line PEM and GitHub's masking needs a
+      # single-line exact match, so it would NOT be redacted if it reached the log.
+      - name: Install signing assets
+        env:
+          BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
+          P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
+          PROVISIONING_PROFILE_APP_BASE64: ${{ secrets.PROVISIONING_PROFILE_APP_BASE64 }}
+          PROVISIONING_PROFILE_WIDGETS_BASE64: ${{ secrets.PROVISIONING_PROFILE_WIDGETS_BASE64 }}
+          ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+        run: |
+          umask 077
+          KC="$RUNNER_TEMP/build.keychain-db"
+          KC_PW="$(uuidgen)"
+          CERT="$RUNNER_TEMP/cert.p12"
+          # Explicit /usr/bin/base64: bare `base64` is PATH-shadowable.
+          printf '%s' "$BUILD_CERTIFICATE_BASE64" | /usr/bin/base64 --decode > "$CERT"
+          printf '%s' "$PROVISIONING_PROFILE_APP_BASE64" | /usr/bin/base64 --decode > "$RUNNER_TEMP/app.mobileprovision"
+          printf '%s' "$PROVISIONING_PROFILE_WIDGETS_BASE64" | /usr/bin/base64 --decode > "$RUNNER_TEMP/widgets.mobileprovision"
+          printf '%s' "$ASC_PRIVATE_KEY" | /usr/bin/base64 --decode > "$RUNNER_TEMP/AuthKey_${ASC_KEY_ID}.p8"
+
+          security create-keychain -p "$KC_PW" "$KC"
+          security set-keychain-settings -lut 21600 "$KC"
+          security unlock-keychain -p "$KC_PW" "$KC"
+          security import "$CERT" -k "$KC" -P "$P12_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security
+          # Append rather than replace: `-s` alone drops login.keychain.
+          # shellcheck disable=SC2046
+          security list-keychains -d user -s "$KC" $(security list-keychains -d user | tr -d '"')
+          # codesign: is REQUIRED; without it macOS queues a GUI prompt that never arrives headless and the job hangs.
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -k "$KC_PW" "$KC" >/dev/null
+
+          # Both profile directories: Xcode 16+ reads the Developer/Xcode path, older tooling the MobileDevice one.
+          # The profile's own Name is asserted too: the export step matches profiles by name, and a
+          # secret holding the wrong profile otherwise surfaces 20 minutes later as an opaque
+          # 'No "iOS App Store" profiles ... matching' from xcodebuild.
+          UUIDS=""
+          WRONG=""
+          for SPEC in "app.mobileprovision:Graphghan App Store CI" "widgets.mobileprovision:Graphghan Widgets App Store CI"; do
+            P="$RUNNER_TEMP/${SPEC%%:*}"
+            WANT="${SPEC#*:}"
+            PLIST="$(security cms -D -i "$P")"
+            UUID="$(printf '%s' "$PLIST" | plutil -extract UUID raw -)"
+            NAME="$(printf '%s' "$PLIST" | plutil -extract Name raw -)"
+            for d in "$HOME/Library/MobileDevice/Provisioning Profiles" "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"; do
+              mkdir -p "$d"; cp "$P" "$d/$UUID.mobileprovision"
+            done
+            UUIDS="$UUIDS $UUID"
+            if [ "$NAME" != "$WANT" ]; then
+              echo "::error::${SPEC%%:*} carries profile name '$NAME', expected '$WANT'"
+              WRONG="yes"
+            fi
+          done
+          # Written before the checks below, not after: GITHUB_ENV is read once the step ends, so
+          # recording both UUIDs first is what lets the cleanup step remove the installed copies
+          # even when a check below fails the step.
+          echo "PROFILE_UUIDS=$UUIDS" >> "$GITHUB_ENV"
+          [ -z "$WRONG" ] || exit 1
+
+          # Scoped to $KC: the search-list-wide form would pass on ANY Distribution identity.
+          if ! security find-identity -v -p codesigning "$KC" | grep -q 'Apple Distribution'; then
+            echo "::error::No Apple Distribution identity in the ephemeral keychain (p12 missing its key, or expired)."
+            security find-identity -v -p codesigning "$KC" || true
+            exit 1
+          fi
+          security list-keychains -d user | grep -qF "$KC" || { echo "::error::$KC is not in the keychain search list."; exit 1; }
+
+      - name: Archive and export
+        env:
+          ASC_KEY_PATH: ${{ runner.temp }}/AuthKey_${{ secrets.ASC_KEY_ID }}.p8
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          BUILD_NUMBER: ${{ steps.buildnum.outputs.value }}
+          EXPORT_OPTIONS_PLIST: ExportOptions-ci.plist
+        run: ios/Scripts/archive.sh
+
+      # The tag, the notes range, and the App Store Connect build query all key off BUILD_NUMBER; if it
+      # failed to reach the binary the upload would consume a number for a build nothing can find.
+      - name: Verify the IPA carries the build number
+        env:
+          BUILD_NUMBER: ${{ steps.buildnum.outputs.value }}
+        run: |
+          IPA="$(ls ios/build/archive/export/*.ipa)"
+          for PLIST in 'Payload/*.app/Info.plist' 'Payload/*.app/PlugIns/*.appex/Info.plist'; do
+            VER="$(unzip -p "$IPA" "$PLIST" | plutil -extract CFBundleVersion raw -)"
+            [ "$VER" = "$BUILD_NUMBER" ] || { echo "::error::$PLIST has CFBundleVersion $VER, expected $BUILD_NUMBER"; exit 1; }
+            echo "$PLIST: CFBundleVersion $VER"
+          done
+
+      # BEFORE the upload, so a failed upload does not discard the build.
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: Graphghan-${{ steps.buildnum.outputs.value }}-ipa
+          path: ios/build/archive/export/*.ipa
+          retention-days: 7
+          if-no-files-found: error
+
+      - name: Upload to TestFlight
+        env:
+          ASC_KEY_PATH: ${{ runner.temp }}/AuthKey_${{ secrets.ASC_KEY_ID }}.p8
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          VALIDATE_ONLY: ${{ inputs.validate_only }}
+        run: |
+          if [ "$VALIDATE_ONLY" = "true" ]; then ios/Scripts/upload.sh --validate; else ios/Scripts/upload.sh; fi
+
+      # Tag BEFORE attaching notes: the next release computes its changelog range from the tag.
+      - name: Tag the shipped build
+        if: ${{ inputs.validate_only != true }}
+        env:
+          N: ${{ steps.buildnum.outputs.value }}
+        run: |
+          if ! git tag "ios-build-$N" || ! git push origin "ios-build-$N"; then
+            echo "::error::Build $N IS UPLOADED; only the ios-build-$N tag could not be recorded."
+            echo "::error::Do not re-run (App Store Connect rejects a duplicate build). Tag by hand:"
+            echo "::error::  git -c tag.gpgSign=false tag ios-build-$N && git push origin ios-build-$N"
+            exit 1
+          fi
+
+      # Notes are metadata: a failure here does not mean the release failed, but it fails loudly
+      # because a silent warning is how the field ends up empty.
+      - name: Attach What to Test notes
+        if: ${{ inputs.validate_only != true }}
+        env:
+          ASC_KEY_PATH: ${{ runner.temp }}/AuthKey_${{ secrets.ASC_KEY_ID }}.p8
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          N: ${{ steps.buildnum.outputs.value }}
+        run: |
+          if ! ios/Scripts/whats-to-test.sh "$N"; then
+            echo "::error::Build $N IS UPLOADED; only the What-to-Test notes could not be attached."
+            echo "::error::Re-running would upload again and consume another build number. Set the notes by hand in App Store Connect."
+            exit 1
+          fi
+
+      # Raw xcodebuild writes these into TMPDIR. Artifact contents are not covered by secret masking
+      # on a public repo, so the two identifiers altool echoes back -- the key id and the issuer id --
+      # are scrubbed first.
+      - name: Collect distribution logs
+        if: failure()
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/distlogs"
+          cp -R "$TMPDIR"/*.xcdistributionlogs "$RUNNER_TEMP/distlogs/" 2>/dev/null || true
+          SEDARGS=()
+          if [ -n "${ASC_KEY_ID:-}" ]; then SEDARGS+=(-e "s/${ASC_KEY_ID}/ASC_KEY_ID_REDACTED/g"); fi
+          if [ -n "${ASC_ISSUER_ID:-}" ]; then SEDARGS+=(-e "s/${ASC_ISSUER_ID}/ASC_ISSUER_ID_REDACTED/g"); fi
+          if [ "${#SEDARGS[@]}" -gt 0 ]; then
+            find "$RUNNER_TEMP/distlogs" -type f -print0 2>/dev/null | xargs -0 sed -i '' "${SEDARGS[@]}" 2>/dev/null || true
+          fi
+          ls -la "$RUNNER_TEMP/distlogs" || true
+      - name: Upload distribution logs
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: xcdistributionlogs
+          path: ${{ runner.temp }}/distlogs
+          retention-days: 3
+          if-no-files-found: ignore
+
+      - name: Summary
+        if: always()
+        env:
+          REF: ${{ github.ref_name }}
+          BUILD_NUM: ${{ steps.buildnum.outputs.value }}
+          VALIDATE_ONLY: ${{ inputs.validate_only }}
+        run: |
+          if [ "$VALIDATE_ONLY" = "true" ]; then MODE="validate only"; else MODE="upload"; fi
+          {
+            echo "### TestFlight run"; echo
+            echo "- Build number: **$BUILD_NUM**"; echo "- Mode: $MODE"; echo "- Ref: \`$REF\`"; echo
+            echo "Confirm the build appears in App Store Connect: Xcode 26's altool can report success for an upload that did not happen."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Delete keychain and signing material
+        if: always()
+        run: |
+          security delete-keychain "$RUNNER_TEMP/build.keychain-db" 2>/dev/null || true
+          rm -f "$RUNNER_TEMP"/AuthKey_*.p8 "$RUNNER_TEMP"/cert.p12 "$RUNNER_TEMP"/*.mobileprovision
+          for u in ${PROFILE_UUIDS:-}; do
+            rm -f "$HOME/Library/MobileDevice/Provisioning Profiles/$u.mobileprovision" \
+                  "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles/$u.mobileprovision"
+          done
