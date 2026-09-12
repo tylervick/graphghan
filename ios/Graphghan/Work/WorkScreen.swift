@@ -99,17 +99,21 @@ struct WorkScreen: View {
     }
 
     private var field: some View {
-        DoneField(finished: finished, canGoBack: cursor != .start, doneLabel: doneLabel,
+        DoneField(finished: finished, canGoBack: cursor != .start, doneLabel: doneLabel, doneHex: currentEntry?.hex,
                   onDone: finished ? onClose : onDone, onBack: onBack)
             .frame(maxHeight: .infinity)
     }
 
+    /// The palette entry of the run under the cursor; nil once finished or past the last run.
+    private var currentEntry: ChartDocument.PaletteEntry? {
+        guard !finished, let pass = sequence.pass(at: cursor.row), cursor.run < pass.runs.count else { return nil }
+        return chart.palette[chart.colorIndex(of: pass.runs[cursor.run].code) ?? 0]
+    }
+
     private var doneLabel: String {
         guard !finished else { return "Close" }
-        guard let pass = sequence.pass(at: cursor.row), cursor.run < pass.runs.count else { return "Done" }
-        let run = pass.runs[cursor.run]
-        let entry = chart.palette[chart.colorIndex(of: run.code) ?? 0]
-        return "Done with \(run.count) \(entry.name)"
+        guard let pass = sequence.pass(at: cursor.row), let entry = currentEntry else { return "Done" }
+        return "Done with \(pass.runs[cursor.run].count) \(entry.name)"
     }
 
     private func sideText(_ pass: Pass) -> String {
