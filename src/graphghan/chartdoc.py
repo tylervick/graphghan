@@ -17,6 +17,9 @@ HEX_RE = re.compile(r"^#[0-9A-Fa-f]{6}$")
 
 TECHNIQUE_ROWS = {"type": "rows", "start": "bottom", "first_side": "RS", "rs_direction": "rtl", "turn": True}
 
+BOUNDARY_KINDS = ("turn", "join", "rejoin", "spiral", "return")
+CHAIN_COLORS = ("next", "current")
+
 
 class UnsupportedTechnique(ValueError):
     """The document has no derivable working order (unknown/reserved technique and no passes)."""
@@ -193,6 +196,31 @@ def validate_document(doc: dict) -> list[str]:
                     problems.append(
                         f"passes[{i}].runs[{j}] does not match the cells at grid_row {gy}, x0 {x0}"
                     )
+    boundary = (doc.get("gauge") or {}).get("boundary")
+    if boundary is not None:
+        if not isinstance(boundary, dict):
+            problems.append("gauge.boundary is not an object")
+        else:
+            if boundary.get("kind") not in BOUNDARY_KINDS:
+                problems.append(
+                    f"gauge.boundary.kind {boundary.get('kind')!r} is not one of {BOUNDARY_KINDS}"
+                )
+            chain = boundary.get("chain")
+            if isinstance(chain, bool) or not isinstance(chain, int) or chain < 0:
+                problems.append(f"gauge.boundary.chain {chain!r} is not an integer >= 0")
+            if "color" in boundary and boundary["color"] not in CHAIN_COLORS:
+                problems.append(f"gauge.boundary.color {boundary['color']!r} is not one of {CHAIN_COLORS}")
+    foundation = doc.get("foundation")
+    if isinstance(foundation, dict) and isinstance(width, int):
+        chain = foundation.get("chain")
+        into = foundation.get("first_stitch_in", 1)
+        if isinstance(chain, int) and isinstance(into, int) and not isinstance(chain, bool):
+            needed = width + into - 1
+            if chain < needed:  # row 1 could not be worked: refuse, never warn (#50)
+                problems.append(
+                    f"foundation.chain {chain} is shorter than the {needed} chains row 1 needs "
+                    f"(width {width} + first_stitch_in {into} - 1)"
+                )
     expected = chart_id(codes, rows, doc.get("technique") or {}, passes if isinstance(passes, list) else None)
     actual = doc.get("chart", {}).get("id")
     if actual != expected:

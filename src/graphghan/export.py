@@ -158,18 +158,47 @@ def chart_json(a, meta, gauge_key, report, variant="final"):
     rows = rows_to_strings(a, codes)
     technique = dict(TECHNIQUE_ROWS)
     report_out = {k: (list(v) if isinstance(v, tuple) else v) for k, v in report.items()}
-    return {
+    stitch = meta.stitches.get(gauge_key, {})
+    pattern = {
+        "id": meta.slug,
+        "title": meta.title,
+        "version": meta.version,
+        "author": meta.author,
+        "license": meta.license,
+        "dedication": meta.dedication,
+        "quote": meta.quote,
+        "url": f"{SITE_URL}patterns/{meta.slug}/",
+    }
+    if meta.craft:
+        pattern["craft"] = meta.craft
+    if meta.language:
+        pattern["language"] = meta.language
+    gauge = {
+        "stitches": _gauge_number(st * 4),
+        "rows": _gauge_number(rows_per_in * 4),
+        "over": {"value": 4, "unit": "in"},
+        "stitch": gauge_key,
+        "hook": meta.hook,
+        "yarn_weight": meta.yarn_weight,
+    }
+    if "unit" in stitch:
+        gauge["unit"] = stitch["unit"]
+    if "name" in stitch:
+        gauge["stitch_name"] = stitch["name"]
+    if meta.terms:
+        gauge["terms"] = meta.terms
+    if meta.terms_also:
+        gauge["terms_also"] = meta.terms_also
+    if "boundary" in stitch:  # always paired with chain by pattern._stitch_entry
+        boundary = {"kind": stitch["boundary"], "chain": stitch["chain"]}
+        if "counts_as_stitch" in stitch:
+            boundary["counts_as_stitch"] = stitch["counts_as_stitch"]
+        if "chain_color" in stitch:
+            boundary["color"] = stitch["chain_color"]
+        gauge["boundary"] = boundary
+    doc = {
         "schema": SCHEMA,
-        "pattern": {
-            "id": meta.slug,
-            "title": meta.title,
-            "version": meta.version,
-            "author": meta.author,
-            "license": meta.license,
-            "dedication": meta.dedication,
-            "quote": meta.quote,
-            "url": f"{SITE_URL}patterns/{meta.slug}/",
-        },
+        "pattern": pattern,
         "chart": {
             "id": chart_id(codes, rows, technique),
             "variant": variant,
@@ -180,19 +209,20 @@ def chart_json(a, meta, gauge_key, report, variant="final"):
         "generator": {"name": "graphghan", "version": generator_version()},
         "palette": palette_entries(meta.palette),
         "rows": rows,
-        "gauge": {
-            "stitches": _gauge_number(st * 4),
-            "rows": _gauge_number(rows_per_in * 4),
-            "over": {"value": 4, "unit": "in"},
-            "stitch": gauge_key,
-            "hook": meta.hook,
-            "yarn_weight": meta.yarn_weight,
-        },
+        "gauge": gauge,
         "technique": technique,
         "instructions": [dict(s) for s in meta.instructions],
         "stats": stats(a, codes),
         "ext": {"graphghan": {"report": report_out}},
     }
+    if "first_stitch_in" in stitch:
+        fsi = stitch["first_stitch_in"]
+        foundation = {"chain": int(a.shape[1]) + fsi - 1, "first_stitch_in": fsi}
+        first = next((c for c in meta.palette.colors if c.code == meta.first_row_color), None)
+        if first is not None:
+            foundation["note"] = f"in {first.name} ({first.code})"
+        doc["foundation"] = foundation
+    return doc
 
 
 def write_dist(a, meta, gauge_key, report, out_dir, variant="final"):

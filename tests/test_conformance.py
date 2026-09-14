@@ -152,3 +152,35 @@ def test_schema_rejects_bad_phase1_values():
         d = json.loads(json.dumps(good))
         mutate(d)
         assert not v.is_valid(d)
+
+
+def test_validate_document_rejects_malformed_boundary():
+    good = load("minimal-rows")
+    for boundary in (
+        {"kind": "turn"},
+        {"kind": "flip", "chain": 1},
+        {"kind": "turn", "chain": "1"},
+        {"kind": "turn", "chain": -1},
+    ):
+        d = json.loads(json.dumps(good))
+        d["gauge"]["boundary"] = boundary
+        assert any("boundary" in p for p in chartdoc.validate_document(d)), boundary
+    d = json.loads(json.dumps(good))
+    d["gauge"]["boundary"] = {"kind": "spiral", "chain": 0}
+    assert chartdoc.validate_document(d) == []
+
+
+def test_validate_document_refuses_a_foundation_shorter_than_the_first_row():
+    """A maker could not work row 1 (#50): refused, not warned. Extra chains are fine."""
+    good = load("minimal-rows")  # width 14
+    d = json.loads(json.dumps(good))
+    d["foundation"] = {"chain": 15, "first_stitch_in": 2}
+    assert chartdoc.validate_document(d) == []
+    d["foundation"] = {"chain": 20, "first_stitch_in": 2}  # an edge's worth of extra chains
+    assert chartdoc.validate_document(d) == []
+    d["foundation"] = {"chain": 14, "first_stitch_in": 2}
+    assert any("foundation" in p for p in chartdoc.validate_document(d))
+    d["foundation"] = {"chain": 13}  # first_stitch_in absent means 1: needs at least width
+    assert any("foundation" in p for p in chartdoc.validate_document(d))
+    d["foundation"] = {"chain": 14}
+    assert chartdoc.validate_document(d) == []

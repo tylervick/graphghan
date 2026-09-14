@@ -157,3 +157,68 @@ def test_chart_json_requires_matching_active_gauge():
             chart_json(small(), meta, "sc", {})
     finally:
         gr.set_gauge("sc")
+
+
+PATTERN_LEVEL = 'stitch = "sc"\ncraft = "crochet"\nterms = "US"\nterms_also = "UK"\nlanguage = "en"'
+STITCH_SC = (
+    '\n[stitch.sc]\nchain = 1\ncounts_as_stitch = false\nchain_color = "next"\nfirst_stitch_in = 2\n'
+    'name = "single crochet"\nunit = "stitches"\n'
+)
+
+
+def _phase1_meta(tmp_path):
+    """The minimal fixture with every Phase 1 field authored for sc."""
+    src = (FIX / "pattern.toml").read_text().replace('stitch = "sc"', PATTERN_LEVEL) + STITCH_SC
+    (tmp_path / "pattern.toml").write_text(src)
+    return load_pattern(tmp_path)
+
+
+def test_chart_json_writes_authored_stitch_fields(tmp_path):
+    meta = _phase1_meta(tmp_path)
+    gr.set_gauge("sc")
+    doc = chart_json(small(), meta, "sc", {})
+    assert doc["pattern"]["craft"] == "crochet" and doc["pattern"]["language"] == "en"
+    assert doc["gauge"]["unit"] == "stitches"
+    assert doc["gauge"]["stitch_name"] == "single crochet"
+    assert doc["gauge"]["terms"] == "US" and doc["gauge"]["terms_also"] == "UK"
+    assert doc["gauge"]["boundary"] == {
+        "kind": "turn",
+        "chain": 1,
+        "counts_as_stitch": False,
+        "color": "next",
+    }
+    assert doc["foundation"] == {"chain": 6, "first_stitch_in": 2, "note": "in Alpha (A)"}
+    assert chartdoc.validate_document(doc) == []
+    # the id is a function of codes, rows and technique only: authoring a stitch never moves it
+    assert doc["chart"]["id"] == chartdoc.chart_id(["A", "B"], doc["rows"], doc["technique"])
+
+
+def test_chart_json_omits_unauthored_stitch_fields():
+    meta = load_pattern(FIX)
+    gr.set_gauge("sc")
+    doc = chart_json(small(), meta, "sc", {})
+    for key in ("unit", "stitch_name", "terms", "terms_also", "boundary"):
+        assert key not in doc["gauge"], key
+    for key in ("craft", "language"):
+        assert key not in doc["pattern"], key
+    assert "foundation" not in doc
+
+
+def test_chart_json_uses_the_charts_own_gauge_key(tmp_path):
+    src = (FIX / "pattern.toml").read_text() + '\n[stitch.square]\nboundary = "join"\nchain = 3\n'
+    (tmp_path / "pattern.toml").write_text(src)
+    meta = load_pattern(tmp_path)
+    gr.set_gauge("square")
+    try:
+        doc = chart_json(small(), meta, "square", {})
+        assert doc["gauge"]["boundary"] == {"kind": "join", "chain": 3}
+        assert "foundation" not in doc  # no first_stitch_in authored
+    finally:
+        gr.set_gauge("sc")
+
+
+def test_chart_json_foundation_note_from_first_row_color(tmp_path):
+    meta = _phase1_meta(tmp_path)  # first_row_color = "A" (Alpha) in the minimal fixture
+    gr.set_gauge("sc")
+    doc = chart_json(small(), meta, "sc", {})
+    assert doc["foundation"]["note"] == "in Alpha (A)"
