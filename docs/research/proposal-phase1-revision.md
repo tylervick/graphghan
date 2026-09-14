@@ -1,7 +1,8 @@
 # Proposal: revise Phase 1 in the design note (not yet applied)
 
-Status: proposed 2026-09-12, awaiting a decision. The design note's Phase 1 stands as written
-until this is accepted; nothing here is implemented.
+Status: proposed 2026-09-12, **accepted 2026-09-14** and applied to the design note's §5–§7.
+Kept as the record of why. Follow-on issues: #43 (kinds other than `turn`), #48 (`gauge.unit`),
+#49 (`craft`, `language`, `terms_also`). Nothing here is implemented.
 
 ## Why revise
 

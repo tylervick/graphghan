@@ -131,3 +131,19 @@ sewn into panels with joined edging — `round_join: both` widened beyond tutori
 Open for the next pass: print stratum (book/magazine, ≈17% of Ravelry); Meaghan's session
 (RQ1 first-hand evidence still zero); tool teardowns behind logins (Stitch Fiddle editor,
 Crochetpop); the Phase 1 revision decision.
+
+## 2026-09-14 — Stitch Fiddle and Crochetpop driven; Phase 1 revision accepted
+
+Tyler created free accounts; both tools driven read-only (one empty test chart left in Stitch
+Fiddle). Findings in `tools/README.md`. Headline: the chart tool has no turning-chain field and
+exports colour runs; the generator prints the chain at row start with "counts as", keyed on the
+first cell, and prints three boundary kinds (turn, join, none). Stitch Fiddle's direction model
+has an "always one direction" value we lack — `boundary.kind: rejoin`. Crochetpop's size FAQ
+(50×50 = 12.5×10 in sc, 40×40 in C2C) is the `gauge.unit` case in one sentence.
+
+Tyler accepted `proposal-phase1-revision.md`. Design note §5–§7 rewritten: `gauge.boundary
+{kind, chain, counts_as_stitch, color}`, `gauge.unit`, `gauge.terms_also`, `pattern.craft`,
+`pattern.language`; Phase 1 implements `kind: turn` only. Issues #48 (`gauge.unit`) and #49
+(`craft`, `language`, `terms_also`) filed; #43 carries the other kinds.
+
+DMC: `dmc.com` not yet allowed in the Chrome extension; cross-stitch stratum still one chart.

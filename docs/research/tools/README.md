@@ -1,10 +1,10 @@
 # Tool teardowns (RQ4): what existing tools store, and how they interoperate
 
-Date: 2026-09-12. Method: public documentation, manuals, and product pages. "Used" means the
-tool was driven; "read" means documentation only. Chrome access to several tool sites is pending
-extension permissions, so most entries are "read" for now and will be upgraded.
+Date: 2026-09-12, Stitch Fiddle and Crochetpop driven 2026-09-14 on Tyler's free accounts.
+Method: public documentation, manuals, product pages, and — where marked "driven" — the tool
+itself, read-only apart from one empty test chart left in the Stitch Fiddle account.
 
-## Stitch Fiddle (read; chart maker, web)
+## Stitch Fiddle (driven; chart maker, web)
 
 The crochet chart wizard's first question is the genre, and its list is an independent
 statement of the axes that matter to a chart tool:
@@ -43,17 +43,78 @@ Overlay mosaic is separate because a cell carries a stitch type.
   inches; how many vertical stitches (rows) in 4 inches", inches or centimetres. Field for field
   our `gauge.stitches / rows / over {value, unit}` (claim 14, fourth independent source).
 
-## Crochetpop (read; chart + written-instruction generator, web)
+**Driven (2026-09-14), the editor itself** — an empty 20 × 20 "Crochet colorwork" chart on
+Stylecraft Special DK, free tier (15 charts):
 
-Stores designs locally in the browser with optional cloud sync. Generates written row-by-row
-instructions that *include the foundation chain and the turning chain* and use "standard stitch
-abbreviations". Supports flat and in-the-round; granny squares written round by round. Has a
-"Live Row Tracker" with hands-free audio — a direct analogue of our Work screen. Claims
-deterministic validation that "every round's stitch math has to close", i.e. a tech-editor check
-built in. No public file format found.
+- **Craft comes first.** The home page asks "Choose your craft" before anything else: Crochet,
+  Cross stitch, Knitting, Diamond painting, Fuse beads, Pixel macrame, Latch hook, Quilt,
+  Pixelhobby, Pixel art / other. Chart settings carry `Craft: Crochet` and the project kind as
+  two dropdowns. Fifth independent source for `pattern.craft` (#49).
+- **Direction is a three-part setting**, identical in the chart settings and the progress
+  tracker: *Project* (top/down · diagonal · left/right), *Direction* (bottom-to-top ·
+  top-to-bottom), *Work* (always ← · always → · alternating starting right-to-left (RS) ·
+  alternating starting left-to-right), with an animated "S = start of work" example. That is
+  our `technique.start / first_side / rs_direction / turn` with one extra value we lack:
+  **always one direction** — the mosaic / rejoin case. `boundary.kind: rejoin` is that value.
+- **Nothing about a turning chain anywhere.** Not in settings, not in the tracker, not in the
+  written export. The chart tool most graphghan makers design in has no field for it, which is
+  why the number reaches the maker only through the designer's prose.
+- **Written instructions (Premium)** are, in the gate's own example, colour runs and counts
+  only: "Row 3: (Red) x 2, Blue (3 stitches)" — no stitch, no chain, no foundation. The most-
+  used chart tool's text export is exactly our `written-rows.txt` *before* Phase 1. What Phase 1
+  adds (chain, turn, stitch, foundation) is what Crochetpop's generator prints and Stitch
+  Fiddle's does not.
+- **Progress tracker** (free): *Track full rows · Track row stitch-by-stitch · Track row by
+  group of stitches* — three cursor granularities, the third being our run; a position counter
+  with ↑ ↓; darken all except the current row; auto-scroll; "move to start of row
+  automatically"; click-to-set vs click-to-advance. Row numbers alternate sides (odd right, even
+  left). This is the Work screen's model drawn by someone else: row, run, stitch.
+- **Download types**: png, jpg, gif, pdf, docx, odt, xlsx, **png (1 px pattern)**, **oxs**, svg,
+  eps, wmf, emf. Both of our exports are also its exports, so the round-trip is symmetric.
+  Layout options: legend before/after chart, grid lines, paper, margins (Premium).
+- **Versioning**: "Backups (previous versions)" per chart and a *Check for updates* action —
+  "The software and the chart are on the latest version" — so a shared chart can change under a
+  follower, the same problem `ProjectService.versionNotice` answers.
+- Gauge in the editor is a per-yarn preset or "(none)"; the wizard's swatch dialog stays the
+  only place gauge is entered.
 
-**For us:** the written output including turning chain and foundation is the same conclusion as
-Phase 1. The stitch-math check is worth borrowing as a validator rule for shaped rows (#37).
+## Crochetpop (driven; chart + written-instruction generator, web)
+
+Stores designs in the browser, a free account syncs them. Export is **SVG of the chart**, Print,
+and "Save as PDF" — no data format. Driven 2026-09-14 through the pattern library's *work* view
+(the generated rows, with the walkthrough advanced two rows) and the lesson walkthroughs.
+
+- **"One source design exports to four grid techniques"** — filet, SC pixel, C2C ("diagonal
+  blocks of 3 double crochets"), granny pixel — "the underlying grid stays the same" and "the
+  tool recalculates gauge and stitch counts". Its FAQ gives the size consequence outright:
+  "50×50 cells finishes about 12.5 × 10 in worked in single crochet, and 40 × 40 in worked
+  corner-to-corner." That is the chart-is-technique-agnostic finding (RQ3), the non-square sc
+  cell, and the `gauge.unit` problem (#48) in one paragraph.
+- **The generated rows put the chain at the start of the row, with "counts as", and key it on
+  the first cell.** Filet Rose, verbatim: "Foundation: Ch 89" · "Row 1: 1 dc in 8th ch from hook
+  (3 ch = 1st dc, 2 ch = 1st space, sk 2 ch). (ch 2, sk 2 ch, 1 dc in next ch) × 27. (28 sp, 85
+  sts)" · "Row 2: Ch 5 (counts as dc + first sp), turn. sk 2 sts, 1 dc in next st …". The ch 5 is
+  ch 3 for the dc plus ch 2 for the space the next row opens with — the filet rule from
+  `genres/filet.md`, implemented by a generator. The DC washcloth lesson prints "R2: Ch 3 (counts
+  as first dc), 9 dc (10)" and teaches the skill under the name **"Turning Chain Counts as
+  Stitch"** — our field, as a beginner lesson title.
+- **Rounds**: the granny square prints "Ch 3 (counts as first dc) … Join with sl st to top of
+  beg ch-3" (`boundary.kind: join`); the flat coaster prints "R2 [Color B] inc 6 (12)" with no
+  boundary text at all (`spiral`); the hand-written heart says "do not turn, right side facing"
+  and joins with "Sl st to the top of the beginning ch-3". Three kinds, one generator (#43).
+- **Per-row stitch counts as checkpoints**: every row ends "(85 sts)"; the work view says
+  "Checkpoint — count this row before Row Done. Expect 85 sts" and "Whole row · 85 sts · running
+  85 / 85 ✓", with "Work right → left (right side)" / "Work left → right (wrong side)" per row,
+  "row 2 above = next · rows below = just worked", a "Work in sections" splitter, Row/Stitch
+  ± steppers, notes, "Pin current stitch", and an Audio Mode. The stitch-math check is a
+  validator rule worth borrowing for shaped rows (#37); the direction line per row is ours.
+- **Colour per row in brackets** — "[Color A] 6 sc in ring" — and a colour legend that maps
+  Color A/B/C to hexes: the palette-role idea from #34, in the generated text.
+- Abbreviation keys carry both systems inline: "sc — single crochet (UK: double crochet)" —
+  the `terms_also` case (#49) as practised by a generator that never asks which system you use.
+- Stitch charts use standard crochet symbols and draw the turning chain as a column of chain
+  ovals at the alternating row start, so **in symbol-chart form the turning chain is visible;
+  in a colour grid it is not** — the gap Phase 1 fills for grid charts.
 
 ## Stitchmastery (read; knitting chart editor, desktop — manual v2015)
 
@@ -115,6 +176,6 @@ data to run on.
 ## Pending
 
 - Chart Minder (429 on fetch; retry).
-- Driving Stitch Fiddle and Crochetpop once `stitchfiddle.com` / `crochetpop.app` are allowed in
-  the Chrome extension: capture export formats, aspect-ratio and in-the-round settings.
+- DMC pattern library (account exists; `dmc.com` not yet allowed in the Chrome extension): the
+  cross-stitch stratum and DMC's chart/key layout for #44.
 - Row-counter apps (top three by installs): what per-project state they keep.

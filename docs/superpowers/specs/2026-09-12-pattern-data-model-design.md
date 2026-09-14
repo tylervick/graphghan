@@ -116,7 +116,7 @@ either.
 turn, 1 sc, (Gray) 4 sc…` — the chain in the *next* row's colour. Craigh na Dun chains at the end
 of the row in the *old* colour. Different coloured edge; both valid — but the corpus states it in
 3 of 32 plain row patterns — and in 13 of 15 mosaic patterns, where the colour changes at the row
-start. It is genre-bound, not rare. So `turning_chain.color` stays optional, is never derived, and the UI says nothing about
+start. It is genre-bound, not rare. So `boundary.color` stays optional, is never derived, and the UI says nothing about
 colour unless it is present (claim 3).
 
 **`dc` is ambiguous without a terminology declaration.** CYC's own table: US `sc` is UK `dc`, US
@@ -147,13 +147,21 @@ crochet in the colour shown".
 |---|---|---|
 | Stitch per run | Chart-level `gauge.stitch`, exposed as `Chart.stitch` | Right for every chart we generate; keeps `Run` and the pinned sequences untouched, so #36 stays additive |
 | Turning chain source | Authored, never derived | Section 4; a derived badge would contradict the designer on real patterns |
-| Turning chain shape | Object `{count, counts_as_stitch, color}` | The last two change what you do at the hook and cannot be squeezed into an integer |
+| Turning chain shape | `gauge.boundary {kind, chain, counts_as_stitch, color}` | The last two change what you do at the hook and cannot be squeezed into an integer; `kind` is what makes one object serve rows, joined rounds, mosaic, spiral and Tunisian (genre probes) |
 | Placement | `gauge`, not `technique` | `technique` is hashed into `chart.id`; see section 6.6 |
-| Terminology | `gauge.terms`, `"US"` default | `dc`/`tr`/`htr` collide between systems |
+| Terminology | `gauge.terms`, `"US"` default; `terms_also` for paired documents | `dc`/`tr`/`htr` collide between systems; Ravelry records "both" |
+| Gauge unit | `gauge.unit`, `"stitches"` default | Tiles, repeats and rounds are stated in the corpus and on Ravelry's form |
+| Craft and language | `pattern.craft`, `pattern.language` | Every catalogue keys on craft first; 5,107 Ravelry patterns have no written language |
 | Custom stitches | `gauge.stitch_name` overrides the known table | The vocabulary is open |
 | Foundation | New optional top-level `foundation` | Not a gauge fact, not hashed, needed before row 1 |
 
 ## 6. Phase 1 (normative)
+
+Revised 2026-09-14 from `docs/research/proposal-phase1-revision.md` (accepted): the turning
+chain became a pass **boundary** with a `kind`, and four small unhashed fields were added so the
+schema records what the catalogues and the corpus record. Phase 1 *implements* `kind: "turn"`
+only; the other kinds and the new fields are decoded, written by the generator and otherwise
+left alone (#43, #48, #49).
 
 ### 6.1 Schema
 
@@ -162,23 +170,37 @@ Inside `gauge`, all optional:
 ```json
 "gauge": {
   "stitches": 14, "rows": 16, "over": { "value": 4, "unit": "in" },
+  "unit": "stitches",
   "stitch": "sc",
   "stitch_name": "single crochet",
   "terms": "US",
-  "turning_chain": { "count": 1, "counts_as_stitch": false, "color": "next" },
+  "terms_also": "UK",
+  "boundary": { "kind": "turn", "chain": 1, "counts_as_stitch": false, "color": "next" },
   "hook": "5 mm (US H-8)", "yarn_weight": "4"
 }
 ```
 
 - `terms`: `"US"` or `"UK"`. Absent means `"US"` — every pattern in the corpus that declares is
   US, and so is ours. A reader MUST NOT spell out an abbreviation under the wrong system.
+- `terms_also`: the other system, for a document whose written rows spell both. Readers spell
+  out from `terms` only; this field is a statement about the prose, not a second vocabulary.
 - `stitch_name`: the spelled-out name. Required when `stitch` is not in the CYC master list;
   ignored when it is, so a chart cannot rename `sc`.
-- `turning_chain.count`: required within the object. `0` is legal and means turn without
-  chaining.
-- `turning_chain.counts_as_stitch`: default `false`.
-- `turning_chain.color`: `"next"` or `"current"`, optional. Absent means unstated, and a reader
-  says nothing about colour rather than guessing.
+- `unit`: what `stitches` and `rows` count — `"stitches"` (default), `"tiles"`, `"repeats"`,
+  `"rounds"`. A reader that does not understand the unit derives no finished size (#48).
+- `boundary`: what happens at the end of a pass, one object for every genre:
+  - `kind`: `"turn"` (rows: turn the work), `"join"` (rounds closed with a slip stitch),
+    `"rejoin"` (fasten off and start the next pass at the same edge — overlay mosaic, one-
+    direction tapestry), `"spiral"` (continuous rounds, no boundary at all), `"return"`
+    (Tunisian: the return pass is the boundary). Required within the object. Phase 1 readers act
+    on `"turn"` and show nothing for the rest.
+  - `chain`: chains made at the boundary. Required within the object; `0` is legal.
+  - `counts_as_stitch`: default `false`.
+  - `color`: `"next"` or `"current"`, optional. Absent means unstated, and a reader says
+    nothing about colour rather than guessing.
+
+`pattern` gains two optional keys, `craft` (`"crochet"`, `"knit"`, `"tunisian"`,
+`"cross-stitch"`) and `language` (BCP 47). Absent means unstated (#49).
 
 New optional top-level key:
 
@@ -197,33 +219,40 @@ keys at every level.
 
 ```toml
 [pattern]
+craft = "crochet"
 terms = "US"
+language = "en"
 
 [stitch.sc]
-turning_chain = 1
+boundary = "turn"
+chain = 1
 counts_as_stitch = false
 chain_color = "next"
 first_stitch_in = 2
 
 [stitch.hdc]
-turning_chain = 2
+boundary = "turn"
+chain = 2
 first_stitch_in = 2
 ```
 
 `[stitch.<key>]` is keyed by gauge key, exactly like `[gauge]`. `pattern.load_pattern` reads it
-into `PatternMeta.stitches: dict[str, dict]` and `PatternMeta.terms`. `export.chart_json` writes
-`gauge.terms`, `gauge.turning_chain` and `foundation` from the entry for the chart's `gauge_key`,
+into `PatternMeta.stitches: dict[str, dict]` and `PatternMeta.terms` / `craft` / `language`.
+`export.chart_json` writes `gauge.terms`, `gauge.terms_also`, `gauge.unit`, `gauge.boundary`,
+`pattern.craft`, `pattern.language` and `foundation` from the entry for the chart's `gauge_key`,
 and omits whichever keys the pattern did not author — the generator never invents a number.
+`boundary` defaults to `"turn"` when `chain` is authored and `boundary` is not, because every
+chart we generate today is worked in turned rows; it is never written without `chain`.
 
 `foundation.chain` is written as `width + first_stitch_in - 1`.
 
-Craigh na Dun authors `sc` as ch 1 and `hdc` as ch 2 (per review). Note that three of three hdc
+Craigh na Dun authors `sc` as ch 1 and `hdc` as ch 2 (per review). Note that three of four hdc
 patterns in the corpus use ch 1; worth confirming before the hdc chart is republished. #41 covers
 the related bug that the shared `[notes].setup` prose already ships single-crochet rules on the
 hdc chart, and is largely fixed by rendering that sentence from these fields.
 
 `export.written_rows` gains the stitch and the chain, bringing it in line with what a published
-chart pattern prints:
+chart pattern prints, and with what Crochetpop generates (`docs/research/tools/README.md`):
 
 ```
 Row 51 (RS): ch 1, turn, 1 K, 4 G, 9 K, 13 C  (28 sts)
@@ -236,8 +265,11 @@ New `Stitch.swift`:
 ```swift
 public enum Terms: String, Sendable { case us = "US", uk = "UK" }
 
-public struct TurningChain: Equatable, Sendable {
-    public let count: Int
+public enum BoundaryKind: String, Sendable { case turn, join, rejoin, spiral, `return` }
+
+public struct Boundary: Equatable, Sendable {
+    public let kind: BoundaryKind
+    public let chain: Int
     public let countsAsStitch: Bool
     public let color: ChainColor?      // .next, .current
 }
@@ -246,21 +278,24 @@ public struct Stitch: Equatable, Sendable {
     public let code: String            // as written in gauge.stitch
     public let name: String?           // CYC table for `terms`, or gauge.stitch_name; nil if unknown
     public let terms: Terms
-    public let turningChain: TurningChain?   // from the document only; never derived
+    public let boundary: Boundary?     // from the document only; never derived
 }
 ```
 
 Two name tables, US and UK, covering the CYC list. An unknown code yields `name == nil` and the
-UI shows the abbreviation alone.
+UI shows the abbreviation alone. An unknown `kind` string fails to decode the `boundary` object
+only — the rest of `gauge` still loads — so a Phase 1 reader treats a future kind as absent.
 
-- `ChartDocument.Gauge` gains `stitchName`, `terms`, `turningChain` (CodingKeys `stitch_name`,
-  `terms`, `turning_chain`).
+- `ChartDocument.Gauge` gains `stitchName`, `terms`, `termsAlso`, `unit`, `boundary`
+  (CodingKeys `stitch_name`, `terms`, `terms_also`, `unit`, `boundary`).
+- `ChartDocument.Pattern` gains `craft` and `language`.
 - New `ChartDocument.Foundation` and `ChartDocument.foundation`.
 - `Chart.stitch: Stitch?` and `Chart.foundation`.
 - **`Run`, `Pass` and `WorkSequence` do not change.** This is the invariant that keeps every
   `*.sequence.json`, `tests/test_js_parity.py` and the PWA untouched.
-- `WorkActivityInfo` gains `stitch: String?` and `turningChain: Int?`. They are static for a
-  project, so they belong in `Info`, not `State`; `isLastInRow` already exists.
+- `WorkActivityInfo` gains `stitch: String?` and `turningChain: Int?` (set only when
+  `boundary.kind == .turn`). They are static for a project, so they belong in `Info`, not
+  `State`; `isLastInRow` already exists.
 
 ### 6.4 What the app shows
 
@@ -268,10 +303,10 @@ UI shows the abbreviation alone.
   `YarnSurface.foreground(hex)`. Text is `stitch.code`; the accessibility label uses
   `stitch.name` when known, so Done reads "Done with 4 single crochet in Charcoal". No new colour
   or font token, so `DesignRulesTests` stays green.
-- **On-deck line, last run of a row.** `OnDeckRule` prepends the chain:
+- **On-deck line, last run of a row, `kind == .turn` only.** `OnDeckRule` prepends the chain:
   `"ch 1, turn — next row starts in Gold"`. With `color == .next`, `"ch 1 in Gold, turn — …"`.
-  With `counts_as_stitch`, append `" (counts as a st)"`. With no `turning_chain`, the line is
-  exactly what it is today.
+  With `counts_as_stitch`, append `" (counts as a st)"`. With no `boundary`, or any other kind,
+  the line is exactly what it is today.
 - **Foundation, at `cursor == .start` only.** The on-deck line reads
   `"Chain 190, first sc in the 2nd chain"`. This is the "and at the start of the first" half of
   #25.
@@ -282,15 +317,18 @@ Nothing here changes layout, only text and one badge, so §6.1 of the design lan
 
 ### 6.5 Fixtures, docs and tests
 
-`docs/chart-format.md`: the gauge section gains `terms`, `stitch_name` and `turning_chain`; a new
-Foundation subsection; `technique.turn` cross-references the chain. One documentation-only
-clarification with no code behind it, because the format is currently ambiguous and cheap to fix
-here: **a layer's legend describes each cell as it looks on the right side of the work**, which
-is the CYC rule for both crochet and knit chart symbols, and is what makes a knit legend of
-`{"k": "knit", "p": "purl"}` mean anything on a WS pass. Enforcing it is #36.
+`docs/chart-format.md`: the gauge section gains `terms`, `terms_also`, `unit`, `stitch_name`
+and `boundary` (with the five kinds and which one readers implement today); `pattern` gains
+`craft` and `language`; a new Foundation subsection; `technique.turn` cross-references
+`boundary`. One documentation-only clarification with no code behind it, because the format is
+currently ambiguous and cheap to fix here: **a layer's legend describes each cell as it looks on
+the right side of the work**, which is the CYC rule for both crochet and knit chart symbols, and
+is what makes a knit legend of `{"k": "knit", "p": "purl"}` mean anything on a WS pass.
+Enforcing it is #36.
 
-`schema/chart.schema.json`: `gauge.terms` (enum), `gauge.stitch_name` (string),
-`gauge.turning_chain` (object, `count` required, integer minimum 0), top-level `foundation`.
+`schema/chart.schema.json`: `gauge.terms` / `terms_also` (enum), `gauge.unit` (enum),
+`gauge.stitch_name` (string), `gauge.boundary` (object; `kind` enum and `chain` integer minimum
+0 required), `pattern.craft` (enum), `pattern.language` (string), top-level `foundation`.
 
 `fixtures/chart-format/generate.py`: the hand-built fixtures keep their current `GAUGE`, which
 is the "absent" case. The craigh-na-dun fixture picks up the new keys for free when `dist`
@@ -302,26 +340,27 @@ Tests that change:
 
 | Where | Change |
 |---|---|
-| `tests/test_export.py` | `gauge.turning_chain` / `foundation` / `terms` written from `[stitch.*]`; omitted when unauthored; `written_rows` prefix |
-| `tests/test_pattern.py` | `[stitch.<key>]` and `[pattern].terms` parsing |
+| `tests/test_export.py` | `gauge.boundary` / `unit` / `terms` / `terms_also`, `pattern.craft` / `language`, `foundation` written from `pattern.toml`; omitted when unauthored; `written_rows` prefix |
+| `tests/test_pattern.py` | `[stitch.<key>]` and `[pattern].craft/terms/language` parsing |
 | `tests/test_conformance.py` | unchanged set; add an assertion that chart ids are byte-identical across this change |
 | `tests/test_drift.py` | passes once `dist/` is regenerated |
-| `GraphghanCoreTests/StitchTests.swift` | new: US and UK tables, unknown code, `stitch_name` override, no derivation when absent |
-| `GraphghanCoreTests/ChartDocumentTests.swift` | new gauge keys and `foundation` decode |
+| `GraphghanCoreTests/StitchTests.swift` | new: US and UK tables, unknown code, `stitch_name` override, no derivation when absent, unknown `kind` decodes as no boundary |
+| `GraphghanCoreTests/ChartDocumentTests.swift` | new gauge and pattern keys and `foundation` decode |
 | `GraphghanCoreTests/ChartTests.swift` | `Chart.stitch` resolution |
-| `GraphghanCoreTests/LiveActivityStateTests.swift` | `Info.stitch` / `turningChain` |
-| `ios/Tests/OnDeckRuleTests.swift` | `lastRunInRowNamesNextRowsColor` expectation gains the chain |
+| `GraphghanCoreTests/LiveActivityStateTests.swift` | `Info.stitch` / `turningChain`; nil for `kind != turn` |
+| `ios/Tests/OnDeckRuleTests.swift` | `lastRunInRowNamesNextRowsColor` expectation gains the chain; a `join` boundary leaves it unchanged |
 | `ios/Tests/WorkScreenTests.swift` + snapshots | `work-last-in-row.png`, `work-mid-row.png`, `lock-last-in-row.png` re-record |
 
 ### 6.6 Compatibility
 
 `chart.id` hashes `{codes, rows, technique}` plus `passes` (`chartdoc.chart_id`,
-`ChartID.compute`). `gauge` and the new top-level `foundation` are outside that set, so **every
-existing chart id is unchanged**. That matters concretely: `ProjectService.versionNotice`
-(`ios/Graphghan/Services/ProjectService.swift:137`) treats a changed id as "the chart changed",
-and `switchChart` refuses unless the cursor is at the start — so putting `turning_chain` on
-`technique` would have stranded every project in flight. It is also the honest answer: a turning
-chain is not a different chart, in the same way the format already says renaming a colour is not.
+`ChartID.compute`). `gauge`, `pattern` and the new top-level `foundation` are outside that set,
+so **every existing chart id is unchanged**. That matters concretely:
+`ProjectService.versionNotice` (`ios/Graphghan/Services/ProjectService.swift:137`) treats a
+changed id as "the chart changed", and `switchChart` refuses unless the cursor is at the start —
+so putting `boundary` on `technique` would have stranded every project in flight. It is also the
+honest answer: a turning chain is not a different chart, in the same way the format already says
+renaming a colour is not.
 
 Old app, new chart: unknown keys ignored. New app, old chart: no badge text beyond the
 abbreviation, no chain line. Neither errors.
@@ -335,8 +374,8 @@ level and notions (#33); authored yarn amounts — put-up, balls, colorway numbe
 Structural: one cell is not always one stitch, which is the highest-value gap because it is the
 only one that is silently wrong rather than refused (#44); per-cell stitch through
 `layers.stitch`, for which overlay mosaic is the real motivating genre (#36); shaped rows whose
-counts change with increases and decreases (#37); joined versus spiral rounds, the round-shaped
-half of this spec's own problem (#43); border and edging as a phase after the chart (#38); stitch
+counts change with increases and decreases (#37); joined versus spiral rounds — the `boundary` kinds other than `turn` (#43); gauge in tiles,
+repeats or rounds (#48); craft, language and paired terminology beyond decoding (#49); border and edging as a phase after the chart (#38); stitch
 multiples and chart repeat markers (#39, with #22 as the app-side counterpart).
 
 App: the iOS app displays `instructions[]` nowhere, so setup, colour-change technique and
