@@ -288,3 +288,30 @@ def test_derived_sizes():
     assert chartdoc.finished_size(d) == (4.0, 3.0, "in")
     d["gauge"] = {"stitches": 10, "rows": 10, "over": {"value": 10, "unit": "cm"}}
     assert chartdoc.finished_size(d) == (14.0, 12.0, "cm")
+
+
+def test_cell_kind_defaults_to_stitch():
+    assert chartdoc.cell_kind(doc(["4A"])) == "stitch"
+    assert chartdoc.cell_kind({}) == "stitch"
+
+
+def test_cell_kind_reads_a_declared_kind():
+    assert chartdoc.cell_kind(doc(["4A"], cell={"kind": "block"})) == "block"
+
+
+def test_validate_accepts_every_declared_kind():
+    for kind in chartdoc.CELL_KINDS:
+        assert chartdoc.validate_document(doc(["4A"], cell={"kind": kind})) == []
+
+
+def test_validate_refuses_an_unknown_cell_kind():
+    problems = chartdoc.validate_document(doc(["4A"], cell={"kind": "sparkle"}))
+    assert any("chart.cell.kind" in p and "sparkle" in p for p in problems)
+
+
+def test_validate_refuses_a_non_object_cell():
+    """#55's shape: report the field and its type, never silently skip the block."""
+    d = doc(["4A"])
+    d["chart"]["cell"] = "block"
+    problems = chartdoc.validate_document(d)
+    assert any("chart.cell" in p and "str" in p for p in problems)

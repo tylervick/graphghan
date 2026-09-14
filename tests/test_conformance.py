@@ -115,6 +115,9 @@ def test_schema_rejects_bad_documents():
         d = json.loads(json.dumps(good))
         mutate(d)
         assert not v.is_valid(d)
+    bad_cell = json.loads((FIX / "minimal-rows.chart.json").read_text(encoding="utf-8"))
+    bad_cell["chart"]["cell"] = {"kind": "sparkle"}
+    assert list(Draft202012Validator(CHART_SCHEMA).iter_errors(bad_cell)) != []
 
 
 def test_schema_accepts_phase1_keys():
