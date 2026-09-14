@@ -157,6 +157,23 @@ is a four-level scale with their own labels ("Level 2 - Easy (Beginner+)"), yarn
 CYC number and name. This is a large publisher's catalogue vocabulary for RQ2; it aligns with
 CYC on yarn weight and diverges on skill-level labels.
 
+## DMC (driven 2026-09-14; catalogue taxonomy and pattern delivery)
+
+The pattern catalogue (2,243 free and paid patterns) filters on **Craft** — Embroidery 1,057 ·
+Cross Stitch 705 · Crochet 170 · Craft 162 · Punch Needle 61 · Tapestry and needlepoint 19 ·
+Knitting 13 · Macrame 12 · Felting 5 — and **Level**: Intermediate 1,251 · Easy 639 · Beginner
+192 · Advanced 122. Craft first, again (#49). The level scale is four steps with its own labels
+and ordering (Beginner below Easy), a third labelling of the same idea after CYC's
+Basic/Easy/Intermediate/Complex and Lion Brand's "Level 2 - Easy (Beginner+)" (#33: store the
+publisher's label, map to CYC only when the publisher does).
+
+Delivery: a free pattern is a **$0 cart checkout** ("Pattern Only — Free" / "Add thread —
+$13.80 … Make it a Kit"), after which the PDF sits in the account's downloads; there is no
+direct PDF URL (the legacy `/media/.../patterns/pdf/<SKU>.pdf` path redirects). The pattern
+*is* a product with a SKU (`PAT2174`) and the kit is the pattern plus "pre-calculated shades and
+quantities of thread" — DMC sells the yarn-amounts table (#34) as the upsell. Cross-stitch
+corpus rows from DMC wait on Tyler running that checkout (`docs/research/log.md`).
+
 ## knitCompanion (read; PDF-based project keeper, mobile)
 
 Works from the designer's PDF, not from a chart model. Per project it keeps: row and stitch
@@ -176,6 +193,6 @@ data to run on.
 ## Pending
 
 - Chart Minder (429 on fetch; retry).
-- DMC pattern library (account exists; `dmc.com` not yet allowed in the Chrome extension): the
-  cross-stitch stratum and DMC's chart/key layout for #44.
+- DMC cross-stitch PDFs for the corpus (five or so): need a $0 "Pattern Only" checkout per
+  pattern in Tyler's account, then the files from his downloads into `corpus/raw/`.
 - Row-counter apps (top three by installs): what per-project state they keep.

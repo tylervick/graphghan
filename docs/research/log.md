@@ -146,4 +146,6 @@ Tyler accepted `proposal-phase1-revision.md`. Design note §5–§7 rewritten: `
 `pattern.language`; Phase 1 implements `kind: turn` only. Issues #48 (`gauge.unit`) and #49
 (`craft`, `language`, `terms_also`) filed; #43 carries the other kinds.
 
-DMC: `dmc.com` not yet allowed in the Chrome extension; cross-stitch stratum still one chart.
+DMC: reachable after all (the refusal was a fresh blank tab, not an allowlist). Catalogue
+taxonomy recorded in `tools/README.md`. Free patterns are a $0 checkout with no direct PDF URL,
+so the cross-stitch rows wait on Tyler ordering ~5 "Pattern Only" items; stratum still one chart.
