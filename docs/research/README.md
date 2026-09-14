@@ -60,6 +60,11 @@ Meaghan, working Craigh na Dun. `meaghan-questions.md` is a fixed question set a
 guide; Tyler runs it and relays answers verbatim. Marked first-hand. Two further crocheters
 recruited through Ravelry groups, marked as such.
 
+**Deferred 2026-09-14** (Meaghan away; Tyler's call): the session runs retroactively when she is
+back. Phase 1 proceeds without it because every Phase 1 field is authored, additive and unhashed —
+RQ1's answers can change the Work screen's wording in the design note's §6.4 and nothing else.
+Results still land in `users/meaghan-session-1.md`; RQ1's "done when" stays open until then.
+
 ### Genre probes (RQ3)
 
 For each technique above, obtain two or three real charts and hand-encode them in the current
