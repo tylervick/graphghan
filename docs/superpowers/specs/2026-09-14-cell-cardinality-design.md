@@ -1,7 +1,7 @@
 # Graphghan: what one cell is
 
 Date: 2026-09-14
-Status: approved design (reviewed in conversation), awaiting spec review
+Status: approved (spec reviewed 2026-09-14); implementation plan to follow
 Builds on: `2026-09-12-pattern-data-model-design.md` (the `boundary` object this copies)
 Genre evidence: `docs/research/genres/` — `filet.md`, `c2c.md`, `joined-rounds.md`, `README.md`
 Closes the design step for: #44 (part 1)
