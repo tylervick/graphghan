@@ -49,3 +49,17 @@ there is about what a pattern failed to say.
 
 Put the results in `meaghan-session-1.md` in this directory: Part A as a timed list, Part B as
 question and answer, Part C as a list with photos. Mark anything paraphrased.
+
+## When the notes come back
+
+The session was deferred on 2026-09-14 (Meaghan away) and Phase 1 shipped without it, so the
+answers land against a merged design, not a draft. Whoever picks them up:
+
+1. Write `meaghan-session-1.md` in this directory as described above, verbatim, paraphrases marked.
+2. Code Part B against `../claims.md`: questions 2–4 and 10–12 are first-hand evidence for claims 1–3
+   (turning chain, counts-as, chain colour) and for the on-deck wording in
+   `docs/superpowers/specs/2026-09-12-pattern-data-model-design.md` §6.4; questions 6–9 feed RQ4 and
+   `community-threads.md`. Add a first-hand evidence line to each claim touched, a dated entry to
+   `../log.md`, and mark RQ1's "done when" in `../README.md`.
+3. Anything the answers change in the app is text only under Phase 1 (§6.4) — file an issue per
+   change (the backlog is GitHub Issues) rather than editing the merged spec.
