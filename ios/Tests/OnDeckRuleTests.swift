@@ -84,6 +84,14 @@ import GraphghanCore
         #expect(OnDeckRule.onDeck(cursor: .start, chart: chart, sequence: seq)?.text == "then 7 Gold")
     }
 
+    @Test func foundationWithoutFirstStitchInSaysChainOnly() throws {
+        let chart = Self.authored(boundary: #"{"kind":"turn","chain":1}"#, foundation: "\"foundation\":{\"chain\":13},")
+        let seq = try WorkSequence(chart: chart)
+        let start = OnDeckRule.onDeck(cursor: .start, chart: chart, sequence: seq)
+        #expect(start?.text == "Chain 13")
+        #expect(start?.hex == "#2B2F33")
+    }
+
     @Test func ordinals() {
         #expect(OnDeckRule.ordinal(1) == "1st" && OnDeckRule.ordinal(2) == "2nd" && OnDeckRule.ordinal(3) == "3rd")
         #expect(OnDeckRule.ordinal(4) == "4th" && OnDeckRule.ordinal(11) == "11th" && OnDeckRule.ordinal(12) == "12th")
