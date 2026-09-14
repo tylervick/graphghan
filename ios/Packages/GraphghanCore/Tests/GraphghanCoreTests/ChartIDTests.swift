@@ -65,4 +65,13 @@ import Testing
         let chart = try Chart.load(Fixtures.data("filet-blocks.chart.json"))
         #expect(chart.id == chart.document.chart.id)
     }
+
+    @Test func aNonObjectCellIsNotHashed() {
+        // Mirrors Python's `isinstance(cell, dict)` guard: a non-object `cell` counts as absent.
+        let codes = ["A", "B"], rows = ["2A2B", "4A"]
+        let technique = JSONValue.object([:])
+        let none = ChartID.compute(codes: codes, rows: rows, technique: technique, passes: nil, cell: nil)
+        let str = ChartID.compute(codes: codes, rows: rows, technique: technique, passes: nil, cell: .string("block"))
+        #expect(none == str)
+    }
 }

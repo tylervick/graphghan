@@ -177,4 +177,12 @@ import Testing
         let chart = try Self.chart("filet-blocks")
         #expect(chart.cellKind == .block)
     }
+
+    @Test func anUnknownCellKindRefusesTheDocument() throws {
+        // Spec §4.1: a kind outside the enum is refused, not degraded. A kind inside the enum but
+        // unimplemented is the other case and opens fine — `filet-blocks` covers that.
+        var json = String(decoding: Self.doc(rows: ["4A"]), as: UTF8.self)
+        json = json.replacingOccurrences(of: #""chart":{"id":"#, with: #""chart":{"cell":{"kind":"sparkle"},"id":"#)
+        #expect(throws: (any Error).self) { _ = try Chart.load(Data(json.utf8)) }
+    }
 }

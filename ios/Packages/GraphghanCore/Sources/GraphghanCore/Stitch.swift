@@ -17,8 +17,13 @@ public enum ChainColor: String, Codable, Sendable {
     case next, current
 }
 
-/// What one grid cell is. Absent from a document means `.stitch`; a reader that does not implement
-/// a kind still opens the chart and withholds every stitch-derived number (docs/chart-format.md §Cells).
+/// What one grid cell is. Absent from a document means `.stitch`.
+///
+/// A kind that is in this enum but not yet implemented (everything but `.stitch`) still opens the
+/// chart: the stitch-derived numbers are withheld rather than computed wrongly. A kind *outside*
+/// this enum is a different case and refuses the document — an unrecognised cardinality is one this
+/// repo's writers did not produce and cannot reason about, so every number in it is suspect
+/// (docs/superpowers/specs/2026-09-14-cell-cardinality-design.md §4.1, and the #50 tenet).
 public enum CellKind: String, Codable, Sendable {
     case stitch, block, tile, motif, pair
 }
