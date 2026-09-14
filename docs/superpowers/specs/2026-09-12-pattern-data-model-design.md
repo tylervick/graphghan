@@ -210,8 +210,10 @@ New optional top-level key:
 ```
 
 `chain` is the authored chain count and `first_stitch_in` the 1-based chain from the hook where
-row 1's first stitch goes. Both are authored and no reader cross-checks one against the other:
-a foundation with extra chains for an edge is legitimate and must not fail validation.
+row 1's first stitch goes. Both are authored. A foundation with extra chains for an edge is
+legitimate and must not fail validation; one with fewer than `width + first_stitch_in - 1` cannot
+be worked, and the generator's validator and every reader refuse it (#50: nobody may work a chart
+that is not physically viable).
 
 `schema` stays `2`. Every field is optional and additive, and readers already MUST ignore unknown
 keys at every level.
