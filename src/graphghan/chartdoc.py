@@ -33,10 +33,18 @@ def _canonical(obj) -> bytes:
     return json.dumps(obj, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
 
 
-def chart_id(codes: list[str], rows: list[str], technique: dict, passes: list[dict] | None = None) -> str:
+def chart_id(
+    codes: list[str],
+    rows: list[str],
+    technique: dict,
+    passes: list[dict] | None = None,
+    cell: dict | None = None,
+) -> str:
     obj = {"codes": list(codes), "rows": list(rows), "technique": technique}
     if passes is not None:
         obj["passes"] = passes
+    if isinstance(cell, dict):  # presence-and-type, exactly as `passes` is guarded at the call site
+        obj["cell"] = cell
     return "sha256:" + hashlib.sha256(_canonical(obj)).hexdigest()
 
 
@@ -222,7 +230,13 @@ def validate_document(doc: dict) -> list[str]:
                     f"foundation.chain {chain} is shorter than the {needed} chains row 1 needs "
                     f"(width {width} + first_stitch_in {into} - 1)"
                 )
-    expected = chart_id(codes, rows, doc.get("technique") or {}, passes if isinstance(passes, list) else None)
+    expected = chart_id(
+        codes,
+        rows,
+        doc.get("technique") or {},
+        passes if isinstance(passes, list) else None,
+        doc.get("chart", {}).get("cell"),
+    )
     actual = doc.get("chart", {}).get("id")
     if actual != expected:
         problems.append(f"chart.id {actual!r} does not match content ({expected})")
