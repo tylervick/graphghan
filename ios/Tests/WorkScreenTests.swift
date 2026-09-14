@@ -32,4 +32,19 @@ import GraphghanCore
         let view = screen(Cursor(row: 42, run: 8)).environment(\.dynamicTypeSize, .accessibility5)
         #expect(try Snapshots.assert(view, named: "work-mid-row-ax5", size: Self.phone))
     }
+
+    @Test func doneLabelSpellsOutTheStitch() {
+        // Craigh na Dun: gauge.stitch = sc, terms = US
+        let label = WorkScreen.doneLabel(chart: Self.chart, sequence: Self.seq, cursor: Cursor(row: 42, run: 8))
+        let run = Self.seq.pass(at: 42)!.runs[8]
+        let name = Self.chart.palette[Self.chart.colorIndex(of: run.code)!].name
+        #expect(label == "Done with \(run.count) single crochet in \(name)")
+        // two-letter-codes: gauge.stitch = sc with no terms → US → still named; palette names are "Color <code>"
+        let plainChart = try! Chart.load(TestFixtures.data("two-letter-codes.chart.json"))
+        let plainSeq = try! WorkSequence(chart: plainChart)
+        #expect(WorkScreen.doneLabel(chart: plainChart, sequence: plainSeq, cursor: .start) == "Done with 3 single crochet in Color Kb")
+        // a chart with no gauge.stitch keeps today's label
+        let end = Cursor(row: Self.seq.passes.count, run: Self.seq.passes.last!.runs.count)
+        #expect(WorkScreen.doneLabel(chart: Self.chart, sequence: Self.seq, cursor: end) == "Close")
+    }
 }

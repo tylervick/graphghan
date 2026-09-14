@@ -98,7 +98,8 @@ struct WorkScreen: View {
     private var fieldContent: WorkFieldContent? {
         guard !finished, let pass = sequence.pass(at: cursor.row), let entry = currentEntry else { return nil }
         return WorkFieldContent(count: pass.runs[cursor.run].count, code: entry.code, name: entry.name,
-                                onDeck: OnDeckRule.onDeck(cursor: cursor, chart: chart, sequence: sequence)?.text)
+                                onDeck: OnDeckRule.onDeck(cursor: cursor, chart: chart, sequence: sequence)?.text,
+                                stitch: chart.stitch?.code)
     }
 
     /// The run Back returns to: the one before the cursor, or the last run of the previous row.
@@ -135,10 +136,19 @@ struct WorkScreen: View {
     /// The palette entry of the run under the cursor; nil once finished or past the last run.
     private var currentEntry: ChartDocument.PaletteEntry? { finished ? nil : entry(at: cursor) }
 
-    private var doneLabel: String {
-        guard !finished else { return "Close" }
-        guard let pass = sequence.pass(at: cursor.row), let entry = currentEntry else { return "Done" }
-        return "Done with \(pass.runs[cursor.run].count) \(entry.name)"
+    private var doneLabel: String { Self.doneLabel(chart: chart, sequence: sequence, cursor: cursor) }
+
+    /// "Done with 4 single crochet in Charcoal": the stitch name when the chart states one the
+    /// tables know, its abbreviation otherwise, nothing when the chart is silent (spec §6.4).
+    static func doneLabel(chart: Chart, sequence: WorkSequence, cursor: Cursor) -> String {
+        guard !WorkEngine.isFinished(cursor, in: sequence) else { return "Close" }
+        guard let pass = sequence.pass(at: cursor.row), cursor.run < pass.runs.count else { return "Done" }
+        let run = pass.runs[cursor.run]
+        let entry = chart.palette[chart.colorIndex(of: run.code) ?? 0]
+        if let stitch = chart.stitch {
+            return "Done with \(run.count) \(stitch.name ?? stitch.code) in \(entry.name)"
+        }
+        return "Done with \(run.count) \(entry.name)"
     }
 
     private func sideText(_ pass: Pass) -> String {
