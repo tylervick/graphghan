@@ -115,3 +115,40 @@ def test_schema_rejects_bad_documents():
         d = json.loads(json.dumps(good))
         mutate(d)
         assert not v.is_valid(d)
+
+
+def test_schema_accepts_phase1_keys():
+    v = Draft202012Validator(CHART_SCHEMA)
+    d = load("minimal-rows")
+    d["pattern"]["craft"] = "crochet"
+    d["pattern"]["language"] = "en"
+    d["gauge"].update(
+        {
+            "unit": "stitches",
+            "stitch_name": "single crochet",
+            "terms": "US",
+            "terms_also": "UK",
+            "boundary": {"kind": "turn", "chain": 1, "counts_as_stitch": False, "color": "next"},
+        }
+    )
+    d["foundation"] = {"chain": 15, "first_stitch_in": 2, "note": "in A"}
+    assert v.is_valid(d), [e.message for e in v.iter_errors(d)]
+
+
+def test_schema_rejects_bad_phase1_values():
+    v = Draft202012Validator(CHART_SCHEMA)
+    good = load("minimal-rows")
+    for mutate in (
+        lambda d: d["gauge"].__setitem__("boundary", {"kind": "flip", "chain": 1}),
+        lambda d: d["gauge"].__setitem__("boundary", {"kind": "turn"}),  # chain is required
+        lambda d: d["gauge"].__setitem__("boundary", {"kind": "turn", "chain": -1}),
+        lambda d: d["gauge"].__setitem__("boundary", {"kind": "turn", "chain": 1, "color": "same"}),
+        lambda d: d["gauge"].__setitem__("terms", "us"),
+        lambda d: d["gauge"].__setitem__("unit", "cells"),
+        lambda d: d["pattern"].__setitem__("craft", "weaving"),
+        lambda d: d.__setitem__("foundation", {"first_stitch_in": 2}),  # chain is required
+        lambda d: d.__setitem__("foundation", {"chain": 0}),
+    ):
+        d = json.loads(json.dumps(good))
+        mutate(d)
+        assert not v.is_valid(d)

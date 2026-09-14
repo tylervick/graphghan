@@ -18,7 +18,9 @@
         "license": { "type": "string" },
         "dedication": { "type": "string" },
         "quote": { "type": "string" },
-        "url": { "type": "string", "format": "uri" }
+        "url": { "type": "string", "format": "uri" },
+        "craft": { "enum": ["crochet", "knit", "tunisian", "cross-stitch"] },
+        "language": { "type": "string", "minLength": 2 }
       }
     },
     "chart": {
@@ -52,7 +54,30 @@
         },
         "stitch": { "type": "string" },
         "hook": { "type": "string" },
-        "yarn_weight": { "type": "string" }
+        "yarn_weight": { "type": "string" },
+        "unit": { "enum": ["stitches", "tiles", "repeats", "rounds"] },
+        "stitch_name": { "type": "string", "minLength": 1 },
+        "terms": { "enum": ["US", "UK"] },
+        "terms_also": { "enum": ["US", "UK"] },
+        "boundary": {
+          "type": "object",
+          "required": ["kind", "chain"],
+          "properties": {
+            "kind": { "enum": ["turn", "join", "rejoin", "spiral", "return"] },
+            "chain": { "type": "integer", "minimum": 0 },
+            "counts_as_stitch": { "type": "boolean" },
+            "color": { "enum": ["next", "current"] }
+          }
+        }
+      }
+    },
+    "foundation": {
+      "type": "object",
+      "required": ["chain"],
+      "properties": {
+        "chain": { "type": "integer", "minimum": 1 },
+        "first_stitch_in": { "type": "integer", "minimum": 1 },
+        "note": { "type": "string" }
       }
     },
     "technique": {
