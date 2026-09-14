@@ -19,3 +19,7 @@ ios/Packages/*/.build/
 ios/TestResults*.xcresult
 ios/Tests/__Snapshots__/*.actual.png
 ios/Tests/__Snapshots__/render-*.png
+
+# Per-worktree Xcode pin written by orca.yaml (see ios/docs/release.md).
+mise.local.toml
+.mise.local.toml
