@@ -80,10 +80,11 @@ patterns with multiples, repeats marked on charts, finishing details, and a sche
 
 ## 4. Findings that drive the design
 
-Evidence is the coded corpus under `docs/research/` — 128 sources coded against a fixed codebook
-in six batches (109 usable patterns: 11 on-hand, 53 yarn-company, 12 DROPS including US/UK
-twins, 33 independent designers, across rows, rounds, C2C, filet, mosaic, tapestry, Tunisian,
-stranded knit and cross-stitch), 37 of them double-coded at 5% field disagreement — plus the CYC standard, BANA, the WIF
+Evidence is the coded corpus under `docs/research/` — 133 sources coded against a fixed codebook
+in seven batches (114 usable patterns: 11 on-hand, 58 yarn-company including 5 DMC cross-stitch
+charts, 12 DROPS including US/UK twins, 33 independent designers, across rows, rounds, C2C,
+filet, mosaic, tapestry, Tunisian, stranded knit and cross-stitch), 39 of them double-coded at
+5% field disagreement — plus the CYC standard, BANA, the WIF
 specification read in full, and tool teardowns. The research plan, claim register with stopping
 criteria, and per-batch log are `docs/research/README.md`, `claims.md`, `log.md`. Counts below
 are from batch 1 and will move; the register is the source of truth.

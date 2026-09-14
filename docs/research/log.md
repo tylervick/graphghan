@@ -149,3 +149,14 @@ Tyler accepted `proposal-phase1-revision.md`. Design note §5–§7 rewritten: `
 DMC: reachable after all (the refusal was a fresh blank tab, not an allowlist). Catalogue
 taxonomy recorded in `tools/README.md`. Free patterns are a $0 checkout with no direct PDF URL,
 so the cross-stitch rows wait on Tyler ordering ~5 "Pattern Only" items; stratum still one chart.
+
+## 2026-09-14 — batch 7: DMC cross-stitch
+
+Five DMC charts (PAT2174, 2168, 2173, 2027, 2026; 2 Easy, 1 Intermediate, 2 Advanced) fetched
+through the site's "Pattern Only → Download Now" flow, which turned out not to be a checkout —
+it opens a presigned S3 URL and files the pattern in the account library. Coded with the
+workflow; 2 double-coded, differences were normalisation only (`source_type`, `terms` n/a) plus
+one `substitution_advice` call. Corpus: 133 rows, 114 usable, cross-stitch 7, charted 69.
+Cumulative double-coding 39 files, ≈5% field disagreement. Cross-stitch observation added to
+`claims.md`; front-matter percentages in claim 9 left at n=109 (crochet/knit) with the
+cross-stitch exceptions stated. Stratum target for cross-stitch (3) met.

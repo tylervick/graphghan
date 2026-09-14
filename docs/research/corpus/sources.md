@@ -13,6 +13,7 @@ committed. Every raw file starts with a `SOURCE:` line.
 | european/UK | UK designer sites (Attic24 on Typepad, Crystals & Crochet, HanJan on Squarespace) | JS-only pages; `curl` gets 130-400 words | failed — UK stratum stays at 5 docs (Bella Coco ×2, Jera's, DROPS UK twins ×2) |
 | on-hand | 10 purchased/free PDFs in ~/Downloads | `pdftotext` | 10 |
 | cross-stitch | xstitchify free patterns | the page's `/download/pdf/` path serves the PDF to `curl` without an account → `pdftotext` | 1 chart (rose, 139×200, 8 DMC colours) |
+| cross-stitch | DMC free patterns (signed in, 2026-09-14) | product page → "Pattern Only" → "Download Now" opens a 15-minute presigned S3 URL in a new tab (the Chrome extension reports the tab URL) → `curl` → `pdftotext`; also added to the account's Pattern Library. No direct PDF URL; the legacy `/media/.../patterns/pdf/<SKU>.pdf` path redirects | 5 charts (2 Easy, 1 Intermediate, 2 Advanced; PAT2174, PAT2168, PAT2173, PAT2027, PAT2026), bilingual EN/FR, `raw/dmc-*.txt` |
 | indie | Tunisian (Make & Do Crew, KnitterKnotter ×2, TL Yarn Crafts) | `curl` + html2txt | 4 |
 | indie | Overlay/inset mosaic (The Loopy Lamb ×2, Jera's Jamboree, Bella Coco, Juniper & Oakes) | `curl` + html2txt | 5 |
 | indie | Filet (Bella Coco, Kristin Omdahl, Crochetpop) | `curl` + html2txt | 3 |
@@ -34,5 +35,4 @@ committed. Every raw file starts with a `SOURCE:` line.
 
 At least three patterns per craft × technique × source cell where the cell exists in the wild.
 Current gaps (after batch 4 sources): yarn-company coverage of mosaic/filet/Tunisian/rounds
-(Yarnspirations, blocked on browser permission); magazine/book (none); cross-stitch has 1 chart,
-wants 3; knit stranded blankets (only hats so far). Ravelry indie designers (blocked on sign-in).
+(Yarnspirations, blocked on browser permission); magazine/book (none); cross-stitch has 6 charts after the DMC pull; knit stranded blankets (only hats so far). Ravelry indie designers (blocked on sign-in).
