@@ -16,13 +16,33 @@ public struct ChartDocument: Decodable, Sendable {
         public let language: String?
     }
 
+    public struct CellDeclaration: Decodable, Sendable, Equatable {
+        public let kind: CellKind
+    }
+
+    /// `chart.cell` is kept two ways: `cell` typed, for reading the kind, and `cellRaw` as the
+    /// untouched JSON, because the chart id must hash the exact bytes Python hashed. Synthesized
+    /// `Decodable` cannot map two properties to one key, so this decodes both explicitly.
     public struct ChartInfo: Decodable, Sendable {
         public let id: String
         public let variant: String?
         public let gaugeKey: String?
         public let width: Int
         public let height: Int
-        enum CodingKeys: String, CodingKey { case id, variant, gaugeKey = "gauge_key", width, height }
+        public let cell: CellDeclaration?
+        public let cellRaw: JSONValue?
+        enum CodingKeys: String, CodingKey { case id, variant, gaugeKey = "gauge_key", width, height, cell }
+
+        public init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            id = try c.decode(String.self, forKey: .id)
+            variant = try c.decodeIfPresent(String.self, forKey: .variant)
+            gaugeKey = try c.decodeIfPresent(String.self, forKey: .gaugeKey)
+            width = try c.decode(Int.self, forKey: .width)
+            height = try c.decode(Int.self, forKey: .height)
+            cell = try c.decodeIfPresent(CellDeclaration.self, forKey: .cell)
+            cellRaw = try c.decodeIfPresent(JSONValue.self, forKey: .cell)
+        }
     }
 
     public struct GeneratorInfo: Decodable, Sendable {

@@ -56,6 +56,9 @@ public struct Chart: Sendable {
 
     public var foundation: ChartDocument.Foundation? { document.foundation }
 
+    /// What one grid cell is. `.stitch` unless the chart says otherwise.
+    public var cellKind: CellKind { document.chart.cell?.kind ?? .stitch }
+
     public var cellAspect: Double {
         (document.gauge.stitches / document.gauge.rows * 10000).rounded() / 10000
     }
@@ -126,7 +129,7 @@ public struct Chart: Sendable {
             runsByRow.append(runs)
         }
         if verifyID {
-            let expected = ChartID.compute(codes: document.palette.map(\.code), rows: document.rows, technique: document.technique, passes: document.passes)
+            let expected = ChartID.compute(codes: document.palette.map(\.code), rows: document.rows, technique: document.technique, passes: document.passes, cell: document.chart.cellRaw)
             guard expected == document.chart.id else { throw ChartError.idMismatch(expected: expected, found: document.chart.id) }
         }
         self.document = document

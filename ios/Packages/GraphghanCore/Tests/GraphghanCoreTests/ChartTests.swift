@@ -167,4 +167,14 @@ import Testing
         #expect(stitch.terms == .us && stitch.name == "single crochet")
         #expect(stitch.boundary == nil)
     }
+
+    @Test func cellKindDefaultsToStitch() throws {
+        let chart = try Self.chart("minimal-rows")
+        #expect(chart.cellKind == .stitch)
+    }
+
+    @Test func cellKindDecodesADeclaredKind() throws {
+        let chart = try Self.chart("filet-blocks")
+        #expect(chart.cellKind == .block)
+    }
 }

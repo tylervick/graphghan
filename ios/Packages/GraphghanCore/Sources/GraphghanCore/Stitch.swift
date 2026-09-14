@@ -17,6 +17,12 @@ public enum ChainColor: String, Codable, Sendable {
     case next, current
 }
 
+/// What one grid cell is. Absent from a document means `.stitch`; a reader that does not implement
+/// a kind still opens the chart and withholds every stitch-derived number (docs/chart-format.md §Cells).
+public enum CellKind: String, Codable, Sendable {
+    case stitch, block, tile, motif, pair
+}
+
 /// `gauge.boundary`, exactly as authored. Never derived from the stitch: published patterns split
 /// on the number (dc is ch 3 in 7 of 12 corpus patterns and ch 2 in the other 5).
 public struct Boundary: Codable, Equatable, Sendable {
