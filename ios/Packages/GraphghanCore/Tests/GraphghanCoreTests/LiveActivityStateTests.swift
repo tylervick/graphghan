@@ -57,4 +57,32 @@ import Testing
         let data = try JSONEncoder().encode(s)
         #expect(try JSONDecoder().decode(WorkActivityState.self, from: data) == s)
     }
+
+    @Test func infoCarriesStitchAndTurningChain() throws {
+        let craigh = try Chart.load(Fixtures.data("craigh-na-dun.chart.json"))
+        let info = LiveActivityState.info(projectID: UUID(), chart: craigh, sequence: try WorkSequence(chart: craigh))
+        #expect(info.stitch == "sc" && info.turningChain == 1)
+        let plain = LiveActivityState.info(projectID: UUID(), chart: Self.chart, sequence: Self.seq)  // two-letter-codes: no boundary
+        #expect(plain.stitch == "sc" && plain.turningChain == nil)
+    }
+
+    @Test func turningChainIsNilForOtherBoundaryKinds() throws {
+        let json = #"""
+        {"schema":2,"pattern":{"id":"t","title":"T","version":"1"},"chart":{"id":"ID","width":2,"height":1},
+         "palette":[{"code":"A","name":"a","hex":"#000000"}],"rows":["2A"],
+         "gauge":{"stitches":14,"rows":16,"over":{"value":4,"unit":"in"},"stitch":"dc","boundary":{"kind":"join","chain":3}},
+         "technique":{"type":"rounds"}}
+        """#
+        let id = ChartID.compute(codes: ["A"], rows: ["2A"], technique: .object(["type": .string("rounds")]), passes: nil)
+        let chart = try Chart.load(Data(json.replacingOccurrences(of: "\"ID\"", with: "\"\(id)\"").utf8))
+        let info = LiveActivityState.info(projectID: UUID(), chart: chart, sequence: try WorkSequence(chart: chart))
+        #expect(info.stitch == "dc" && info.turningChain == nil)
+    }
+
+    @Test func infoRoundTripsThroughCodable() throws {
+        let craigh = try Chart.load(Fixtures.data("craigh-na-dun.chart.json"))
+        let info = LiveActivityState.info(projectID: UUID(), chart: craigh, sequence: try WorkSequence(chart: craigh))
+        let back = try JSONDecoder().decode(WorkActivityInfo.self, from: JSONEncoder().encode(info))
+        #expect(back == info)
+    }
 }
