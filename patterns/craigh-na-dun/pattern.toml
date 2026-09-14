@@ -11,10 +11,31 @@ yarn_weight = "worsted (#4)"
 first_row_color = "Y"
 author = "Tyler Vick"
 license = "CC-BY-NC-SA-4.0"
+craft = "crochet"
+terms = "US"
+language = "en"
 
 [gauge]
 sc = [3.5, 4.0]
 hdc = [3.25, 2.5]
+
+# What happens at the end of every row, per gauge key (docs/chart-format.md §Gauge). Authored,
+# never derived: the design note's corpus found dc split 7:5 between ch 3 and ch 2, so no reader
+# guesses. hdc as ch 2 is the reviewed choice for this blanket; 3 of 4 hdc patterns in the corpus
+# use ch 1 — confirm before republishing the hdc chart (#41).
+[stitch.sc]
+name = "single crochet"
+chain = 1
+counts_as_stitch = false
+chain_color = "next"
+first_stitch_in = 2
+
+[stitch.hdc]
+name = "half double crochet"
+chain = 2
+counts_as_stitch = false
+chain_color = "next"
+first_stitch_in = 2
 
 [[colors]]
 code = "C"
@@ -54,7 +75,7 @@ use = "moon, braided border, edge lines"
 [notes]
 setup = [
   "Foundation: chain W + 1 in Gold (Y). Row 1 begins in the 2nd chain from the hook; the whole first row is Gold, part of the outer 2-row gold edge.",
-  "Ch 1, turn at the end of every row. The chart counts stitches only; the turning chain is not a stitch.",
+  "The chart counts stitches only; the turning chain is not a stitch.",
   "Change colors in the last yarn-over of the stitch before the new color: work the stitch until two loops remain, drop the old color, pull the new one through.",
   "Block the finished blanket to size so the braid straightens and the lettering squares up.",
 ]

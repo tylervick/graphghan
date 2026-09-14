@@ -19,6 +19,8 @@ struct WorkFieldContent: Equatable {
     let code: String
     let name: String
     let onDeck: String?
+    /// The stitch abbreviation, when the chart states one; drawn as a small capsule by the count.
+    var stitch: String? = nil
 }
 
 /// The lower half of the Work screen (spec §6.1): full-height color columns for the previous and
@@ -78,7 +80,17 @@ struct WorkField: View {
             Button(action: onDone) {
                 VStack(spacing: 6) {
                     if let content {
-                        Text("\(content.count)").font(Font.Heather.count).monospacedDigit().lineLimit(1).minimumScaleFactor(0.5)
+                        HStack(alignment: .firstTextBaseline, spacing: 10) {
+                            Text("\(content.count)").font(Font.Heather.count).monospacedDigit().lineLimit(1).minimumScaleFactor(0.5)
+                            if let stitch = content.stitch {
+                                Text(stitch)
+                                    .font(Font.Heather.label)
+                                    .lineLimit(1)
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 4)
+                                    .overlay(Capsule().strokeBorder(doneForeground.opacity(0.6), lineWidth: 1.5))
+                            }
+                        }
                         Text(content.code).font(Font.Heather.code).lineLimit(1)
                         Text(content.name).font(Font.Heather.heading).lineLimit(1).minimumScaleFactor(0.7)
                         if let onDeck = content.onDeck {
@@ -102,6 +114,7 @@ struct WorkField: View {
             .buttonStyle(.plain)
             .offset(x: zones.current.minX)
             .accessibilityLabel(doneLabel)
+            .accessibilityValue(content?.onDeck ?? "")
         }
         if #available(iOS 26, *) {
             GlassEffectContainer(spacing: Self.gap) { panels }

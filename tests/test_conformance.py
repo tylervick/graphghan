@@ -115,3 +115,91 @@ def test_schema_rejects_bad_documents():
         d = json.loads(json.dumps(good))
         mutate(d)
         assert not v.is_valid(d)
+
+
+def test_schema_accepts_phase1_keys():
+    v = Draft202012Validator(CHART_SCHEMA)
+    d = load("minimal-rows")
+    d["pattern"]["craft"] = "crochet"
+    d["pattern"]["language"] = "en"
+    d["gauge"].update(
+        {
+            "unit": "stitches",
+            "stitch_name": "single crochet",
+            "terms": "US",
+            "terms_also": "UK",
+            "boundary": {"kind": "turn", "chain": 1, "counts_as_stitch": False, "color": "next"},
+        }
+    )
+    d["foundation"] = {"chain": 15, "first_stitch_in": 2, "note": "in A"}
+    assert v.is_valid(d), [e.message for e in v.iter_errors(d)]
+
+
+def test_schema_rejects_bad_phase1_values():
+    v = Draft202012Validator(CHART_SCHEMA)
+    good = load("minimal-rows")
+    for mutate in (
+        lambda d: d["gauge"].__setitem__("boundary", {"kind": "flip", "chain": 1}),
+        lambda d: d["gauge"].__setitem__("boundary", {"kind": "turn"}),  # chain is required
+        lambda d: d["gauge"].__setitem__("boundary", {"kind": "turn", "chain": -1}),
+        lambda d: d["gauge"].__setitem__("boundary", {"kind": "turn", "chain": 1, "color": "same"}),
+        lambda d: d["gauge"].__setitem__("terms", "us"),
+        lambda d: d["gauge"].__setitem__("unit", "cells"),
+        lambda d: d["pattern"].__setitem__("craft", "weaving"),
+        lambda d: d.__setitem__("foundation", {"first_stitch_in": 2}),  # chain is required
+        lambda d: d.__setitem__("foundation", {"chain": 0}),
+    ):
+        d = json.loads(json.dumps(good))
+        mutate(d)
+        assert not v.is_valid(d)
+
+
+def test_validate_document_rejects_malformed_boundary():
+    good = load("minimal-rows")
+    for boundary in (
+        {"kind": "turn"},
+        {"kind": "flip", "chain": 1},
+        {"kind": "turn", "chain": "1"},
+        {"kind": "turn", "chain": -1},
+    ):
+        d = json.loads(json.dumps(good))
+        d["gauge"]["boundary"] = boundary
+        assert any("boundary" in p for p in chartdoc.validate_document(d)), boundary
+    d = json.loads(json.dumps(good))
+    d["gauge"]["boundary"] = {"kind": "spiral", "chain": 0}
+    assert chartdoc.validate_document(d) == []
+    d = json.loads(json.dumps(good))
+    d["gauge"] = ["not", "a", "dict"]
+    assert isinstance(chartdoc.validate_document(d), list)  # never raises
+
+
+def test_validate_document_refuses_a_foundation_shorter_than_the_first_row():
+    """A maker could not work row 1 (#50): refused, not warned. Extra chains are fine."""
+    good = load("minimal-rows")  # width 14
+    d = json.loads(json.dumps(good))
+    d["foundation"] = {"chain": 15, "first_stitch_in": 2}
+    assert chartdoc.validate_document(d) == []
+    d["foundation"] = {"chain": 20, "first_stitch_in": 2}  # an edge's worth of extra chains
+    assert chartdoc.validate_document(d) == []
+    d["foundation"] = {"chain": 14, "first_stitch_in": 2}
+    assert any("foundation" in p for p in chartdoc.validate_document(d))
+    d["foundation"] = {"chain": 13}  # first_stitch_in absent means 1: needs at least width
+    assert any("foundation" in p for p in chartdoc.validate_document(d))
+    d["foundation"] = {"chain": 14}
+    assert chartdoc.validate_document(d) == []
+
+
+def test_craigh_chart_id_is_stable_across_phase1():
+    """Authoring the stitch and the boundary must not move a chart id (spec §6.6): projects in
+    flight would read the change as a new chart."""
+    doc = load("craigh-na-dun")
+    assert doc["chart"]["id"] == "sha256:cead3fa1e728d2f1510d0e2014641fe7b1197c3cda2c16960a4f341806a7c76f"
+    assert doc["gauge"]["boundary"] == {
+        "kind": "turn",
+        "chain": 1,
+        "counts_as_stitch": False,
+        "color": "next",
+    }
+    assert doc["gauge"]["terms"] == "US"
+    assert doc["foundation"] == {"chain": 190, "first_stitch_in": 2, "note": "in Gold (Y)"}
+    assert doc["pattern"]["craft"] == "crochet" and doc["pattern"]["language"] == "en"

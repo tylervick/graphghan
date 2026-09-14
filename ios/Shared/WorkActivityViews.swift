@@ -24,7 +24,7 @@ struct RunSwatch: View {
 /// The current run as the Work screen shows it: count, code, and name on a panel in its own yarn
 /// color, with the next run on deck at the trailing end. Shared by the lock screen and the
 /// expanded Dynamic Island so the two stay the same view (spec §6.8).
-private struct RunPanel: View {
+struct RunPanel: View {
     let info: WorkActivityInfo
     let state: WorkActivityState
     /// The expanded island has less vertical room than the lock screen, so its panel is shorter.
@@ -49,9 +49,14 @@ private struct RunPanel: View {
         }
     }
 
-    private var nextText: String {
+    private var nextText: String { Self.nextText(info: info, state: state) }
+
+    /// The trailing line of the panel: the next run, or what to do at the end of the row.
+    static func nextText(info: WorkActivityInfo, state: WorkActivityState) -> String {
         if let code = state.nextCode, let count = state.nextCount { return "then \(count) \(info.swatch(for: code)?.name ?? code)" }
-        return state.isLastInRow ? "last in row" : ""
+        guard state.isLastInRow else { return "" }
+        if state.row < state.rowCount, let chain = info.turningChain { return chain > 0 ? "ch \(chain), turn" : "turn" }
+        return "last in row"
     }
 }
 

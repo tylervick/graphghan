@@ -12,6 +12,8 @@ public struct ChartDocument: Decodable, Sendable {
         public let dedication: String?
         public let quote: String?
         public let url: String?
+        public let craft: String?
+        public let language: String?
     }
 
     public struct ChartInfo: Decodable, Sendable {
@@ -58,12 +60,46 @@ public struct ChartDocument: Decodable, Sendable {
         public let stitch: String?
         public let hook: String?
         public let yarnWeight: String?
-        enum CodingKeys: String, CodingKey { case stitches, rows, over, stitch, hook, yarnWeight = "yarn_weight" }
+        public let unit: String?
+        public let stitchName: String?
+        public let terms: Terms?
+        public let termsAlso: Terms?
+        /// nil when absent — and when present but not understood (an unknown `kind`, a missing
+        /// `chain`), so a future kind reads as "no boundary" instead of failing the chart.
+        public let boundary: Boundary?
+
+        enum CodingKeys: String, CodingKey {
+            case stitches, rows, over, stitch, hook, yarnWeight = "yarn_weight"
+            case unit, stitchName = "stitch_name", terms, termsAlso = "terms_also", boundary
+        }
+
+        public init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            stitches = try c.decode(Double.self, forKey: .stitches)
+            rows = try c.decode(Double.self, forKey: .rows)
+            over = try c.decode(Over.self, forKey: .over)
+            stitch = try c.decodeIfPresent(String.self, forKey: .stitch)
+            hook = try c.decodeIfPresent(String.self, forKey: .hook)
+            yarnWeight = try c.decodeIfPresent(String.self, forKey: .yarnWeight)
+            unit = try c.decodeIfPresent(String.self, forKey: .unit)
+            stitchName = try c.decodeIfPresent(String.self, forKey: .stitchName)
+            terms = (try? c.decodeIfPresent(Terms.self, forKey: .terms)) ?? nil
+            termsAlso = (try? c.decodeIfPresent(Terms.self, forKey: .termsAlso)) ?? nil
+            boundary = (try? c.decodeIfPresent(Boundary.self, forKey: .boundary)) ?? nil
+        }
     }
 
     public struct Instruction: Decodable, Sendable, Equatable {
         public let title: String
         public let text: String
+    }
+
+    /// Top-level `foundation`: authored, never cross-checked against `chart.width`.
+    public struct Foundation: Decodable, Sendable, Equatable {
+        public let chain: Int
+        public let firstStitchIn: Int?
+        public let note: String?
+        enum CodingKeys: String, CodingKey { case chain, firstStitchIn = "first_stitch_in", note }
     }
 
     public let schema: Int
@@ -77,9 +113,10 @@ public struct ChartDocument: Decodable, Sendable {
     public let technique: JSONValue
     public let passes: JSONValue?
     public let instructions: [Instruction]
+    public let foundation: Foundation?
 
     enum CodingKeys: String, CodingKey {
-        case schema, pattern, chart, generator, palette, rows, layers, gauge, technique, passes, instructions
+        case schema, pattern, chart, generator, palette, rows, layers, gauge, technique, passes, instructions, foundation
     }
 
     public init(from decoder: Decoder) throws {
@@ -96,6 +133,7 @@ public struct ChartDocument: Decodable, Sendable {
         let rawPasses = try c.decodeIfPresent(JSONValue.self, forKey: .passes)
         passes = rawPasses == .null ? nil : rawPasses
         instructions = try c.decodeIfPresent([Instruction].self, forKey: .instructions) ?? []
+        foundation = try c.decodeIfPresent(Foundation.self, forKey: .foundation)
     }
 
     public static func decode(_ data: Data) throws -> ChartDocument {

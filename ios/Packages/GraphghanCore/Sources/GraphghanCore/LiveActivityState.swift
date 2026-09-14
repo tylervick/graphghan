@@ -8,15 +8,22 @@ public struct ActivitySwatch: Codable, Hashable, Sendable {
     public init(code: String, name: String, hex: String) { self.code = code; self.name = name; self.hex = hex }
 }
 
-/// Static attributes of one project's activity (spec §7).
+/// Static attributes of one project's activity (spec §7). `stitch` and `turningChain` are static
+/// for a project, so they live here rather than in the state.
 public struct WorkActivityInfo: Codable, Hashable, Sendable {
     public let projectID: UUID
     public let title: String
     public let totalRows: Int
     public let totalStitches: Int
     public let palette: [ActivitySwatch]
-    public init(projectID: UUID, title: String, totalRows: Int, totalStitches: Int, palette: [ActivitySwatch]) {
+    /// The abbreviation the chart is worked in (`gauge.stitch`), when the chart says.
+    public let stitch: String?
+    /// Chains to make at the turn, only for a `turn` boundary; nil means the chart does not say.
+    public let turningChain: Int?
+    public init(projectID: UUID, title: String, totalRows: Int, totalStitches: Int, palette: [ActivitySwatch],
+                stitch: String? = nil, turningChain: Int? = nil) {
         self.projectID = projectID; self.title = title; self.totalRows = totalRows; self.totalStitches = totalStitches; self.palette = palette
+        self.stitch = stitch; self.turningChain = turningChain
     }
     public func swatch(for code: String) -> ActivitySwatch? { palette.first { $0.code == code } }
 }
@@ -74,7 +81,10 @@ public enum LiveActivityState {
     }
 
     public static func info(projectID: UUID, chart: Chart, sequence: WorkSequence) -> WorkActivityInfo {
-        WorkActivityInfo(projectID: projectID, title: chart.title, totalRows: sequence.passes.count, totalStitches: sequence.totalStitches,
-                         palette: chart.palette.map { ActivitySwatch(code: $0.code, name: $0.name, hex: $0.hex) })
+        let stitch = chart.stitch
+        let chain: Int? = stitch?.boundary.flatMap { $0.kind == .turn ? $0.chain : nil }
+        return WorkActivityInfo(projectID: projectID, title: chart.title, totalRows: sequence.passes.count, totalStitches: sequence.totalStitches,
+                                palette: chart.palette.map { ActivitySwatch(code: $0.code, name: $0.name, hex: $0.hex) },
+                                stitch: stitch?.code, turningChain: chain)
     }
 }

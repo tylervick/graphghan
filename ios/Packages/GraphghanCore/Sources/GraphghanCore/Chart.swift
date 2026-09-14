@@ -12,6 +12,8 @@ public enum ChartError: Error, Equatable {
     case unknownCode(row: Int, code: String)
     case rowSum(row: Int, got: Int, expected: Int)
     case idMismatch(expected: String, found: String)
+    /// The foundation cannot carry row 1: refused, not warned (#50).
+    case foundationTooShort(chain: Int, needed: Int)
 }
 
 /// One run of a grid row in left-to-right order: palette index, length, leftmost column.
@@ -45,6 +47,15 @@ public struct Chart: Sendable {
     public var id: String { document.chart.id }
     public var title: String { document.pattern.title }
 
+    /// The stitch the chart is worked in, from `gauge` only. Nil without `gauge.stitch`; the
+    /// boundary comes from the document or not at all (spec §6.3: never derived).
+    public var stitch: Stitch? {
+        guard let code = document.gauge.stitch, !code.isEmpty else { return nil }
+        return Stitch(code: code, terms: document.gauge.terms ?? .us, stitchName: document.gauge.stitchName, boundary: document.gauge.boundary)
+    }
+
+    public var foundation: ChartDocument.Foundation? { document.foundation }
+
     public var cellAspect: Double {
         (document.gauge.stitches / document.gauge.rows * 10000).rounded() / 10000
     }
@@ -74,6 +85,10 @@ public struct Chart: Sendable {
         // strip math and index nothing safely.
         guard document.chart.width >= 1, document.chart.height >= 1 else {
             throw ChartError.invalidSize(width: document.chart.width, height: document.chart.height)
+        }
+        if let foundation = document.foundation {
+            let needed = document.chart.width + (foundation.firstStitchIn ?? 1) - 1
+            guard foundation.chain >= needed else { throw ChartError.foundationTooShort(chain: foundation.chain, needed: needed) }
         }
         guard document.palette.count <= 255 else { throw ChartError.tooManyColors(document.palette.count) }
         var index: [String: Int] = [:]

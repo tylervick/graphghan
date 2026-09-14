@@ -10,6 +10,11 @@ A chart document describes one grid at one gauge. It is layered so that a reader
 the palette and cells can still display it, and readers MUST ignore unknown keys at every level.
 Nothing in the file is in inches except the gauge block; sizes are derived.
 
+Nobody should be able to work a chart that cannot be crocheted as written. A document that is
+*provably* unworkable — rows that do not sum to the width, runs off the grid, a foundation shorter
+than the first row — is invalid: writers MUST NOT write it and readers MUST refuse it rather than
+warn. Unusual but possible values are not errors.
+
 ## Chart document (schema 2)
 
 ```json
@@ -17,7 +22,7 @@ Nothing in the file is in inches except the gauge block; sizes are derived.
   "schema": 2,
   "pattern":  { "id": "craigh-na-dun", "title": "Craigh na Dun Blanket", "version": "1.0.0",
                 "author": "Tyler Vick", "license": "CC-BY-NC-SA-4.0", "dedication": "For Meaghan",
-                "quote": "...", "url": "https://graphghan.milo.cat/patterns/craigh-na-dun/" },
+                "quote": "...", "url": "https://graphghan.milo.cat/patterns/craigh-na-dun/", "craft": "crochet", "language": "en" },
   "chart":    { "id": "sha256:…", "variant": "final", "gauge_key": "sc", "width": 189, "height": 184 },
   "generator": { "name": "graphghan", "version": "0.2.0" },
   "palette":  [ { "code": "Y", "name": "Gold", "hex": "#D9A21B",
@@ -25,8 +30,11 @@ Nothing in the file is in inches except the gauge block; sizes are derived.
                   "thread": { "system": "DMC", "number": "783" }, "use": "moon, border", "symbol": "*" } ],
   "rows":     [ "189Y", "1Y187G1Y", "…" ],
   "layers":   { "stitch": { "legend": { "k": "knit", "p": "purl" }, "rows": [ "189k", "…" ] } },
-  "gauge":    { "stitches": 14, "rows": 16, "over": { "value": 4, "unit": "in" },
-                "stitch": "sc", "hook": "5 mm (US H-8)", "yarn_weight": "4" },
+  "gauge":    { "stitches": 14, "rows": 16, "over": { "value": 4, "unit": "in" }, "unit": "stitches",
+                "stitch": "sc", "stitch_name": "single crochet", "terms": "US",
+                "boundary": { "kind": "turn", "chain": 1, "counts_as_stitch": false, "color": "next" },
+                "hook": "5 mm (US H-8)", "yarn_weight": "4" },
+  "foundation": { "chain": 190, "first_stitch_in": 2, "note": "in Gold (Y)" },
   "technique": { "type": "rows", "start": "bottom", "first_side": "RS", "rs_direction": "rtl", "turn": true },
   "passes":   [ { "label": "Row 1", "side": "RS", "direction": "rtl", "grid_row": 183,
                   "runs": [ { "code": "Y", "count": 189, "x0": 0 } ] } ],
@@ -51,12 +59,46 @@ are optional.
   Because a run always starts with digits, `7YB` is one run of code `YB`, never two runs.
 - `layers` are extra grids in the same encoding with their own `legend`; a reader that does not
   know a layer ignores it.
+- A layer's legend describes each cell as it looks on the **right side** of the work (the CYC rule
+  for crochet and knit chart symbols), so a knit legend of `{"k": "knit", "p": "purl"}` reads
+  correctly on a WS pass. Readers do not enforce this yet (#36).
 
 ### Gauge
 
 `stitches` and `rows` over `over.value` `over.unit` (`in` or `cm`), the way gauge is stated on a
 pattern. Derived values: cell aspect = `stitches / rows`; finished width = `width / (stitches /
-over.value)` in `over.unit`, likewise height.
+over.value)` in `over.unit`, likewise height. `unit` says what `stitches` and `rows` count —
+`stitches` (default), `tiles`, `repeats` or `rounds`; a reader that does not understand the unit
+derives no finished size (#48; neither reader in this repo checks the unit yet, and nothing
+authors one).
+
+`stitch` is the abbreviation the chart is worked in; `stitch_name` its spelled-out name, required
+when `stitch` is not in the CYC master list and ignored when it is (a chart cannot rename `sc`).
+`terms` is `US` or `UK`; absent means `US`. A reader MUST NOT spell out an abbreviation under the
+wrong system. `terms_also` names the other system when the written instructions carry both; readers
+spell out from `terms` only.
+
+`boundary` is what happens at the end of a pass, authored and never derived:
+
+- `kind` (required): `turn` — turn the work (flat rows); `join` — close the round with a slip
+  stitch; `rejoin` — fasten off and start the next pass at the same edge (overlay mosaic,
+  one-direction tapestry); `spiral` — continuous rounds, nothing happens; `return` — Tunisian, the
+  return pass is the boundary. Readers implement `turn` today and show nothing for the rest.
+- `chain` (required): chains made at the boundary; `0` is legal.
+- `counts_as_stitch`: default `false`.
+- `color`: `next` or `current`. Absent means unstated; a reader says nothing about colour rather
+  than guess.
+
+`pattern.craft` (`crochet`, `knit`, `tunisian`, `cross-stitch`) and `pattern.language` (BCP 47)
+are optional; absent means unstated.
+
+### Foundation
+
+Top-level, optional: `{ "chain": 190, "first_stitch_in": 2, "note": "in Gold (Y)" }`. `chain` is
+the authored foundation chain count and `first_stitch_in` the 1-based chain from the hook where
+the first pass's first stitch goes. Both are authored. A foundation with extra chains for an edge
+is legitimate; one with fewer than `width + first_stitch_in - 1` cannot be worked, and readers
+MUST refuse the document (see §Design).
 
 ### Chart id
 
@@ -86,7 +128,8 @@ run regardless of reading direction.
   Sides alternate from `first_side` (default `RS`). RS passes read `rs_direction` (default
   `rtl`); WS passes read the opposite. Runs are the run-length encoding of that grid row in
   reading order, so a right-to-left pass lists runs reversed. Label `Row k`. `turn` is
-  informational (true for flat work).
+  informational (true for flat work); what to do at the turn — how many chains, whether they
+  count — is `gauge.boundary`.
 - `rounds`: as `rows` but every pass is `first_side` and reads `rs_direction`. Label `Round k`.
 - `c2c`: reserved. Treat as unknown until a later revision defines it with fixtures.
 - `none` and any other type: no derivable order. Display only, unless `passes` is present.
