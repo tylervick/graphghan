@@ -8,7 +8,9 @@
     "license": "CC-BY-NC-SA-4.0",
     "dedication": "For Meaghan",
     "quote": "Lord, you gave me a rare woman, and God! I loved her well.",
-    "url": "https://graphghan.milo.cat/patterns/craigh-na-dun/"
+    "url": "https://graphghan.milo.cat/patterns/craigh-na-dun/",
+    "craft": "crochet",
+    "language": "en"
   },
   "chart": {
     "id": "sha256:cead3fa1e728d2f1510d0e2014641fe7b1197c3cda2c16960a4f341806a7c76f",
@@ -263,7 +265,15 @@
     },
     "stitch": "sc",
     "hook": "5 mm (US H-8)",
-    "yarn_weight": "worsted (#4)"
+    "yarn_weight": "worsted (#4)",
+    "stitch_name": "single crochet",
+    "terms": "US",
+    "boundary": {
+      "kind": "turn",
+      "chain": 1,
+      "counts_as_stitch": false,
+      "color": "next"
+    }
   },
   "technique": {
     "type": "rows",
@@ -571,5 +581,10 @@
         ]
       }
     }
+  },
+  "foundation": {
+    "chain": 190,
+    "first_stitch_in": 2,
+    "note": "in Gold (Y)"
   }
 }

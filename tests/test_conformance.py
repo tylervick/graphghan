@@ -187,3 +187,19 @@ def test_validate_document_refuses_a_foundation_shorter_than_the_first_row():
     assert any("foundation" in p for p in chartdoc.validate_document(d))
     d["foundation"] = {"chain": 14}
     assert chartdoc.validate_document(d) == []
+
+
+def test_craigh_chart_id_is_stable_across_phase1():
+    """Authoring the stitch and the boundary must not move a chart id (spec §6.6): projects in
+    flight would read the change as a new chart."""
+    doc = load("craigh-na-dun")
+    assert doc["chart"]["id"] == "sha256:cead3fa1e728d2f1510d0e2014641fe7b1197c3cda2c16960a4f341806a7c76f"
+    assert doc["gauge"]["boundary"] == {
+        "kind": "turn",
+        "chain": 1,
+        "counts_as_stitch": False,
+        "color": "next",
+    }
+    assert doc["gauge"]["terms"] == "US"
+    assert doc["foundation"] == {"chain": 190, "first_stitch_in": 2, "note": "in Gold (Y)"}
+    assert doc["pattern"]["craft"] == "crochet" and doc["pattern"]["language"] == "en"
