@@ -26,7 +26,8 @@ CELL_KINDS = ("stitch", "block", "tile", "motif", "pair")
 
 
 def cell_kind(doc: dict) -> str:
-    cell = doc.get("chart", {}).get("cell")
+    chart = doc.get("chart")
+    cell = chart.get("cell") if isinstance(chart, dict) else None
     if isinstance(cell, dict) and cell.get("kind") in CELL_KINDS:
         return cell["kind"]
     return "stitch"
@@ -241,7 +242,8 @@ def validate_document(doc: dict) -> list[str]:
                     f"foundation.chain {chain} is shorter than the {needed} chains row 1 needs "
                     f"(width {width} + first_stitch_in {into} - 1)"
                 )
-    cell = doc.get("chart", {}).get("cell")
+    chart = doc.get("chart")
+    cell = chart.get("cell") if isinstance(chart, dict) else None
     if cell is not None:
         if not isinstance(cell, dict):
             problems.append(f"chart.cell is {type(cell).__name__}, not an object")
@@ -252,7 +254,7 @@ def validate_document(doc: dict) -> list[str]:
         rows,
         doc.get("technique") or {},
         passes if isinstance(passes, list) else None,
-        doc.get("chart", {}).get("cell"),
+        cell,
     )
     actual = doc.get("chart", {}).get("id")
     if actual != expected:

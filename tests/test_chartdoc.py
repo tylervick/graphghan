@@ -315,3 +315,9 @@ def test_validate_refuses_a_non_object_cell():
     d["chart"]["cell"] = "block"
     problems = chartdoc.validate_document(d)
     assert any("chart.cell" in p and "str" in p for p in problems)
+
+
+def test_cell_kind_is_total_for_a_malformed_chart():
+    """cell_kind() must never raise — it is called on unvalidated documents."""
+    for bad in ({"chart": None}, {"chart": "oops"}, {"chart": []}, {"chart": {"cell": "block"}}):
+        assert chartdoc.cell_kind(bad) == "stitch"
