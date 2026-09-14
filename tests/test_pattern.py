@@ -104,6 +104,7 @@ def test_stitch_table_rejects_unknown_keys_and_bad_values(tmp_path):
         "[stitch.sc]\nturning_chain = 1\n",
         "[stitch.sc]\nchain = -1\n",
         '[stitch.sc]\nboundary = "flip"\nchain = 1\n',
+        '[stitch.sc]\nboundary = "join"\n',
     ):
         (tmp_path / "pattern.toml").write_text((FIX / "pattern.toml").read_text() + "\n" + body)
         with pytest.raises(ValueError):

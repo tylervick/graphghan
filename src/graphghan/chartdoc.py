@@ -196,7 +196,8 @@ def validate_document(doc: dict) -> list[str]:
                     problems.append(
                         f"passes[{i}].runs[{j}] does not match the cells at grid_row {gy}, x0 {x0}"
                     )
-    boundary = (doc.get("gauge") or {}).get("boundary")
+    gauge = doc.get("gauge")
+    boundary = gauge.get("boundary") if isinstance(gauge, dict) else None
     if boundary is not None:
         if not isinstance(boundary, dict):
             problems.append("gauge.boundary is not an object")

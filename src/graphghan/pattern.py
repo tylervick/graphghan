@@ -9,6 +9,7 @@ from pathlib import Path
 from types import ModuleType
 
 from . import grid as gr
+from .chartdoc import BOUNDARY_KINDS, CHAIN_COLORS
 from .palette import Palette
 
 
@@ -51,8 +52,6 @@ def pattern_dir(slug: str, root: Path | None = None) -> Path:
     return (root or find_repo_root()) / "patterns" / slug
 
 
-BOUNDARY_KINDS = ("turn", "join", "rejoin", "spiral", "return")
-CHAIN_COLORS = ("next", "current")
 GAUGE_UNITS = ("stitches", "tiles", "repeats", "rounds")
 STITCH_KEYS = ("boundary", "chain", "counts_as_stitch", "chain_color", "first_stitch_in", "name", "unit")
 
@@ -96,6 +95,8 @@ def _stitch_entry(key: str, raw: dict) -> dict:
         if raw["unit"] not in GAUGE_UNITS:
             raise ValueError(f"[stitch.{key}].unit {raw['unit']!r} is not one of {GAUGE_UNITS}")
         out["unit"] = str(raw["unit"])
+    if "boundary" in out and "chain" not in out:
+        raise ValueError(f"[stitch.{key}].boundary needs a chain (0 is legal)")
     return out
 
 

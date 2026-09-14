@@ -168,6 +168,9 @@ def test_validate_document_rejects_malformed_boundary():
     d = json.loads(json.dumps(good))
     d["gauge"]["boundary"] = {"kind": "spiral", "chain": 0}
     assert chartdoc.validate_document(d) == []
+    d = json.loads(json.dumps(good))
+    d["gauge"] = ["not", "a", "dict"]
+    assert isinstance(chartdoc.validate_document(d), list)  # never raises
 
 
 def test_validate_document_refuses_a_foundation_shorter_than_the_first_row():
