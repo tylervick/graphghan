@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import pytest
+
 from graphghan import grid as gr
 from graphghan.pattern import find_repo_root, load_design, load_pattern
 
@@ -60,3 +62,49 @@ def test_notes_with_several_items_join_with_newlines(tmp_path):
         {"title": "Setup", "text": "One.\nTwo."},
         {"title": "Colors", "text": "Carry B."},
     ]
+
+
+def test_stitch_table_and_pattern_terms(tmp_path):
+    src = (FIX / "pattern.toml").read_text()
+    src = src.replace(
+        'stitch = "sc"', 'stitch = "sc"\ncraft = "crochet"\nterms = "US"\nterms_also = "UK"\nlanguage = "en"'
+    )
+    src += (
+        '\n[stitch.sc]\nchain = 1\ncounts_as_stitch = false\nchain_color = "next"\nfirst_stitch_in = 2\n'
+        '\n[stitch.square]\nboundary = "join"\nchain = 3\nname = "granny cluster"\nunit = "tiles"\n'
+    )
+    (tmp_path / "pattern.toml").write_text(src)
+    meta = load_pattern(tmp_path)
+    assert (
+        meta.craft == "crochet" and meta.terms == "US" and meta.terms_also == "UK" and meta.language == "en"
+    )
+    assert meta.stitches["sc"] == {
+        "boundary": "turn",  # defaulted because chain is authored
+        "chain": 1,
+        "counts_as_stitch": False,
+        "chain_color": "next",
+        "first_stitch_in": 2,
+    }
+    assert meta.stitches["square"] == {
+        "boundary": "join",
+        "chain": 3,
+        "name": "granny cluster",
+        "unit": "tiles",
+    }
+
+
+def test_stitch_table_absent_means_nothing_authored():
+    meta = load_pattern(FIX)
+    assert meta.stitches == {}
+    assert meta.craft == "" and meta.terms == "" and meta.terms_also == "" and meta.language == ""
+
+
+def test_stitch_table_rejects_unknown_keys_and_bad_values(tmp_path):
+    for body in (
+        "[stitch.sc]\nturning_chain = 1\n",
+        "[stitch.sc]\nchain = -1\n",
+        '[stitch.sc]\nboundary = "flip"\nchain = 1\n',
+    ):
+        (tmp_path / "pattern.toml").write_text((FIX / "pattern.toml").read_text() + "\n" + body)
+        with pytest.raises(ValueError):
+            load_pattern(tmp_path)
