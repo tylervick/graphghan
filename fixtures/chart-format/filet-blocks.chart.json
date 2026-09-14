@@ -1,0 +1,84 @@
+{
+  "schema": 2,
+  "pattern": {
+    "id": "filet-blocks",
+    "title": "Filet blocks",
+    "version": "1.0.0",
+    "author": "graphghan fixtures",
+    "license": "MIT"
+  },
+  "chart": {
+    "id": "sha256:d9824a537157ef8a2f9fc370b7cf8d39410137ae83d16a10f2606f69d49d7122",
+    "variant": "final",
+    "gauge_key": "sc",
+    "width": 12,
+    "height": 6,
+    "cell": {
+      "kind": "block"
+    }
+  },
+  "generator": {
+    "name": "graphghan-fixtures",
+    "version": "1"
+  },
+  "palette": [
+    {
+      "code": "F",
+      "name": "Color F",
+      "hex": "#2B2F33"
+    },
+    {
+      "code": "O",
+      "name": "Color O",
+      "hex": "#F2E8D5"
+    }
+  ],
+  "rows": [
+    "5O2F5O",
+    "4O4F4O",
+    "3O6F3O",
+    "3O6F3O",
+    "4O4F4O",
+    "5O2F5O"
+  ],
+  "gauge": {
+    "stitches": 14.0,
+    "rows": 16.0,
+    "over": {
+      "value": 4,
+      "unit": "in"
+    },
+    "stitch": "sc"
+  },
+  "technique": {
+    "type": "rows",
+    "start": "bottom",
+    "first_side": "RS",
+    "rs_direction": "rtl",
+    "turn": true
+  },
+  "instructions": [],
+  "stats": {
+    "cells": 72,
+    "counts": {
+      "F": 24,
+      "O": 48
+    },
+    "single_stitch_runs": {
+      "F": 0,
+      "O": 0
+    },
+    "color_changes_per_row": {
+      "mean": 2.0,
+      "max": 2,
+      "per_row": [
+        2,
+        2,
+        2,
+        2,
+        2,
+        2
+      ]
+    }
+  }
+}

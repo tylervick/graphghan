@@ -12,6 +12,11 @@ package, the PWA, the iOS app) is expected to:
   still decoding it for display;
 - reproduce `<name>.progress.expected.json` from `<name>.progress.json` (see docs/chart-format.md).
 
+`filet-blocks` pins `chart.cell: {"kind": "block"}` (docs/research/genres/filet.md, #44): a chart
+whose grid cell is a filet block, not a stitch, opens, works and sequences like any other, but its
+`stats` carries `cells` and no `stitches`, `yards_est`, or `skeins_364yd` — and adding any of those
+back must make `chartdoc.validate_document` refuse the document.
+
 `tests/test_js_parity.py` is how the PWA's conformance is enforced in this repo: for every fixture
 here it runs `site/src/app/data.js`'s `sequence()` under node and compares it pass for pass with
 `graphghan.chartdoc.sequence`, including the `null` for the unknown-technique fixture. node is

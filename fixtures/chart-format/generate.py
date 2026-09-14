@@ -17,6 +17,8 @@ import sys
 from pathlib import Path
 
 from graphghan.chartdoc import chart_id, sequence
+from graphghan.export import decode_rows
+from graphghan.export import stats as chart_stats
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
@@ -26,9 +28,18 @@ ROUNDS_T = {"type": "rounds", "start": "bottom", "first_side": "RS", "rs_directi
 GAUGE = {"stitches": 14.0, "rows": 16.0, "over": {"value": 4, "unit": "in"}, "stitch": "sc"}
 
 
-def chart(pid, title, palette, rows, technique, passes=None, layers=None):
+def chart(pid, title, palette, rows, technique, passes=None, layers=None, cell=None):
     codes = [c for c, _ in palette]
     width = sum(int(n) for n, _ in re.findall(r"(\d+)([A-Za-z]{1,3})", rows[0]))
+    chart_block = {
+        "id": chart_id(codes, rows, technique, passes, cell),
+        "variant": "final",
+        "gauge_key": "sc",
+        "width": width,
+        "height": len(rows),
+    }
+    if cell is not None:
+        chart_block["cell"] = cell
     doc = {
         "schema": 2,
         "pattern": {
@@ -38,13 +49,7 @@ def chart(pid, title, palette, rows, technique, passes=None, layers=None):
             "author": "graphghan fixtures",
             "license": "MIT",
         },
-        "chart": {
-            "id": chart_id(codes, rows, technique, passes),
-            "variant": "final",
-            "gauge_key": "sc",
-            "width": width,
-            "height": len(rows),
-        },
+        "chart": chart_block,
         "generator": {"name": "graphghan-fixtures", "version": "1"},
         "palette": [{"code": c, "name": f"Color {c}", "hex": h} for c, h in palette],
         "rows": rows,
@@ -109,6 +114,50 @@ EXPLICIT_PASSES = [
     p("Row 1", "RS", "ltr", 0, [run("A", 2, 0), run("B", 2, 2)]),
     p("Row 2", "RS", "ltr", 1, [run("A", 4, 0)]),
 ]
+
+# The filet-blocks fixture: chart.cell = {"kind": "block"} (docs/research/genres/filet.md). A cell
+# here is a filet block (3 dc filled, or dc/ch/skip/dc open), not a stitch, so this pins that a
+# reader still opens, works and sequences the chart while every stitch-derived stat disappears.
+# The motif is a plain diamond of filled blocks (2, 4, 6, 6, 4, 2 per row) over an open ground, 12
+# blocks wide (one "chain multiples of 12 + 3" repeat) by 6 rows tall -- recognisable, not noise.
+FILET_PALETTE = [("F", "#2B2F33"), ("O", "#F2E8D5")]
+FILET_ROWS = [
+    "5O2F5O",
+    "4O4F4O",
+    "3O6F3O",
+    "3O6F3O",
+    "4O4F4O",
+    "5O2F5O",
+]
+FILET_CELL = {"kind": "block"}
+# Hand-written expected sequence (not produced by chartdoc.sequence, per this module's design
+# rule): same rows/RS-rtl/WS-ltr bookkeeping as minimal-rows, worked out by hand from FILET_ROWS.
+FILET_ROW_A = [run("O", 5, 0), run("F", 2, 5), run("O", 5, 7)]
+FILET_ROW_A_RTL = [run("O", 5, 7), run("F", 2, 5), run("O", 5, 0)]
+FILET_ROW_B = [run("O", 4, 0), run("F", 4, 4), run("O", 4, 8)]
+FILET_ROW_B_RTL = [run("O", 4, 8), run("F", 4, 4), run("O", 4, 0)]
+FILET_ROW_C = [run("O", 3, 0), run("F", 6, 3), run("O", 3, 9)]
+FILET_ROW_C_RTL = [run("O", 3, 9), run("F", 6, 3), run("O", 3, 0)]
+FILET_SEQ = [
+    p("Row 1", "RS", "rtl", 5, FILET_ROW_A_RTL),
+    p("Row 2", "WS", "ltr", 4, FILET_ROW_B),
+    p("Row 3", "RS", "rtl", 3, FILET_ROW_C_RTL),
+    p("Row 4", "WS", "ltr", 2, FILET_ROW_C),
+    p("Row 5", "RS", "rtl", 1, FILET_ROW_B_RTL),
+    p("Row 6", "WS", "ltr", 0, FILET_ROW_A),
+]
+
+
+def filet_blocks_chart() -> dict:
+    codes = [c for c, _ in FILET_PALETTE]
+    doc = chart("filet-blocks", "Filet blocks", FILET_PALETTE, FILET_ROWS, ROWS_T, cell=FILET_CELL)
+    a = decode_rows(FILET_ROWS, codes)
+    st = chart_stats(a, codes, kind="block")
+    # size_in comes from the per-stitch gauge; a block is not one stitch, so that conversion would
+    # be exactly the "silently wrong" number the genre probe describes. Withhold it, don't guess.
+    del st["size_in"]
+    doc["stats"] = st
+    return doc
 
 
 def ev(t, row, run, kind="advance"):
@@ -211,6 +260,10 @@ def fixtures() -> dict[str, tuple[dict, dict | None]]:
                 {"type": "tunisian"},
             ),
             None,
+        ),
+        "filet-blocks": (
+            filet_blocks_chart(),
+            {"passes": FILET_SEQ},
         ),
         "craigh-na-dun": (craigh, {"sha256": hashlib.sha256(canonical_passes(sequence(craigh))).hexdigest()}),
     }

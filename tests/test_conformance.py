@@ -30,6 +30,7 @@ def test_fixture_set_matches_spec():
         "layers-stitch",
         "explicit-passes",
         "unknown-technique",
+        "filet-blocks",
         "craigh-na-dun",
     }
 
@@ -206,3 +207,24 @@ def test_craigh_chart_id_is_stable_across_phase1():
     assert doc["gauge"]["terms"] == "US"
     assert doc["foundation"] == {"chain": 190, "first_stitch_in": 2, "note": "in Gold (Y)"}
     assert doc["pattern"]["craft"] == "crochet" and doc["pattern"]["language"] == "en"
+
+
+def test_filet_fixture_opens_and_withholds_stitch_numbers():
+    """A filet block is not a stitch (docs/research/genres/filet.md, #44): the fixture must open,
+    work and sequence, and carry `cells` but none of the stitch-derived stats."""
+    chart = load("filet-blocks")
+    assert chartdoc.validate_document(chart) == []
+    assert chartdoc.cell_kind(chart) == "block"
+    assert chartdoc.sequence(chart)  # it is workable: it opens and sequences
+    st = chart.get("stats") or {}
+    assert st.get("cells") == 72
+    assert "stitches" not in st and "yards_est" not in st and "skeins_364yd" not in st
+
+
+def test_filet_fixture_refuses_stitch_stats_if_added():
+    """The other direction of the rule above: proving the withholding by omission alone is not
+    enough (an absent stats block would pass trivially), so add stitches back and require refusal."""
+    chart = load("filet-blocks")
+    chart["stats"]["stitches"] = chart["stats"]["cells"]
+    problems = chartdoc.validate_document(chart)
+    assert any("stats.stitches" in p and "block" in p for p in problems), problems
