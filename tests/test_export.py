@@ -222,3 +222,30 @@ def test_chart_json_foundation_note_from_first_row_color(tmp_path):
     gr.set_gauge("sc")
     doc = chart_json(small(), meta, "sc", {})
     assert doc["foundation"]["note"] == "in Alpha (A)"
+
+
+def test_written_rows_prefix_turning_chain_from_row_two():
+    a = small()
+    lines = written_rows(a, ["A", "B"], boundary={"kind": "turn", "chain": 1, "counts_as_stitch": False})
+    assert lines[0] == "Row 1 (RS): 5 A  (5 sts)"  # the foundation, not a chain, precedes row 1
+    assert lines[1] == "Row 2 (WS): ch 1, turn, 1 A, 3 B, 1 A  (5 sts)"
+    assert lines[2] == "Row 3 (RS): ch 1, turn, 5 A  (5 sts)"
+
+
+def test_written_rows_only_turn_kind_adds_a_chain():
+    a = small()
+    plain = written_rows(a, ["A", "B"])
+    assert written_rows(a, ["A", "B"], boundary=None) == plain
+    assert written_rows(a, ["A", "B"], boundary={"kind": "join", "chain": 3}) == plain
+    assert (
+        written_rows(a, ["A", "B"], boundary={"kind": "turn", "chain": 0})[1]
+        == "Row 2 (WS): turn, 1 A, 3 B, 1 A  (5 sts)"
+    )
+
+
+def test_write_dist_written_rows_carry_the_chain(tmp_path):
+    meta = _phase1_meta(tmp_path)
+    gr.set_gauge("sc")
+    write_dist(small(), meta, "sc", {}, tmp_path / "dist")
+    lines = (tmp_path / "dist" / "written-rows.txt").read_text().splitlines()
+    assert lines[0].startswith("Row 1 (RS): 5 A") and lines[1].startswith("Row 2 (WS): ch 1, turn, ")

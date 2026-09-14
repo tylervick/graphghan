@@ -123,9 +123,16 @@ def stats(a, codes):
     }
 
 
-def written_rows(a, codes):
+def written_rows(a, codes, boundary=None):
+    """One line per pass. From row 2 on, a `turn` boundary prints its chain first — where most
+    published patterns and Crochetpop's generator put it. Other boundary kinds print nothing:
+    Phase 1 readers implement `turn` only (docs/chart-format.md §Gauge)."""
     runs = rle_rows(a)
     h = len(runs)
+    prefix = ""
+    if boundary and boundary.get("kind") == "turn":
+        chain = int(boundary.get("chain", 0))
+        prefix = f"ch {chain}, turn, " if chain > 0 else "turn, "
     lines = []
     for i in range(h):
         row_no = i + 1
@@ -135,6 +142,7 @@ def written_rows(a, codes):
         side = "RS" if row_no % 2 == 1 else "WS"
         lines.append(
             f"Row {row_no} ({side}): "
+            + (prefix if row_no > 1 else "")
             + ", ".join(f"{n} {codes[c]}" for c, n in row)
             + f"  ({sum(n for _, n in row)} sts)"
         )
@@ -236,5 +244,7 @@ def write_dist(a, meta, gauge_key, report, out_dir, variant="final"):
     chart_png(a, meta.palette.rgb, out / "chart.png")
     preview_png(a, meta.palette.rgb, out / "preview.png")
     preview_png(a, meta.palette.rgb, out / "preview-grid.png", grid=True)
-    (out / "written-rows.txt").write_text("\n".join(written_rows(a, meta.palette.codes)) + "\n")
+    (out / "written-rows.txt").write_text(
+        "\n".join(written_rows(a, meta.palette.codes, boundary=doc["gauge"].get("boundary"))) + "\n"
+    )
     return doc
