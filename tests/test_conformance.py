@@ -98,7 +98,7 @@ def test_progress_fixture_validates_and_summarizes(name):
     chart = load(doc["ext"]["fixture"]["chart"])
     assert chart["chart"]["id"] == doc["chart_id"]
     expected = json.loads((FIX / f"{name}.progress.expected.json").read_text(encoding="utf-8"))
-    assert progress.summarize(doc, chartdoc.sequence(chart)) == expected
+    assert progress.summarize(doc, chartdoc.sequence(chart), kind=chartdoc.cell_kind(chart)) == expected
 
 
 def test_schema_rejects_bad_documents():
