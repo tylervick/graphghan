@@ -321,3 +321,10 @@ def test_cell_kind_is_total_for_a_malformed_chart():
     """cell_kind() must never raise — it is called on unvalidated documents."""
     for bad in ({"chart": None}, {"chart": "oops"}, {"chart": []}, {"chart": {"cell": "block"}}):
         assert chartdoc.cell_kind(bad) == "stitch"
+
+
+def test_validate_refuses_stats_that_contradict_the_cell_kind():
+    d = doc(["4A"], cell={"kind": "block"})
+    d["stats"] = {"cells": 4, "stitches": 4}
+    problems = chartdoc.validate_document(d)
+    assert any("stats.stitches" in p and "block" in p for p in problems)

@@ -249,6 +249,13 @@ def validate_document(doc: dict) -> list[str]:
             problems.append(f"chart.cell is {type(cell).__name__}, not an object")
         elif cell.get("kind") not in CELL_KINDS:
             problems.append(f"chart.cell.kind {cell.get('kind')!r} is not one of {CELL_KINDS}")
+    kind = cell_kind(doc)
+    if kind != "stitch":
+        st = doc.get("stats")
+        if isinstance(st, dict):
+            for key in ("stitches", "yards_est", "skeins_364yd"):
+                if key in st:
+                    problems.append(f"stats.{key} counts stitches, but chart.cell.kind is {kind!r}")
     expected = chart_id(
         codes,
         rows,

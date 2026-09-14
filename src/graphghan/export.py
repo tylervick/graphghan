@@ -93,7 +93,7 @@ def preview_png(a, rgb, path, cw=8, ch=None, grid=False, bold_every=10):
     img.save(path)
 
 
-def stats(a, codes):
+def stats(a, codes, kind="stitch"):
     h, w = a.shape
     counts = {codes[i]: int((a == i).sum()) for i in range(len(codes))}
     runs = rle_rows(a)
@@ -108,8 +108,8 @@ def stats(a, codes):
     yards = {
         code: n * cell_sqin * 1.1 * 1.2 for code, n in counts.items()
     }  # 1.1 yd/sq in worsted sc, +20% tails
-    return {
-        "stitches": int(w * h),
+    out = {
+        "cells": int(w * h),
         "size_in": [round(w * gr.SW, 1), round(h * gr.SH, 1)],
         "counts": counts,
         "single_stitch_runs": singles,
@@ -118,9 +118,14 @@ def stats(a, codes):
             "max": max(per_row),
             "per_row": per_row,
         },
-        "yards_est": {k: int(round(v)) for k, v in yards.items()},
-        "skeins_364yd": {k: round(v / 364, 1) for k, v in yards.items()},
     }
+    if kind == "stitch":
+        # Every number below counts stitches. A cell is only a stitch when the chart says so, and
+        # a missing key cannot be misread the way a wrong number can (#44).
+        out["stitches"] = int(w * h)
+        out["yards_est"] = {k: int(round(v)) for k, v in yards.items()}
+        out["skeins_364yd"] = {k: round(v / 364, 1) for k, v in yards.items()}
+    return out
 
 
 def written_rows(a, codes, boundary=None):

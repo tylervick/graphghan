@@ -50,6 +50,24 @@ def test_stats_sum_and_changes():
     assert s["size_in"] == [round(5 / 3.5, 1), 0.8]
 
 
+def test_stats_always_reports_cells():
+    a = small()
+    s = stats(a, ["A", "B"])
+    assert s["cells"] == a.shape[0] * a.shape[1]
+    assert s["stitches"] == s["cells"]
+
+
+def test_stats_withholds_stitch_numbers_for_a_non_stitch_kind():
+    a = small()
+    s = stats(a, ["A", "B"], kind="block")
+    assert "stitches" not in s
+    assert "yards_est" not in s
+    assert "skeins_364yd" not in s
+    # Cell-counting numbers stay: they are honest whatever a cell is.
+    assert s["cells"] == a.shape[0] * a.shape[1]
+    assert s["counts"] and s["color_changes_per_row"]
+
+
 def test_chart_json_schema2_and_write_dist(tmp_path):
     meta = load_pattern(FIX)
     gr.set_gauge("sc")
