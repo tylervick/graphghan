@@ -131,4 +131,40 @@ import Testing
         let chart = try Chart(document: ChartDocument.decode(Self.doc(rows: ["2a2A"], codes: ["a", "A"])))
         #expect(chart.warnings.count == 1 && chart.warnings[0].contains("differ only by case"))
     }
+
+    @Test func stitchIsResolvedFromGauge() throws {
+        let craigh = try Self.chart("craigh-na-dun")
+        let stitch = try #require(craigh.stitch)
+        #expect(stitch.code == "sc" && stitch.name == "single crochet" && stitch.terms == .us)
+        #expect(stitch.boundary?.kind == .turn && stitch.boundary?.chain == 1 && stitch.boundary?.color == .next)
+        #expect(craigh.foundation?.chain == 190)
+    }
+
+    @Test func stitchIsNilWithoutAGaugeStitch() throws {
+        // ChartTests.doc writes a gauge with no `stitch`
+        let chart = try Chart(document: ChartDocument.decode(Self.doc(rows: ["2A2B", "4A"])))
+        #expect(chart.stitch == nil && chart.foundation == nil)
+    }
+
+    @Test func foundationShorterThanTheFirstRowIsRefused() throws {
+        // #50: a maker could not work row 1, so the chart does not load at all. Extra chains are fine.
+        func doc(chain: Int, into: Int? = 2) -> Data {
+            let f = into.map { #"{"chain":\#(chain),"first_stitch_in":\#($0)}"# } ?? #"{"chain":\#(chain)}"#
+            var json = String(decoding: Self.doc(rows: ["2A2B", "4A"]), as: UTF8.self)  // width 4
+            json = json.replacingOccurrences(of: #""technique":{"type":"rows"}"#, with: #""technique":{"type":"rows"},"foundation":\#(f)"#)
+            return Data(json.utf8)
+        }
+        #expect(try Chart(document: ChartDocument.decode(doc(chain: 5))).foundation?.chain == 5)
+        #expect(try Chart(document: ChartDocument.decode(doc(chain: 9))).foundation?.chain == 9)
+        #expect(try Chart(document: ChartDocument.decode(doc(chain: 4, into: nil))).foundation?.chain == 4)
+        #expect(throws: ChartError.foundationTooShort(chain: 4, needed: 5)) { try Chart(document: ChartDocument.decode(doc(chain: 4))) }
+        #expect(throws: ChartError.foundationTooShort(chain: 3, needed: 4)) { try Chart(document: ChartDocument.decode(doc(chain: 3, into: nil))) }
+    }
+
+    @Test func termsDefaultToUSAndBoundaryIsNeverDerived() throws {
+        let minimal = try Self.chart("minimal-rows")   // gauge.stitch = "sc", nothing else
+        let stitch = try #require(minimal.stitch)
+        #expect(stitch.terms == .us && stitch.name == "single crochet")
+        #expect(stitch.boundary == nil)
+    }
 }
