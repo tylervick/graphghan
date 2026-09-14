@@ -22,6 +22,17 @@ import GraphghanCore
         #expect(try Snapshots.assert(WorkLockScreenView(info: Self.info, state: Self.midway).background(Color.activityCard).environment(\.colorScheme, .dark), named: "lock-midway", size: CGSize(width: 360, height: 170)))
     }
 
+    @Test func lastInRowTextNamesTheChain() {
+        #expect(Self.info.turningChain == 1)  // from the fixture, via LiveActivityState.info
+        #expect(RunPanel.nextText(info: Self.info, state: Self.lastInRow) == "ch 1, turn")
+        let plain = WorkActivityInfo(projectID: Self.info.projectID, title: Self.info.title, totalRows: Self.info.totalRows,
+                                     totalStitches: Self.info.totalStitches, palette: Self.info.palette)
+        #expect(RunPanel.nextText(info: plain, state: Self.lastInRow) == "last in row")
+        let zero = WorkActivityInfo(projectID: Self.info.projectID, title: "t", totalRows: 1, totalStitches: 1, palette: [], stitch: "sc", turningChain: 0)
+        #expect(RunPanel.nextText(info: zero, state: Self.lastInRow) == "turn")
+        #expect(RunPanel.nextText(info: Self.info, state: Self.midway).hasPrefix("then "))
+    }
+
     @Test func lockScreenLastInRow() throws {
         #expect(try Snapshots.assert(WorkLockScreenView(info: Self.info, state: Self.lastInRow).background(Color.activityCard).environment(\.colorScheme, .dark), named: "lock-last-in-row", size: CGSize(width: 360, height: 170)))
     }
