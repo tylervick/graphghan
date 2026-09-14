@@ -31,6 +31,8 @@ import GraphghanCore
         let zero = WorkActivityInfo(projectID: Self.info.projectID, title: "t", totalRows: 1, totalStitches: 1, palette: [], stitch: "sc", turningChain: 0)
         #expect(RunPanel.nextText(info: zero, state: Self.lastInRow) == "turn")
         #expect(RunPanel.nextText(info: Self.info, state: Self.midway).hasPrefix("then "))
+        let final = LiveActivityState.make(cursor: Cursor(row: Self.seq.passes.count, run: Self.seq.passes.last!.runs.count - 1), sequence: Self.seq)!
+        #expect(RunPanel.nextText(info: Self.info, state: final) == "last in row")
     }
 
     @Test func lockScreenLastInRow() throws {

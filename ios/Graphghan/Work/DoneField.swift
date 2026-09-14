@@ -89,7 +89,6 @@ struct WorkField: View {
                                     .padding(.horizontal, 10)
                                     .padding(.vertical, 4)
                                     .overlay(Capsule().strokeBorder(doneForeground.opacity(0.6), lineWidth: 1.5))
-                                    .accessibilityHidden(true)  // the Done label already spells the stitch out
                             }
                         }
                         Text(content.code).font(Font.Heather.code).lineLimit(1)
@@ -115,6 +114,7 @@ struct WorkField: View {
             .buttonStyle(.plain)
             .offset(x: zones.current.minX)
             .accessibilityLabel(doneLabel)
+            .accessibilityValue(content?.onDeck ?? "")
         }
         if #available(iOS 26, *) {
             GlassEffectContainer(spacing: Self.gap) { panels }

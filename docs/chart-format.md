@@ -69,7 +69,8 @@ are optional.
 pattern. Derived values: cell aspect = `stitches / rows`; finished width = `width / (stitches /
 over.value)` in `over.unit`, likewise height. `unit` says what `stitches` and `rows` count —
 `stitches` (default), `tiles`, `repeats` or `rounds`; a reader that does not understand the unit
-derives no finished size.
+derives no finished size (#48; neither reader in this repo checks the unit yet, and nothing
+authors one).
 
 `stitch` is the abbreviation the chart is worked in; `stitch_name` its spelled-out name, required
 when `stitch` is not in the CYC master list and ignored when it is (a chart cannot rename `sc`).

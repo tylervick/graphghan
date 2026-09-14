@@ -55,7 +55,7 @@ struct RunPanel: View {
     static func nextText(info: WorkActivityInfo, state: WorkActivityState) -> String {
         if let code = state.nextCode, let count = state.nextCount { return "then \(count) \(info.swatch(for: code)?.name ?? code)" }
         guard state.isLastInRow else { return "" }
-        if let chain = info.turningChain { return chain > 0 ? "ch \(chain), turn" : "turn" }
+        if state.row < state.rowCount, let chain = info.turningChain { return chain > 0 ? "ch \(chain), turn" : "turn" }
         return "last in row"
     }
 }

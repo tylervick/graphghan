@@ -75,7 +75,7 @@ use = "moon, braided border, edge lines"
 [notes]
 setup = [
   "Foundation: chain W + 1 in Gold (Y). Row 1 begins in the 2nd chain from the hook; the whole first row is Gold, part of the outer 2-row gold edge.",
-  "Ch 1, turn at the end of every row. The chart counts stitches only; the turning chain is not a stitch.",
+  "The chart counts stitches only; the turning chain is not a stitch.",
   "Change colors in the last yarn-over of the stitch before the new color: work the stitch until two loops remain, drop the old color, pull the new one through.",
   "Block the finished blanket to size so the braid straightens and the lettering squares up.",
 ]
