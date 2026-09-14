@@ -19,6 +19,7 @@
 - The generator never derives a turning chain, a foundation chain, or terms: absent in `pattern.toml` ⇒ absent in `chart.json`.
 - Field names, verbatim from spec §6.1: `gauge.unit` (`stitches` | `tiles` | `repeats` | `rounds`), `gauge.stitch_name`, `gauge.terms` (`US` | `UK`), `gauge.terms_also`, `gauge.boundary { kind, chain, counts_as_stitch, color }` with `kind` ∈ `turn` | `join` | `rejoin` | `spiral` | `return`, `chain` integer ≥ 0, `color` ∈ `next` | `current`; `pattern.craft` (`crochet` | `knit` | `tunisian` | `cross-stitch`), `pattern.language` (BCP 47 string); top-level `foundation { chain, first_stitch_in, note }`.
 - Phase 1 readers act on `boundary.kind == "turn"` only; other kinds decode and show nothing.
+- **Nobody may work an unworkable chart (#50).** Anything provably impossible at the hook is *refused* by the generator's validator and by the Swift reader, never warned about. In Phase 1 that is a malformed `boundary` and a `foundation.chain` shorter than `chart.width + first_stitch_in - 1`. Extra chains stay legal.
 - iOS design rules: no raw colours or system fonts outside the tokens (`ios/Tests/DesignRulesTests.swift`). The badge uses `Font.Heather.label` and the column's existing foreground colour.
 - Commit messages end with the attribution lines the session reminder gives. Run `mise run check` before every Python commit; `cd ios && mise run core-test` before every Core commit; `cd ios && mise run test` before every app commit.
 - Branch: `tylervick/stitch-boundary-phase1` (already created off `main` at `1f6a686`). Do not touch `tylervick/style`.
@@ -201,8 +202,18 @@ are optional; absent means unstated.
 
 Top-level, optional: `{ "chain": 190, "first_stitch_in": 2, "note": "in Gold (Y)" }`. `chain` is
 the authored foundation chain count and `first_stitch_in` the 1-based chain from the hook where
-the first pass's first stitch goes. Both are authored; no reader cross-checks one against the
-other or against `chart.width` — a foundation with extra chains for an edge is legitimate.
+the first pass's first stitch goes. Both are authored. A foundation with extra chains for an edge
+is legitimate; one with fewer than `width + first_stitch_in - 1` cannot be worked, and readers
+MUST refuse the document (see §Design).
+```
+
+In `## Design`, after "Nothing in the file is in inches except the gauge block; sizes are derived." add a paragraph:
+
+```markdown
+Nobody should be able to work a chart that cannot be crocheted as written. A document that is
+*provably* unworkable — rows that do not sum to the width, runs off the grid, a foundation shorter
+than the first row — is invalid: writers MUST NOT write it and readers MUST refuse it rather than
+warn. Unusual but possible values are not errors.
 ```
 
 In the `### Technique and passes` bullet for `rows`, change `` `turn` is informational (true for flat work). `` to `` `turn` is informational (true for flat work); what to do at the turn — how many chains, whether they count — is `gauge.boundary`. ``
@@ -460,6 +471,22 @@ def test_validate_document_rejects_malformed_boundary():
     d = json.loads(json.dumps(good))
     d["gauge"]["boundary"] = {"kind": "spiral", "chain": 0}
     assert chartdoc.validate_document(d) == []
+
+
+def test_validate_document_refuses_a_foundation_shorter_than_the_first_row():
+    """A maker could not work row 1 (#50): refused, not warned. Extra chains are fine."""
+    good = load("minimal-rows")  # width 14
+    d = json.loads(json.dumps(good))
+    d["foundation"] = {"chain": 15, "first_stitch_in": 2}
+    assert chartdoc.validate_document(d) == []
+    d["foundation"] = {"chain": 20, "first_stitch_in": 2}  # an edge's worth of extra chains
+    assert chartdoc.validate_document(d) == []
+    d["foundation"] = {"chain": 14, "first_stitch_in": 2}
+    assert any("foundation" in p for p in chartdoc.validate_document(d))
+    d["foundation"] = {"chain": 13}  # first_stitch_in absent means 1: needs at least width
+    assert any("foundation" in p for p in chartdoc.validate_document(d))
+    d["foundation"] = {"chain": 14}
+    assert chartdoc.validate_document(d) == []
 ```
 
 - [ ] **Step 2: Run them to verify they fail**
@@ -569,6 +596,17 @@ and in `validate_document`, before `expected = chart_id(...)`:
                 problems.append(f"gauge.boundary.chain {chain!r} is not an integer >= 0")
             if "color" in boundary and boundary["color"] not in CHAIN_COLORS:
                 problems.append(f"gauge.boundary.color {boundary['color']!r} is not one of {CHAIN_COLORS}")
+    foundation = doc.get("foundation")
+    if isinstance(foundation, dict) and isinstance(width, int):
+        chain = foundation.get("chain")
+        into = foundation.get("first_stitch_in", 1)
+        if isinstance(chain, int) and isinstance(into, int) and not isinstance(chain, bool):
+            needed = width + into - 1
+            if chain < needed:  # row 1 could not be worked: refuse, never warn (#50)
+                problems.append(
+                    f"foundation.chain {chain} is shorter than the {needed} chains row 1 needs "
+                    f"(width {width} + first_stitch_in {into} - 1)"
+                )
 ```
 
 - [ ] **Step 5: Run the tests**
@@ -1151,7 +1189,7 @@ git commit -m "core: decode gauge.boundary/unit/terms/stitch_name, pattern.craft
 
 **Interfaces:**
 - Consumes: `Stitch` (Task 6), `ChartDocument.Gauge`/`.foundation` (Task 7).
-- Produces: `Chart.stitch: Stitch?` — nil when `gauge.stitch` is absent or empty; otherwise `Stitch(code:, terms: gauge.terms ?? .us, stitchName: gauge.stitchName, boundary: gauge.boundary)`. `Chart.foundation: ChartDocument.Foundation?` passthrough.
+- Produces: `Chart.stitch: Stitch?` — nil when `gauge.stitch` is absent or empty; otherwise `Stitch(code:, terms: gauge.terms ?? .us, stitchName: gauge.stitchName, boundary: gauge.boundary)`. `Chart.foundation: ChartDocument.Foundation?` passthrough. `ChartError.foundationTooShort(chain: Int, needed: Int)` thrown by `Chart.init` when `foundation.chain < width + (first_stitch_in ?? 1) - 1` (#50).
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -1172,6 +1210,21 @@ Append inside `@Suite struct ChartTests`:
         #expect(chart.stitch == nil && chart.foundation == nil)
     }
 
+    @Test func foundationShorterThanTheFirstRowIsRefused() throws {
+        // #50: a maker could not work row 1, so the chart does not load at all. Extra chains are fine.
+        func doc(chain: Int, into: Int? = 2) -> Data {
+            let f = into.map { #"{"chain":\#(chain),"first_stitch_in":\#($0)}"# } ?? #"{"chain":\#(chain)}"#
+            var json = String(decoding: Self.doc(rows: ["2A2B", "4A"]), as: UTF8.self)  // width 4
+            json = json.replacingOccurrences(of: #""technique":{"type":"rows"}"#, with: #""technique":{"type":"rows"},"foundation":\#(f)"#)
+            return Data(json.utf8)
+        }
+        #expect(try Chart(document: ChartDocument.decode(doc(chain: 5))).foundation?.chain == 5)
+        #expect(try Chart(document: ChartDocument.decode(doc(chain: 9))).foundation?.chain == 9)
+        #expect(try Chart(document: ChartDocument.decode(doc(chain: 4, into: nil))).foundation?.chain == 4)
+        #expect(throws: ChartError.foundationTooShort(chain: 4, needed: 5)) { try Chart(document: ChartDocument.decode(doc(chain: 4))) }
+        #expect(throws: ChartError.foundationTooShort(chain: 3, needed: 4)) { try Chart(document: ChartDocument.decode(doc(chain: 3, into: nil))) }
+    }
+
     @Test func termsDefaultToUSAndBoundaryIsNeverDerived() throws {
         let minimal = try Self.chart("minimal-rows")   // gauge.stitch = "sc", nothing else
         let stitch = try #require(minimal.stitch)
@@ -1187,7 +1240,23 @@ Expected: compile error, `value of type 'Chart' has no member 'stitch'`.
 
 - [ ] **Step 3: Implement**
 
-In `Chart.swift`, after `public var title: String { document.pattern.title }` add:
+In `Chart.swift`, add a case to `ChartError` after `idMismatch`:
+
+```swift
+    /// The foundation cannot carry row 1: refused, not warned (#50).
+    case foundationTooShort(chain: Int, needed: Int)
+```
+
+In `init(document:verifyID:)`, after the `guard document.chart.width >= 1 ...` size check add:
+
+```swift
+        if let foundation = document.foundation {
+            let needed = document.chart.width + (foundation.firstStitchIn ?? 1) - 1
+            guard foundation.chain >= needed else { throw ChartError.foundationTooShort(chain: foundation.chain, needed: needed) }
+        }
+```
+
+Then, after `public var title: String { document.pattern.title }` add:
 
 ```swift
     /// The stitch the chart is worked in, from `gauge` only. Nil without `gauge.stitch`; the
@@ -1775,4 +1844,5 @@ Expected: `test`, `ios-changes`, `ios` green. The `ios` job renders snapshots in
 - §6.4 app — Task 10 (on-deck: chain, colour, counts-as, foundation), Task 11 (badge, Done label), Task 12 (Live Activity). ✔
 - §6.5 fixtures, docs, tests — Task 1 (doc incl. the RS-face legend note), Task 5 (fixture regenerates, set unchanged, id-stable test), Swift tests per task, snapshots re-recorded in Tasks 11–12. Deviation recorded in Task 4: the stitch abbreviation is not added to the written-rows line body because the site contract test parses it. ✔
 - §6.6 compatibility — id pinned (Tasks 3, 5, 13); `WorkActivityInfo` fields optional with defaults so stale activity payloads still decode (Task 9). ✔
+- Tenet (#50): a foundation too short for row 1 is refused by `validate_document` (Task 3) and `Chart.init` (Task 8); the rule is written into `chart-format.md` §Design (Task 1). Spec §6.1's "no reader cross-checks" is narrowed to *extra* chains, which is what it meant. ✔
 - Not in scope, on purpose: the site manifest gaining `craft` (#49), rendering `instructions[]` in the app (#40), other boundary kinds (#43).
