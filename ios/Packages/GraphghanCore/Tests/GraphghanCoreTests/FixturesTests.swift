@@ -4,7 +4,7 @@ import Testing
 @Suite struct FixturesTests {
     @Test func fixtureSetMatchesSpec() {
         #expect(Set(Fixtures.chartNames) == [
-            "craigh-na-dun", "explicit-passes", "layers-stitch", "minimal-rounds",
+            "craigh-na-dun", "explicit-passes", "filet-blocks", "layers-stitch", "minimal-rounds",
             "minimal-rows", "two-letter-codes", "unknown-technique",
         ])
     }
