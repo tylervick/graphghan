@@ -33,6 +33,19 @@ def cell_kind(doc: dict) -> str:
     return "stitch"
 
 
+# `gauge.unit` says what `gauge.stitches` and `gauge.rows` count; `chart.cell.kind` says what one
+# grid cell is. Dividing the grid by the gauge is valid exactly when they name the same thing, so
+# these two are the pairs a finished size can be derived from (#48). `repeats` waits on #39 and
+# `rounds` on a stated relationship between a round and a cell; both withhold.
+UNIT_FOR_KIND = {"stitch": "stitches", "tile": "tiles"}
+
+
+def size_derives(doc: dict) -> bool:
+    gauge = doc.get("gauge")
+    unit = gauge.get("unit", "stitches") if isinstance(gauge, dict) else "stitches"
+    return UNIT_FOR_KIND.get(cell_kind(doc)) == unit
+
+
 class UnsupportedTechnique(ValueError):
     """The document has no derivable working order (unknown/reserved technique and no passes)."""
 
@@ -119,7 +132,11 @@ def cell_aspect(doc: dict) -> float:
     return round(g["stitches"] / g["rows"], 4)
 
 
-def finished_size(doc: dict) -> tuple[float, float, str]:
+def finished_size(doc: dict) -> tuple[float, float, str] | None:
+    """Finished width and height at the design gauge, or None when the gauge and the grid do not
+    count the same thing (#48). A wrong size is worse than none."""
+    if not size_derives(doc):
+        return None
     g = doc["gauge"]
     per = g["over"]["value"]
     w = doc["chart"]["width"] / (g["stitches"] / per)

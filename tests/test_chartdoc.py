@@ -328,3 +328,39 @@ def test_validate_refuses_stats_that_contradict_the_cell_kind():
     d["stats"] = {"cells": 4, "stitches": 4}
     problems = chartdoc.validate_document(d)
     assert any("stats.stitches" in p and "block" in p for p in problems)
+
+
+def test_size_derives_when_unit_and_kind_agree():
+    d = doc(["4A"], width=4)
+    assert chartdoc.size_derives(d)  # both absent: stitches <-> stitch
+
+    d = doc(["4A"], width=4, cell={"kind": "tile"})
+    d["gauge"]["unit"] = "tiles"
+    assert chartdoc.size_derives(d)
+
+
+def test_size_withheld_when_unit_and_kind_disagree():
+    d = doc(["4A"], width=4, cell={"kind": "tile"})  # tile cells, stitch gauge
+    assert not chartdoc.size_derives(d)
+    assert chartdoc.finished_size(d) is None
+
+    d = doc(["4A"], width=4)  # stitch cells, tile gauge
+    d["gauge"]["unit"] = "tiles"
+    assert not chartdoc.size_derives(d)
+    assert chartdoc.finished_size(d) is None
+
+
+def test_size_withheld_for_units_we_cannot_resolve():
+    for unit in ("repeats", "rounds"):
+        d = doc(["4A"], width=4)
+        d["gauge"]["unit"] = unit
+        assert not chartdoc.size_derives(d), unit
+        assert chartdoc.finished_size(d) is None, unit
+
+
+def test_tile_gauge_derives_the_c2c_size():
+    """5.5 tiles = 4 in over a 22-tile grid is 16 in wide, not whatever 5.5 stitches would give."""
+    d = doc(["4A"], width=4, cell={"kind": "tile"})
+    d["chart"]["width"], d["chart"]["height"] = 22, 22
+    d["gauge"] = {"stitches": 5.5, "rows": 5.5, "over": {"value": 4, "unit": "in"}, "unit": "tiles"}
+    assert chartdoc.finished_size(d) == (16.0, 16.0, "in")
