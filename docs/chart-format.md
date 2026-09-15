@@ -95,7 +95,8 @@ matrix found:
 | `motif` | a whole worked square | motif-grid blanket | `joined-rounds.md` |
 | `pair` | two stitches, one per layer | double knitting | #44 |
 
-Absent means `stitch`. No existing document carries the key.
+Absent means `stitch`. No document written before this key existed carries it, and absent is
+always valid.
 
 The enum is closed, matching `gauge.unit` and `boundary.kind`. A value outside it fails schema
 validation and the document is refused — which is correct: an unrecognised cardinality is a
@@ -113,20 +114,26 @@ is always honest and is always emitted. A number that counts **stitches** is emi
 | Number | Where | `kind: stitch` | any other kind |
 |---|---|---|---|
 | `stats.cells` | `export.py` | `w × h` | `w × h` |
-| `stats.stitches` | `export.py:112` | `w × h` | **key absent** |
+| `stats.stitches` | `export.py` | `w × h` | **key absent** |
 | `stats.yards_est`, `stats.skeins_364yd` | `export.py` | emitted | **key absent** |
 | `stats.counts`, `single_stitch_runs`, `color_changes_per_row` | `export.py` | emitted | emitted (per-cell, honest) |
 | `stats.size_in` | `export.py` | emitted | emitted — governed by `gauge.unit` (#48), not by this |
-| `total_stitches` | `progress.py:18` | emitted | **key absent** |
+| `total_stitches` | `progress.py` | emitted | **key absent** |
 | `total_cells` | `progress.py` | emitted | emitted |
 | `stitches_done` / `cells_done` | `progress.py` | both | `cells_done` only |
-| `percent` | `progress.py:61` | unchanged | unchanged — cells done over cells total is the same arithmetic either way |
-| `stitches_per_hour` | `progress.py:66` | emitted | **key absent** |
-| `WorkSequence.totalCells` | `WorkSequence.swift:52` | emitted | emitted |
-| `WorkSequence.totalStitches: Int?` | `WorkSequence.swift:52` | `totalCells` | **nil** |
+| `percent` | `progress.py` | unchanged | unchanged — cells done over cells total is the same arithmetic either way |
+| `stitches_per_hour` | `progress.py` | emitted | **key absent** |
+| `WorkSequence.totalCells` | `WorkSequence.swift` | emitted | emitted |
+| `WorkSequence.totalStitches: Int?` | `WorkSequence.swift` | `totalCells` | **nil** |
 
 `stats.cells` and `total_cells` are emitted for every chart including `stitch` ones, where they
 equal the stitch figures: they are the honest name for what the number has always counted.
+
+Because the enum is closed and an out-of-enum kind is refused outright, adding a sixth kind is a
+breaking change for every reader already in the field — a document carrying it fails to open at
+all, not even degraded. That is the intended trade for refusing an unrecognised cardinality rather
+than guessing at it, but it means a new kind is not an additive, optional change the way `cell`
+itself was: it belongs with a schema version bump.
 
 ### Gauge
 
