@@ -138,8 +138,9 @@ itself was: it belongs with a schema version bump.
 ### Gauge
 
 `stitches` and `rows` over `over.value` `over.unit` (`in` or `cm`), the way gauge is stated on a
-pattern. Derived values: cell aspect = `stitches / rows`; finished width = `width / (stitches /
-over.value)` in `over.unit`, likewise height. `unit` says what `stitches` and `rows` count —
+pattern. Derived values: cell aspect = `stitches / rows`; finished width (when the pairing rule
+below allows) = `width / (stitches / over.value)` in `over.unit`, likewise height. `unit` says what
+`stitches` and `rows` count —
 `stitches` (default), `tiles`, `repeats` or `rounds`. A finished size is derived only when `unit`
 and `chart.cell.kind` name the same thing: `stitches` with `stitch`, or `tiles` with `tile`. Both
 fields default and their defaults pair, so a chart that states neither is sized as stitches over
