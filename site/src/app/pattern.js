@@ -28,7 +28,8 @@ async function main() {
 
   // masthead
   $('quote').textContent = P.quote ? `“${P.quote}”` : '';
-  const gaugeNoun = (G.unit || 'stitches') === 'stitches' ? 'st' : (G.unit || 'stitches');
+  const gaugeUnit = G.unit || 'stitches';
+  const gaugeNoun = gaugeUnit === 'stitches' ? 'st' : gaugeUnit;
   const specs = [['Chart', `${chart.W} × ${chart.H}`, `${cellNoun(C)} × rows`]];
   if (size) specs.push(['Finished', `${size.w}${unit} × ${size.h}${unit}`, 'at design gauge']);
   specs.push(['Colors', String(doc.palette.length), G.yarn_weight || ''],

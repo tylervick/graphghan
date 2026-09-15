@@ -13,7 +13,7 @@ const CELL_KIND_NOUNS = { stitch: 'stitches', block: 'blocks', tile: 'tiles', mo
 // rather than the whole document. Absent, or a kind outside the enum, means `stitch`.
 export function cellKind(chart) {
   const kind = chart && chart.cell && chart.cell.kind;
-  return CELL_KIND_NOUNS[kind] ? kind : 'stitch';
+  return Object.hasOwn(CELL_KIND_NOUNS, kind) ? kind : 'stitch';
 }
 
 export function cellNoun(chart) {

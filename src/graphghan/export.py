@@ -213,8 +213,6 @@ def chart_json(a, meta, gauge_key, report, variant="final"):
         if "chain_color" in stitch:
             boundary["color"] = stitch["chain_color"]
         gauge["boundary"] = boundary
-    # chart/gauge are what size_derives and cell_kind look at, so build them (chart as its own
-    # variable) before stats(), which needs both, without waiting on the rest of the document.
     chart_block = {
         "id": chart_id(codes, rows, technique),
         "variant": variant,
@@ -222,7 +220,6 @@ def chart_json(a, meta, gauge_key, report, variant="final"):
         "width": int(a.shape[1]),
         "height": int(a.shape[0]),
     }
-    pairing_check = {"chart": chart_block, "gauge": gauge}
     doc = {
         "schema": SCHEMA,
         "pattern": pattern,
@@ -233,9 +230,13 @@ def chart_json(a, meta, gauge_key, report, variant="final"):
         "gauge": gauge,
         "technique": technique,
         "instructions": [dict(s) for s in meta.instructions],
-        "stats": stats(a, codes, cell_kind(pairing_check), size_derives(pairing_check)),
+        "stats": {},  # placeholder holds this key's position; replaced below once chart/gauge are on doc
         "ext": {"graphghan": {"report": report_out}},
     }
+    # cell_kind/size_derives read chart.cell and gauge.unit off the real document; both are already
+    # on `doc` above, so no synthetic proxy is needed. Assigning to the existing "stats" key
+    # preserves its position (Python dict semantics), keeping this byte-identical to before.
+    doc["stats"] = stats(a, codes, cell_kind(doc), size_derives(doc))
     if "first_stitch_in" in stitch:
         fsi = stitch["first_stitch_in"]
         foundation = {"chain": int(a.shape[1]) + fsi - 1, "first_stitch_in": fsi}
