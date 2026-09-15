@@ -68,6 +68,19 @@ def test_stats_withholds_stitch_numbers_for_a_non_stitch_kind():
     assert s["counts"] and s["color_changes_per_row"]
 
 
+def test_stats_omits_size_in_when_the_size_does_not_derive():
+    s = stats(small(), ["A", "B"], sized=False)
+    assert "size_in" not in s
+    # Everything else the kind allows is still there.
+    assert s["cells"] == 15 and s["counts"] == {"A": 12, "B": 3}
+
+
+def test_stats_emits_size_in_by_default():
+    gr.set_gauge("sc")
+    s = stats(small(), ["A", "B"])
+    assert s["size_in"] == [round(5 / 3.5, 1), 0.8]
+
+
 def test_chart_json_schema2_and_write_dist(tmp_path):
     meta = load_pattern(FIX)
     gr.set_gauge("sc")

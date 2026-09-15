@@ -102,3 +102,38 @@ def test_js_cell_noun_matches_python(name):
     path = FIX / f"{name}.chart.json"
     doc = json.loads(path.read_text(encoding="utf-8"))
     assert js_cell_noun(path) == CELL_NOUNS[chartdoc.cell_kind(doc)]
+
+
+FINISHED_SIZE_SCRIPT = """
+import { readFileSync } from 'node:fs';
+import { finishedSize } from './site/src/app/data.js';
+const doc = JSON.parse(readFileSync(process.env.FIXTURE, 'utf8'));
+process.stdout.write(JSON.stringify(finishedSize(doc)));
+"""
+
+
+def js_finished_size(path: Path):
+    r = subprocess.run(
+        [NODE, "--input-type=module", "-e", FINISHED_SIZE_SCRIPT],
+        cwd=ROOT,
+        env={"FIXTURE": str(path), "PATH": str(Path(NODE).parent)},
+        capture_output=True,
+        text=True,
+    )
+    assert r.returncode == 0, r.stderr
+    return json.loads(r.stdout)
+
+
+@pytest.mark.parametrize("name", NAMES)
+def test_js_finished_size_matches_python(name):
+    """finishedSize withholds a size exactly when gauge.unit and chart.cell.kind disagree (#48);
+    both languages must agree on *when* a size derives, not just what it is when they do."""
+    path = FIX / f"{name}.chart.json"
+    doc = json.loads(path.read_text(encoding="utf-8"))
+    expected = chartdoc.finished_size(doc)
+    js = js_finished_size(path)
+    if expected is None:
+        assert js is None, "Python withholds the size; the PWA must return null too"
+        return
+    assert js is not None, "Python derives a size; the PWA must not return null"
+    assert [js["w"], js["h"], js["unit"]] == list(expected)

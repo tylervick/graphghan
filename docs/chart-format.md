@@ -117,7 +117,7 @@ is always honest and is always emitted. A number that counts **stitches** is emi
 | `stats.stitches` | `export.py` | `w × h` | **key absent** |
 | `stats.yards_est`, `stats.skeins_364yd` | `export.py` | emitted | **key absent** |
 | `stats.counts`, `single_stitch_runs`, `color_changes_per_row` | `export.py` | emitted | emitted (per-cell, honest) |
-| `stats.size_in` | `export.py` | emitted | emitted — governed by `gauge.unit` (#48), not by this |
+| `stats.size_in` | `export.py` | follows the gauge/cell pairing in §Gauge — **key absent** when the size does not derive | follows the gauge/cell pairing in §Gauge — **key absent** when the size does not derive |
 | `total_stitches` | `progress.py` | emitted | **key absent** |
 | `total_cells` | `progress.py` | emitted | emitted |
 | `stitches_done` / `cells_done` | `progress.py` | both | `cells_done` only |
@@ -138,11 +138,15 @@ itself was: it belongs with a schema version bump.
 ### Gauge
 
 `stitches` and `rows` over `over.value` `over.unit` (`in` or `cm`), the way gauge is stated on a
-pattern. Derived values: cell aspect = `stitches / rows`; finished width = `width / (stitches /
-over.value)` in `over.unit`, likewise height. `unit` says what `stitches` and `rows` count —
-`stitches` (default), `tiles`, `repeats` or `rounds`; a reader that does not understand the unit
-derives no finished size (#48; neither reader in this repo checks the unit yet, and nothing
-authors one).
+pattern. Derived values: cell aspect = `stitches / rows`; finished width (when the pairing rule
+below allows) = `width / (stitches / over.value)` in `over.unit`, likewise height. `unit` says what
+`stitches` and `rows` count —
+`stitches` (default), `tiles`, `repeats` or `rounds`. A finished size is derived only when `unit`
+and `chart.cell.kind` name the same thing: `stitches` with `stitch`, or `tiles` with `tile`. Both
+fields default and their defaults pair, so a chart that states neither is sized as stitches over
+stitches, as it always was. Any other combination — a mismatch, or `repeats` (#39) and `rounds`,
+whose relationship to a grid cell is not stated — derives no finished size, and readers MUST omit
+it rather than compute one. `stats.size_in` follows the same rule.
 
 `stitch` is the abbreviation the chart is worked in; `stitch_name` its spelled-out name, required
 when `stitch` is not in the CYC master list and ignored when it is (a chart cannot rename `sc`).
@@ -247,7 +251,9 @@ Written by the site build as `patterns/<id>/pattern.json`: identity, `palette` (
 `preview`, `charts` (one per published chart: `id`, `variant`, `gauge_key`, `default`, `path`,
 `preview`, `width`, `height`, `size {width, height, unit}`, `stitch`, `colors`, `stitches`,
 `changes_per_row {mean, max}`, `yards_est`), and `updated`. Exactly one chart is `default` and it
-is the one also served as `chart.json` at the pattern's top level.
+is the one also served as `chart.json` at the pattern's top level. `size` (and the top-level
+index's `size_in`) is governed by `gauge.unit` the same way `stats.size_in` is (#48): key absent,
+not a placeholder, when the chart's gauge and cell kind do not pair.
 
 ## Bundle
 

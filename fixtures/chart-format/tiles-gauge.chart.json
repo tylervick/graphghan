@@ -1,0 +1,61 @@
+{
+  "schema": 2,
+  "pattern": {
+    "id": "tiles-gauge",
+    "title": "Tiles gauge",
+    "version": "1.0.0",
+    "author": "graphghan fixtures",
+    "license": "MIT"
+  },
+  "chart": {
+    "id": "sha256:f2d61162dd3104cdee4765bcaa009ba03e51e7d74270cd25a617553c7a235ea5",
+    "variant": "final",
+    "gauge_key": "sc",
+    "width": 6,
+    "height": 6,
+    "cell": {
+      "kind": "tile"
+    }
+  },
+  "generator": {
+    "name": "graphghan-fixtures",
+    "version": "1"
+  },
+  "palette": [
+    {
+      "code": "A",
+      "name": "Color A",
+      "hex": "#F2E8D5"
+    },
+    {
+      "code": "B",
+      "name": "Color B",
+      "hex": "#1E4D3A"
+    }
+  ],
+  "rows": [
+    "1B5A",
+    "1A1B4A",
+    "2A1B3A",
+    "3A1B2A",
+    "4A1B1A",
+    "5A1B"
+  ],
+  "gauge": {
+    "stitches": 5.5,
+    "rows": 5.5,
+    "over": {
+      "value": 4,
+      "unit": "in"
+    },
+    "unit": "tiles"
+  },
+  "technique": {
+    "type": "rows",
+    "start": "bottom",
+    "first_side": "RS",
+    "rs_direction": "rtl",
+    "turn": true
+  },
+  "instructions": []
+}

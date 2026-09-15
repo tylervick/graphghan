@@ -67,7 +67,22 @@ public struct Chart: Sendable {
         (document.gauge.stitches / document.gauge.rows * 10000).rounded() / 10000
     }
 
-    public var finishedSize: FinishedSize {
+    /// `gauge.unit` says what the gauge counts; `cellKind` says what one grid cell is. Dividing the
+    /// grid by the gauge is valid exactly when they name the same thing (#48). Mirrors
+    /// graphghan.chartdoc.size_derives.
+    public var sizeDerives: Bool {
+        let unit = document.gauge.unit ?? "stitches"
+        switch cellKind {
+        case .stitch: return unit == "stitches"
+        case .tile: return unit == "tiles"
+        case .block, .motif, .pair: return false
+        }
+    }
+
+    /// Finished size at the design gauge, or nil when the gauge and the grid do not count the same
+    /// thing. A wrong size is worse than none.
+    public var finishedSize: FinishedSize? {
+        guard sizeDerives else { return nil }
         let g = document.gauge
         let w = Double(width) / (g.stitches / g.over.value)
         let h = Double(height) / (g.rows / g.over.value)
