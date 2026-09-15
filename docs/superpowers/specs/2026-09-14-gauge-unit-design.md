@@ -1,7 +1,7 @@
 # Graphghan: what the gauge counts
 
 Date: 2026-09-14
-Status: approved design (reviewed in conversation), awaiting spec review
+Status: approved (spec reviewed 2026-09-15); implementation plan to follow
 Builds on: `2026-09-14-cell-cardinality-design.md` — `chart.cell` is half of this rule
 Evidence: `docs/research/claims.md` claim 14; `docs/research/genres/c2c.md`, `joined-rounds.md`
 Closes the design step for: #48
