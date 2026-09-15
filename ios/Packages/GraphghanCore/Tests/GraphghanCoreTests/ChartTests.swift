@@ -45,7 +45,20 @@ import Testing
     @Test func sizesFromGauge() throws {
         let chart = try Self.chart("craigh-na-dun")
         #expect(chart.cellAspect == 0.875)
-        #expect(chart.finishedSize.width == 54 && chart.finishedSize.height == 46 && chart.finishedSize.unit == "in")
+        #expect(chart.finishedSize?.width == 54 && chart.finishedSize?.height == 46 && chart.finishedSize?.unit == "in")
+    }
+
+    @Test func sizeDerivesWhenUnitAndKindAgree() throws {
+        let chart = try Self.chart("craigh-na-dun")  // neither field present: the defaults pair
+        #expect(chart.sizeDerives)
+        #expect(chart.finishedSize?.width == 54)
+    }
+
+    @Test func sizeIsWithheldWhenUnitAndKindDisagree() throws {
+        // filet-blocks declares cell.kind "block" with a stitch gauge — no pairing, no size.
+        let chart = try Self.chart("filet-blocks")
+        #expect(!chart.sizeDerives)
+        #expect(chart.finishedSize == nil)
     }
 
     @Test func runStringScanner() {
