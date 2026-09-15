@@ -16,6 +16,12 @@ struct ProjectDetailView: View {
     /// A mutation that failed: shown as an alert, so nothing looks as though it worked when it did not.
     @State private var actionError: String?
 
+    /// "N stitches · M min" for a stitch chart -- byte-identical to before #44 -- and the matching
+    /// noun for anything else, so a filet session never gets mislabelled "stitches".
+    static func sessionValueText(cells: Int, cellKind: CellKind, seconds: Int) -> String {
+        "\(cells) \(cellKind.nounPlural) · \(max(1, seconds / 60)) min"
+    }
+
     var body: some View {
         List {
             if let sequence {
@@ -49,7 +55,7 @@ struct ProjectDetailView: View {
                     Section("Sessions") {
                         ForEach(Array(summary.sessions.suffix(10).reversed().enumerated()), id: \.offset) { _, s in
                             LabeledContent(s.start.formatted(date: .abbreviated, time: .shortened),
-                                           value: "\(s.cells) stitches · \(max(1, s.seconds / 60)) min")
+                                           value: Self.sessionValueText(cells: s.cells, cellKind: sequence.cellKind, seconds: s.seconds))
                         }
                     }
                 }
