@@ -7,6 +7,19 @@ export function parseRuns(s) {
   return out;
 }
 
+const CELL_KIND_NOUNS = { stitch: 'stitches', block: 'blocks', tile: 'tiles', motif: 'motifs', pair: 'pairs' };
+
+// Mirrors graphghan.chartdoc.cell_kind (docs/chart-format.md §Cells), scoped to the chart object
+// rather than the whole document. Absent, or a kind outside the enum, means `stitch`.
+export function cellKind(chart) {
+  const kind = chart && chart.cell && chart.cell.kind;
+  return CELL_KIND_NOUNS[kind] ? kind : 'stitch';
+}
+
+export function cellNoun(chart) {
+  return CELL_KIND_NOUNS[cellKind(chart)];
+}
+
 // Mirrors graphghan.chartdoc.sequence (docs/chart-format.md §technique). Explicit passes win;
 // `rows` and `rounds` are derived; anything else returns null (display-only).
 export function sequence(doc) {

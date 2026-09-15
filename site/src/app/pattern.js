@@ -1,4 +1,4 @@
-import { decodeChart, finishedSize, passLabel, rowSide, rowStats, workingRuns, writtenLines } from './data.js';
+import { decodeChart, finishedSize, passLabel, rowSide, rowStats, workingRuns, writtenLines, cellKind, cellNoun } from './data.js';
 import { ChartView } from './chart.js';
 import { loadProgress, saveProgress, exportCode, importCode, clearProgress } from './progress.js';
 import { WorkingMode } from './working.js';
@@ -28,13 +28,16 @@ async function main() {
 
   // masthead
   $('quote').textContent = P.quote ? `“${P.quote}”` : '';
-  const specs = [['Chart', `${chart.W} × ${chart.H}`, 'stitches × rows'], ['Finished', `${size.w}${unit} × ${size.h}${unit}`, 'at design gauge'],
-    ['Colors', String(doc.palette.length), G.yarn_weight || ''], ['Stitch', G.stitch || '', '1 cell = 1 stitch'], ['Hook', G.hook || '', ''],
+  const specs = [['Chart', `${chart.W} × ${chart.H}`, `${cellNoun(C)} × rows`], ['Finished', `${size.w}${unit} × ${size.h}${unit}`, 'at design gauge'],
+    ['Colors', String(doc.palette.length), G.yarn_weight || ''], ['Stitch', G.stitch || '', `1 cell = 1 ${cellKind(C)}`], ['Hook', G.hook || '', ''],
     ['Gauge', `${G.stitches} st × ${G.rows} rows`, `= ${G.over.value}${unit} blocked`], ['Version', P.version, C.variant || '']];
   $('specs').innerHTML = specs.map(([k, v, s]) => `<div class="spec"><div class="eyebrow">${esc(k)}</div><b>${esc(v)}</b><div class="sub">${esc(s)}</div></div>`).join('');
 
   // key
-  $('keyrows').innerHTML = doc.palette.map(p => `<tr><td><span class="sw" style="background:${esc(p.hex)}"></span><b class="mono">${esc(p.code)}</b></td><td>${esc(p.name)}<div class="sub">${esc(p.use || '')}</div></td><td>${esc(yarnLabel(p.yarn))}</td><td class="num">${esc(doc.stats.counts[p.code].toLocaleString())}</td><td class="num">${esc(doc.stats.yards_est[p.code].toLocaleString())}</td><td class="num">${esc(doc.stats.skeins_364yd[p.code])}</td></tr>`).join('');
+  // yards_est/skeins_364yd are withheld when a cell is not a stitch (docs/chart-format.md
+  // §Cells): render the figure when present, leave the cell blank rather than crash when not.
+  const yards = doc.stats.yards_est, skeins = doc.stats.skeins_364yd;
+  $('keyrows').innerHTML = doc.palette.map(p => `<tr><td><span class="sw" style="background:${esc(p.hex)}"></span><b class="mono">${esc(p.code)}</b></td><td>${esc(p.name)}<div class="sub">${esc(p.use || '')}</div></td><td>${esc(yarnLabel(p.yarn))}</td><td class="num">${esc(doc.stats.counts[p.code].toLocaleString())}</td><td class="num">${yards ? esc(yards[p.code].toLocaleString()) : ''}</td><td class="num">${skeins ? esc(skeins[p.code]) : ''}</td></tr>`).join('');
   $('instructions').innerHTML = (doc.instructions || []).map(s => `<div class="notes"><h3>${esc(s.title)}</h3><ol>${s.text.split('\n').filter(Boolean).map(t => `<li>${esc(t)}</li>`).join('')}</ol></div>`).join('');
   $('dl-png').href = `patterns/${slug}/chart.png`; $('dl-rows').href = `patterns/${slug}/written-rows.txt`;
   $('instr-summary').textContent = chart.passes ? `All ${chart.H} rows, in working order` : `All ${chart.H} rows (this chart declares no working order; shown bottom to top)`;
@@ -97,9 +100,9 @@ async function main() {
   (function () {
     const checks = [];
     const bad = chart.runsTop.map((r, i) => [i, r.reduce((s, x) => s + x[1], 0)]).filter(([, s]) => s !== chart.W);
-    checks.push([bad.length === 0, `Every row totals ${chart.W} stitches`, bad.length ? 'rows off: ' + bad.map(b => chart.rowOfY[b[0]]).join(', ') : `${chart.H} rows checked`]);
+    checks.push([bad.length === 0, `Every row totals ${chart.W} ${cellNoun(C)}`, bad.length ? 'rows off: ' + bad.map(b => chart.rowOfY[b[0]]).join(', ') : `${chart.H} rows checked`]);
     const used = new Set(chart.grid); checks.push([used.size === chart.codes.length, `Exactly ${chart.codes.length} colors used`, [...used].map(i => chart.codes[i]).sort().join(' ')]);
-    const total = Object.values(doc.stats.counts).reduce((a, b) => a + b, 0); checks.push([total === chart.W * chart.H, `Stitch totals add up to ${total.toLocaleString()}`, `${chart.W} × ${chart.H}`]);
+    const total = Object.values(doc.stats.counts).reduce((a, b) => a + b, 0); checks.push([total === chart.W * chart.H, `Cell totals add up to ${total.toLocaleString()}`, `${chart.W} × ${chart.H}`]);
     const ch = doc.stats.color_changes_per_row; checks.push([true, `Color changes per row: mean ${ch.mean}, max ${ch.max}`, `busiest row ${chart.rowOfY[ch.per_row.indexOf(ch.max)]}`]);
     $('checks').innerHTML = checks.map(([ok, t, s]) => `<div class="check ${ok ? '' : 'fail'}"><b>${ok ? '✓' : '✗'} ${esc(t)}</b><div class="sub">${esc(s)}</div></div>`).join('');
   })();

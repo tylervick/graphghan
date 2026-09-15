@@ -1,7 +1,9 @@
 # Genre probe: filet crochet
 
-Verdict: **silently wrong.** A filet chart validates as a colour grid and then every derived
-number is false. Highest-value structural gap (#44).
+Verdict: **partly.** A filet chart validates as a colour grid, declares `cell.kind: "block"`, and
+every stitch-derived number is withheld rather than computed wrong. The real per-cell arithmetic —
+shared edge posts, a turning chain keyed on the next row's first cell — is still missing (#44 part
+2).
 
 ## Source
 
@@ -55,5 +57,9 @@ tr] ×3 …"), which is what Crochetpop and MakeBead already do.
 
 ## Immediate fix
 
-Same as C2C: a `cells` declaration that defaults to `one-stitch`, and readers that refuse to
-compute stitch-derived numbers for any other value until they implement it. Filed under #44.
+Shipped: `chart.cell` (`{"kind": "block"}`; absent means `stitch`), and readers withhold every
+stitch-derived number for any kind but `stitch` instead of computing it wrong
+(`docs/superpowers/specs/2026-09-14-cell-cardinality-design.md`). The `filet-blocks` fixture
+(`fixtures/chart-format/filet-blocks.chart.json`) pins the withheld-key set in both Python and
+Swift. The real per-cell arithmetic — shared edge posts, chains-per-open, a turning chain keyed on
+the next row's first cell — remains #44 part 2.

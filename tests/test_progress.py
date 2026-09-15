@@ -11,15 +11,15 @@ def ev(t, row, run, kind="advance"):
     return {"t": t, "row": row, "run": run, "kind": kind}
 
 
-def test_stitches_before_and_total():
-    assert progress.total_stitches(PASSES) == 168
-    assert progress.stitches_before(PASSES, 1, 0) == 0
-    assert progress.stitches_before(PASSES, 3, 1) == 30  # rows 1-2 (28) + first run of row 3 (2)
-    assert progress.stitches_before(PASSES, 3, 3) == 42  # cursor past the last run of row 3
+def test_cells_before_and_total():
+    assert progress.total_cells(PASSES) == 168
+    assert progress.cells_before(PASSES, 1, 0) == 0
+    assert progress.cells_before(PASSES, 3, 1) == 30  # rows 1-2 (28) + first run of row 3 (2)
+    assert progress.cells_before(PASSES, 3, 3) == 42  # cursor past the last run of row 3
     with pytest.raises(ValueError):
-        progress.stitches_before(PASSES, 13, 0)
+        progress.cells_before(PASSES, 13, 0)
     with pytest.raises(ValueError):
-        progress.stitches_before(PASSES, 3, 4)
+        progress.cells_before(PASSES, 3, 4)
 
 
 def test_summarize_sessions_pace_and_percent():
@@ -43,22 +43,60 @@ def test_summarize_sessions_pace_and_percent():
     s = progress.summarize(doc, PASSES)
     assert s == {
         "percent": 34.5,
+        "cells_done": 58,
+        "total_cells": 168,
         "stitches_done": 58,
         "total_stitches": 168,
         "sessions": [
-            {"start": "2026-09-12T18:00:00Z", "end": "2026-09-12T18:10:00Z", "stitches": 30},
-            {"start": "2026-09-12T19:00:00Z", "end": "2026-09-12T19:04:00Z", "stitches": 10},
-            {"start": "2026-09-13T10:00:00Z", "end": "2026-09-13T10:15:00Z", "stitches": 18},
+            {"start": "2026-09-12T18:00:00Z", "end": "2026-09-12T18:10:00Z", "cells": 30, "stitches": 30},
+            {"start": "2026-09-12T19:00:00Z", "end": "2026-09-12T19:04:00Z", "cells": 10, "stitches": 10},
+            {"start": "2026-09-13T10:00:00Z", "end": "2026-09-13T10:15:00Z", "cells": 18, "stitches": 18},
         ],
         "active_seconds": 1740,
         "stitches_per_hour": 120.0,
     }
 
 
+def test_summarize_reports_cells_and_stitches_for_a_stitch_chart():
+    doc = {
+        "cursor": {"row": 5, "run": 1},
+        "events": [
+            ev("2026-09-12T18:00:00Z", 2, 0),
+            ev("2026-09-12T18:05:00Z", 3, 0),
+            ev("2026-09-12T18:10:00Z", 3, 1),
+        ],
+    }
+    s = progress.summarize(doc, PASSES)
+    assert s["total_cells"] == s["total_stitches"]
+    assert s["cells_done"] == s["stitches_done"]
+    assert s["sessions"][0]["cells"] == s["sessions"][0]["stitches"]
+
+
+def test_summarize_withholds_stitch_numbers_for_a_non_stitch_kind():
+    doc = {
+        "cursor": {"row": 5, "run": 1},
+        "events": [
+            ev("2026-09-12T18:00:00Z", 2, 0),
+            ev("2026-09-12T18:05:00Z", 3, 0),
+            ev("2026-09-12T18:10:00Z", 3, 1),
+        ],
+    }
+    s = progress.summarize(doc, PASSES, kind="block")
+    assert "total_stitches" not in s
+    assert "stitches_done" not in s
+    assert "stitches_per_hour" not in s
+    assert all("stitches" not in sess for sess in s["sessions"])
+    # Progress itself is unchanged: cells done over cells total is the same arithmetic.
+    assert s["percent"] == progress.summarize(doc, PASSES)["percent"]
+    assert s["total_cells"] == progress.summarize(doc, PASSES)["total_cells"]
+
+
 def test_summarize_without_events():
     doc = {"cursor": {"row": 1, "run": 0}, "events": []}
     assert progress.summarize(doc, PASSES) == {
         "percent": 0.0,
+        "cells_done": 0,
+        "total_cells": 168,
         "stitches_done": 0,
         "total_stitches": 168,
         "sessions": [],
@@ -71,7 +109,9 @@ def test_summarize_single_event_session_has_no_pace():
     doc = {"cursor": {"row": 3, "run": 0}, "events": [ev("2026-09-12T18:00:00Z", 3, 0)]}
     s = progress.summarize(doc, PASSES)
     # one event is a session of zero length: its stitches still count, its pace is unknowable
-    assert s["sessions"] == [{"start": "2026-09-12T18:00:00Z", "end": "2026-09-12T18:00:00Z", "stitches": 28}]
+    assert s["sessions"] == [
+        {"start": "2026-09-12T18:00:00Z", "end": "2026-09-12T18:00:00Z", "cells": 28, "stitches": 28}
+    ]
     assert s["active_seconds"] == 0 and s["stitches_per_hour"] is None
     assert s["stitches_done"] == 28
 
@@ -87,7 +127,7 @@ def test_summarize_clamps_a_session_that_went_backwards():
         ],
     }
     s = progress.summarize(doc, PASSES)
-    assert progress.stitches_before(PASSES, 2, 0) < progress.stitches_before(PASSES, 3, 2)
+    assert progress.cells_before(PASSES, 2, 0) < progress.cells_before(PASSES, 3, 2)
     assert [x["stitches"] for x in s["sessions"]] == [40, 0]  # not -26
     assert s["stitches_done"] == 14  # the cursor itself is free to move back
 
@@ -98,7 +138,9 @@ def test_summarize_sorts_events_by_time():
         "events": [ev("2026-09-12T18:05:00Z", 2, 0, "back"), ev("2026-09-12T18:00:00Z", 3, 0)],
     }
     s = progress.summarize(doc, PASSES)
-    assert s["sessions"] == [{"start": "2026-09-12T18:00:00Z", "end": "2026-09-12T18:05:00Z", "stitches": 14}]
+    assert s["sessions"] == [
+        {"start": "2026-09-12T18:00:00Z", "end": "2026-09-12T18:05:00Z", "cells": 14, "stitches": 14}
+    ]
 
 
 def test_from_legacy_code():

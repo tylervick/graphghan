@@ -30,12 +30,21 @@ def test_fixture_set_matches_spec():
         "layers-stitch",
         "explicit-passes",
         "unknown-technique",
+        "filet-blocks",
         "craigh-na-dun",
     }
 
 
 def test_chart_schema_is_valid():
     Draft202012Validator.check_schema(CHART_SCHEMA)
+
+
+def test_cell_kinds_match_schema_enum():
+    """The five cardinalities are asserted in two independent places (docs/chart-format.md
+    §Cells): `chartdoc.CELL_KINDS` and the schema enum. Nothing else keeps them in sync, so a kind
+    added to one and not the other would refuse in one layer and validate clean in the other."""
+    enum = CHART_SCHEMA["properties"]["chart"]["properties"]["cell"]["properties"]["kind"]["enum"]
+    assert set(chartdoc.CELL_KINDS) == set(enum)
 
 
 @pytest.mark.parametrize("name", NAMES)
@@ -98,7 +107,7 @@ def test_progress_fixture_validates_and_summarizes(name):
     chart = load(doc["ext"]["fixture"]["chart"])
     assert chart["chart"]["id"] == doc["chart_id"]
     expected = json.loads((FIX / f"{name}.progress.expected.json").read_text(encoding="utf-8"))
-    assert progress.summarize(doc, chartdoc.sequence(chart)) == expected
+    assert progress.summarize(doc, chartdoc.sequence(chart), kind=chartdoc.cell_kind(chart)) == expected
 
 
 def test_schema_rejects_bad_documents():
@@ -115,6 +124,9 @@ def test_schema_rejects_bad_documents():
         d = json.loads(json.dumps(good))
         mutate(d)
         assert not v.is_valid(d)
+    bad_cell = json.loads((FIX / "minimal-rows.chart.json").read_text(encoding="utf-8"))
+    bad_cell["chart"]["cell"] = {"kind": "sparkle"}
+    assert list(Draft202012Validator(CHART_SCHEMA).iter_errors(bad_cell)) != []
 
 
 def test_schema_accepts_phase1_keys():
@@ -152,6 +164,18 @@ def test_schema_rejects_bad_phase1_values():
         d = json.loads(json.dumps(good))
         mutate(d)
         assert not v.is_valid(d)
+
+
+def test_validate_document_refuses_an_explicit_null_cell():
+    """`"cell": null` must not be read as absent (chartdoc.py): the schema refuses it and Swift
+    opens the document as `.stitch`, so a bare `is not None` guard that skips a JSON null would let
+    this one document mean three different things across three readers (#44)."""
+    good = load("minimal-rows")
+    d = json.loads(json.dumps(good))
+    d["chart"]["cell"] = None
+    problems = chartdoc.validate_document(d)
+    assert any("chart.cell is NoneType, not an object" in p for p in problems), problems
+    assert not Draft202012Validator(CHART_SCHEMA).is_valid(d)
 
 
 def test_validate_document_rejects_malformed_boundary():
@@ -203,3 +227,24 @@ def test_craigh_chart_id_is_stable_across_phase1():
     assert doc["gauge"]["terms"] == "US"
     assert doc["foundation"] == {"chain": 190, "first_stitch_in": 2, "note": "in Gold (Y)"}
     assert doc["pattern"]["craft"] == "crochet" and doc["pattern"]["language"] == "en"
+
+
+def test_filet_fixture_opens_and_withholds_stitch_numbers():
+    """A filet block is not a stitch (docs/research/genres/filet.md, #44): the fixture must open,
+    work and sequence, and carry `cells` but none of the stitch-derived stats."""
+    chart = load("filet-blocks")
+    assert chartdoc.validate_document(chart) == []
+    assert chartdoc.cell_kind(chart) == "block"
+    assert chartdoc.sequence(chart)  # it is workable: it opens and sequences
+    st = chart.get("stats") or {}
+    assert st.get("cells") == 72
+    assert "stitches" not in st and "yards_est" not in st and "skeins_364yd" not in st
+
+
+def test_filet_fixture_refuses_stitch_stats_if_added():
+    """The other direction of the rule above: proving the withholding by omission alone is not
+    enough (an absent stats block would pass trivially), so add stitches back and require refusal."""
+    chart = load("filet-blocks")
+    chart["stats"]["stitches"] = chart["stats"]["cells"]
+    problems = chartdoc.validate_document(chart)
+    assert any("stats.stitches" in p and "block" in p for p in problems), problems

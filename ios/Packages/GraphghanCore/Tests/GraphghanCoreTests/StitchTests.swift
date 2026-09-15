@@ -53,4 +53,22 @@ import Testing
         let unknown = Stitch(code: "xyz", terms: .us, stitchName: nil, boundary: nil)
         #expect(unknown.name == nil)
     }
+
+    @Test func cellKindNouns() {
+        #expect(CellKind.stitch.nounPlural == "stitches")
+        #expect(CellKind.block.label == "Blocks")
+    }
+
+    @Test func cellKindDecodesAllFiveRawValues() throws {
+        // The enum exists in five places (Python, schema, the site, Swift, and a test fixture)
+        // with nothing tying them together; a typo here (e.g. `case motive`) would ship as "Swift
+        // refuses a document Python and the site accept" with nothing catching it (#44).
+        let cases: [(String, CellKind)] = [
+            ("stitch", .stitch), ("block", .block), ("tile", .tile), ("motif", .motif), ("pair", .pair),
+        ]
+        for (raw, expected) in cases {
+            let decoded = try JSONDecoder().decode(CellKind.self, from: Data("\"\(raw)\"".utf8))
+            #expect(decoded == expected)
+        }
+    }
 }

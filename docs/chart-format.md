@@ -15,6 +15,14 @@ Nobody should be able to work a chart that cannot be crocheted as written. A doc
 than the first row — is invalid: writers MUST NOT write it and readers MUST refuse it rather than
 warn. Unusual but possible values are not errors.
 
+One cell is one stitch unless the chart says otherwise. That is a real restriction, not a
+simplification: the academic survey classifies this object as a "crochet graph" and limits the genre
+to patterns "that are flat and whose arrangement of stitches matches a grid" (Seitz et al., Onward!
+2022). Genres where a cell is a block, a tile, a motif or a stitch pair say so in `chart.cell`, and a
+reader that does not implement the stated kind MUST withhold every stitch-derived number rather than
+compute it wrongly. The chart still opens and is still worked: it is the arithmetic that is
+withheld, not the pattern.
+
 ## Chart document (schema 2)
 
 ```json
@@ -63,6 +71,70 @@ are optional.
   for crochet and knit chart symbols), so a knit legend of `{"k": "knit", "p": "purl"}` reads
   correctly on a WS pass. Readers do not enforce this yet (#36).
 
+### Cells
+
+`chart.cell` is optional. When present it is an object with `kind` required:
+
+```json
+"chart": {
+  "id": "sha256:…",
+  "width": 60,
+  "height": 80,
+  "cell": { "kind": "block" }
+}
+```
+
+`kind` is one of `stitch`, `block`, `tile`, `motif`, `pair` — the five cardinalities the genre
+matrix found:
+
+| `kind` | One cell is | Genre | Probe |
+|---|---|---|---|
+| `stitch` | one stitch | tapestry, intarsia, cross-stitch, stranded knit | `tapestry.md` |
+| `block` | a filled or open block, sharing an edge post | filet | `filet.md` |
+| `tile` | a `ch 3 + 3 dc` tile | C2C (#18) | `c2c.md` |
+| `motif` | a whole worked square | motif-grid blanket | `joined-rounds.md` |
+| `pair` | two stitches, one per layer | double knitting | #44 |
+
+Absent means `stitch`. No document written before this key existed carries it, and absent is
+always valid.
+
+The enum is closed, matching `gauge.unit` and `boundary.kind`. A value outside it fails schema
+validation and the document is refused — which is correct: an unrecognised cardinality is a
+document a writer did not produce for this format and a reader cannot reason about at all. The
+withholding rule below is for kinds that are *in* the enum and not yet implemented, which today is
+every kind but `stitch`.
+
+`schema/chart.schema.json` carries the property under `chart.properties`; `chart`'s `required`
+list is unaffected.
+
+What a reader emits is a per-number rule, not a per-document one. A number that counts **cells**
+is always honest and is always emitted. A number that counts **stitches** is emitted only when
+`kind` is `stitch`; otherwise the key is absent rather than wrong.
+
+| Number | Where | `kind: stitch` | any other kind |
+|---|---|---|---|
+| `stats.cells` | `export.py` | `w × h` | `w × h` |
+| `stats.stitches` | `export.py` | `w × h` | **key absent** |
+| `stats.yards_est`, `stats.skeins_364yd` | `export.py` | emitted | **key absent** |
+| `stats.counts`, `single_stitch_runs`, `color_changes_per_row` | `export.py` | emitted | emitted (per-cell, honest) |
+| `stats.size_in` | `export.py` | emitted | emitted — governed by `gauge.unit` (#48), not by this |
+| `total_stitches` | `progress.py` | emitted | **key absent** |
+| `total_cells` | `progress.py` | emitted | emitted |
+| `stitches_done` / `cells_done` | `progress.py` | both | `cells_done` only |
+| `percent` | `progress.py` | unchanged | unchanged — cells done over cells total is the same arithmetic either way |
+| `stitches_per_hour` | `progress.py` | emitted | **key absent** |
+| `WorkSequence.totalCells` | `WorkSequence.swift` | emitted | emitted |
+| `WorkSequence.totalStitches: Int?` | `WorkSequence.swift` | `totalCells` | **nil** |
+
+`stats.cells` and `total_cells` are emitted for every chart including `stitch` ones, where they
+equal the stitch figures: they are the honest name for what the number has always counted.
+
+Because the enum is closed and an out-of-enum kind is refused outright, adding a sixth kind is a
+breaking change for every reader already in the field — a document carrying it fails to open at
+all, not even degraded. That is the intended trade for refusing an unrecognised cardinality rather
+than guessing at it, but it means a new kind is not an additive, optional change the way `cell`
+itself was: it belongs with a schema version bump.
+
 ### Gauge
 
 `stitches` and `rows` over `over.value` `over.unit` (`in` or `cm`), the way gauge is stated on a
@@ -103,10 +175,11 @@ MUST refuse the document (see §Design).
 ### Chart id
 
 `chart.id` is `"sha256:" + hex(sha256(canonical))` where `canonical` is the UTF-8 JSON of
-`{"codes": [palette codes in order], "rows": rows, "technique": technique}` plus `"passes"` when
-the document has them, with keys sorted, no whitespace (`,` and `:` separators only) and non-ASCII
-kept as-is. Names, hexes, yarn, instructions and stats do not affect the id: renaming a color is
-not a new chart. Readers may verify the id; writers MUST compute it this way.
+`{"codes": [palette codes in order], "rows": rows, "technique": technique}` plus `"passes"` when the
+document has them and plus `"cell"` when the document has it and it is an object, with keys sorted,
+no whitespace (`,` and `:` separators only) and non-ASCII kept as-is. Names, hexes, yarn,
+instructions and stats do not affect the id: renaming a color is not a new chart. Readers may verify
+the id; writers MUST compute it this way.
 
 ### Technique and passes
 
@@ -151,15 +224,22 @@ steps. `stats` is optional and always recomputable. `ext` is a map of vendor nam
 
 `kind` is `advance`, `back` or `jump`; every event records the cursor **after** the action.
 `chart_id` may be `null` for a cursor imported from a source that did not know it. Derived values,
-as implemented by `graphghan.progress` and pinned by the `progress-basic` fixture:
+as implemented by `graphghan.progress` and pinned by the `progress-basic` fixture, follow the same
+split as §Cells: a number that counts cells is always emitted, and a number that counts stitches is
+emitted only when a cell is a stitch (`chart.cell` absent, or `kind: "stitch"`).
 
-- stitches before a cursor = stitches in every earlier pass + runs before `run` in the current pass;
-  percent = 100 × that / total stitches, one decimal.
-- Events are sorted by `t`. A session is a maximal run of events with gaps ≤ 20 minutes. A session's
-  stitches are the difference in stitches-before between the cursor after its last event and the
-  cursor before its first event (the cursor before the very first event is row 1, run 0), clamped at
-  0. Active seconds is the sum of each session's last − first timestamp. Stitches per hour is total
-  session stitches over active hours, one decimal, or `null` with no active time.
+- Always emitted: `cells_done` = cells in every earlier pass + runs before `run` in the current
+  pass; `total_cells` = cells in every pass; `percent` = 100 × `cells_done` / `total_cells`, one
+  decimal — the same arithmetic regardless of kind. Events are sorted by `t`. A session is a maximal
+  run of events with gaps ≤ 20 minutes; a session's `cells` is the difference in cells-done between
+  the cursor after its last event and the cursor before its first event (the cursor before the very
+  first event is row 1, run 0), clamped at 0. `active_seconds` is the sum of each session's
+  last − first timestamp.
+- Emitted only when a cell is a stitch: `stitches_done` and `total_stitches` (`cells_done` and
+  `total_cells` under their stitch names — the same numbers), each session's `stitches` (the same
+  number as that session's `cells`), and `stitches_per_hour` — total session stitches over active
+  hours, one decimal, or `null` with no active time. For any other kind these four keys are absent
+  rather than computed from the wrong cardinality.
 
 ## Pattern manifest (schema 1)
 

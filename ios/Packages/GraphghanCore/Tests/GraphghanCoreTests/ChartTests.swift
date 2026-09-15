@@ -167,4 +167,22 @@ import Testing
         #expect(stitch.terms == .us && stitch.name == "single crochet")
         #expect(stitch.boundary == nil)
     }
+
+    @Test func cellKindDefaultsToStitch() throws {
+        let chart = try Self.chart("minimal-rows")
+        #expect(chart.cellKind == .stitch)
+    }
+
+    @Test func cellKindDecodesADeclaredKind() throws {
+        let chart = try Self.chart("filet-blocks")
+        #expect(chart.cellKind == .block)
+    }
+
+    @Test func anUnknownCellKindRefusesTheDocument() throws {
+        // Spec §4.1: a kind outside the enum is refused, not degraded. A kind inside the enum but
+        // unimplemented is the other case and opens fine — `filet-blocks` covers that.
+        var json = String(decoding: Self.doc(rows: ["4A"]), as: UTF8.self)
+        json = json.replacingOccurrences(of: #""chart":{"id":"#, with: #""chart":{"cell":{"kind":"sparkle"},"id":"#)
+        #expect(throws: ChartError.unsupportedCellKind("sparkle")) { _ = try Chart.load(Data(json.utf8)) }
+    }
 }

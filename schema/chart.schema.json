@@ -31,7 +31,14 @@
         "variant": { "type": "string" },
         "gauge_key": { "type": "string" },
         "width": { "type": "integer", "minimum": 1 },
-        "height": { "type": "integer", "minimum": 1 }
+        "height": { "type": "integer", "minimum": 1 },
+        "cell": {
+          "type": "object",
+          "required": ["kind"],
+          "properties": {
+            "kind": { "enum": ["stitch", "block", "tile", "motif", "pair"] }
+          }
+        }
       }
     },
     "generator": {

@@ -6,16 +6,19 @@ import pytest
 from graphghan import chartdoc
 
 
-def doc(rows, codes=("A", "B"), technique=None, passes=None, width=None, layers=None):
+def doc(rows, codes=("A", "B"), technique=None, passes=None, width=None, layers=None, cell=None):
     technique = technique or dict(chartdoc.TECHNIQUE_ROWS)
+    chart = {
+        "id": chartdoc.chart_id(list(codes), rows, technique, passes, cell),
+        "width": width or 4,
+        "height": len(rows),
+    }
+    if cell is not None:
+        chart["cell"] = cell
     d = {
         "schema": 2,
         "pattern": {"id": "t", "title": "T", "version": "0.0.1"},
-        "chart": {
-            "id": chartdoc.chart_id(list(codes), rows, technique, passes),
-            "width": width or 4,
-            "height": len(rows),
-        },
+        "chart": chart,
         "palette": [{"code": c, "name": c, "hex": "#000000"} for c in codes],
         "rows": rows,
         "gauge": {"stitches": 14, "rows": 16, "over": {"value": 4, "unit": "in"}, "stitch": "sc"},
@@ -45,6 +48,35 @@ def test_chart_id_is_canonical_sha256_and_ignores_names():
     assert chartdoc.chart_id(["A", "B"], rows, t) == "sha256:" + hashlib.sha256(canonical).hexdigest()
     assert chartdoc.chart_id(["A", "B"], rows, t) != chartdoc.chart_id(["A", "C"], rows, t)
     assert chartdoc.chart_id(["A", "B"], rows, t, passes=[]) != chartdoc.chart_id(["A", "B"], rows, t)
+
+
+def test_chart_id_unchanged_when_cell_absent():
+    """Every id in the repo predates `cell`; none of them may move."""
+    rows = ["2A2B", "4A"]
+    t = dict(chartdoc.TECHNIQUE_ROWS)
+    assert chartdoc.chart_id(["A", "B"], rows, t) == chartdoc.chart_id(["A", "B"], rows, t, cell=None)
+
+
+def test_chart_id_includes_cell_when_present():
+    rows = ["2A2B", "4A"]
+    t = dict(chartdoc.TECHNIQUE_ROWS)
+    plain = chartdoc.chart_id(["A", "B"], rows, t)
+    block = chartdoc.chart_id(["A", "B"], rows, t, cell={"kind": "block"})
+    assert block != plain
+    canonical = json.dumps(
+        {"cell": {"kind": "block"}, "codes": ["A", "B"], "rows": rows, "technique": t},
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+    ).encode("utf-8")
+    assert block == "sha256:" + hashlib.sha256(canonical).hexdigest()
+
+
+def test_chart_id_ignores_a_non_object_cell():
+    """Same guard `passes` uses: a wrong-typed value is not hashed, it is caught by validation."""
+    rows = ["2A2B", "4A"]
+    t = dict(chartdoc.TECHNIQUE_ROWS)
+    assert chartdoc.chart_id(["A", "B"], rows, t, cell="block") == chartdoc.chart_id(["A", "B"], rows, t)
 
 
 def test_sequence_rows_bottom_start_alternates_side_and_direction():
@@ -256,3 +288,43 @@ def test_derived_sizes():
     assert chartdoc.finished_size(d) == (4.0, 3.0, "in")
     d["gauge"] = {"stitches": 10, "rows": 10, "over": {"value": 10, "unit": "cm"}}
     assert chartdoc.finished_size(d) == (14.0, 12.0, "cm")
+
+
+def test_cell_kind_defaults_to_stitch():
+    assert chartdoc.cell_kind(doc(["4A"])) == "stitch"
+    assert chartdoc.cell_kind({}) == "stitch"
+
+
+def test_cell_kind_reads_a_declared_kind():
+    assert chartdoc.cell_kind(doc(["4A"], cell={"kind": "block"})) == "block"
+
+
+def test_validate_accepts_every_declared_kind():
+    for kind in chartdoc.CELL_KINDS:
+        assert chartdoc.validate_document(doc(["4A"], cell={"kind": kind})) == []
+
+
+def test_validate_refuses_an_unknown_cell_kind():
+    problems = chartdoc.validate_document(doc(["4A"], cell={"kind": "sparkle"}))
+    assert any("chart.cell.kind" in p and "sparkle" in p for p in problems)
+
+
+def test_validate_refuses_a_non_object_cell():
+    """#55's shape: report the field and its type, never silently skip the block."""
+    d = doc(["4A"])
+    d["chart"]["cell"] = "block"
+    problems = chartdoc.validate_document(d)
+    assert any("chart.cell" in p and "str" in p for p in problems)
+
+
+def test_cell_kind_is_total_for_a_malformed_chart():
+    """cell_kind() must never raise — it is called on unvalidated documents."""
+    for bad in ({"chart": None}, {"chart": "oops"}, {"chart": []}, {"chart": {"cell": "block"}}):
+        assert chartdoc.cell_kind(bad) == "stitch"
+
+
+def test_validate_refuses_stats_that_contradict_the_cell_kind():
+    d = doc(["4A"], cell={"kind": "block"})
+    d["stats"] = {"cells": 4, "stitches": 4}
+    problems = chartdoc.validate_document(d)
+    assert any("stats.stitches" in p and "block" in p for p in problems)

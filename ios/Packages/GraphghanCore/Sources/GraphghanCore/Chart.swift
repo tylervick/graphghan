@@ -14,6 +14,10 @@ public enum ChartError: Error, Equatable {
     case idMismatch(expected: String, found: String)
     /// The foundation cannot carry row 1: refused, not warned (#50).
     case foundationTooShort(chain: Int, needed: Int)
+    /// `chart.cell.kind` is outside the closed enum (spec §4.1): the document is refused, not
+    /// degraded — an unrecognised cardinality is one this repo's writers did not produce and a
+    /// reader cannot reason about at all.
+    case unsupportedCellKind(String)
 }
 
 /// One run of a grid row in left-to-right order: palette index, length, leftmost column.
@@ -55,6 +59,9 @@ public struct Chart: Sendable {
     }
 
     public var foundation: ChartDocument.Foundation? { document.foundation }
+
+    /// What one grid cell is. `.stitch` unless the chart says otherwise.
+    public var cellKind: CellKind { document.chart.cell?.kind ?? .stitch }
 
     public var cellAspect: Double {
         (document.gauge.stitches / document.gauge.rows * 10000).rounded() / 10000
@@ -126,7 +133,7 @@ public struct Chart: Sendable {
             runsByRow.append(runs)
         }
         if verifyID {
-            let expected = ChartID.compute(codes: document.palette.map(\.code), rows: document.rows, technique: document.technique, passes: document.passes)
+            let expected = ChartID.compute(codes: document.palette.map(\.code), rows: document.rows, technique: document.technique, passes: document.passes, cell: document.chart.cellRaw)
             guard expected == document.chart.id else { throw ChartError.idMismatch(expected: expected, found: document.chart.id) }
         }
         self.document = document

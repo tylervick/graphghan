@@ -20,6 +20,18 @@ TECHNIQUE_ROWS = {"type": "rows", "start": "bottom", "first_side": "RS", "rs_dir
 BOUNDARY_KINDS = ("turn", "join", "rejoin", "spiral", "return")
 CHAIN_COLORS = ("next", "current")
 
+# What one grid cell is. Absent means `stitch` (docs/chart-format.md §Cells); a reader that does
+# not implement a kind still opens the chart and withholds the stitch-derived numbers (#44).
+CELL_KINDS = ("stitch", "block", "tile", "motif", "pair")
+
+
+def cell_kind(doc: dict) -> str:
+    chart = doc.get("chart")
+    cell = chart.get("cell") if isinstance(chart, dict) else None
+    if isinstance(cell, dict) and cell.get("kind") in CELL_KINDS:
+        return cell["kind"]
+    return "stitch"
+
 
 class UnsupportedTechnique(ValueError):
     """The document has no derivable working order (unknown/reserved technique and no passes)."""
@@ -33,10 +45,18 @@ def _canonical(obj) -> bytes:
     return json.dumps(obj, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
 
 
-def chart_id(codes: list[str], rows: list[str], technique: dict, passes: list[dict] | None = None) -> str:
+def chart_id(
+    codes: list[str],
+    rows: list[str],
+    technique: dict,
+    passes: list[dict] | None = None,
+    cell: dict | None = None,
+) -> str:
     obj = {"codes": list(codes), "rows": list(rows), "technique": technique}
     if passes is not None:
         obj["passes"] = passes
+    if isinstance(cell, dict):  # presence-and-type, exactly as `passes` is guarded at the call site
+        obj["cell"] = cell
     return "sha256:" + hashlib.sha256(_canonical(obj)).hexdigest()
 
 
@@ -222,7 +242,27 @@ def validate_document(doc: dict) -> list[str]:
                     f"foundation.chain {chain} is shorter than the {needed} chains row 1 needs "
                     f"(width {width} + first_stitch_in {into} - 1)"
                 )
-    expected = chart_id(codes, rows, doc.get("technique") or {}, passes if isinstance(passes, list) else None)
+    chart = doc.get("chart")
+    cell = chart.get("cell") if isinstance(chart, dict) else None
+    if isinstance(chart, dict) and "cell" in chart:
+        if not isinstance(cell, dict):
+            problems.append(f"chart.cell is {type(cell).__name__}, not an object")
+        elif cell.get("kind") not in CELL_KINDS:
+            problems.append(f"chart.cell.kind {cell.get('kind')!r} is not one of {CELL_KINDS}")
+    kind = cell_kind(doc)
+    if kind != "stitch":
+        st = doc.get("stats")
+        if isinstance(st, dict):
+            for key in ("stitches", "yards_est", "skeins_364yd"):
+                if key in st:
+                    problems.append(f"stats.{key} counts stitches, but chart.cell.kind is {kind!r}")
+    expected = chart_id(
+        codes,
+        rows,
+        doc.get("technique") or {},
+        passes if isinstance(passes, list) else None,
+        cell,
+    )
     actual = doc.get("chart", {}).get("id")
     if actual != expected:
         problems.append(f"chart.id {actual!r} does not match content ({expected})")
