@@ -75,11 +75,16 @@ public enum Pace {
         )
     }
 
-    /// Remaining stitches at the observed rate, spread over the mean active hours per calendar day
+    /// Remaining cells at the observed rate, spread over the mean active hours per calendar day
     /// across the last `windowDays`. Nil until `minimumSessions` sessions exist or with no rate.
-    public static func estimatedFinish(remainingStitches: Int, stitchesPerHour: Double?, sessions: [Session], now: Date, windowDays: Int = 14, minimumSessions: Int = 3) -> Date? {
+    ///
+    /// The parameter is named for what it counts, not for what it usually is: `stitchesPerHour` is
+    /// nil for a non-stitch chart before this is ever read, but that inertness is accidental, and a
+    /// cell count must never silently pass as a stitch count inside a function whose name says
+    /// otherwise (#44).
+    public static func estimatedFinish(remainingCells: Int, stitchesPerHour: Double?, sessions: [Session], now: Date, windowDays: Int = 14, minimumSessions: Int = 3) -> Date? {
         guard sessions.count >= minimumSessions, let rate = stitchesPerHour, rate > 0 else { return nil }
-        if remainingStitches <= 0 { return now }
+        if remainingCells <= 0 { return now }
         let windowStart = now.addingTimeInterval(-Double(windowDays) * 86400)
         var activeSeconds = 0.0
         for s in sessions {
@@ -89,7 +94,7 @@ public enum Pace {
         }
         let hoursPerDay = activeSeconds / 3600 / Double(windowDays)
         guard hoursPerDay > 0 else { return nil }
-        let hoursNeeded = Double(remainingStitches) / rate
+        let hoursNeeded = Double(remainingCells) / rate
         return now.addingTimeInterval(hoursNeeded / hoursPerDay * 86400)
     }
 }

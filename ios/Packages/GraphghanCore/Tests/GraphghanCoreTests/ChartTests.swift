@@ -183,6 +183,6 @@ import Testing
         // unimplemented is the other case and opens fine — `filet-blocks` covers that.
         var json = String(decoding: Self.doc(rows: ["4A"]), as: UTF8.self)
         json = json.replacingOccurrences(of: #""chart":{"id":"#, with: #""chart":{"cell":{"kind":"sparkle"},"id":"#)
-        #expect(throws: (any Error).self) { _ = try Chart.load(Data(json.utf8)) }
+        #expect(throws: ChartError.unsupportedCellKind("sparkle")) { _ = try Chart.load(Data(json.utf8)) }
     }
 }

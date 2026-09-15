@@ -73,16 +73,16 @@ import Testing
             Session(start: now.addingTimeInterval(-2 * day), end: now.addingTimeInterval(-2 * day + 240), cells: 10),
             Session(start: now.addingTimeInterval(-1 * day), end: now.addingTimeInterval(-1 * day + 900), cells: 18),
         ]
-        #expect(Pace.estimatedFinish(remainingStitches: 110, stitchesPerHour: 120, sessions: Array(sessions.prefix(2)), now: now) == nil)
-        #expect(Pace.estimatedFinish(remainingStitches: 110, stitchesPerHour: nil, sessions: sessions, now: now) == nil)
-        let finish = Pace.estimatedFinish(remainingStitches: 110, stitchesPerHour: 120, sessions: sessions, now: now)!
+        #expect(Pace.estimatedFinish(remainingCells: 110, stitchesPerHour: 120, sessions: Array(sessions.prefix(2)), now: now) == nil)
+        #expect(Pace.estimatedFinish(remainingCells: 110, stitchesPerHour: nil, sessions: sessions, now: now) == nil)
+        let finish = Pace.estimatedFinish(remainingCells: 110, stitchesPerHour: 120, sessions: sessions, now: now)!
         // 110 st / 120 st/h = 0.9167 h; mean active hours per day over 14 days = (1740/3600)/14 = 0.03452 h/day
         // → 26.55 days
         #expect(abs(finish.timeIntervalSince(now) / day - 26.55) < 0.05)
         // sessions older than the window do not count toward the daily mean
         let old = Session(start: now.addingTimeInterval(-30 * day), end: now.addingTimeInterval(-30 * day + 36000), cells: 999)
-        let finish2 = Pace.estimatedFinish(remainingStitches: 110, stitchesPerHour: 120, sessions: sessions + [old], now: now)!
+        let finish2 = Pace.estimatedFinish(remainingCells: 110, stitchesPerHour: 120, sessions: sessions + [old], now: now)!
         #expect(abs(finish2.timeIntervalSince(now) - finish.timeIntervalSince(now)) < 1)
-        #expect(Pace.estimatedFinish(remainingStitches: 0, stitchesPerHour: 120, sessions: sessions, now: now) == now)
+        #expect(Pace.estimatedFinish(remainingCells: 0, stitchesPerHour: 120, sessions: sessions, now: now) == now)
     }
 }

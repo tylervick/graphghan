@@ -14,6 +14,10 @@ public enum ChartError: Error, Equatable {
     case idMismatch(expected: String, found: String)
     /// The foundation cannot carry row 1: refused, not warned (#50).
     case foundationTooShort(chain: Int, needed: Int)
+    /// `chart.cell.kind` is outside the closed enum (spec §4.1): the document is refused, not
+    /// degraded — an unrecognised cardinality is one this repo's writers did not produce and a
+    /// reader cannot reason about at all.
+    case unsupportedCellKind(String)
 }
 
 /// One run of a grid row in left-to-right order: palette index, length, leftmost column.

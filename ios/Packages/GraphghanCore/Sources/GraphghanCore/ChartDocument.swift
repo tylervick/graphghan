@@ -18,6 +18,18 @@ public struct ChartDocument: Decodable, Sendable {
 
     public struct CellDeclaration: Decodable, Sendable, Equatable {
         public let kind: CellKind
+
+        enum CodingKeys: String, CodingKey { case kind }
+
+        /// Decodes `kind` from its raw string rather than relying on `CellKind`'s synthesized
+        /// decoding, so an out-of-enum value refuses with the typed `ChartError.unsupportedCellKind`
+        /// (spec §4.1) instead of a bare `DecodingError`.
+        public init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            let raw = try c.decode(String.self, forKey: .kind)
+            guard let kind = CellKind(rawValue: raw) else { throw ChartError.unsupportedCellKind(raw) }
+            self.kind = kind
+        }
     }
 
     /// `chart.cell` is kept two ways: `cell` typed, for reading the kind, and `cellRaw` as the
