@@ -267,11 +267,38 @@ def test_tiles_gauge_withholds_when_the_cell_declaration_is_removed():
     assert chartdoc.finished_size(chart) is None
 
 
+# The finished size every fixture that declares neither `chart.cell` nor `gauge.unit` had before
+# #48 — frozen so the compatibility claim in spec §3.1 ("every finished size in the repo is
+# unchanged by this phase") is pinned to actual numbers, not just to "a size still derives".
+# Verified against chartdoc.finished_size(load(name)) for each name below.
+FINISHED_SIZES_BEFORE_48 = {
+    "craigh-na-dun": (54.0, 46.0, "in"),
+    "explicit-passes": (1.1, 0.5, "in"),
+    "layers-stitch": (3.4, 0.5, "in"),
+    "minimal-rounds": (4.0, 3.0, "in"),
+    "minimal-rows": (4.0, 3.0, "in"),
+    "two-letter-codes": (3.4, 0.5, "in"),
+    "unknown-technique": (0.9, 0.5, "in"),
+}
+
+
+def _declares_a_pairing(chart: dict) -> bool:
+    return "cell" in chart["chart"] or bool(chart["gauge"].get("unit"))
+
+
 @pytest.mark.parametrize("name", NAMES)
 def test_no_existing_finished_size_moved(name):
     """Global constraint: both fields default and their defaults pair, so every chart that carries
-    neither keeps the size it had before #48."""
+    neither keeps the exact size it had before #48 — not merely *a* size, the same tuple."""
     chart = json.loads((FIX / f"{name}.chart.json").read_text(encoding="utf-8"))
-    if "cell" in chart["chart"] or chart["gauge"].get("unit"):
+    if _declares_a_pairing(chart):
         pytest.skip("declares a pairing; covered by the tests above")
-    assert chartdoc.finished_size(chart) is not None
+    assert chartdoc.finished_size(chart) == FINISHED_SIZES_BEFORE_48[name]
+
+
+def test_finished_sizes_before_48_covers_exactly_the_non_skipping_fixtures():
+    """Keeps the frozen dict above and the skip condition in test_no_existing_finished_size_moved
+    from silently drifting apart: a fixture added to one without the other would either skip
+    unpinned or fail with a KeyError instead of naming the real problem."""
+    non_skipping = {name for name in NAMES if not _declares_a_pairing(load(name))}
+    assert set(FINISHED_SIZES_BEFORE_48) == non_skipping

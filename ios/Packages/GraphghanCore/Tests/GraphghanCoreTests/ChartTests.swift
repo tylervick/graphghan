@@ -61,6 +61,25 @@ import Testing
         #expect(chart.finishedSize == nil)
     }
 
+    @Test func tileGaugeDerivesTheC2CSize() throws {
+        let chart = try Self.chart("tiles-gauge")  // 6 tiles over 5.5 tiles = 4 in
+        #expect(chart.sizeDerives)
+        #expect(chart.finishedSize?.width == 4.4 && chart.finishedSize?.height == 4.4 && chart.finishedSize?.unit == "in")
+    }
+
+    @Test func tilesUnitOverStitchCellsWithholds() throws {
+        // The complementary mismatch to filet-blocks above: a tiles gauge with no cell.kind
+        // declared at all, so it defaults to .stitch. No fixture pairs "tiles" with an absent
+        // cell, so this builds the document inline the way anUnknownCellKindRefusesTheDocument
+        // does, rather than inventing a fixture.
+        var json = String(decoding: Self.doc(rows: ["4A"]), as: UTF8.self)
+        json = json.replacingOccurrences(of: #""over":{"value":4,"unit":"in"}},"technique""#,
+                                          with: #""over":{"value":4,"unit":"in"},"unit":"tiles"},"technique""#)
+        let chart = try Chart(document: ChartDocument.decode(Data(json.utf8)))
+        #expect(!chart.sizeDerives)
+        #expect(chart.finishedSize == nil)
+    }
+
     @Test func runStringScanner() {
         #expect(RunString.parse("7Gd2G3Y")?.map(\.code) == ["Gd", "G", "Y"])
         #expect(RunString.parse("7YB")?.count == 1)
