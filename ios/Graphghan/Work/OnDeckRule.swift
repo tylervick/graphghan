@@ -25,7 +25,8 @@ enum OnDeckRule {
         if cursor.run + 1 < pass.runs.count {
             let next = pass.runs[cursor.run + 1]
             let e = entry(next.code)
-            return OnDeck(text: "then \(next.count) \(e.name)", hex: e.hex)
+            let noun = chart.cellKind == .stitch ? "" : " \(chart.cellKind.nounPlural)"
+            return OnDeck(text: "then \(next.count) \(e.name)\(noun)", hex: e.hex)
         }
         if let nextPass = sequence.pass(at: cursor.row + 1), let first = nextPass.runs.first {
             let e = entry(first.code)

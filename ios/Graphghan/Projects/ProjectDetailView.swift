@@ -23,7 +23,7 @@ struct ProjectDetailView: View {
                 Section {
                     ProgressView(value: summary.percent, total: 100).tint(.heather)
                     LabeledContent("Row", value: project.isFinished ? "Finished" : "\(project.cursor.row) of \(sequence.passes.count)")
-                    LabeledContent("Stitches", value: "\(summary.stitchesDone.formatted()) of \(summary.totalStitches.formatted())")
+                    LabeledContent(sequence.cellKind.label, value: "\(summary.cellsDone.formatted()) of \(summary.totalCells.formatted())")
                     if let rate = summary.stitchesPerHour { LabeledContent("Pace", value: "\(rate.formatted()) stitches per hour") }
                     if let finish = model.projects.estimatedFinish(for: project, sequence: sequence) {
                         LabeledContent("Estimated finish", value: finish.formatted(date: .long, time: .omitted))
@@ -49,7 +49,7 @@ struct ProjectDetailView: View {
                     Section("Sessions") {
                         ForEach(Array(summary.sessions.suffix(10).reversed().enumerated()), id: \.offset) { _, s in
                             LabeledContent(s.start.formatted(date: .abbreviated, time: .shortened),
-                                           value: "\(s.stitches) stitches · \(max(1, s.seconds / 60)) min")
+                                           value: "\(s.cells) stitches · \(max(1, s.seconds / 60)) min")
                         }
                     }
                 }

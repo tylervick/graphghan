@@ -110,7 +110,7 @@ final class ProjectService {
 
     func estimatedFinish(for project: Project, sequence: WorkSequence) -> Date? {
         let s = summary(for: project, sequence: sequence)
-        return Pace.estimatedFinish(remainingStitches: s.totalStitches - s.stitchesDone, stitchesPerHour: s.stitchesPerHour, sessions: s.sessions, now: now())
+        return Pace.estimatedFinish(remainingStitches: s.totalCells - s.cellsDone, stitchesPerHour: s.stitchesPerHour, sessions: s.sessions, now: now())
     }
 
     func setNotes(_ text: String, for project: Project) throws {

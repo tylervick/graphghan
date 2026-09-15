@@ -28,6 +28,21 @@ public enum CellKind: String, Codable, Sendable {
     case stitch, block, tile, motif, pair
 }
 
+public extension CellKind {
+    var noun: String {
+        switch self {
+        case .stitch: "stitch"
+        case .block: "block"
+        case .tile: "tile"
+        case .motif: "motif"
+        case .pair: "pair"
+        }
+    }
+    var nounPlural: String { self == .stitch ? "stitches" : noun + "s" }
+    /// Title case, for a row label.
+    var label: String { nounPlural.prefix(1).uppercased() + nounPlural.dropFirst() }
+}
+
 /// `gauge.boundary`, exactly as authored. Never derived from the stitch: published patterns split
 /// on the number (dc is ch 3 in 7 of 12 corpus patterns and ch 2 in the other 5).
 public struct Boundary: Codable, Equatable, Sendable {

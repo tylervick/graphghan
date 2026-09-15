@@ -53,4 +53,9 @@ import Testing
         let unknown = Stitch(code: "xyz", terms: .us, stitchName: nil, boundary: nil)
         #expect(unknown.name == nil)
     }
+
+    @Test func cellKindNouns() {
+        #expect(CellKind.stitch.nounPlural == "stitches")
+        #expect(CellKind.block.label == "Blocks")
+    }
 }

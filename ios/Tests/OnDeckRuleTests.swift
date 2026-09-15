@@ -31,6 +31,21 @@ import GraphghanCore
         #expect(d?.hex == Self.hex("Gd"))
     }
 
+    /// Pinned byte-for-byte: this exact line is on screen in the TestFlight build right now, for
+    /// every stitch-kind chart (two-letter-codes has no `cell.kind`, so it defaults to `.stitch`).
+    @Test func stitchKindOnDeckLineIsByteIdentical() {
+        let d = OnDeckRule.onDeck(cursor: Cursor(row: 1, run: 0), chart: Self.chart, sequence: Self.seq)
+        #expect(d?.text == "then 7 Color Gd")
+    }
+
+    @Test func nonStitchKindAppendsTheNoun() throws {
+        // filet-blocks: cell.kind is "block". Row 1 (RS, rtl) runs O5, F2, O5; the run after run 0 is F2.
+        let chart = try Chart.load(TestFixtures.data("filet-blocks.chart.json"))
+        let seq = try WorkSequence(chart: chart)
+        let d = OnDeckRule.onDeck(cursor: Cursor(row: 1, run: 0), chart: chart, sequence: seq)
+        #expect(d?.text == "then 2 Color F blocks")
+    }
+
     @Test func lastRunInRowNamesNextRowsColor() {
         let d = OnDeckRule.onDeck(cursor: Cursor(row: 1, run: 2), chart: Self.chart, sequence: Self.seq)
         #expect(d?.text == "next row starts in \(Self.name("Gd"))")

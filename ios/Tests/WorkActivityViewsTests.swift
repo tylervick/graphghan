@@ -26,9 +26,9 @@ import GraphghanCore
         #expect(Self.info.turningChain == 1)  // from the fixture, via LiveActivityState.info
         #expect(RunPanel.nextText(info: Self.info, state: Self.lastInRow) == "ch 1, turn")
         let plain = WorkActivityInfo(projectID: Self.info.projectID, title: Self.info.title, totalRows: Self.info.totalRows,
-                                     totalStitches: Self.info.totalStitches, palette: Self.info.palette)
+                                     totalCells: Self.info.totalCells, palette: Self.info.palette)
         #expect(RunPanel.nextText(info: plain, state: Self.lastInRow) == "last in row")
-        let zero = WorkActivityInfo(projectID: Self.info.projectID, title: "t", totalRows: 1, totalStitches: 1, palette: [], stitch: "sc", turningChain: 0)
+        let zero = WorkActivityInfo(projectID: Self.info.projectID, title: "t", totalRows: 1, totalCells: 1, palette: [], stitch: "sc", turningChain: 0)
         #expect(RunPanel.nextText(info: zero, state: Self.lastInRow) == "turn")
         #expect(RunPanel.nextText(info: Self.info, state: Self.midway).hasPrefix("then "))
         let final = LiveActivityState.make(cursor: Cursor(row: Self.seq.passes.count, run: Self.seq.passes.last!.runs.count - 1), sequence: Self.seq)!
