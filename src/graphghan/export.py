@@ -11,7 +11,7 @@ import numpy as np
 from PIL import Image, ImageDraw
 
 from . import grid as gr
-from .chartdoc import RUN_RE, TECHNIQUE_ROWS, chart_id, validate_document
+from .chartdoc import RUN_RE, TECHNIQUE_ROWS, cell_kind, chart_id, size_derives, validate_document
 
 SCHEMA = 2
 SITE_URL = "https://graphghan.milo.cat/"
@@ -93,7 +93,7 @@ def preview_png(a, rgb, path, cw=8, ch=None, grid=False, bold_every=10):
     img.save(path)
 
 
-def stats(a, codes, kind="stitch"):
+def stats(a, codes, kind="stitch", sized=True):
     h, w = a.shape
     counts = {codes[i]: int((a == i).sum()) for i in range(len(codes))}
     runs = rle_rows(a)
@@ -110,7 +110,11 @@ def stats(a, codes, kind="stitch"):
     }  # 1.1 yd/sq in worsted sc, +20% tails
     out = {
         "cells": int(w * h),
-        "size_in": [round(w * gr.SW, 1), round(h * gr.SH, 1)],
+        # gr.SW/gr.SH are per-STITCH dimensions, so this conversion is only meaningful when the
+        # gauge and the grid count the same thing (#48). The caller resolves that pairing. Kept
+        # in this original key position (rather than appended) so a sized chart's stats are
+        # byte-identical to before `sized` existed.
+        **({"size_in": [round(w * gr.SW, 1), round(h * gr.SH, 1)]} if sized else {}),
         "counts": counts,
         "single_stitch_runs": singles,
         "color_changes_per_row": {
@@ -209,23 +213,27 @@ def chart_json(a, meta, gauge_key, report, variant="final"):
         if "chain_color" in stitch:
             boundary["color"] = stitch["chain_color"]
         gauge["boundary"] = boundary
+    # chart/gauge are what size_derives and cell_kind look at, so build them (chart as its own
+    # variable) before stats(), which needs both, without waiting on the rest of the document.
+    chart_block = {
+        "id": chart_id(codes, rows, technique),
+        "variant": variant,
+        "gauge_key": gauge_key,
+        "width": int(a.shape[1]),
+        "height": int(a.shape[0]),
+    }
+    pairing_check = {"chart": chart_block, "gauge": gauge}
     doc = {
         "schema": SCHEMA,
         "pattern": pattern,
-        "chart": {
-            "id": chart_id(codes, rows, technique),
-            "variant": variant,
-            "gauge_key": gauge_key,
-            "width": int(a.shape[1]),
-            "height": int(a.shape[0]),
-        },
+        "chart": chart_block,
         "generator": {"name": "graphghan", "version": generator_version()},
         "palette": palette_entries(meta.palette),
         "rows": rows,
         "gauge": gauge,
         "technique": technique,
         "instructions": [dict(s) for s in meta.instructions],
-        "stats": stats(a, codes),
+        "stats": stats(a, codes, cell_kind(pairing_check), size_derives(pairing_check)),
         "ext": {"graphghan": {"report": report_out}},
     }
     if "first_stitch_in" in stitch:
