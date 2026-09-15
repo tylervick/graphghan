@@ -42,8 +42,9 @@ UNIT_FOR_KIND = {"stitch": "stitches", "tile": "tiles"}
 
 def size_derives(doc: dict) -> bool:
     gauge = doc.get("gauge")
-    unit = gauge.get("unit", "stitches") if isinstance(gauge, dict) else "stitches"
-    return UNIT_FOR_KIND.get(cell_kind(doc)) == unit
+    unit = (gauge.get("unit") if isinstance(gauge, dict) else None) or "stitches"
+    kind_unit = UNIT_FOR_KIND.get(cell_kind(doc))
+    return kind_unit is not None and kind_unit == unit
 
 
 class UnsupportedTechnique(ValueError):

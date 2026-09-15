@@ -364,3 +364,17 @@ def test_tile_gauge_derives_the_c2c_size():
     d["chart"]["width"], d["chart"]["height"] = 22, 22
     d["gauge"] = {"stitches": 5.5, "rows": 5.5, "over": {"value": 4, "unit": "in"}, "unit": "tiles"}
     assert chartdoc.finished_size(d) == (16.0, 16.0, "in")
+
+
+def test_size_withheld_for_an_unmapped_kind_with_a_null_unit():
+    """Two absent things are not the same thing: a null unit must not pair with an unmapped kind."""
+    d = doc(["4A"], width=4, cell={"kind": "block"})
+    d["gauge"]["unit"] = None
+    assert not chartdoc.size_derives(d)
+    assert chartdoc.finished_size(d) is None
+
+
+def test_a_null_unit_reads_as_stitches():
+    d = doc(["4A"], width=4)
+    d["gauge"]["unit"] = None
+    assert chartdoc.size_derives(d)
