@@ -17,6 +17,12 @@ whose grid cell is a filet block, not a stitch, opens, works and sequences like 
 `stats` carries `cells` and no `stitches`, `yards_est`, or `skeins_364yd` — and adding any of those
 back must make `chartdoc.validate_document` refuse the document.
 
+`tiles-gauge` pins the other side of the same pairing rule (#48): `chart.cell: {"kind": "tile"}`
+over a `gauge.unit: "tiles"` gauge of 5.5 tiles = 4 in (docs/research/genres/c2c.md, the C2C
+gauge convention) — both count tiles, so the finished size derives. Removing its `cell`
+declaration reverts the cell kind to the `stitch` default, disagrees with the `tiles` gauge unit,
+and withholds the size.
+
 `tests/test_js_parity.py` is how the PWA's conformance is enforced in this repo: for every fixture
 here it runs `site/src/app/data.js`'s `sequence()` under node and compares it pass for pass with
 `graphghan.chartdoc.sequence`, including the `null` for the unknown-technique fixture. node is

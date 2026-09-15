@@ -31,6 +31,7 @@ def test_fixture_set_matches_spec():
         "explicit-passes",
         "unknown-technique",
         "filet-blocks",
+        "tiles-gauge",
         "craigh-na-dun",
     }
 
@@ -248,3 +249,29 @@ def test_filet_fixture_refuses_stitch_stats_if_added():
     chart["stats"]["stitches"] = chart["stats"]["cells"]
     problems = chartdoc.validate_document(chart)
     assert any("stats.stitches" in p and "block" in p for p in problems), problems
+
+
+def test_tiles_gauge_fixture_derives_a_size():
+    chart = json.loads((FIX / "tiles-gauge.chart.json").read_text(encoding="utf-8"))
+    assert chartdoc.validate_document(chart) == []
+    assert chartdoc.cell_kind(chart) == "tile"
+    assert chartdoc.size_derives(chart)
+    assert chartdoc.finished_size(chart) is not None
+
+
+def test_tiles_gauge_withholds_when_the_cell_declaration_is_removed():
+    """The direction absence alone cannot prove: a tiles gauge over stitch cells has no size."""
+    chart = json.loads((FIX / "tiles-gauge.chart.json").read_text(encoding="utf-8"))
+    del chart["chart"]["cell"]
+    assert not chartdoc.size_derives(chart)
+    assert chartdoc.finished_size(chart) is None
+
+
+@pytest.mark.parametrize("name", NAMES)
+def test_no_existing_finished_size_moved(name):
+    """Global constraint: both fields default and their defaults pair, so every chart that carries
+    neither keeps the size it had before #48."""
+    chart = json.loads((FIX / f"{name}.chart.json").read_text(encoding="utf-8"))
+    if "cell" in chart["chart"] or chart["gauge"].get("unit"):
+        pytest.skip("declares a pairing; covered by the tests above")
+    assert chartdoc.finished_size(chart) is not None

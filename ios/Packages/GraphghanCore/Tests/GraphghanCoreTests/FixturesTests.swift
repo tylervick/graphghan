@@ -5,7 +5,7 @@ import Testing
     @Test func fixtureSetMatchesSpec() {
         #expect(Set(Fixtures.chartNames) == [
             "craigh-na-dun", "explicit-passes", "filet-blocks", "layers-stitch", "minimal-rounds",
-            "minimal-rows", "two-letter-codes", "unknown-technique",
+            "minimal-rows", "tiles-gauge", "two-letter-codes", "unknown-technique",
         ])
     }
 
