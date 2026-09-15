@@ -62,14 +62,24 @@ import Testing
 
     @Test func stitchMath() throws {
         let seq = try Self.sequence("minimal-rows")  // 12 passes of 14 stitches; rows 3-10 have 3 runs
-        #expect(seq.totalStitches == 168)
-        #expect(seq.stitchesBefore(Cursor(row: 1, run: 0)) == 0)
-        #expect(seq.stitchesBefore(Cursor(row: 3, run: 1)) == 30)
-        #expect(seq.stitchesBefore(Cursor(row: 3, run: 3)) == 42)   // past the last run of row 3
-        #expect(seq.stitchesBefore(Cursor(row: 13, run: 0)) == nil)
-        #expect(seq.stitchesBefore(Cursor(row: 3, run: 4)) == nil)
+        #expect(seq.totalCells == 168)
+        #expect(seq.cellsBefore(Cursor(row: 1, run: 0)) == 0)
+        #expect(seq.cellsBefore(Cursor(row: 3, run: 1)) == 30)
+        #expect(seq.cellsBefore(Cursor(row: 3, run: 3)) == 42)   // past the last run of row 3
+        #expect(seq.cellsBefore(Cursor(row: 13, run: 0)) == nil)
+        #expect(seq.cellsBefore(Cursor(row: 3, run: 4)) == nil)
         #expect(seq.isValid(Cursor(row: 12, run: 1)) && !seq.isValid(Cursor(row: 12, run: 2)))
         #expect(seq.pass(at: 1)?.label == "Row 1" && seq.pass(at: 0) == nil)
+    }
+
+    @Test func totalCellsIsTheDenominatorAndStitchesFollowTheKind() throws {
+        let seq = try Self.sequence("minimal-rows")
+        #expect(seq.totalCells == 168)
+        #expect(seq.totalStitches == 168)
+
+        let filet = try Self.sequence("filet-blocks")
+        #expect(filet.totalCells > 0)
+        #expect(filet.totalStitches == nil)
     }
 
     @Test func roundsLabelAndSides() throws {

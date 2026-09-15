@@ -43,7 +43,7 @@ import Testing
     @Test func infoCarriesPalette() {
         let id = UUID()
         let info = LiveActivityState.info(projectID: id, chart: Self.chart, sequence: Self.seq)
-        #expect(info.projectID == id && info.title == "Two-letter codes" && info.totalRows == 2 && info.totalStitches == 24)
+        #expect(info.projectID == id && info.title == "Two-letter codes" && info.totalRows == 2 && info.totalCells == 24)
         #expect(info.palette.map(\.code) == ["G", "Gd", "Kb", "Y"] && info.swatch(for: "Gd")?.hex == "#D9A21B" && info.swatch(for: "Q") == nil)
     }
 
@@ -84,5 +84,12 @@ import Testing
         let info = LiveActivityState.info(projectID: UUID(), chart: craigh, sequence: try WorkSequence(chart: craigh))
         let back = try JSONDecoder().decode(WorkActivityInfo.self, from: JSONEncoder().encode(info))
         #expect(back == info)
+    }
+
+    @Test func activityInfoStillEncodesTheOldKey() throws {
+        let info = WorkActivityInfo(projectID: UUID(), title: "t", totalRows: 2, totalCells: 24, palette: [])
+        let json = try JSONSerialization.jsonObject(with: try JSONEncoder().encode(info)) as! [String: Any]
+        #expect(json["totalStitches"] as? Int == 24)
+        #expect(json["totalCells"] == nil)
     }
 }

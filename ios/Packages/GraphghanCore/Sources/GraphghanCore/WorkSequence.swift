@@ -37,7 +37,7 @@ public struct Pass: Equatable, Sendable {
     public init(label: String, side: Side?, direction: Direction?, gridRow: Int?, runs: [Run]) {
         self.label = label; self.side = side; self.direction = direction; self.gridRow = gridRow; self.runs = runs
     }
-    public var stitches: Int { runs.reduce(0) { $0 + $1.count } }
+    public var cells: Int { runs.reduce(0) { $0 + $1.count } }
 }
 
 public enum SequenceError: Error, Equatable {
@@ -49,23 +49,29 @@ public enum SequenceError: Error, Equatable {
 /// else has no working order (display only). Mirrors graphghan.chartdoc.sequence.
 public struct WorkSequence: Sendable {
     public let passes: [Pass]
-    public let totalStitches: Int
-    private let before: [Int]  // stitches before pass i (0-based)
+    public let cellKind: CellKind
+    public let totalCells: Int
+    private let before: [Int]  // cells before pass i (0-based)
 
-    public init(passes: [Pass]) {
+    /// The stitch count, when a cell is a stitch. Nil otherwise: the number exists but this reader
+    /// cannot compute it, and a wrong number is worse than none (#44).
+    public var totalStitches: Int? { cellKind == .stitch ? totalCells : nil }
+
+    public init(passes: [Pass], cellKind: CellKind = .stitch) {
         self.passes = passes
+        self.cellKind = cellKind
         var before: [Int] = []
         var total = 0
-        for p in passes { before.append(total); total += p.stitches }
+        for p in passes { before.append(total); total += p.cells }
         self.before = before
-        self.totalStitches = total
+        self.totalCells = total
     }
 
     public init(chart: Chart) throws {
         // Python's `sequence()` uses `isinstance(doc.get("passes"), list)`: anything else -- a
         // number, a string, an object -- falls through to technique derivation rather than failing.
         if let raw = chart.document.passes, raw.arrayValue != nil {
-            self.init(passes: try WorkSequence.explicitPasses(raw, chart: chart))
+            self.init(passes: try WorkSequence.explicitPasses(raw, chart: chart), cellKind: chart.cellKind)
             return
         }
         let doc = chart.document
@@ -94,7 +100,7 @@ public struct WorkSequence: Sendable {
             if direction == .rtl { runs.reverse() }
             passes.append(Pass(label: "\(label) \(k)", side: side, direction: direction, gridRow: y, runs: runs))
         }
-        self.init(passes: passes)
+        self.init(passes: passes, cellKind: chart.cellKind)
     }
 
     private static func explicitPasses(_ raw: JSONValue, chart: Chart) throws -> [Pass] {
@@ -134,8 +140,8 @@ public struct WorkSequence: Sendable {
         return cursor.run >= 0 && cursor.run <= p.runs.count
     }
 
-    /// Stitches completed when the cursor sits at (row, run): every earlier pass plus the runs before `run`.
-    public func stitchesBefore(_ cursor: Cursor) -> Int? {
+    /// Cells completed when the cursor sits at (row, run): every earlier pass plus the runs before `run`.
+    public func cellsBefore(_ cursor: Cursor) -> Int? {
         guard isValid(cursor) else { return nil }
         let p = passes[cursor.row - 1]
         return before[cursor.row - 1] + p.runs.prefix(cursor.run).reduce(0) { $0 + $1.count }
