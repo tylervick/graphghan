@@ -39,6 +39,14 @@ def test_chart_schema_is_valid():
     Draft202012Validator.check_schema(CHART_SCHEMA)
 
 
+def test_cell_kinds_match_schema_enum():
+    """The five cardinalities are asserted in two independent places (docs/chart-format.md
+    §Cells): `chartdoc.CELL_KINDS` and the schema enum. Nothing else keeps them in sync, so a kind
+    added to one and not the other would refuse in one layer and validate clean in the other."""
+    enum = CHART_SCHEMA["properties"]["chart"]["properties"]["cell"]["properties"]["kind"]["enum"]
+    assert set(chartdoc.CELL_KINDS) == set(enum)
+
+
 @pytest.mark.parametrize("name", NAMES)
 def test_fixture_validates_against_schema(name):
     errors = sorted(Draft202012Validator(CHART_SCHEMA).iter_errors(load(name)), key=lambda e: list(e.path))
@@ -156,6 +164,18 @@ def test_schema_rejects_bad_phase1_values():
         d = json.loads(json.dumps(good))
         mutate(d)
         assert not v.is_valid(d)
+
+
+def test_validate_document_refuses_an_explicit_null_cell():
+    """`"cell": null` must not be read as absent (chartdoc.py): the schema refuses it and Swift
+    opens the document as `.stitch`, so a bare `is not None` guard that skips a JSON null would let
+    this one document mean three different things across three readers (#44)."""
+    good = load("minimal-rows")
+    d = json.loads(json.dumps(good))
+    d["chart"]["cell"] = None
+    problems = chartdoc.validate_document(d)
+    assert any("chart.cell is NoneType, not an object" in p for p in problems), problems
+    assert not Draft202012Validator(CHART_SCHEMA).is_valid(d)
 
 
 def test_validate_document_rejects_malformed_boundary():

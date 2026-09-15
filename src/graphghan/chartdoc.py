@@ -244,7 +244,7 @@ def validate_document(doc: dict) -> list[str]:
                 )
     chart = doc.get("chart")
     cell = chart.get("cell") if isinstance(chart, dict) else None
-    if cell is not None:
+    if isinstance(chart, dict) and "cell" in chart:
         if not isinstance(cell, dict):
             problems.append(f"chart.cell is {type(cell).__name__}, not an object")
         elif cell.get("kind") not in CELL_KINDS:

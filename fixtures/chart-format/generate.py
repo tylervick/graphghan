@@ -155,9 +155,6 @@ def filet_blocks_chart() -> dict:
     doc = chart("filet-blocks", "Filet blocks", FILET_PALETTE, FILET_ROWS, ROWS_T, cell=FILET_CELL)
     a = decode_rows(FILET_ROWS, codes)
     st = chart_stats(a, codes, kind="block")
-    # size_in comes from the per-stitch gauge; a block is not one stitch, so that conversion would
-    # be exactly the "silently wrong" number the genre probe describes. Withhold it, don't guess.
-    del st["size_in"]
     doc["stats"] = st
     return doc
 
