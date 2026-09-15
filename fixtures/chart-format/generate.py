@@ -16,7 +16,7 @@ import re
 import sys
 from pathlib import Path
 
-from graphghan.chartdoc import chart_id, sequence
+from graphghan.chartdoc import chart_id, sequence, size_derives
 from graphghan.export import decode_rows
 from graphghan.export import stats as chart_stats
 
@@ -154,7 +154,10 @@ def filet_blocks_chart() -> dict:
     codes = [c for c, _ in FILET_PALETTE]
     doc = chart("filet-blocks", "Filet blocks", FILET_PALETTE, FILET_ROWS, ROWS_T, cell=FILET_CELL)
     a = decode_rows(FILET_ROWS, codes)
-    st = chart_stats(a, codes, kind="block")
+    # kind="block" has no chartdoc.UNIT_FOR_KIND entry, so its size never derives (#48): sized must
+    # follow size_derives(doc), not the sized=True default, or stats.size_in would be a stitch-grid
+    # number smuggled onto a chart whose cells are not stitches.
+    st = chart_stats(a, codes, kind="block", sized=size_derives(doc))
     doc["stats"] = st
     return doc
 
