@@ -15,6 +15,14 @@ Nobody should be able to work a chart that cannot be crocheted as written. A doc
 than the first row — is invalid: writers MUST NOT write it and readers MUST refuse it rather than
 warn. Unusual but possible values are not errors.
 
+One cell is one stitch unless the chart says otherwise. That is a real restriction, not a
+simplification: the academic survey classifies this object as a "crochet graph" and limits the genre
+to patterns "that are flat and whose arrangement of stitches matches a grid" (Seitz et al., Onward!
+2022). Genres where a cell is a block, a tile, a motif or a stitch pair say so in `chart.cell`, and a
+reader that does not implement the stated kind MUST withhold every stitch-derived number rather than
+compute it wrongly. The chart still opens and is still worked: it is the arithmetic that is
+withheld, not the pattern.
+
 ## Chart document (schema 2)
 
 ```json
@@ -63,6 +71,63 @@ are optional.
   for crochet and knit chart symbols), so a knit legend of `{"k": "knit", "p": "purl"}` reads
   correctly on a WS pass. Readers do not enforce this yet (#36).
 
+### Cells
+
+`chart.cell` is optional. When present it is an object with `kind` required:
+
+```json
+"chart": {
+  "id": "sha256:…",
+  "width": 60,
+  "height": 80,
+  "cell": { "kind": "block" }
+}
+```
+
+`kind` is one of `stitch`, `block`, `tile`, `motif`, `pair` — the five cardinalities the genre
+matrix found:
+
+| `kind` | One cell is | Genre | Probe |
+|---|---|---|---|
+| `stitch` | one stitch | tapestry, intarsia, cross-stitch, stranded knit | `tapestry.md` |
+| `block` | a filled or open block, sharing an edge post | filet | `filet.md` |
+| `tile` | a `ch 3 + 3 dc` tile | C2C (#18) | `c2c.md` |
+| `motif` | a whole worked square | motif-grid blanket | `joined-rounds.md` |
+| `pair` | two stitches, one per layer | double knitting | #44 |
+
+Absent means `stitch`. No existing document carries the key.
+
+The enum is closed, matching `gauge.unit` and `boundary.kind`. A value outside it fails schema
+validation and the document is refused — which is correct: an unrecognised cardinality is a
+document a writer did not produce for this format and a reader cannot reason about at all. The
+withholding rule below is for kinds that are *in* the enum and not yet implemented, which today is
+every kind but `stitch`.
+
+`schema/chart.schema.json` carries the property under `chart.properties`; `chart`'s `required`
+list is unaffected.
+
+What a reader emits is a per-number rule, not a per-document one. A number that counts **cells**
+is always honest and is always emitted. A number that counts **stitches** is emitted only when
+`kind` is `stitch`; otherwise the key is absent rather than wrong.
+
+| Number | Where | `kind: stitch` | any other kind |
+|---|---|---|---|
+| `stats.cells` | `export.py` | `w × h` | `w × h` |
+| `stats.stitches` | `export.py:112` | `w × h` | **key absent** |
+| `stats.yards_est`, `stats.skeins_364yd` | `export.py` | emitted | **key absent** |
+| `stats.counts`, `single_stitch_runs`, `color_changes_per_row` | `export.py` | emitted | emitted (per-cell, honest) |
+| `stats.size_in` | `export.py` | emitted | emitted — governed by `gauge.unit` (#48), not by this |
+| `total_stitches` | `progress.py:18` | emitted | **key absent** |
+| `total_cells` | `progress.py` | emitted | emitted |
+| `stitches_done` / `cells_done` | `progress.py` | both | `cells_done` only |
+| `percent` | `progress.py:61` | unchanged | unchanged — cells done over cells total is the same arithmetic either way |
+| `stitches_per_hour` | `progress.py:66` | emitted | **key absent** |
+| `WorkSequence.totalCells` | `WorkSequence.swift:52` | emitted | emitted |
+| `WorkSequence.totalStitches: Int?` | `WorkSequence.swift:52` | `totalCells` | **nil** |
+
+`stats.cells` and `total_cells` are emitted for every chart including `stitch` ones, where they
+equal the stitch figures: they are the honest name for what the number has always counted.
+
 ### Gauge
 
 `stitches` and `rows` over `over.value` `over.unit` (`in` or `cm`), the way gauge is stated on a
@@ -103,10 +168,11 @@ MUST refuse the document (see §Design).
 ### Chart id
 
 `chart.id` is `"sha256:" + hex(sha256(canonical))` where `canonical` is the UTF-8 JSON of
-`{"codes": [palette codes in order], "rows": rows, "technique": technique}` plus `"passes"` when
-the document has them, with keys sorted, no whitespace (`,` and `:` separators only) and non-ASCII
-kept as-is. Names, hexes, yarn, instructions and stats do not affect the id: renaming a color is
-not a new chart. Readers may verify the id; writers MUST compute it this way.
+`{"codes": [palette codes in order], "rows": rows, "technique": technique}` plus `"passes"` when the
+document has them and plus `"cell"` when the document has it and it is an object, with keys sorted,
+no whitespace (`,` and `:` separators only) and non-ASCII kept as-is. Names, hexes, yarn,
+instructions and stats do not affect the id: renaming a color is not a new chart. Readers may verify
+the id; writers MUST compute it this way.
 
 ### Technique and passes
 

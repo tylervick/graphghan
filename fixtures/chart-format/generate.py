@@ -119,7 +119,9 @@ EXPLICIT_PASSES = [
 # here is a filet block (3 dc filled, or dc/ch/skip/dc open), not a stitch, so this pins that a
 # reader still opens, works and sequences the chart while every stitch-derived stat disappears.
 # The motif is a plain diamond of filled blocks (2, 4, 6, 6, 4, 2 per row) over an open ground, 12
-# blocks wide (one "chain multiples of 12 + 3" repeat) by 6 rows tall -- recognisable, not noise.
+# blocks wide by 6 rows tall -- sized to draw a recognisable diamond, not noise. filet.md's
+# "chain multiples of 12 + 3" counts foundation *stitches*, not blocks, and does not justify this
+# width; a 12-block row is a different number from a 12-stitch chain multiple.
 FILET_PALETTE = [("F", "#2B2F33"), ("O", "#F2E8D5")]
 FILET_ROWS = [
     "5O2F5O",

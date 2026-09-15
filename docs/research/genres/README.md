@@ -12,7 +12,7 @@ in the current format and records exactly where it fails. Verdicts:
 |---|---|---|---|---|
 | Tapestry / intarsia graphghan, rows | **works** | `tapestry.md` | Red Heart RHC0502 (Yarnspirations) | first row in a different stitch from the body (note only) |
 | C2C | **refuses** (+ manifest silently wrong) | `c2c.md` | Bernat BRC0302 (Yarnspirations) | `stitches = w×h` in `pattern.json` and `stats`; tile gauge; two turning chains (#18, #44) |
-| Filet | **silently wrong** | `filet.md` | Bella Coco free filet (UK) | block ≠ stitch; shared edge posts; turning chain keyed on next row's first cell (#44) |
+| Filet | **partly** — `chart.cell` withholds instead of miscounting | `filet.md` | Bella Coco free filet (UK) | shared edge posts; turning chain keyed on next row's first cell — the real per-cell arithmetic is #44 part 2 (`docs/superpowers/specs/2026-09-14-cell-cardinality-design.md`) |
 | Overlay mosaic | **refuses on stitch, wrong on direction** | `mosaic.md` | Jera's Jamboree free chart (UK/US) | per-cell stitch not surfaced (#36); one-direction rows with fasten-off (#43 sibling) |
 | Joined-round motifs | **partly** | `joined-rounds.md` | DROPS 120-3; The Loopy Lamb mosaic square | motif is not a grid (#37); join, counting starting chain, colour-change-at-join unstated (#43); a blanket of motifs is a grid whose cell is a motif (#44) |
 | Spiral-round amigurumi | **refuses**, correctly | `amigurumi.md` | Supergurumi bunny | counts change every round (#37); spiral, no join (#43); non-stitch steps ("stuff the head") have no slot |
@@ -23,8 +23,11 @@ in the current format and records exactly where it fails. Verdicts:
 | Shaped tapestry panel | refuses | — | Orca bag (on-hand) | rows must sum to width (#37) |
 | Motif-grid blanket (each cell one square) | **partly** | `joined-rounds.md` | Divine Debris *Glenda Ghost* (380 squares, 19×20 graph) | colour grid fits; a cell is a motif, not a stitch (#44); the motif itself is out of grid |
 
-The single "silently wrong" is filet. Every probe should either move it to "refuses" (a `cells`
-declaration that readers honour) or be the reason #44 is implemented.
+No row's verdict is "silently wrong" anymore, which is the point: filet moved to "partly" once
+`chart.cell` let a reader withhold every stitch-derived number instead of computing it from the
+wrong cardinality (`docs/superpowers/specs/2026-09-14-cell-cardinality-design.md`). What remains —
+filet's real per-cell arithmetic, including a turning chain keyed on the next row's first cell — is
+#44 part 2.
 
 ## What the probes agree on
 
