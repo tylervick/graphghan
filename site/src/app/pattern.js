@@ -1,13 +1,10 @@
-import { decodeChart, finishedSize, passLabel, rowSide, rowStats, workingRuns, writtenLines } from './data.js';
+import { decodeChart, finishedSize, passLabel, rowSide, rowStats, workingRuns, writtenLines, cellKind, cellNoun } from './data.js';
 import { ChartView } from './chart.js';
 import { loadProgress, saveProgress, exportCode, importCode, clearProgress } from './progress.js';
 import { WorkingMode } from './working.js';
 import { printTiles } from './print.js';
 import { registerServiceWorker } from './pwa.js';
 import { esc } from './util.js';
-
-const CELL_NOUNS = { stitch: 'stitches', block: 'blocks', tile: 'tiles', motif: 'motifs', pair: 'pairs' };
-const cellNoun = (C) => CELL_NOUNS[(C && C.cell && C.cell.kind) || 'stitch'] || 'stitches';
 
 const slug = document.body.dataset.slug;
 const $ = id => document.getElementById(id);
@@ -32,7 +29,7 @@ async function main() {
   // masthead
   $('quote').textContent = P.quote ? `“${P.quote}”` : '';
   const specs = [['Chart', `${chart.W} × ${chart.H}`, `${cellNoun(C)} × rows`], ['Finished', `${size.w}${unit} × ${size.h}${unit}`, 'at design gauge'],
-    ['Colors', String(doc.palette.length), G.yarn_weight || ''], ['Stitch', G.stitch || '', `1 cell = 1 ${(C && C.cell && C.cell.kind) || 'stitch'}`], ['Hook', G.hook || '', ''],
+    ['Colors', String(doc.palette.length), G.yarn_weight || ''], ['Stitch', G.stitch || '', `1 cell = 1 ${cellKind(C)}`], ['Hook', G.hook || '', ''],
     ['Gauge', `${G.stitches} st × ${G.rows} rows`, `= ${G.over.value}${unit} blocked`], ['Version', P.version, C.variant || '']];
   $('specs').innerHTML = specs.map(([k, v, s]) => `<div class="spec"><div class="eyebrow">${esc(k)}</div><b>${esc(v)}</b><div class="sub">${esc(s)}</div></div>`).join('');
 

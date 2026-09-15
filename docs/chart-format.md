@@ -217,15 +217,22 @@ steps. `stats` is optional and always recomputable. `ext` is a map of vendor nam
 
 `kind` is `advance`, `back` or `jump`; every event records the cursor **after** the action.
 `chart_id` may be `null` for a cursor imported from a source that did not know it. Derived values,
-as implemented by `graphghan.progress` and pinned by the `progress-basic` fixture:
+as implemented by `graphghan.progress` and pinned by the `progress-basic` fixture, follow the same
+split as §Cells: a number that counts cells is always emitted, and a number that counts stitches is
+emitted only when a cell is a stitch (`chart.cell` absent, or `kind: "stitch"`).
 
-- stitches before a cursor = stitches in every earlier pass + runs before `run` in the current pass;
-  percent = 100 × that / total stitches, one decimal.
-- Events are sorted by `t`. A session is a maximal run of events with gaps ≤ 20 minutes. A session's
-  stitches are the difference in stitches-before between the cursor after its last event and the
-  cursor before its first event (the cursor before the very first event is row 1, run 0), clamped at
-  0. Active seconds is the sum of each session's last − first timestamp. Stitches per hour is total
-  session stitches over active hours, one decimal, or `null` with no active time.
+- Always emitted: `cells_done` = cells in every earlier pass + runs before `run` in the current
+  pass; `total_cells` = cells in every pass; `percent` = 100 × `cells_done` / `total_cells`, one
+  decimal — the same arithmetic regardless of kind. Events are sorted by `t`. A session is a maximal
+  run of events with gaps ≤ 20 minutes; a session's `cells` is the difference in cells-done between
+  the cursor after its last event and the cursor before its first event (the cursor before the very
+  first event is row 1, run 0), clamped at 0. `active_seconds` is the sum of each session's
+  last − first timestamp.
+- Emitted only when a cell is a stitch: `stitches_done` and `total_stitches` (`cells_done` and
+  `total_cells` under their stitch names — the same numbers), each session's `stitches` (the same
+  number as that session's `cells`), and `stitches_per_hour` — total session stitches over active
+  hours, one decimal, or `null` with no active time. For any other kind these four keys are absent
+  rather than computed from the wrong cardinality.
 
 ## Pattern manifest (schema 1)
 

@@ -1,7 +1,8 @@
-"""The PWA's sequencer must agree with the Python one, pass for pass, on every chart fixture.
+"""The PWA's sequencer and cell-kind noun must agree with the Python ones on every chart fixture.
 
-site/src/app/data.js is a hand-written mirror of graphghan.chartdoc.sequence; nothing else keeps
-the two from drifting. Node is pinned in mise.toml; without it on PATH this test skips.
+site/src/app/data.js is a hand-written mirror of graphghan.chartdoc.sequence and .cell_kind;
+nothing else keeps the two from drifting. Node is pinned in mise.toml; without it on PATH this
+test skips.
 """
 
 from __future__ import annotations
@@ -70,3 +71,34 @@ def test_js_sequence_matches_python(name):
         return
     assert js is not None, "Python sequences this chart; the PWA must not return null"
     assert as_python(js) == expected
+
+
+# The plural of every graphghan.chartdoc.CELL_KINDS value, exactly as site/src/app/data.js's
+# CELL_KIND_NOUNS and Swift's CellKind.nounPlural also spell them.
+CELL_NOUNS = {"stitch": "stitches", "block": "blocks", "tile": "tiles", "motif": "motifs", "pair": "pairs"}
+
+CELL_NOUN_SCRIPT = """
+import { readFileSync } from 'node:fs';
+import { cellNoun } from './site/src/app/data.js';
+const doc = JSON.parse(readFileSync(process.env.FIXTURE, 'utf8'));
+process.stdout.write(cellNoun(doc.chart));
+"""
+
+
+def js_cell_noun(path: Path) -> str:
+    r = subprocess.run(
+        [NODE, "--input-type=module", "-e", CELL_NOUN_SCRIPT],
+        cwd=ROOT,
+        env={"FIXTURE": str(path), "PATH": str(Path(NODE).parent)},
+        capture_output=True,
+        text=True,
+    )
+    assert r.returncode == 0, r.stderr
+    return r.stdout
+
+
+@pytest.mark.parametrize("name", NAMES)
+def test_js_cell_noun_matches_python(name):
+    path = FIX / f"{name}.chart.json"
+    doc = json.loads(path.read_text(encoding="utf-8"))
+    assert js_cell_noun(path) == CELL_NOUNS[chartdoc.cell_kind(doc)]
