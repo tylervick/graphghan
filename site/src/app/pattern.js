@@ -34,7 +34,10 @@ async function main() {
   $('specs').innerHTML = specs.map(([k, v, s]) => `<div class="spec"><div class="eyebrow">${esc(k)}</div><b>${esc(v)}</b><div class="sub">${esc(s)}</div></div>`).join('');
 
   // key
-  $('keyrows').innerHTML = doc.palette.map(p => `<tr><td><span class="sw" style="background:${esc(p.hex)}"></span><b class="mono">${esc(p.code)}</b></td><td>${esc(p.name)}<div class="sub">${esc(p.use || '')}</div></td><td>${esc(yarnLabel(p.yarn))}</td><td class="num">${esc(doc.stats.counts[p.code].toLocaleString())}</td><td class="num">${esc(doc.stats.yards_est[p.code].toLocaleString())}</td><td class="num">${esc(doc.stats.skeins_364yd[p.code])}</td></tr>`).join('');
+  // yards_est/skeins_364yd are withheld when a cell is not a stitch (docs/chart-format.md
+  // §Cells): render the figure when present, leave the cell blank rather than crash when not.
+  const yards = doc.stats.yards_est, skeins = doc.stats.skeins_364yd;
+  $('keyrows').innerHTML = doc.palette.map(p => `<tr><td><span class="sw" style="background:${esc(p.hex)}"></span><b class="mono">${esc(p.code)}</b></td><td>${esc(p.name)}<div class="sub">${esc(p.use || '')}</div></td><td>${esc(yarnLabel(p.yarn))}</td><td class="num">${esc(doc.stats.counts[p.code].toLocaleString())}</td><td class="num">${yards ? esc(yards[p.code].toLocaleString()) : ''}</td><td class="num">${skeins ? esc(skeins[p.code]) : ''}</td></tr>`).join('');
   $('instructions').innerHTML = (doc.instructions || []).map(s => `<div class="notes"><h3>${esc(s.title)}</h3><ol>${s.text.split('\n').filter(Boolean).map(t => `<li>${esc(t)}</li>`).join('')}</ol></div>`).join('');
   $('dl-png').href = `patterns/${slug}/chart.png`; $('dl-rows').href = `patterns/${slug}/written-rows.txt`;
   $('instr-summary').textContent = chart.passes ? `All ${chart.H} rows, in working order` : `All ${chart.H} rows (this chart declares no working order; shown bottom to top)`;
