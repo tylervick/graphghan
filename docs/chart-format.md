@@ -247,7 +247,9 @@ Written by the site build as `patterns/<id>/pattern.json`: identity, `palette` (
 `preview`, `charts` (one per published chart: `id`, `variant`, `gauge_key`, `default`, `path`,
 `preview`, `width`, `height`, `size {width, height, unit}`, `stitch`, `colors`, `stitches`,
 `changes_per_row {mean, max}`, `yards_est`), and `updated`. Exactly one chart is `default` and it
-is the one also served as `chart.json` at the pattern's top level.
+is the one also served as `chart.json` at the pattern's top level. `size` (and the top-level
+index's `size_in`) is governed by `gauge.unit` the same way `stats.size_in` is (#48): key absent,
+not a placeholder, when the chart's gauge and cell kind do not pair.
 
 ## Bundle
 

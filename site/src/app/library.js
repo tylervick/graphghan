@@ -24,7 +24,7 @@ async function main() {
       <img src="${esc(p.preview)}" alt="Preview of ${esc(p.title)}">
       <div class="body">
         <h2>${esc(p.title)}</h2>
-        <div class="meta"><span>${esc(p.dedication || '')}</span><span>${esc(p.width)} × ${esc(p.height)} ${esc(p.stitch)}</span><span>${esc(p.size_in[0])}″ × ${esc(p.size_in[1])}″</span><span>${esc(p.colors)} colors</span><span>v${esc(p.version)}</span></div>
+        <div class="meta"><span>${esc(p.dedication || '')}</span><span>${esc(p.width)} × ${esc(p.height)} ${esc(p.stitch)}</span>${p.size_in ? `<span>${esc(p.size_in[0])}″ × ${esc(p.size_in[1])}″</span>` : ''}<span>${esc(p.colors)} colors</span><span>v${esc(p.version)}</span></div>
         <div class="bar-progress" title="${pct}% of rows done"><i style="width:${pct}%"></i></div>
         <div class="sub" style="margin-top:6px">${prog ? `Row ${esc(Math.min(prog.row, p.height))} of ${esc(p.height)}` : 'Not started'}</div>
       </div>`;

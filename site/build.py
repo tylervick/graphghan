@@ -21,9 +21,13 @@ SRC = ROOT / "site" / "src"
 SLUG_RE = re.compile(r"[a-z0-9-]+")
 
 
-def finished_size_in(doc) -> list[float]:
-    """The index always quotes inches, whatever unit the gauge is stated in."""
-    w, h, unit = finished_size(doc)
+def finished_size_in(doc) -> list[float] | None:
+    """The index always quotes inches, whatever unit the gauge is stated in, or None when the
+    gauge and the grid do not count the same thing (#48)."""
+    size = finished_size(doc)
+    if size is None:
+        return None
+    w, h, unit = size
     if unit == "cm":
         w, h = round(w / 2.54, 1), round(h / 2.54, 1)
     return [w, h]
@@ -31,7 +35,7 @@ def finished_size_in(doc) -> list[float]:
 
 def index_entry(doc) -> dict:
     p, c = doc["pattern"], doc["chart"]
-    return {
+    entry = {
         "slug": p["id"],
         "title": p["title"],
         "dedication": p.get("dedication", ""),
@@ -39,10 +43,13 @@ def index_entry(doc) -> dict:
         "stitch": doc["gauge"].get("stitch", ""),
         "width": c["width"],
         "height": c["height"],
-        "size_in": finished_size_in(doc),
-        "colors": len(doc["palette"]),
-        "preview": f"patterns/{p['id']}/preview.png",
     }
+    size_in = finished_size_in(doc)
+    if size_in is not None:
+        entry["size_in"] = size_in
+    entry["colors"] = len(doc["palette"])
+    entry["preview"] = f"patterns/{p['id']}/preview.png"
+    return entry
 
 
 CHART_FILES = ("chart.json", "chart.png", "preview.png", "preview-grid.png", "written-rows.txt")
@@ -89,18 +96,21 @@ def manifest(published: list[tuple[str, dict]], updated: str) -> dict:
     charts = []
     for i, (path, doc) in enumerate(published):
         c, g, st = doc["chart"], doc["gauge"], doc["stats"]
-        size_w, size_h, size_unit = finished_size(doc)
-        charts.append(
+        size = finished_size(doc)
+        entry = {
+            "id": c["id"],
+            "variant": c.get("variant", ""),
+            "gauge_key": c.get("gauge_key", ""),
+            "default": i == 0,
+            "path": path,
+            "preview": path.rsplit("/", 1)[0] + "/preview.png" if "/" in path else "preview.png",
+            "width": c["width"],
+            "height": c["height"],
+        }
+        if size is not None:
+            entry["size"] = {"width": size[0], "height": size[1], "unit": size[2]}
+        entry.update(
             {
-                "id": c["id"],
-                "variant": c.get("variant", ""),
-                "gauge_key": c.get("gauge_key", ""),
-                "default": i == 0,
-                "path": path,
-                "preview": path.rsplit("/", 1)[0] + "/preview.png" if "/" in path else "preview.png",
-                "width": c["width"],
-                "height": c["height"],
-                "size": {"width": size_w, "height": size_h, "unit": size_unit},
                 "stitch": g.get("stitch", ""),
                 "colors": len(doc["palette"]),
                 "stitches": c["width"] * c["height"],
@@ -111,6 +121,7 @@ def manifest(published: list[tuple[str, dict]], updated: str) -> dict:
                 "yards_est": int(sum(st["yards_est"].values())),
             }
         )
+        charts.append(entry)
     return {
         "schema": 1,
         "id": p["id"],
