@@ -181,22 +181,24 @@ def cmd_options(args) -> int:
             doc = chart_json(g.a, meta, gauge, report, variant)
             preview_png(g.a, meta.palette.rgb, out / f"{variant}_{gauge}.png", cw=6)
             per_hr = {"sc": 1100, "hdc": 850, "dc": 700}.get(gauge, 900)
+            stitches = doc["stats"].get("stitches")
             hours = (
-                doc["stats"]["stitches"] / per_hr
-                + sum(doc["stats"]["color_changes_per_row"]["per_row"]) * 3 / 3600
+                None
+                if stitches is None
+                else stitches / per_hr + sum(doc["stats"]["color_changes_per_row"]["per_row"]) * 3 / 3600
             )
-            w_in, h_in, _unit = finished_size(doc)
+            size = finished_size(doc)
             entries.append(
                 {
                     "variant": variant,
                     "gauge": gauge,
                     "width": doc["chart"]["width"],
                     "height": doc["chart"]["height"],
-                    "size_in": [w_in, h_in],
+                    "size_in": None if size is None else [size[0], size[1]],
                     "colors": sorted({meta.palette.codes[i] for i in set(g.a.ravel().tolist())}),
                     "changes_mean": doc["stats"]["color_changes_per_row"]["mean"],
                     "changes_max": doc["stats"]["color_changes_per_row"]["max"],
-                    "hours": round(hours),
+                    "hours": None if hours is None else round(hours),
                     "rows": doc["rows"],
                     "palette": doc["palette"],
                     "cell_aspect": cell_aspect(doc),

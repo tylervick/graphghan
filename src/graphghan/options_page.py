@@ -9,14 +9,21 @@ def build_options_html(title, entries):
     """entries: list of dicts {variant, gauge, width, height, size_in, colors, changes_mean, changes_max, hours, rows, palette}."""
     cards = []
     for e in entries:
+        rows_html = [f"<tr><th>Stitches × rows</th><td>{e['width']} × {e['height']}</td></tr>"]
+        if (
+            e["size_in"] is not None
+        ):  # withheld (#48) when the gauge and the grid don't pair; omit, don't print None
+            rows_html.append(f"<tr><th>Finished</th><td>{e['size_in'][0]}″ × {e['size_in'][1]}″</td></tr>")
+        rows_html.append(f"<tr><th>Colors</th><td>{len(e['colors'])}</td></tr>")
+        rows_html.append(
+            f"<tr><th>Changes / row</th><td>mean {e['changes_mean']}, max {e['changes_max']}</td></tr>"
+        )
+        if e["hours"] is not None:  # withheld when the chart's cells aren't stitches; omit, don't print None
+            rows_html.append(f"<tr><th>Stitching</th><td>~{e['hours']} h</td></tr>")
         cards.append(
             f"<article><h2>{e['variant']} · {e['gauge']}</h2>"
             f'<canvas data-key="{e["variant"]}_{e["gauge"]}"></canvas>'
-            f"<table><tr><th>Stitches × rows</th><td>{e['width']} × {e['height']}</td></tr>"
-            f"<tr><th>Finished</th><td>{e['size_in'][0]}″ × {e['size_in'][1]}″</td></tr>"
-            f"<tr><th>Colors</th><td>{len(e['colors'])}</td></tr>"
-            f"<tr><th>Changes / row</th><td>mean {e['changes_mean']}, max {e['changes_max']}</td></tr>"
-            f"<tr><th>Stitching</th><td>~{e['hours']} h</td></tr></table></article>"
+            f"<table>{''.join(rows_html)}</table></article>"
         )
     data = json.dumps({f"{e['variant']}_{e['gauge']}": e for e in entries})
     return f"""<meta charset="utf-8"><title>{title} options</title>
