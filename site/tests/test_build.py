@@ -255,3 +255,28 @@ def test_manifest_for_pattern_without_charts_dir(tmp_path, monkeypatch):
         len(m["charts"]) == 1 and m["charts"][0]["path"] == "chart.json" and m["charts"][0]["default"] is True
     )
     assert index[0]["charts"] == 1
+
+
+def test_build_withholds_size_when_it_does_not_derive(tmp_path, monkeypatch):
+    """A gauge whose unit doesn't match the grid's cell kind (chart.cell absent, so cells default
+    to stitches, while the gauge counts tiles) must not crash the build (#48). Both the site
+    index's size_in and the pattern manifest's per-chart size are withheld: an absent key, not a
+    null or a placeholder. This is the same defect class fixed in src/graphghan/cli.py, whose own
+    regression test is tests/test_cli.py::test_options_entry_without_a_derived_size."""
+    doc = fake_doc("no-size", "No Size")
+    doc["gauge"]["unit"] = "tiles"  # disagrees with the default "stitch" cell kind
+    assert build_module.finished_size_in(doc) is None  # the unit itself, isolated from the build
+
+    entry = build_module.index_entry(doc)
+    assert "size_in" not in entry
+
+    pattern_dir = _make_fake_pattern(tmp_path, "no-size", doc)
+    monkeypatch.setattr(build_module, "load_patterns", lambda: [(pattern_dir, doc)])
+    out, index, _ = build_module.build(tmp_path / "dist")
+
+    index_entry = next(e for e in index if e["slug"] == "no-size")
+    assert "size_in" not in index_entry
+
+    m = json.loads((out / "patterns" / "no-size" / "pattern.json").read_text(encoding="utf-8"))
+    assert "size" not in m["charts"][0]
+    assert "stitches" in m["charts"][0]  # only size withholds; the rest of the entry is unaffected

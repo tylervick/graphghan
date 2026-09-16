@@ -1,4 +1,5 @@
 import json
+import re
 import shutil
 import subprocess
 import sys
@@ -7,6 +8,7 @@ from pathlib import Path
 from graphghan.cli import main
 
 ROOT = Path(__file__).resolve().parents[1]
+FIX = Path(__file__).parent / "fixtures" / "minimal"
 
 
 def run(*args):
@@ -66,6 +68,24 @@ def test_options_page(tmp_path):
     html = (tmp_path / "options.html").read_text()
     assert "final" in html and "plain-foot" in html and (tmp_path / "final_sc.png").exists()
     assert "[A-Za-z]{1,3}" in html
+
+
+def test_options_entry_without_a_derived_size(tmp_path):
+    """A gauge whose unit doesn't match the grid's cell kind (C2C-style: gauge counts tiles,
+    chart.cell is absent so cells default to stitches) must not crash the options page.
+    finished_size withholds the size (#48) and the rendered entry simply carries none."""
+    copy = tmp_path / "minimal-tiles"
+    shutil.copytree(FIX, copy, ignore=shutil.ignore_patterns("__pycache__"))
+    toml_path = copy / "pattern.toml"
+    toml_path.write_text(toml_path.read_text() + '\n[stitch.square]\nunit = "tiles"\n')
+    out = tmp_path / "out"
+    assert main(["options", str(copy), "--gauges", "square", "--out", str(out)]) == 0
+    html = (out / "options.html").read_text()
+    assert "final" in html and "square" in html
+    assert "Finished" not in html  # size withheld: gauge counts tiles, chart cells are stitches
+    entry = json.loads(re.search(r"const DATA=(\{.*\});", html).group(1))["final_square"]
+    assert entry["size_in"] is None
+    assert entry["hours"] is not None  # stitches count is still present; only the size withholds
 
 
 def test_catalog(tmp_path):

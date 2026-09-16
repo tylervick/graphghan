@@ -24,13 +24,18 @@ async function main() {
   const chart = decodeChart(doc);
   const P = doc.pattern, C = doc.chart, G = doc.gauge;
   const size = finishedSize(doc);
-  const unit = size.unit === 'in' ? '″' : ' cm';
+  const unit = G.over.unit === 'in' ? '″' : ' cm';
 
   // masthead
   $('quote').textContent = P.quote ? `“${P.quote}”` : '';
-  const specs = [['Chart', `${chart.W} × ${chart.H}`, `${cellNoun(C)} × rows`], ['Finished', `${size.w}${unit} × ${size.h}${unit}`, 'at design gauge'],
-    ['Colors', String(doc.palette.length), G.yarn_weight || ''], ['Stitch', G.stitch || '', `1 cell = 1 ${cellKind(C)}`], ['Hook', G.hook || '', ''],
-    ['Gauge', `${G.stitches} st × ${G.rows} rows`, `= ${G.over.value}${unit} blocked`], ['Version', P.version, C.variant || '']];
+  const gaugeUnit = G.unit || 'stitches';
+  const gaugeNoun = gaugeUnit === 'stitches' ? 'st' : gaugeUnit;
+  const specs = [['Chart', `${chart.W} × ${chart.H}`, `${cellNoun(C)} × rows`]];
+  if (size) specs.push(['Finished', `${size.w}${unit} × ${size.h}${unit}`, 'at design gauge']);
+  specs.push(['Colors', String(doc.palette.length), G.yarn_weight || ''],
+    ['Stitch', G.stitch || '', `1 cell = 1 ${cellKind(C)}`], ['Hook', G.hook || '', ''],
+    ['Gauge', `${G.stitches} ${gaugeNoun} × ${G.rows} rows`, `= ${G.over.value}${unit} blocked`],
+    ['Version', P.version, C.variant || '']);
   $('specs').innerHTML = specs.map(([k, v, s]) => `<div class="spec"><div class="eyebrow">${esc(k)}</div><b>${esc(v)}</b><div class="sub">${esc(s)}</div></div>`).join('');
 
   // key

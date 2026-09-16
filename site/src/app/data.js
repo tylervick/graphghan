@@ -13,11 +13,21 @@ const CELL_KIND_NOUNS = { stitch: 'stitches', block: 'blocks', tile: 'tiles', mo
 // rather than the whole document. Absent, or a kind outside the enum, means `stitch`.
 export function cellKind(chart) {
   const kind = chart && chart.cell && chart.cell.kind;
-  return CELL_KIND_NOUNS[kind] ? kind : 'stitch';
+  return Object.hasOwn(CELL_KIND_NOUNS, kind) ? kind : 'stitch';
 }
 
 export function cellNoun(chart) {
   return CELL_KIND_NOUNS[cellKind(chart)];
+}
+
+const UNIT_FOR_KIND = { stitch: 'stitches', tile: 'tiles' };
+
+// Mirrors graphghan.chartdoc.size_derives: a finished size only derives when gauge.unit and
+// chart.cell.kind name the same thing. A missing/null unit reads as 'stitches'; a kind with no
+// table entry (block, motif, pair) never matches anything.
+export function sizeDerives(doc) {
+  const unit = (doc.gauge && doc.gauge.unit) || 'stitches';
+  return UNIT_FOR_KIND[cellKind(doc.chart)] === unit;
 }
 
 // Mirrors graphghan.chartdoc.sequence (docs/chart-format.md §technique). Explicit passes win;
@@ -61,6 +71,7 @@ export function decodeChart(doc) {
 }
 
 export function finishedSize(doc) {
+  if (!sizeDerives(doc)) return null;
   const g = doc.gauge, per = g.over.value;
   return { w: +(doc.chart.width / (g.stitches / per)).toFixed(1), h: +(doc.chart.height / (g.rows / per)).toFixed(1), unit: g.over.unit };
 }

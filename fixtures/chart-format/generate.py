@@ -16,7 +16,7 @@ import re
 import sys
 from pathlib import Path
 
-from graphghan.chartdoc import chart_id, sequence
+from graphghan.chartdoc import chart_id, sequence, size_derives
 from graphghan.export import decode_rows
 from graphghan.export import stats as chart_stats
 
@@ -28,7 +28,7 @@ ROUNDS_T = {"type": "rounds", "start": "bottom", "first_side": "RS", "rs_directi
 GAUGE = {"stitches": 14.0, "rows": 16.0, "over": {"value": 4, "unit": "in"}, "stitch": "sc"}
 
 
-def chart(pid, title, palette, rows, technique, passes=None, layers=None, cell=None):
+def chart(pid, title, palette, rows, technique, passes=None, layers=None, cell=None, gauge=None):
     codes = [c for c, _ in palette]
     width = sum(int(n) for n, _ in re.findall(r"(\d+)([A-Za-z]{1,3})", rows[0]))
     chart_block = {
@@ -53,7 +53,7 @@ def chart(pid, title, palette, rows, technique, passes=None, layers=None, cell=N
         "generator": {"name": "graphghan-fixtures", "version": "1"},
         "palette": [{"code": c, "name": f"Color {c}", "hex": h} for c, h in palette],
         "rows": rows,
-        "gauge": dict(GAUGE),
+        "gauge": dict(gauge) if gauge is not None else dict(GAUGE),
         "technique": technique,
         "instructions": [],
     }
@@ -154,9 +154,46 @@ def filet_blocks_chart() -> dict:
     codes = [c for c, _ in FILET_PALETTE]
     doc = chart("filet-blocks", "Filet blocks", FILET_PALETTE, FILET_ROWS, ROWS_T, cell=FILET_CELL)
     a = decode_rows(FILET_ROWS, codes)
-    st = chart_stats(a, codes, kind="block")
+    # kind="block" has no chartdoc.UNIT_FOR_KIND entry, so its size never derives (#48): sized must
+    # follow size_derives(doc), not the sized=True default, or stats.size_in would be a stitch-grid
+    # number smuggled onto a chart whose cells are not stitches.
+    st = chart_stats(a, codes, kind="block", sized=size_derives(doc))
     doc["stats"] = st
     return doc
+
+
+# The tiles-gauge fixture: chart.cell = {"kind": "tile"} and gauge.unit = "tiles", the "5.5 tiles =
+# 4 in" figure from docs/research/genres/c2c.md (Make & Do Crew's C2C blanket gauge, quoted there
+# against Bernat's stitch gauge for the same genre). A tile here is a C2C block, not a stitch, so a
+# finished size derives only because the gauge and the grid agree they are both counting tiles
+# (#48); removing chart.cell reverts the cell kind to the "stitch" default and withholds it. No
+# `stats` block: this helper does not call export.stats for the small fixtures, and hand-computing
+# size_in here would repeat the hand-arithmetic trap #48 already hit once (filet-blocks) -- the
+# derivation is pinned directly against chartdoc.finished_size in tests/test_conformance.py. The
+# grid is a plain diagonal (bottom-left to top-right), evoking the diagonal C2C works in without
+# claiming to encode C2C's real construction (technique.type: "c2c" is reserved, docs/research/
+# genres/c2c.md); it sequences as ordinary rows.
+TILES_GAUGE = {"stitches": 5.5, "rows": 5.5, "over": {"value": 4, "unit": "in"}, "unit": "tiles"}
+TILES_PALETTE = [("A", "#F2E8D5"), ("B", "#1E4D3A")]
+TILES_ROWS = [
+    "1B5A",
+    "1A1B4A",
+    "2A1B3A",
+    "3A1B2A",
+    "4A1B1A",
+    "5A1B",
+]
+TILES_CELL = {"kind": "tile"}
+# Hand-written expected sequence (not produced by chartdoc.sequence, per this module's design
+# rule): same rows/RS-rtl/WS-ltr bookkeeping as minimal-rows, worked out by hand from TILES_ROWS.
+TILES_SEQ = [
+    p("Row 1", "RS", "rtl", 5, [run("B", 1, 5), run("A", 5, 0)]),
+    p("Row 2", "WS", "ltr", 4, [run("A", 4, 0), run("B", 1, 4), run("A", 1, 5)]),
+    p("Row 3", "RS", "rtl", 3, [run("A", 2, 4), run("B", 1, 3), run("A", 3, 0)]),
+    p("Row 4", "WS", "ltr", 2, [run("A", 2, 0), run("B", 1, 2), run("A", 3, 3)]),
+    p("Row 5", "RS", "rtl", 1, [run("A", 4, 2), run("B", 1, 1), run("A", 1, 0)]),
+    p("Row 6", "WS", "ltr", 0, [run("B", 1, 0), run("A", 5, 1)]),
+]
 
 
 def ev(t, row, run, kind="advance"):
@@ -263,6 +300,18 @@ def fixtures() -> dict[str, tuple[dict, dict | None]]:
         "filet-blocks": (
             filet_blocks_chart(),
             {"passes": FILET_SEQ},
+        ),
+        "tiles-gauge": (
+            chart(
+                "tiles-gauge",
+                "Tiles gauge",
+                TILES_PALETTE,
+                TILES_ROWS,
+                ROWS_T,
+                cell=TILES_CELL,
+                gauge=TILES_GAUGE,
+            ),
+            {"passes": TILES_SEQ},
         ),
         "craigh-na-dun": (craigh, {"sha256": hashlib.sha256(canonical_passes(sequence(craigh))).hexdigest()}),
     }
