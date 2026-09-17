@@ -80,7 +80,7 @@ final class ProjectService {
     /// -- the next successful `save()` (from any mutator) persists them.
     @discardableResult
     func apply(_ action: WorkAction, to project: Project, in sequence: WorkSequence) -> WorkStep? {
-        guard let step = WorkEngine.apply(action, to: project.cursor, in: sequence) else { return nil }
+        guard let step = WorkEngine.apply(action, to: project.cursor, in: sequence, step: project.step) else { return nil }
         let t = now()
         project.cursor = step.cursor
         project.lastWorked = t
@@ -91,7 +91,7 @@ final class ProjectService {
             // offered again instead of the detail screen becoming a dead end.
             project.finished = nil
         }
-        let event = ProgressEvent(t: t, row: step.cursor.row, run: step.cursor.run, kind: step.kind)
+        let event = ProgressEvent(t: t, row: step.cursor.row, run: step.cursor.run, stitch: step.cursor.stitch, kind: step.kind)
         event.project = project
         context.insert(event)
         do {
@@ -115,6 +115,11 @@ final class ProjectService {
 
     func setNotes(_ text: String, for project: Project) throws {
         project.notes = text
+        try save()
+    }
+
+    func setCountStep(_ step: CountStep, for project: Project) throws {
+        project.step = step
         try save()
     }
 
