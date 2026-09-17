@@ -1,12 +1,28 @@
 import Foundation
 
-/// Where the crocheter is: the 1-based pass and the 0-based run within it.
-/// `run == runs.count` on the last pass means the chart is finished.
+/// Where the crocheter is: 1-based pass, 0-based run, and how many cells of that run are worked.
+/// `run == runs.count` is the boundary position (every run worked, the turn not yet taken); on the
+/// last pass that is the finished state. `stitch` is `0 ..< count` inside a run and 0 at the boundary.
 public struct Cursor: Equatable, Hashable, Codable, Sendable {
     public var row: Int
     public var run: Int
-    public init(row: Int, run: Int) { self.row = row; self.run = run }
+    public var stitch: Int
+    public init(row: Int, run: Int, stitch: Int = 0) { self.row = row; self.run = run; self.stitch = stitch }
     public static let start = Cursor(row: 1, run: 0)
+
+    enum CodingKeys: String, CodingKey { case row, run, stitch }
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        row = try c.decode(Int.self, forKey: .row)
+        run = try c.decode(Int.self, forKey: .run)
+        stitch = try c.decodeIfPresent(Int.self, forKey: .stitch) ?? 0
+    }
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(row, forKey: .row)
+        try c.encode(run, forKey: .run)
+        if stitch != 0 { try c.encode(stitch, forKey: .stitch) }   // schema 1 stays byte-identical for old documents
+    }
 }
 
 public enum Side: String, Codable, Sendable, Equatable {
@@ -50,6 +66,10 @@ public enum SequenceError: Error, Equatable {
 public struct WorkSequence: Sendable {
     public let passes: [Pass]
     public let cellKind: CellKind
+    /// `"rows"`, `"rounds"`, or nil when explicit passes were given.
+    public let technique: String?
+    /// The chart states a `turn` boundary (`gauge.boundary.kind == "turn"`).
+    public let turnBoundary: Bool
     public let totalCells: Int
     private let before: [Int]  // cells before pass i (0-based)
 
@@ -57,9 +77,11 @@ public struct WorkSequence: Sendable {
     /// cannot compute it, and a wrong number is worse than none (#44).
     public var totalStitches: Int? { cellKind == .stitch ? totalCells : nil }
 
-    public init(passes: [Pass], cellKind: CellKind = .stitch) {
+    public init(passes: [Pass], cellKind: CellKind = .stitch, technique: String? = nil, turnBoundary: Bool = false) {
         self.passes = passes
         self.cellKind = cellKind
+        self.technique = technique
+        self.turnBoundary = turnBoundary
         var before: [Int] = []
         var total = 0
         for p in passes { before.append(total); total += p.cells }
@@ -67,11 +89,17 @@ public struct WorkSequence: Sendable {
         self.totalCells = total
     }
 
+    /// A pass has a boundary step when flat work turns after it, or the chart says so; never after the last pass (spec §4.4).
+    public func hasBoundaryStep(after row: Int) -> Bool {
+        guard row >= 1, row < passes.count else { return false }
+        return technique == "rows" || turnBoundary
+    }
+
     public init(chart: Chart) throws {
         // Python's `sequence()` uses `isinstance(doc.get("passes"), list)`: anything else -- a
         // number, a string, an object -- falls through to technique derivation rather than failing.
         if let raw = chart.document.passes, raw.arrayValue != nil {
-            self.init(passes: try WorkSequence.explicitPasses(raw, chart: chart), cellKind: chart.cellKind)
+            self.init(passes: try WorkSequence.explicitPasses(raw, chart: chart), cellKind: chart.cellKind, technique: nil, turnBoundary: chart.stitch?.boundary?.kind == .turn)
             return
         }
         let doc = chart.document
@@ -100,7 +128,7 @@ public struct WorkSequence: Sendable {
             if direction == .rtl { runs.reverse() }
             passes.append(Pass(label: "\(label) \(k)", side: side, direction: direction, gridRow: y, runs: runs))
         }
-        self.init(passes: passes, cellKind: chart.cellKind)
+        self.init(passes: passes, cellKind: chart.cellKind, technique: type, turnBoundary: chart.stitch?.boundary?.kind == .turn)
     }
 
     private static func explicitPasses(_ raw: JSONValue, chart: Chart) throws -> [Pass] {
@@ -136,15 +164,16 @@ public struct WorkSequence: Sendable {
     }
 
     public func isValid(_ cursor: Cursor) -> Bool {
-        guard let p = pass(at: cursor.row) else { return false }
-        return cursor.run >= 0 && cursor.run <= p.runs.count
+        guard let p = pass(at: cursor.row), cursor.run >= 0, cursor.run <= p.runs.count, cursor.stitch >= 0 else { return false }
+        if cursor.run < p.runs.count { return cursor.stitch < p.runs[cursor.run].count }
+        return cursor.stitch == 0
     }
 
-    /// Cells completed when the cursor sits at (row, run): every earlier pass plus the runs before `run`.
+    /// Cells completed at the cursor: every earlier pass, the runs before `run`, and `stitch` cells of the run in hand.
     public func cellsBefore(_ cursor: Cursor) -> Int? {
         guard isValid(cursor) else { return nil }
         let p = passes[cursor.row - 1]
-        return before[cursor.row - 1] + p.runs.prefix(cursor.run).reduce(0) { $0 + $1.count }
+        return before[cursor.row - 1] + p.runs.prefix(cursor.run).reduce(0) { $0 + $1.count } + cursor.stitch
     }
 
     /// The pass list in the shape Python's `chartdoc.sequence` returns, for hashing against fixtures.

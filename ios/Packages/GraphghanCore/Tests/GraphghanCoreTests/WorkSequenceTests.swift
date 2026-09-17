@@ -142,4 +142,28 @@ import Testing
         let doc = try ChartDocument.decode(Data(json.utf8))
         #expect(throws: SequenceError.self) { try WorkSequence(chart: try Chart.unchecked(document: doc)) }
     }
+
+    @Test func cursorStitchCountsTowardCellsDone() throws {
+        let seq = try WorkSequence(chart: Chart.load(Fixtures.data("minimal-rows.chart.json")))
+        #expect(seq.cellsBefore(Cursor(row: 1, run: 0, stitch: 10)) == 10)
+        #expect(seq.cellsBefore(Cursor(row: 3, run: 1, stitch: 5)) == 28 + 2 + 5)
+        #expect(seq.isValid(Cursor(row: 1, run: 0, stitch: 13)))
+        #expect(!seq.isValid(Cursor(row: 1, run: 0, stitch: 14)))      // a completed run is the next run at 0
+        #expect(seq.isValid(Cursor(row: 1, run: 1, stitch: 0)))        // the boundary position
+        #expect(!seq.isValid(Cursor(row: 1, run: 1, stitch: 1)))
+        #expect(seq.cellsBefore(Cursor(row: 1, run: 1)) == 14)
+    }
+
+    @Test func boundaryStepFollowsRowsButNotTheLastPass() throws {
+        let rows = try WorkSequence(chart: Chart.load(Fixtures.data("minimal-rows.chart.json")))
+        #expect(rows.technique == "rows" && !rows.turnBoundary)
+        #expect(rows.hasBoundaryStep(after: 1) && rows.hasBoundaryStep(after: 11) && !rows.hasBoundaryStep(after: 12))
+        let rounds = try WorkSequence(chart: Chart.load(Fixtures.data("minimal-rounds.chart.json")))
+        #expect(rounds.technique == "rounds" && !rounds.hasBoundaryStep(after: 1))
+        let explicit = try WorkSequence(chart: Chart.load(Fixtures.data("explicit-passes.chart.json")))
+        #expect(explicit.technique == nil && !explicit.hasBoundaryStep(after: 1))
+        let craigh = try WorkSequence(chart: Chart.load(Fixtures.data("craigh-na-dun.chart.json")))
+        #expect(craigh.turnBoundary && craigh.hasBoundaryStep(after: 42))
+        #expect(!WorkSequence(passes: []).hasBoundaryStep(after: 1))
+    }
 }
