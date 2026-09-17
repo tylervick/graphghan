@@ -32,39 +32,49 @@ struct BandLayout {
         let ltr = pass.direction != .rtl
         func clamp(_ x: CGFloat) -> CGFloat { min(max(0, x), max(0, content - width)) }
 
-        if cursor.run < pass.runs.count, let x0 = pass.runs[cursor.run].x0 {
-            let run = pass.runs[cursor.run]
-            let x1 = x0 + run.count
-            let w = CGFloat(run.count) * cell
-            ring = CGRect(x: CGFloat(x0) * cell, y: 0, width: w, height: Self.currentRowHeight)
-            if w <= width * 0.8 {
-                offsetX = clamp(CGFloat(x0) * cell + w / 2 - width / 2)
-            } else {
-                let end = CGFloat(ltr ? x1 : x0) * cell
-                offsetX = clamp(ltr ? end - width * 0.75 : end - width * 0.25)
-            }
-            if run.count >= Self.rulerEvery {
-                ticks = stride(from: 0, through: run.count, by: Self.rulerEvery).map { k in
-                    (x: CGFloat(ltr ? x0 + k : x1 - k) * cell, label: k)
-                }
-            } else {
-                ticks = []
-            }
-            if let label = segmentLabel, let seg = Segments.segment(containing: cursor.run, in: pass), seg.kind == .braid || seg.kind == .repeat {
-                let lo = seg.runs.compactMap { pass.runs[$0].x0 }.min() ?? x0
-                let hi = seg.runs.compactMap { i in pass.runs[i].x0.map { $0 + pass.runs[i].count } }.max() ?? x1
-                bracket = (x0: CGFloat(lo) * cell, x1: CGFloat(hi) * cell, label: label)
-            } else {
-                bracket = nil
-            }
-            boundaryX = nil
-        } else {
+        if cursor.run == pass.runs.count {
             ring = nil
             ticks = []
             bracket = nil
             let endX = CGFloat(ltr ? chart.width : 0) * cell
             boundaryX = endX
             offsetX = clamp(ltr ? endX - width : 0)
+        } else {
+            let run = pass.runs[cursor.run]
+            if let x0 = run.x0 {
+                let x1 = x0 + run.count
+                let w = CGFloat(run.count) * cell
+                ring = CGRect(x: CGFloat(x0) * cell, y: 0, width: w, height: Self.currentRowHeight)
+                if w <= width * 0.8 {
+                    offsetX = clamp(CGFloat(x0) * cell + w / 2 - width / 2)
+                } else {
+                    let end = CGFloat(ltr ? x1 : x0) * cell
+                    offsetX = clamp(ltr ? end - width * 0.75 : end - width * 0.25)
+                }
+                if run.count >= Self.rulerEvery {
+                    ticks = stride(from: 0, through: run.count, by: Self.rulerEvery).map { k in
+                        (x: CGFloat(ltr ? x0 + k : x1 - k) * cell, label: k)
+                    }
+                } else {
+                    ticks = []
+                }
+                if let label = segmentLabel, let seg = Segments.segment(containing: cursor.run, in: pass), seg.kind == .braid || seg.kind == .repeat {
+                    let lo = seg.runs.compactMap { pass.runs[$0].x0 }.min() ?? x0
+                    let hi = seg.runs.compactMap { i in pass.runs[i].x0.map { $0 + pass.runs[i].count } }.max() ?? x1
+                    bracket = (x0: CGFloat(lo) * cell, x1: CGFloat(hi) * cell, label: label)
+                } else {
+                    bracket = nil
+                }
+                boundaryX = nil
+            } else {
+                // No grid column: no geometry (a run with no x0 is legal for explicit-passes
+                // charts; it is not the row-end boundary).
+                ring = nil
+                boundaryX = nil
+                ticks = []
+                bracket = nil
+                offsetX = 0
+            }
         }
     }
 

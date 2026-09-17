@@ -77,4 +77,12 @@ import GraphghanCore
         #expect(abs(r.width / r.height - 189.0 / 184.0) < 0.01 && r.width == 366)
         #expect(abs(r.midY - 210) < 0.5)
     }
+
+    @Test func runWithoutAColumnHasNoGeometry() {
+        // explicit-passes.chart.json gives every run an x0 (checked by hand); synthesize a pass
+        // whose run omits it instead, per the fix-round-1 ruling's fallback.
+        let pass = Pass(label: "Row 1", side: .rs, direction: .ltr, gridRow: 0, runs: [Run(code: "A", count: 3, x0: nil)])
+        let l = BandLayout(width: 366, height: 420, chart: Self.chart, pass: pass, cursor: Cursor(row: 1, run: 0), segmentLabel: nil)
+        #expect(l.ring == nil && l.boundaryX == nil && l.ticks.isEmpty && l.bracket == nil && l.offsetX == 0)
+    }
 }
