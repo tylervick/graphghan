@@ -66,13 +66,23 @@ import Testing
         // ltr fill x0 10, count 30 → ends at x 40; below: A 0..<25, B 25..<45, C 45..<60
         let below = pass([run(25, "A", x0: 0), run(20, "B", x0: 25), run(15, "C", x0: 45)])
         let fill = run(30, "A", x0: 10)
-        #expect(Segments.landmark(for: fill, direction: .ltr, below: below) == Landmark(code: "B", offset: 15))   // 40 - 25
-        // rtl: read right to left the fill ends at x 10; a run below "starts" at its right edge, so A starts at 25, B at 45, C at 60;
-        // only 25 is inside the fill's span 10..<40, so the landmark is A, 15 cells before the end
-        #expect(Segments.landmark(for: fill, direction: .rtl, below: below) == Landmark(code: "A", offset: 15))
-        // a plain row below has no landmark
+        // ltr starts (at x0) are 0, 25, 45; nearest to end 40 is C at 45, 5 cells past the end,
+        // so the fill ends 5 before C starts below
+        #expect(Segments.landmark(for: fill, direction: .ltr, below: below) == Landmark(code: "C", offset: -5))
+        // rtl: the fill ends at x 10; a run below "starts" at its right edge, so A starts at 25,
+        // B at 45, C at 60; nearest is A at 25, but that's 15 cells away, past landmarkReach → nil
+        #expect(Segments.landmark(for: fill, direction: .rtl, below: below) == nil)
+        // rtl with a near start: A 0..<12, B 12..<45, C 45..<60 → rtl starts 12, 45, 60;
+        // nearest to end 10 is A at 12, 2 cells away
+        let below2 = pass([run(12, "A", x0: 0), run(33, "B", x0: 12), run(15, "C", x0: 45)])
+        #expect(Segments.landmark(for: fill, direction: .rtl, below: below2) == Landmark(code: "A", offset: 2))
+        // exactly at the end counts as zero: ltr fill x0 10 count 15 ends at x 25, exactly where B starts
+        #expect(Segments.landmark(for: run(15, "A", x0: 10), direction: .ltr, below: below) == Landmark(code: "B", offset: 0))
+        // a plain row below has its one start too far from the end to be a landmark
         #expect(Segments.landmark(for: fill, direction: .ltr, below: pass([run(60, "A", x0: 0)])) == nil)
         #expect(Segments.landmark(for: fill, direction: .ltr, below: nil) == nil)
         #expect(Segments.landmark(for: run(30, "A"), direction: .ltr, below: below) == nil)   // no x0, no landmark
+        // real fixture: row 42's fill (117 C) against row 41 below it
+        #expect(Segments.landmark(for: Self.pass(42).runs[10], direction: Self.pass(42).direction, below: Self.seq.pass(at: 41)) == Landmark(code: "P", offset: -1))
     }
 }

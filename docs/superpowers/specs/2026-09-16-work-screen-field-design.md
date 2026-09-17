@@ -103,10 +103,12 @@ period 2 to 4, three repetitions, 20 cells) are constants in one place with a co
 the fixture in §4.6 pins them.
 
 A landmark is the colour start in the row directly below (the previous pass's grid row) nearest
-to the fill's end in reading direction, and the sentence is "ends N past where Purple starts
-below", "ends N before …", or "ends where …". When no colour starts under the fill's interior,
-there is no landmark and no sentence. `Segments.landmark(for:in:)` is the second pure function;
-the row below is the ruler on screen regardless.
+to the fill's end, on either side of it, when it is within ten cells of the end; the sentence is
+"ends N past where Purple starts below", "ends N before …", or "ends where …", with N the
+distance in reading direction. A start further than ten cells away is not a landmark: nobody
+counts fifty-seven past anything. A plain row below has no landmark and no sentence.
+`Segments.landmark(for:direction:below:)` is the second pure function; the row below is the ruler
+on screen regardless.
 
 ### 4.2 The cursor
 

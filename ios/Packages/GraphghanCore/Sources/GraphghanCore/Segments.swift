@@ -33,6 +33,8 @@ public enum Segments {
     public static let repeatMinRepetitions = 3
     /// A single run this long is worked by counting, not by reading.
     public static let fillMinCells = 20
+    /// A start further than ten cells from the fill's end is not something anyone counts against.
+    public static let landmarkReach = 10
 
     public static func of(_ pass: Pass) -> [Segment] {
         let runs = pass.runs
@@ -91,20 +93,20 @@ public enum Segments {
         return (run - segment.runs.lowerBound) / segment.period
     }
 
-    /// The colour start in the row below nearest to where `run` ends, in reading direction, counting
-    /// only starts strictly inside the run's span. Nil without grid columns, without a row below, or
-    /// when the row below is plain under the run.
+    /// The colour start in the row below nearest to where `run` ends, in reading direction, on
+    /// either side of the end, when it is within `landmarkReach` cells; nil when the nearest start
+    /// is farther than that. Nil without grid columns, without a row below, or when the row below
+    /// is plain under the run (its one start is necessarily far from the end, if not off it).
     public static func landmark(for run: Run, direction: Direction?, below: Pass?) -> Landmark? {
         guard let x0 = run.x0, let below, let direction else { return nil }
-        let x1 = x0 + run.count
-        let end = direction == .ltr ? x1 : x0
+        let end = direction == .ltr ? x0 + run.count : x0
         var starts: [(x: Int, code: String)] = []
         for r in below.runs {
             guard let bx0 = r.x0 else { return nil }
             let startX = direction == .ltr ? bx0 : bx0 + r.count
-            if startX > x0, startX < x1 { starts.append((startX, r.code)) }
+            starts.append((startX, r.code))
         }
-        guard let best = starts.min(by: { abs($0.x - end) < abs($1.x - end) }) else { return nil }
+        guard let best = starts.min(by: { abs($0.x - end) < abs($1.x - end) }), abs(best.x - end) <= landmarkReach else { return nil }
         let offset = direction == .ltr ? end - best.x : best.x - end
         return Landmark(code: best.code, offset: offset)
     }
