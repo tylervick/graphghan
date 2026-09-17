@@ -48,7 +48,7 @@ struct RowStripView: View {
                     context.fill(Path(rowRect), with: .color(.ground.opacity(0.6)))
                 }
                 if workedGridRows.contains(gy) {
-                    context.fill(Path(rowRect), with: .color(.black.opacity(backdrop ? 0.25 : 0.45)))
+                    context.fill(Path(rowRect), with: .color(Color.ink.opacity(backdrop ? 0.25 : 0.45)))
                 }
             }
             let outline: CGFloat = backdrop ? 3 : 2

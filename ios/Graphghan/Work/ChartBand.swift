@@ -18,6 +18,7 @@ struct ChartBand: View {
     let onToggleMode: () -> Void
 
     @State private var drag: CGFloat = 0
+    @State private var dragBase: CGFloat = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
@@ -37,9 +38,9 @@ struct ChartBand: View {
             }
             .contentShape(Rectangle())
             .onTapGesture { onAdvance() }
-            .gesture(longPressJump(layout: layout, pass: pass))
-            .simultaneousGesture(DragGesture(minimumDistance: 12).onChanged { drag = $0.translation.width }.onEnded { _ in
-                withAnimation(reduceMotion ? nil : .spring(duration: 0.25)) { drag = 0 }
+            .simultaneousGesture(longPressJump(layout: layout, pass: pass))
+            .simultaneousGesture(DragGesture(minimumDistance: 12).onChanged { drag = dragBase + $0.translation.width }.onEnded { _ in
+                dragBase = drag
             })
             .simultaneousGesture(MagnifyGesture().onEnded { value in
                 if (mode == .band && value.magnification < 0.8) || (mode == .whole && value.magnification > 1.2) { onToggleMode() }
@@ -47,14 +48,23 @@ struct ChartBand: View {
         }
         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Color.line, lineWidth: 1))
-        .onChange(of: cursor) { _, _ in drag = 0 }
+        .onChange(of: cursor) { _, _ in
+            // The band scrolls on drag and snaps back to the rule on the next step, not on release.
+            withAnimation(reduceMotion ? nil : .spring(duration: 0.25)) { drag = 0; dragBase = 0 }
+        }
         .accessibilityHidden(true)
+    }
+
+    /// The drag offset clamped to the content, the same value drawing and hit-testing both read.
+    private func effectiveOffset(_ layout: BandLayout) -> CGFloat {
+        min(max(0, layout.offsetX - drag), max(0, CGFloat(chart.width) * BandLayout.cell - layout.width))
     }
 
     private func longPressJump(layout: BandLayout?, pass: Pass?) -> some Gesture {
         LongPressGesture(minimumDuration: 0.5).sequenced(before: DragGesture(minimumDistance: 0)).onEnded { value in
             guard case .second(true, let drag?) = value, let layout, let pass, mode == .band else { return }
-            let x = layout.cellAt(x: drag.location.x - self.drag)
+            let location = drag.location
+            let x = layout.cellAt(x: location.x + effectiveOffset(layout) - layout.offsetX)
             guard let i = pass.runs.firstIndex(where: { r in r.x0.map { $0 <= x && x < $0 + r.count } ?? false }) else { return }
             let run = pass.runs[i]
             let ltr = pass.direction != .rtl
@@ -65,7 +75,7 @@ struct ChartBand: View {
 
     private func fill(_ code: Int) -> Color { ChartImage.color(chart.palette[code].hex) }
 
-    private func drawRow(gridRow: Int, top: CGFloat, height: CGFloat, opacity: Double, workedUpTo: Int?, context: inout GraphicsContext, offset: CGFloat) {
+    private func drawRow(gridRow: Int, top: CGFloat, height: CGFloat, opacity: Double, context: inout GraphicsContext, offset: CGFloat) {
         guard gridRow >= 0, gridRow < chart.height else { return }
         let cell = BandLayout.cell
         for run in chart.runsByRow[gridRow] {
@@ -75,14 +85,14 @@ struct ChartBand: View {
         // cell hairlines, then the row's bottom hairline
         for x in 0...chart.width {
             let px = CGFloat(x) * cell - offset
-            context.fill(Path(CGRect(x: px - 0.25, y: top, width: 0.5, height: height)), with: .color(.black.opacity(0.10 * opacity)))
+            context.fill(Path(CGRect(x: px - 0.25, y: top, width: 0.5, height: height)), with: .color(Color.ink.opacity(0.10 * opacity)))
         }
-        context.fill(Path(CGRect(x: -offset, y: top + height - 0.25, width: CGFloat(chart.width) * cell, height: 0.5)), with: .color(.black.opacity(0.15 * opacity)))
+        context.fill(Path(CGRect(x: -offset, y: top + height - 0.25, width: CGFloat(chart.width) * cell, height: 0.5)), with: .color(Color.ink.opacity(0.15 * opacity)))
     }
 
     private func drawBand(context: inout GraphicsContext, layout: BandLayout, pass: Pass, size: CGSize) {
         guard let y = pass.gridRow else { return }
-        let offset = layout.offsetX - drag
+        let offset = effectiveOffset(layout)
         let cell = BandLayout.cell
         // Bottom-up charts sequence rows with decreasing grid row per pass, so the next pass's grid
         // row sits below the current one; that sign carries to every k so a `start: top` chart (whose
@@ -91,7 +101,7 @@ struct ChartBand: View {
         // rows: the two above faint, the current, then the rows below
         for k in -BandLayout.rowsAbove...layout.rowsBelow {
             let gridRow = y - k * sign
-            drawRow(gridRow: gridRow, top: layout.rowTop(k), height: layout.rowHeight(k), opacity: layout.rowOpacity(k), workedUpTo: nil, context: &context, offset: offset)
+            drawRow(gridRow: gridRow, top: layout.rowTop(k), height: layout.rowHeight(k), opacity: layout.rowOpacity(k), context: &context, offset: offset)
         }
         // the current row ahead of the cursor is faint: cover it with Ground at 70%
         let top = layout.rowTop(0)
