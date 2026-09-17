@@ -16,8 +16,10 @@ enum WorkFeedbackRule {
         let previousRowCodes = Set(seq.pass(at: step.cursor.row - 1)?.runs.map(\.code) ?? [])
         let introducesColor = seq.pass(at: step.cursor.row - 1) != nil && !previousRowCodes.contains(code)
         if introducesColor { return .newColor }
-        // the row haptic already fired at the turn; only rows without a boundary step get it here
-        if step.startedNewRow, !seq.hasBoundaryStep(after: step.cursor.row - 1) { return .row }
+        // The row haptic already fired at the turn, so an advance that walked through a boundary
+        // step does not repeat it here. A jump never passes the turn, so landing on another row is
+        // still a row change and still plays it.
+        if step.startedNewRow, step.kind != .advance || !seq.hasBoundaryStep(after: step.cursor.row - 1) { return .row }
         return .run
     }
 }

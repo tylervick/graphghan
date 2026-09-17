@@ -37,7 +37,8 @@ struct ChartBand: View {
                 }
             }
             .contentShape(Rectangle())
-            .onTapGesture { onAdvance() }
+            // In the whole-chart view a tap returns to the band (spec §5.3); only the band itself advances.
+            .onTapGesture { mode == .whole ? onToggleMode() : onAdvance() }
             .simultaneousGesture(longPressJump(layout: layout, pass: pass))
             // High priority, not simultaneous: on the band, a rightward scrub is the band's own
             // scroll, not the screen-wide back swipe `WorkView` attaches around this view (spec

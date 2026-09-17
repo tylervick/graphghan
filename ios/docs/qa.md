@@ -15,6 +15,7 @@ Run this on a device build (`ios/README.md`) before dispatching the TestFlight w
 - [ ] Long-press the row number and jump to row 40.
 - [ ] Rotate mid-row; the band takes the trailing column and Back stays reachable.
 - [ ] VoiceOver on the panel: it reads "Done with 7 single crochet in Cream", the value is "then 11 Purple", and the rotor offers Back, Jump to row, Jump within row, Choose counting step.
+- [ ] Upgrade in place: install the current TestFlight build, work a few runs, install this build over it, open the project: the cursor and the event log survive and Sessions still adds up.
 
 ## Live Activity
 - [ ] With the Work screen open, lock the phone: the activity shows title, row of total, the current swatch, count, colour name, next run, Back and Done.
@@ -32,8 +33,7 @@ Run this on a device build (`ios/README.md`) before dispatching the TestFlight w
 - [ ] Pattern detail: quote in italic, palette chips with a visible edge on the cream chip, a Moss "Start project" pill.
 - [ ] Work: stone ground, the panel in the yarn colour, the band at 8 pt a stitch with the current run ringed in heather, capsules at the bottom; nothing says "Done".
 - [ ] Work at Settings › Accessibility › Larger Text (max): nothing clips in the panel or the bar.
-- [ ] Reduce Motion on: the swatch crossfades instead of sliding.
-- [ ] Lock screen activity: cream serif title, the swatch with its edge, capsule Back, Moss Done.
+- [ ] Lock screen activity: cream serif title, the swatch with its edge, capsule Back, the Done capsule in the run's colour, Turned at a turn.
 
 ## Offline
 - [ ] Airplane mode on the library (cached list + banner) and on a project (works normally).

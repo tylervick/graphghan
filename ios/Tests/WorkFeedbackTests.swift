@@ -22,6 +22,18 @@ import GraphghanCore
         #expect(WorkFeedbackRule.feedback(for: toY, in: Self.seq) == .newColor)
     }
 
+    /// The turn's row haptic only covers the advance that walked through it: a jump to another row
+    /// lands on a row change of its own and still plays `.row`.
+    @Test func aJumpToAnotherRowStillPlaysTheRowHaptic() {
+        #expect(Self.seq.hasBoundaryStep(after: 1))
+        let jump = WorkEngine.apply(.jump(row: 2, run: 0), to: Cursor(row: 1, run: 0), in: Self.seq)!
+        #expect(jump.kind == .jump && jump.startedNewRow)
+        #expect(WorkFeedbackRule.feedback(for: jump, in: Self.seq) == .row)
+        // and a jump inside the row is still the ordinary run haptic
+        let within = WorkEngine.apply(.jump(row: 1, run: 2), to: Cursor(row: 1, run: 0), in: Self.seq)!
+        #expect(!within.startedNewRow && WorkFeedbackRule.feedback(for: within, in: Self.seq) == .run)
+    }
+
     @Test func roundsKeepTheRowHapticOnTheNewRow() throws {
         let rounds = try WorkSequence(chart: Chart.load(TestFixtures.data("minimal-rounds.chart.json")))
         let last = rounds.passes[0].runs.count - 1

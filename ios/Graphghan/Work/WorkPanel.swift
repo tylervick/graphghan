@@ -5,6 +5,7 @@ import GraphghanCore
 /// `WorkPanelContent`; this file only lays it out.
 struct WorkPanel: View {
     let content: WorkPanelContent
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         VStack(spacing: 6) {
@@ -27,7 +28,9 @@ struct WorkPanel: View {
                     Text(label.uppercased()).font(Font.Heather.caption).opacity(0.7).tracking(0.6)
                 }
                 if !content.parts.isEmpty { sequenceLine }
-                if let landmark = content.landmark {
+                // At an accessibility size the sentence would push the count and the on-deck line
+                // off the card, so the pill drops rather than clipping (spec §5.2).
+                if let landmark = content.landmark, !dynamicTypeSize.isAccessibilitySize {
                     Text(landmark).font(Font.Heather.label).lineLimit(2).multilineTextAlignment(.center)
                         .padding(.horizontal, 10).padding(.vertical, 6)
                         .background(Color.black.opacity(0.08), in: RoundedRectangle(cornerRadius: 10, style: .continuous))

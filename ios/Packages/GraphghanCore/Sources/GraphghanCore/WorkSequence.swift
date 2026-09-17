@@ -89,10 +89,12 @@ public struct WorkSequence: Sendable {
         self.totalCells = total
     }
 
-    /// A pass has a boundary step when flat work turns after it, or the chart says so; never after the last pass (spec §4.4).
+    /// A pass has a boundary step when flat work turns after it, or the chart says so; never after
+    /// the last pass, and never in the round -- worked in a spiral there is nothing to turn, whatever
+    /// `gauge.boundary` declares for the flat parts of the same pattern (spec §4.4).
     public func hasBoundaryStep(after row: Int) -> Bool {
         guard row >= 1, row < passes.count else { return false }
-        return technique == "rows" || turnBoundary
+        return technique != "rounds" && (technique == "rows" || turnBoundary)
     }
 
     public init(chart: Chart) throws {

@@ -169,7 +169,9 @@ struct WorkCompactLeadingView: View {
     let info: WorkActivityInfo
     let state: WorkActivityState
     var body: some View {
-        if let code = state.currentCode, let count = state.currentCount {
+        // `surfaceCode` and the next count, so the turn shows the next row's first run rather than
+        // the checkmark: `currentCode` is nil at every boundary, not only at the end.
+        if let code = state.surfaceCode, let count = state.currentCount ?? state.nextCount {
             RunSwatch(info: info, code: code, count: state.counting ? state.stitch : count, size: 24)
         } else if state.message != nil {
             // Project or chart gone: not something to celebrate with a checkmark.
@@ -191,7 +193,7 @@ struct WorkMinimalView: View {
     let info: WorkActivityInfo
     let state: WorkActivityState
     var body: some View {
-        if let code = state.currentCode, let count = state.currentCount {
+        if let code = state.surfaceCode, let count = state.currentCount ?? state.nextCount {
             RunSwatch(info: info, code: code, count: state.counting ? state.stitch : count, size: 22)
         } else if state.message != nil {
             Image(systemName: "exclamationmark.circle.fill")

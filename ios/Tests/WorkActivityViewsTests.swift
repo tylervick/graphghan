@@ -70,6 +70,12 @@ import GraphghanCore
         #expect(try Snapshots.assert(WorkMinimalView(info: Self.info, state: Self.fill).background(Color.activityCard).environment(\.colorScheme, .dark), named: "minimal-fill", size: CGSize(width: 44, height: 36)))
     }
 
+    /// At the turn the compact view shows the next row's first run, not the finished checkmark:
+    /// `currentCode` is nil at every boundary, so only `finished` may show the checkmark.
+    @Test func compactAtTheTurnShowsTheNextRun() throws {
+        #expect(try Snapshots.assert(WorkCompactLeadingView(info: Self.info, state: Self.turn).background(Color.activityCard).environment(\.colorScheme, .dark), named: "compact-leading-turn", size: CGSize(width: 64, height: 36)))
+    }
+
     @Test func expanded() throws {
         #expect(try Snapshots.assert(WorkExpandedCenterView(info: Self.info, state: Self.midway).background(Color.activityCard).environment(\.colorScheme, .dark), named: "expanded-center", size: CGSize(width: 340, height: 90)))
         #expect(try Snapshots.assert(WorkExpandedBottomView(info: Self.info, state: Self.midway).background(Color.activityCard).environment(\.colorScheme, .dark), named: "expanded-bottom", size: CGSize(width: 340, height: 60)))
