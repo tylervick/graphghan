@@ -277,9 +277,9 @@ drop; nothing clips (snapshot at `.accessibility5`, as today).
   kept on screen when the bracket is wider than the view.
 - **Turn**: the ring goes; a 3 pt Heather bar marks the row's end and a dotted arc points to the
   next row's first stitch.
-- **Whole chart**: pinch out, or tap the row number in the header, shows the whole chart at true
+- **Whole chart**: pinch in, or tap the row number in the header, shows the whole chart at true
   aspect in the band's frame, worked rows solid, the current row a Heather line, rows ahead
-  faint. Tap or pinch in returns. Two levels, not continuous zoom.
+  faint. Tap or pinch out returns. Two levels, not continuous zoom.
 
 ### 5.4 Touch
 
@@ -301,7 +301,7 @@ row-change haptic fires on the turn.
 
 `WorkActivityState` gains `stitch: Int`, `runCount: Int?` (the fill's total when counting), and
 `atBoundary: Bool`. The lock screen shows `40 of 130` in place of the count inside a fill, and
-"Ch 1, turn · Row 43 starts in Gold" at the boundary, with Done reading "Turned". The Dynamic
+"ch 1, turn · Row 43 starts in Gold" at the boundary, with Done reading "Turned". The Dynamic
 Island compact view shows the counted stitches when counting. `AdvanceRunIntent` and
 `BackRunIntent` apply the same engine with the project's `countStep`. The encoded keys of
 `WorkActivityInfo` are unchanged for the reason in its comment.

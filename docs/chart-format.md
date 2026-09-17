@@ -237,7 +237,8 @@ for a cursor imported from a source that did not know it. Derived values, as imp
 `graphghan.progress` and pinned by the `progress-basic` fixture, follow the same split as §Cells:
 a number that counts cells is always emitted, and a number that counts stitches is emitted only
 when a cell is a stitch (`chart.cell` absent, or `kind: "stitch"`). The `progress-stitch` fixture
-pins an offset inside a run, a boundary position, and a jump into a run.
+pins an offset inside a run, a boundary position, a Back onto that boundary, and a jump into a
+run.
 
 - Always emitted: `cells_done` = cells in every earlier pass + runs before `run` in the current
   pass + `stitch`; `total_cells` = cells in every pass; `percent` = 100 × `cells_done` /
