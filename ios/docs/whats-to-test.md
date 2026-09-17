@@ -2,9 +2,9 @@
 
 What's new for you in this build:
 
-- The Work screen now shows the stitch next to the number (`sc` for this blanket), so a run reads "7 sc, Charcoal".
-- At the end of every row the line under the colour tells you what to do: "ch 1 in Gold, turn — next row starts in Gold". Before the first row it says how long the foundation chain is and which chain the first stitch goes into.
-- The Lock Screen and Dynamic Island say "ch 1, turn" on the last run of a row instead of "last in row".
-- VoiceOver reads "Done with 7 single crochet in Charcoal" and the turn instruction.
+- Nothing should look different for this blanket. Under the hood, stitch counts, the finished size, and the Sessions numbers now follow new rules for charts where one square is not one stitch (corner-to-corner, filet). Craigh na Dun is one square, one stitch, so every number you see should match build 4 exactly.
+- If any count, size, or percentage changed between build 4 and this build, that is a bug. Please screenshot both and tell Tyler.
+
+Everything from build 4 still applies: the stitch next to the number, the "ch 1 in Gold, turn" line at the end of each row, and the Lock Screen and Dynamic Island saying the same.
 
 Please tell Tyler: is the "ch 1, turn" line useful or obvious? Would you rather it were somewhere else on the screen?
