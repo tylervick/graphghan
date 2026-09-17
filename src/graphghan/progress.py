@@ -19,25 +19,33 @@ def total_cells(passes: list[dict]) -> int:
     return sum(r["count"] for p in passes for r in p["runs"])
 
 
-def cells_before(passes: list[dict], row: int, run: int) -> int:
-    """Cells completed when the cursor sits at (row, run): every earlier pass plus runs before `run`."""
+def cells_before(passes: list[dict], row: int, run: int, stitch: int = 0) -> int:
+    """Cells completed at (row, run, stitch): every earlier pass, the runs before `run`, and `stitch`
+    cells of the run in hand. `run == len(runs)` is the boundary position and takes stitch 0 only."""
     if not 1 <= row <= len(passes):
         raise ValueError(f"row {row} outside 1..{len(passes)}")
     runs = passes[row - 1]["runs"]
     if not 0 <= run <= len(runs):
         raise ValueError(f"run {run} outside 0..{len(runs)} for row {row}")
+    limit = runs[run]["count"] if run < len(runs) else 1
+    if not 0 <= stitch < limit:
+        raise ValueError(f"stitch {stitch} outside 0..{limit - 1} for row {row} run {run}")
     before = sum(r["count"] for p in passes[: row - 1] for r in p["runs"])
-    return before + sum(r["count"] for r in runs[:run])
+    return before + sum(r["count"] for r in runs[:run]) + stitch
+
+
+def _cursor(obj: dict) -> tuple[int, int, int]:
+    return (obj["row"], obj["run"], obj.get("stitch", 0))
 
 
 def summarize(doc: dict, passes: list[dict], gap_seconds: int = GAP_SECONDS, kind: str = "stitch") -> dict:
     total = total_cells(passes)
     cur = doc["cursor"]
-    done = cells_before(passes, cur["row"], cur["run"])
+    done = cells_before(passes, *_cursor(cur))
     events = sorted(doc.get("events") or [], key=lambda e: _parse(e["t"]))
     sessions: list[dict] = []
     current = None
-    prev_cursor = (1, 0)
+    prev_cursor = (1, 0, 0)
     prev_t = None
     for e in events:
         t = _parse(e["t"])
@@ -46,8 +54,8 @@ def summarize(doc: dict, passes: list[dict], gap_seconds: int = GAP_SECONDS, kin
                 sessions.append(current)
             current = {"start": t, "end": t, "from": prev_cursor, "to": prev_cursor}
         current["end"] = t
-        current["to"] = (e["row"], e["run"])
-        prev_cursor, prev_t = (e["row"], e["run"]), t
+        current["to"] = _cursor(e)
+        prev_cursor, prev_t = _cursor(e), t
     if current is not None:
         sessions.append(current)
     out_sessions, active, advanced = [], 0, 0

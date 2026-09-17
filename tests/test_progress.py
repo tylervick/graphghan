@@ -147,3 +147,37 @@ def test_from_legacy_code():
     d = progress.from_legacy_code("craigh-na-dun", 42, 3)
     assert d["schema"] == 1 and d["pattern_id"] == "craigh-na-dun" and d["chart_id"] is None
     assert d["cursor"] == {"row": 42, "run": 3} and d["events"] == []
+
+
+def test_cells_before_counts_the_stitch_offset():
+    assert progress.cells_before(PASSES, 1, 0, 10) == 10
+    assert progress.cells_before(PASSES, 3, 1, 5) == 35
+    assert progress.cells_before(PASSES, 1, 1, 0) == 14  # the boundary position
+    with pytest.raises(ValueError):
+        progress.cells_before(PASSES, 1, 0, 14)  # a completed run is the next run at 0
+    with pytest.raises(ValueError):
+        progress.cells_before(PASSES, 1, 1, 1)  # nothing is worked at the boundary
+
+
+def test_summarize_reads_stitch_from_cursor_and_events():
+    doc = {
+        "schema": 1,
+        "pattern_id": "minimal",
+        "chart_id": "sha256:" + "0" * 64,
+        "cursor": {"row": 3, "run": 2},
+        "events": [
+            {"t": "2026-09-12T18:00:00Z", "row": 1, "run": 0, "stitch": 10, "kind": "advance"},
+            {"t": "2026-09-12T18:00:30Z", "row": 1, "run": 1, "kind": "advance"},
+            {"t": "2026-09-12T18:01:00Z", "row": 2, "run": 0, "kind": "advance"},
+            {"t": "2026-09-12T18:01:30Z", "row": 1, "run": 1, "kind": "back"},
+            {"t": "2026-09-12T18:02:00Z", "row": 2, "run": 0, "kind": "advance"},
+            {"t": "2026-09-12T19:00:00Z", "row": 3, "run": 1, "stitch": 5, "kind": "jump"},
+            {"t": "2026-09-12T19:03:00Z", "row": 3, "run": 2, "kind": "advance"},
+        ],
+    }
+    s = progress.summarize(doc, PASSES)
+    assert s["cells_done"] == 40
+    assert [x["cells"] for x in s["sessions"]] == [14, 26]
+    assert s["active_seconds"] == 300
+    assert s["stitches_per_hour"] == 480.0
+    assert s["percent"] == 23.8

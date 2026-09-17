@@ -1,0 +1,23 @@
+{
+  "percent": 23.8,
+  "cells_done": 40,
+  "total_cells": 168,
+  "stitches_done": 40,
+  "total_stitches": 168,
+  "sessions": [
+    {
+      "start": "2026-09-12T18:00:00Z",
+      "end": "2026-09-12T18:02:00Z",
+      "cells": 14,
+      "stitches": 14
+    },
+    {
+      "start": "2026-09-12T19:00:00Z",
+      "end": "2026-09-12T19:03:00Z",
+      "cells": 26,
+      "stitches": 26
+    }
+  ],
+  "active_seconds": 300,
+  "stitches_per_hour": 480.0
+}

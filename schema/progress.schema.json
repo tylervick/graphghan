@@ -21,6 +21,7 @@
           "t": { "type": "string", "format": "date-time" },
           "row": { "type": "integer", "minimum": 1 },
           "run": { "type": "integer", "minimum": 0 },
+          "stitch": { "type": "integer", "minimum": 0 },
           "kind": { "enum": ["advance", "back", "jump"] }
         }
       }
@@ -30,7 +31,11 @@
     "cursor": {
       "type": "object",
       "required": ["row", "run"],
-      "properties": { "row": { "type": "integer", "minimum": 1 }, "run": { "type": "integer", "minimum": 0 } }
+      "properties": {
+        "row": { "type": "integer", "minimum": 1 },
+        "run": { "type": "integer", "minimum": 0 },
+        "stitch": { "type": "integer", "minimum": 0 }
+      }
     }
   }
 }
