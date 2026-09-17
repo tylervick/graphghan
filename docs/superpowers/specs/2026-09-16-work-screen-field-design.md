@@ -202,9 +202,10 @@ app state, not progress: it is never written to a progress document. The PWA's l
 - `fixtures/chart-format/progress-stitch.progress.json` and `.expected.json`: events inside a
   fill, a turn, a Back across a boundary, and a jump into a fill. Both `graphghan.progress` and
   `Pace` must reproduce the expected summary.
-- `fixtures/chart-format/segments.expected.json`: for `craigh-na-dun`, the segments of rows 1, 42,
-  64, 94 and 179 (braid both ends; braid + fill; braid + fills + lettering runs; lettering with no
-  fill; braid + repeat band). Swift reproduces it; Python does not in this spec (#70).
+- The segments of `craigh-na-dun` rows 1, 42 and 179 (a single fill; braid + fills + lettering
+  runs; braid + repeat band) are pinned as literals in `SegmentsTests`. They become a generated
+  fixture under #70, once Python has the rule to generate it from; fixtures here are generated,
+  never hand-written.
 - `WorkEngine` tests: advance and back are inverses along a fill's steps for every step size,
   including a count that is not a multiple of the step; the boundary position round-trips; a
   jump into a fill rounds down; the finished state is reachable and `isFinished` still holds.
