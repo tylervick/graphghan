@@ -66,4 +66,13 @@ import GraphghanCore
         let c = Self.make(end)
         #expect(c.kind == .finished && c.title == "Finished" && c.capsule == "Close" && c.actionLabel == "Close")
     }
+
+    @Test func nonStitchKindNamesTheCellInTheLabel() throws {
+        // filet-blocks: cell.kind is "block", no stitch stated; Row 1 (RS, rtl) runs O5, F2, O5
+        let chart = try Chart.load(TestFixtures.data("filet-blocks.chart.json"))
+        let seq = try WorkSequence(chart: chart)
+        let c = WorkPanelContent.make(chart: chart, sequence: seq, cursor: .start, step: .ten)
+        #expect(c.actionLabel == "Done with 5 blocks in Color O")
+        #expect(c.badge == nil)
+    }
 }

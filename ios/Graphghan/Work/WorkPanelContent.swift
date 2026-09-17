@@ -40,7 +40,10 @@ struct WorkPanelContent: Equatable {
                                     parts: [], repetitions: nil, landmark: nil, onDeck: nil, title: nil, subtitle: nil, detail: nil, actionLabel: "Close", capsule: "Close")
         }
         func entry(_ code: String) -> ChartDocument.PaletteEntry { chart.palette[chart.colorIndex(of: code) ?? 0] }
-        let stitchName = chart.stitch.map { $0.name ?? $0.code }
+        // `gauge.stitch` can be stated for gauge math alone on a non-stitch cellKind (filet-blocks
+        // states "sc" while counting blocks); withhold it here too, same as the numbers it names (#44).
+        let stitch = chart.cellKind == .stitch ? chart.stitch : nil
+        let stitchName = stitch.map { $0.name ?? $0.code }
 
         if cursor.run >= pass.runs.count {
             let next = sequence.pass(at: cursor.row + 1)
@@ -60,7 +63,9 @@ struct WorkPanelContent: Equatable {
         let segment = Segments.segment(containing: cursor.run, in: pass)
         let onDeck = OnDeckRule.onDeck(cursor: cursor, chart: chart, sequence: sequence)?.text
         let noun = stitchName ?? (chart.cellKind == .stitch ? "" : chart.cellKind.nounPlural)
-        func label(_ n: Int) -> String { ["Done with \(n)", stitchName, "in \(e.name)"].compactMap { $0 }.joined(separator: " ") }
+        // The stitch name when the chart states one; otherwise the cell kind's plural noun when
+        // cells aren't stitches; otherwise no noun at all (same rule as `OnDeckRule`, #44).
+        func label(_ n: Int) -> String { noun.isEmpty ? "Done with \(n) \(e.name)" : "Done with \(n) \(noun) in \(e.name)" }
 
         switch segment?.kind {
         case .fill:
@@ -70,8 +75,8 @@ struct WorkPanelContent: Equatable {
             let below = sequence.pass(at: cursor.row - 1)
             let landmark = Segments.landmark(for: run, direction: pass.direction, below: below).map { landmarkText($0, chart: chart) }
             let nextWord = step == .wholeRun ? "next \(run.count - cursor.stitch)" : "next \(stride == 10 ? "ten" : String(stride))"
-            let action = "\(cursor.stitch) of \(run.count) \(noun.isEmpty ? "" : noun + " ")in \(e.name), \(nextWord)".replacingOccurrences(of: "  ", with: " ")
-            return WorkPanelContent(kind: .fill, hex: e.hex, count: cursor.stitch, total: run.count, badge: chart.stitch?.code, code: e.code, name: e.name,
+            let action = ["\(cursor.stitch) of \(run.count)", noun.isEmpty ? nil : noun, "in \(e.name), \(nextWord)"].compactMap { $0 }.joined(separator: " ")
+            return WorkPanelContent(kind: .fill, hex: e.hex, count: cursor.stitch, total: run.count, badge: stitch?.code, code: e.code, name: e.name,
                                     segmentLabel: nil, parts: [], repetitions: nil, landmark: landmark, onDeck: onDeck,
                                     title: nil, subtitle: nil, detail: nil, actionLabel: action, capsule: capsule)
         case .braid:
@@ -79,7 +84,7 @@ struct WorkPanelContent: Equatable {
                 let r = pass.runs[i]
                 return Part(text: "\(r.count)\(r.code)", state: i < cursor.run ? .done : i == cursor.run ? .current : .upcoming)
             }
-            return WorkPanelContent(kind: .braid, hex: e.hex, count: run.count, total: nil, badge: chart.stitch?.code, code: e.code, name: e.name,
+            return WorkPanelContent(kind: .braid, hex: e.hex, count: run.count, total: nil, badge: stitch?.code, code: e.code, name: e.name,
                                     segmentLabel: "border braid", parts: parts, repetitions: nil, landmark: nil, onDeck: onDeck,
                                     title: nil, subtitle: nil, detail: nil, actionLabel: label(run.count), capsule: "checkmark")
         case .repeat:
@@ -90,11 +95,11 @@ struct WorkPanelContent: Equatable {
                 let r = pass.runs[seg.runs.lowerBound + j]
                 return Part(text: "\(r.count) \(r.code)", state: j < position ? .done : j == position ? .current : .upcoming)
             }
-            return WorkPanelContent(kind: .repeat, hex: e.hex, count: run.count, total: nil, badge: chart.stitch?.code, code: e.code, name: e.name,
+            return WorkPanelContent(kind: .repeat, hex: e.hex, count: run.count, total: nil, badge: stitch?.code, code: e.code, name: e.name,
                                     segmentLabel: "repeat · \(which + 1) of \(seg.repetitions)", parts: parts, repetitions: seg.repetitions, landmark: nil, onDeck: onDeck,
                                     title: nil, subtitle: nil, detail: nil, actionLabel: label(run.count), capsule: "checkmark")
         default:
-            return WorkPanelContent(kind: .run, hex: e.hex, count: run.count, total: nil, badge: chart.stitch?.code, code: e.code, name: e.name,
+            return WorkPanelContent(kind: .run, hex: e.hex, count: run.count, total: nil, badge: stitch?.code, code: e.code, name: e.name,
                                     segmentLabel: nil, parts: [], repetitions: nil, landmark: nil, onDeck: onDeck,
                                     title: nil, subtitle: nil, detail: nil, actionLabel: label(run.count), capsule: "checkmark")
         }
