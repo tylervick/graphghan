@@ -31,14 +31,18 @@ struct RunPanel: View {
     var height: CGFloat = 44
 
     var body: some View {
-        if let code = state.currentCode, let count = state.currentCount {
+        if let code = state.currentCode ?? (state.atBoundary ? state.nextCode : nil), let count = state.currentCount ?? state.nextCount {
             let hex = info.swatch(for: code)?.hex ?? YarnSurface.unknownHex
             HStack(alignment: .firstTextBaseline, spacing: 10) {
-                Text("\(count)")
-                    .font(.system(size: height * 0.68, weight: .heavy, design: .rounded))
-                    .monospacedDigit()
-                Text(code).font(.system(.title3, design: .default).weight(.bold))
-                Text(info.swatch(for: code)?.name ?? code).font(.system(.title3, design: .serif).weight(.semibold)).lineLimit(1)
+                if !state.atBoundary {
+                    Text(Self.countText(state: state))
+                        .font(.system(size: height * 0.68, weight: .heavy, design: .rounded))
+                        .monospacedDigit()
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.4)
+                    Text(code).font(.system(.title3, design: .default).weight(.bold))
+                    Text(info.swatch(for: code)?.name ?? code).font(.system(.title3, design: .serif).weight(.semibold)).lineLimit(1)
+                }
                 Spacer(minLength: 0)
                 Text(nextText).font(.footnote.weight(.semibold)).opacity(0.8).lineLimit(2).multilineTextAlignment(.trailing)
             }
@@ -51,12 +55,22 @@ struct RunPanel: View {
 
     private var nextText: String { Self.nextText(info: info, state: state) }
 
-    /// The trailing line of the panel: the next run, or what to do at the end of the row.
+    /// The panel's count: `stitch of count` inside a fill, else the run's count; empty when there is none.
+    static func countText(state: WorkActivityState) -> String {
+        guard let count = state.currentCount else { return "" }
+        return state.counting ? "\(state.stitch) of \(count)" : "\(count)"
+    }
+
+    /// The trailing line of the panel: the next run, the turn, or nothing.
     static func nextText(info: WorkActivityInfo, state: WorkActivityState) -> String {
+        if state.atBoundary {
+            let chain = info.turningChain.map { $0 > 0 ? "ch \($0), turn" : "turn" } ?? "turn"
+            let next = state.nextCode.map { info.swatch(for: $0)?.name ?? $0 }
+            return [chain, next.map { "Row \(state.row + 1) starts in \($0)" }].compactMap { $0 }.joined(separator: " · ")
+        }
         if let code = state.nextCode, let count = state.nextCount { return "then \(count) \(info.swatch(for: code)?.name ?? code)" }
         guard state.isLastInRow else { return "" }
-        if state.row < state.rowCount, let chain = info.turningChain { return chain > 0 ? "ch \(chain), turn" : "turn" }
-        return "last in row"
+        return state.row < state.rowCount ? "" : "last in row"
     }
 }
 
@@ -80,7 +94,7 @@ private struct RunButtons: View {
     var size: Size = .lockScreen
 
     var body: some View {
-        let doneHex = state.currentCode.flatMap { info.swatch(for: $0)?.hex }
+        let doneHex = (state.atBoundary ? state.nextCode : state.currentCode).flatMap { info.swatch(for: $0)?.hex }
         let backHex = state.previousCode.flatMap { info.swatch(for: $0)?.hex }
         HStack(spacing: 10) {
             Button(intent: BackRunIntent(projectID: info.projectID)) {
@@ -93,7 +107,7 @@ private struct RunButtons: View {
             .disabled(backHex == nil)
             .accessibilityLabel("Back one run")
             Button(intent: AdvanceRunIntent(projectID: info.projectID)) {
-                Text("Done").font(size.doneFont).frame(maxWidth: .infinity, minHeight: size.height)
+                Text(state.atBoundary ? "Turned" : "Done").font(size.doneFont).frame(maxWidth: .infinity, minHeight: size.height)
                     .foregroundStyle(doneHex.map(YarnSurface.foreground) ?? Color.cream)
             }
             .buttonStyle(.borderedProminent)
@@ -149,7 +163,7 @@ struct WorkCompactLeadingView: View {
     let state: WorkActivityState
     var body: some View {
         if let code = state.currentCode, let count = state.currentCount {
-            RunSwatch(info: info, code: code, count: count, size: 24)
+            RunSwatch(info: info, code: code, count: state.counting ? state.stitch : count, size: 24)
         } else if state.message != nil {
             // Project or chart gone: not something to celebrate with a checkmark.
             Image(systemName: "exclamationmark.circle.fill")
@@ -171,7 +185,7 @@ struct WorkMinimalView: View {
     let state: WorkActivityState
     var body: some View {
         if let code = state.currentCode, let count = state.currentCount {
-            RunSwatch(info: info, code: code, count: count, size: 22)
+            RunSwatch(info: info, code: code, count: state.counting ? state.stitch : count, size: 22)
         } else if state.message != nil {
             Image(systemName: "exclamationmark.circle.fill")
         } else {
