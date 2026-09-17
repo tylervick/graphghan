@@ -191,6 +191,11 @@ A technique maps the grid to an ordered list of passes; each pass is an ordered 
 progress cursor is `{ "row": <1-based pass index>, "run": <0-based run index> }` for every
 technique, because C2C patterns already call a diagonal a row.
 
+A cursor may carry `stitch`, the number of cells of run `run` already worked, `0 ≤ stitch <
+count`; absent means 0. `run` equal to the pass's run count is the boundary position: every run
+worked and the end-of-pass action (the turn) not yet taken, with `stitch` 0. A completed run is
+the next run at stitch 0, never `stitch == count`.
+
 Pass shape (explicit `passes` use the same keys; `side`, `direction`, `grid_row`, `x0` optional):
 
 ```json
@@ -222,23 +227,25 @@ steps. `stats` is optional and always recomputable. `ext` is a map of vendor nam
 
 ```json
 { "schema": 1, "pattern_id": "craigh-na-dun", "chart_id": "sha256:…", "pattern_version": "1.0.0",
-  "cursor": { "row": 42, "run": 3 }, "started": "2026-09-12T18:04:00Z", "finished": null,
+  "cursor": { "row": 42, "run": 3, "stitch": 10 }, "started": "2026-09-12T18:04:00Z", "finished": null,
   "events": [ { "t": "2026-09-12T18:31:12Z", "row": 42, "run": 2, "kind": "advance" } ] }
 ```
 
-`kind` is `advance`, `back` or `jump`; every event records the cursor **after** the action.
-`chart_id` may be `null` for a cursor imported from a source that did not know it. Derived values,
-as implemented by `graphghan.progress` and pinned by the `progress-basic` fixture, follow the same
-split as §Cells: a number that counts cells is always emitted, and a number that counts stitches is
-emitted only when a cell is a stitch (`chart.cell` absent, or `kind: "stitch"`).
+`kind` is `advance`, `back` or `jump`; every event records the cursor **after** the action;
+`stitch` is optional on both and absent means 0; writers omit it when 0. `chart_id` may be `null`
+for a cursor imported from a source that did not know it. Derived values, as implemented by
+`graphghan.progress` and pinned by the `progress-basic` fixture, follow the same split as §Cells:
+a number that counts cells is always emitted, and a number that counts stitches is emitted only
+when a cell is a stitch (`chart.cell` absent, or `kind: "stitch"`). The `progress-stitch` fixture
+pins an offset inside a run, a boundary position, and a jump into a run.
 
 - Always emitted: `cells_done` = cells in every earlier pass + runs before `run` in the current
-  pass; `total_cells` = cells in every pass; `percent` = 100 × `cells_done` / `total_cells`, one
-  decimal — the same arithmetic regardless of kind. Events are sorted by `t`. A session is a maximal
-  run of events with gaps ≤ 20 minutes; a session's `cells` is the difference in cells-done between
-  the cursor after its last event and the cursor before its first event (the cursor before the very
-  first event is row 1, run 0), clamped at 0. `active_seconds` is the sum of each session's
-  last − first timestamp.
+  pass + `stitch`; `total_cells` = cells in every pass; `percent` = 100 × `cells_done` /
+  `total_cells`, one decimal — the same arithmetic regardless of kind. Events are sorted by `t`.
+  A session is a maximal run of events with gaps ≤ 20 minutes; a session's `cells` is the
+  difference in cells-done between the cursor after its last event and the cursor before its
+  first event (the cursor before the very first event is row 1, run 0), clamped at 0.
+  `active_seconds` is the sum of each session's last − first timestamp.
 - Emitted only when a cell is a stitch: `stitches_done` and `total_stitches` (`cells_done` and
   `total_cells` under their stitch names — the same numbers), each session's `stitches` (the same
   number as that session's `cells`), and `stitches_per_hour` — total session stitches over active

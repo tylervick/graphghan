@@ -5,10 +5,16 @@ Run on a real iPhone (Live Activities need the lock screen and Dynamic Island).
 Run this on a device build (`ios/README.md`) before dispatching the TestFlight workflow.
 
 ## Work screen
-- [ ] Open a project, tap Work, complete a full row with Done; the strip moves and the chips reset.
-- [ ] Swipe right on the Done area, then on the chips: both step back exactly once.
-- [ ] Long-press the row title and jump to row 40.
-- [ ] Rotate mid-row; the layout survives and Done stays reachable.
+- [ ] Open a project, tap Work: the panel shows the run in its colour, the band shows the row at stitch scale with the row below underneath, the bar shows Back and a checkmark.
+- [ ] Tap the panel, the band, and the capsule: each advances exactly one run. Swipe right: back.
+- [ ] Row 42 of Craigh na Dun: the first eight runs show the braid sequence; run 11 (117 Cream) shows "0 of 117", the capsule reads "+10", each tap adds ten and the ring fills in; the ticks under the row read 10 … 110.
+- [ ] Long-press the capsule: the step picker; choose "One tap per run": the capsule is a checkmark and one tap finishes the fill.
+- [ ] Last run of a row, tap: the panel reads "Ch 1 in Gold, turn"; the capsule reads "Turned"; tap again: row 43.
+- [ ] Long-press a stitch in the current row: the cursor jumps there.
+- [ ] Pinch in on the band, or tap the row number: the whole chart, worked rows solid, row 42 a Heather line. Pinch out or tap again: the band.
+- [ ] Long-press the row number and jump to row 40.
+- [ ] Rotate mid-row; the band takes the trailing column and Back stays reachable.
+- [ ] VoiceOver on the panel: it reads "Done with 7 single crochet in Cream", the value is "then 11 Purple", and the rotor offers Back, Jump to row, Jump within row, Choose counting step.
 
 ## Live Activity
 - [ ] With the Work screen open, lock the phone: the activity shows title, row of total, the current swatch, count, colour name, next run, Back and Done.
@@ -24,9 +30,8 @@ Run this on a device build (`ios/README.md`) before dispatching the TestFlight w
 - [ ] Home screen: the icon shows the moon, hill, and chain; it reads at the settings size too.
 - [ ] Patterns and Projects: cards on the stone weave, Literata titles, Moss tab tint, no system blue anywhere.
 - [ ] Pattern detail: quote in italic, palette chips with a visible edge on the cream chip, a Moss "Start project" pill.
-- [ ] Work: green ground, the card does not advance when tapped, the on-deck bar shows the next run in its color, "next row starts in …" on the last run, Back rail steps back, Done slides the swatch.
-- [ ] Work: the chip row shows the row's runs between the strip and the swatch, done runs dimmed, the current run ringed in heather, and a long row scrolls.
-- [ ] Work at Settings › Accessibility › Larger Text (max): nothing overlaps the Done field.
+- [ ] Work: stone ground, the panel in the yarn colour, the band at 8 pt a stitch with the current run ringed in heather, capsules at the bottom; nothing says "Done".
+- [ ] Work at Settings › Accessibility › Larger Text (max): nothing clips in the panel or the bar.
 - [ ] Reduce Motion on: the swatch crossfades instead of sliding.
 - [ ] Lock screen activity: cream serif title, the swatch with its edge, capsule Back, Moss Done.
 
