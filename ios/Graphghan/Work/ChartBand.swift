@@ -39,8 +39,11 @@ struct ChartBand: View {
             .contentShape(Rectangle())
             .onTapGesture { onAdvance() }
             .simultaneousGesture(longPressJump(layout: layout, pass: pass))
-            .simultaneousGesture(DragGesture(minimumDistance: 12).onChanged { drag = dragBase + $0.translation.width }.onEnded { _ in
-                dragBase = drag
+            .simultaneousGesture(DragGesture(minimumDistance: 12).onChanged { value in
+                let raw = dragBase + value.translation.width
+                drag = layout.map { Self.clampedDrag(raw, offsetX: $0.offsetX, maxOffset: maxOffset($0)) } ?? raw
+            }.onEnded { _ in
+                dragBase = layout.map { Self.clampedDrag(drag, offsetX: $0.offsetX, maxOffset: maxOffset($0)) } ?? drag
             })
             .simultaneousGesture(MagnifyGesture().onEnded { value in
                 if (mode == .band && value.magnification < 0.8) || (mode == .whole && value.magnification > 1.2) { onToggleMode() }
@@ -52,12 +55,25 @@ struct ChartBand: View {
             // The band scrolls on drag and snaps back to the rule on the next step, not on release.
             withAnimation(reduceMotion ? nil : .spring(duration: 0.25)) { drag = 0; dragBase = 0 }
         }
+        .onChange(of: mode) { _, _ in drag = 0; dragBase = 0 }
         .accessibilityHidden(true)
     }
 
-    /// The drag offset clamped to the content, the same value drawing and hit-testing both read.
+    /// How far the content can scroll before its far edge would come into view.
+    private func maxOffset(_ layout: BandLayout) -> CGFloat {
+        max(0, CGFloat(chart.width) * BandLayout.cell - layout.width)
+    }
+
+    /// `drag`, clamped so `offsetX - drag` (what drawing and hit-testing actually use) always
+    /// lands inside `[0, maxOffset]` -- applied as the live value changes, not just when drawn, so
+    /// slack never compounds across a release into the next drag.
+    static func clampedDrag(_ drag: CGFloat, offsetX: CGFloat, maxOffset: CGFloat) -> CGFloat {
+        min(max(drag, offsetX - maxOffset), offsetX)
+    }
+
+    /// The drag offset, the same value drawing and hit-testing both read.
     private func effectiveOffset(_ layout: BandLayout) -> CGFloat {
-        min(max(0, layout.offsetX - drag), max(0, CGFloat(chart.width) * BandLayout.cell - layout.width))
+        layout.offsetX - drag
     }
 
     private func longPressJump(layout: BandLayout?, pass: Pass?) -> some Gesture {
