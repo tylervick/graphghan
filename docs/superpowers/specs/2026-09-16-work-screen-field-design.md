@@ -312,8 +312,9 @@ Island compact view shows the counted stitches when counting. `AdvanceRunIntent`
   4 single crochet in Gold" (today's `doneLabel` rule), value the on-deck line, and inside a fill
   the label "40 of 130 single crochet in Cream, next ten". At the turn the label is the boundary
   sentence and the action is "Turned".
-- Rotor actions on the panel: "Back", "Jump to row", "Choose counting step", and "Jump within
-  row" which presents the runs of the row as a list, replacing the chips' jump-to-run labels.
+- Rotor actions on the panel, in this order: "Back", "Jump to row", "Jump within row" (which
+  presents the runs of the row as a list, replacing the chips' jump-to-run labels), and "Choose
+  counting step" (which cycles to the next step).
 - The segment lines expand abbreviations through `Stitch.name` as §6.4 of the data-model spec
   already routes them. Colour codes are spoken as names.
 - Nothing on the screen requires the chart: the panel and the rotor are the complete path.
