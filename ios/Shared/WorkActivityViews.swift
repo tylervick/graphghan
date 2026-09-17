@@ -2,6 +2,13 @@ import SwiftUI
 import WidgetKit
 import GraphghanCore
 
+/// The run whose colour the activity's chrome (panel, buttons) should paint: the current run,
+/// or -- at the boundary, where `currentCode` is nil -- the next row's first run, so the turn
+/// reads as "here's what's coming" rather than going blank.
+extension WorkActivityState {
+    var surfaceCode: String? { atBoundary ? nextCode : currentCode }
+}
+
 /// A run as a coloured swatch with its count. `size` is the swatch height.
 struct RunSwatch: View {
     let info: WorkActivityInfo
@@ -31,7 +38,7 @@ struct RunPanel: View {
     var height: CGFloat = 44
 
     var body: some View {
-        if let code = state.currentCode ?? (state.atBoundary ? state.nextCode : nil), let count = state.currentCount ?? state.nextCount {
+        if let code = state.surfaceCode, let _ = state.currentCount ?? state.nextCount {
             let hex = info.swatch(for: code)?.hex ?? YarnSurface.unknownHex
             HStack(alignment: .firstTextBaseline, spacing: 10) {
                 if !state.atBoundary {
@@ -94,7 +101,7 @@ private struct RunButtons: View {
     var size: Size = .lockScreen
 
     var body: some View {
-        let doneHex = (state.atBoundary ? state.nextCode : state.currentCode).flatMap { info.swatch(for: $0)?.hex }
+        let doneHex = state.surfaceCode.flatMap { info.swatch(for: $0)?.hex }
         let backHex = state.previousCode.flatMap { info.swatch(for: $0)?.hex }
         HStack(spacing: 10) {
             Button(intent: BackRunIntent(projectID: info.projectID)) {

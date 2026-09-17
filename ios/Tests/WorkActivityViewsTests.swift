@@ -65,6 +65,11 @@ import GraphghanCore
         #expect(try Snapshots.assert(WorkMinimalView(info: Self.info, state: Self.midway), named: "minimal", size: CGSize(width: 44, height: 36)))
     }
 
+    @Test func compactAndMinimalCountInsideAFill() throws {
+        #expect(try Snapshots.assert(WorkCompactLeadingView(info: Self.info, state: Self.fill).background(Color.activityCard).environment(\.colorScheme, .dark), named: "compact-leading-fill", size: CGSize(width: 64, height: 36)))
+        #expect(try Snapshots.assert(WorkMinimalView(info: Self.info, state: Self.fill).background(Color.activityCard).environment(\.colorScheme, .dark), named: "minimal-fill", size: CGSize(width: 44, height: 36)))
+    }
+
     @Test func expanded() throws {
         #expect(try Snapshots.assert(WorkExpandedCenterView(info: Self.info, state: Self.midway).background(Color.activityCard).environment(\.colorScheme, .dark), named: "expanded-center", size: CGSize(width: 340, height: 90)))
         #expect(try Snapshots.assert(WorkExpandedBottomView(info: Self.info, state: Self.midway).background(Color.activityCard).environment(\.colorScheme, .dark), named: "expanded-bottom", size: CGSize(width: 340, height: 60)))
