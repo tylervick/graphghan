@@ -92,4 +92,31 @@ import Testing
         #expect(json["totalStitches"] as? Int == 24)
         #expect(json["totalCells"] == nil)
     }
+
+    // Craigh na Dun row 42 (ltr): run 10 is 117 C, a fill; 21 runs, then the boundary.
+    static let craigh = try! Chart.load(Fixtures.data("craigh-na-dun.chart.json"))
+    static let craighSeq = try! WorkSequence(chart: craigh)
+
+    @Test func fillReportsTheCount() throws {
+        let s = try #require(LiveActivityState.make(cursor: Cursor(row: 42, run: 10, stitch: 40), sequence: Self.craighSeq))
+        #expect(s.counting && s.stitch == 40 && s.currentCode == "C" && s.currentCount == 117 && !s.atBoundary)
+        let plain = try #require(LiveActivityState.make(cursor: Cursor(row: 42, run: 8), sequence: Self.craighSeq))
+        #expect(!plain.counting && plain.stitch == 0)
+    }
+
+    @Test func boundaryCarriesTheNextRowsFirstRun() throws {
+        let runs = Self.craighSeq.pass(at: 42)!.runs.count
+        let s = try #require(LiveActivityState.make(cursor: Cursor(row: 42, run: runs), sequence: Self.craighSeq))
+        #expect(s.atBoundary && s.isLastInRow && !s.finished && s.currentCode == nil && s.currentCount == nil)
+        let first = Self.craighSeq.pass(at: 43)!.runs[0]
+        #expect(s.nextCode == first.code && s.nextCount == first.count)
+        #expect(s.previousCode == Self.craighSeq.pass(at: 42)!.runs[runs - 1].code)
+        #expect(s.percent == LiveActivityState.make(cursor: Cursor(row: 43, run: 0), sequence: Self.craighSeq)!.percent)
+    }
+
+    @Test func oldStatePayloadsDecodeWithDefaults() throws {
+        let json = #"{"row":1,"rowCount":2,"runIndex":0,"currentCode":"Kb","currentCount":3,"isLastInRow":false,"percent":0,"finished":false}"#
+        let s = try JSONDecoder().decode(WorkActivityState.self, from: Data(json.utf8))
+        #expect(s.stitch == 0 && !s.counting && !s.atBoundary)
+    }
 }
