@@ -46,41 +46,16 @@ import GraphghanCore
         #expect(d?.text == "then 2 Color F blocks")
     }
 
-    @Test func lastRunInRowNamesNextRowsColor() {
-        let d = OnDeckRule.onDeck(cursor: Cursor(row: 1, run: 2), chart: Self.chart, sequence: Self.seq)
-        #expect(d?.text == "next row starts in \(Self.name("Gd"))")
-        #expect(d?.hex == Self.hex("Gd"))
+    @Test func lastRunInRowHasNothingOnDeck() {
+        // the turn is a step of its own now (spec §3 decision 5); the on-deck line only names the next run in the row
+        #expect(OnDeckRule.onDeck(cursor: Cursor(row: 1, run: 2), chart: Self.chart, sequence: Self.seq) == nil)
+        let chart = Self.authored(boundary: #"{"kind":"turn","chain":1}"#)
+        let seq = try! WorkSequence(chart: chart)
+        #expect(OnDeckRule.onDeck(cursor: Cursor(row: 1, run: 2), chart: chart, sequence: seq) == nil)
     }
 
     @Test func lastRunOfPatternHasNothingOnDeck() {
         #expect(OnDeckRule.onDeck(cursor: Cursor(row: 2, run: 2), chart: Self.chart, sequence: Self.seq) == nil)
-    }
-
-    @Test func turnBoundaryPrependsTheChain() throws {
-        let chart = Self.authored(boundary: #"{"kind":"turn","chain":1}"#)
-        let seq = try WorkSequence(chart: chart)
-        let d = OnDeckRule.onDeck(cursor: Cursor(row: 1, run: 2), chart: chart, sequence: seq)
-        #expect(d?.text == "ch 1, turn — next row starts in Gold")
-        #expect(d?.hex == "#D9A21B")
-    }
-
-    @Test func chainColorAndCountsAsStitchAreSpelledOut() throws {
-        let chart = Self.authored(boundary: #"{"kind":"turn","chain":2,"counts_as_stitch":true,"color":"next"}"#)
-        let seq = try WorkSequence(chart: chart)
-        let d = OnDeckRule.onDeck(cursor: Cursor(row: 1, run: 2), chart: chart, sequence: seq)
-        #expect(d?.text == "ch 2 in Gold, turn — next row starts in Gold (counts as a st)")
-    }
-
-    @Test func zeroChainStillSaysTurn() throws {
-        let chart = Self.authored(boundary: #"{"kind":"turn","chain":0}"#)
-        let seq = try WorkSequence(chart: chart)
-        #expect(OnDeckRule.onDeck(cursor: Cursor(row: 1, run: 2), chart: chart, sequence: seq)?.text == "turn — next row starts in Gold")
-    }
-
-    @Test func otherBoundaryKindsLeaveTheLineAlone() throws {
-        let chart = Self.authored(boundary: #"{"kind":"join","chain":3}"#)
-        let seq = try WorkSequence(chart: chart)
-        #expect(OnDeckRule.onDeck(cursor: Cursor(row: 1, run: 2), chart: chart, sequence: seq)?.text == "next row starts in Gold")
     }
 
     @Test func foundationShowsAtTheStartOnly() throws {
