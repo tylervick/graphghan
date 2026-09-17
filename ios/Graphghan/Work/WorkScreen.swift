@@ -28,15 +28,16 @@ struct WorkScreen: View {
     }
 
     var body: some View {
+        let c = content
         Group {
             if verticalSizeClass == .compact {
                 HStack(spacing: 14) {
-                    VStack(spacing: 14) { header; panel; Spacer(minLength: 0); bar }.frame(maxWidth: .infinity)
-                    band.frame(maxWidth: .infinity)
+                    VStack(spacing: 14) { header; panel(c); Spacer(minLength: 0); bar(c) }.frame(maxWidth: .infinity)
+                    band(c).frame(maxWidth: .infinity)
                 }
                 .padding(.bottom, 16)
             } else {
-                VStack(spacing: 14) { header; panel; band; bar }
+                VStack(spacing: 14) { header; panel(c); band(c); bar(c) }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -81,9 +82,8 @@ struct WorkScreen: View {
     }
 
     /// The panel is the spoken element: one label, the on-deck line as its value, the actions as rotor actions (spec §6).
-    private var panel: some View {
-        let c = content
-        return WorkPanel(content: c)
+    private func panel(_ c: WorkPanelContent) -> some View {
+        WorkPanel(content: c)
             .padding(.horizontal, 12)
             .contentShape(Rectangle())
             .onTapGesture(perform: finished ? onClose : onDone)
@@ -98,16 +98,15 @@ struct WorkScreen: View {
             .accessibilityAction(named: "Choose counting step") { onSetStep(step.next) }
     }
 
-    private var band: some View {
-        ChartBand(chart: chart, sequence: sequence, cursor: cursor, segmentLabel: content.segmentLabel, mode: mode,
+    private func band(_ c: WorkPanelContent) -> some View {
+        ChartBand(chart: chart, sequence: sequence, cursor: cursor, segmentLabel: c.segmentLabel, mode: mode,
                   onAdvance: finished ? onClose : onDone, onJump: onJumpWithinRow,
                   onToggleMode: { withAnimation { mode = mode == .band ? .whole : .band } })
             .padding(.horizontal, 12)
             .frame(maxHeight: .infinity)
     }
 
-    private var bar: some View {
-        let c = content
+    private func bar(_ c: WorkPanelContent) -> some View {
         let nextHex = sequence.pass(at: cursor.row + 1)?.runs.first.map { chart.palette[chart.colorIndex(of: $0.code) ?? 0].hex }
         let doneHex = c.kind == .turn ? (nextHex ?? WorkPanelContent.creamHex) : c.hex
         let prevHex = WorkEngine.apply(.back, to: cursor, in: sequence, step: step).flatMap { s in

@@ -39,7 +39,11 @@ struct ChartBand: View {
             .contentShape(Rectangle())
             .onTapGesture { onAdvance() }
             .simultaneousGesture(longPressJump(layout: layout, pass: pass))
-            .simultaneousGesture(DragGesture(minimumDistance: 12).onChanged { value in
+            // High priority, not simultaneous: on the band, a rightward scrub is the band's own
+            // scroll, not the screen-wide back swipe `WorkView` attaches around this view (spec
+            // §5.4). A tap still reaches `onTapGesture` above -- this drag needs 12pt of travel
+            // to begin -- and the long-press-to-jump gesture above is unaffected.
+            .highPriorityGesture(DragGesture(minimumDistance: 12).onChanged { value in
                 let raw = dragBase + value.translation.width
                 drag = layout.map { Self.clampedDrag(raw, offsetX: $0.offsetX, maxOffset: maxOffset($0)) } ?? raw
             }.onEnded { _ in

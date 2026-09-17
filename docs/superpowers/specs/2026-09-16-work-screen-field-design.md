@@ -289,7 +289,8 @@ drop; nothing clips (snapshot at `.accessibility5`, as today).
   Haptic on landing.
 - Long-press on the action capsule: the step picker, a menu of 1, 5, 10, 20, whole run. Stored
   on the project (`countStep`), default 10.
-- Back capsule: back. Swipe right anywhere: back, as today.
+- Back capsule: back. Swipe right anywhere but the band: back, as today. On the band a drag is a
+  scroll and wins.
 - Drag on the band: scroll horizontally; the next step re-centres.
 - The header's close and long-press are unchanged.
 
