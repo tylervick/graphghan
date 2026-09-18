@@ -30,6 +30,10 @@ final class ProjectService {
     var lastError: String?
     /// Called after every successful step (whether or not the save succeeded): the Live Activity updates from here.
     var onApply: ((Project, WorkSequence, WorkStep) -> Void)?
+    /// The project on the Work screen right now. `summary(for:)` walks every event of a project,
+    /// so nothing may compute it for this one while taps are landing (#79); the debug assertion in
+    /// `summary` is the guard, the summary-refresh key in the views is what keeps it satisfied.
+    var workingProjectID: UUID?
 
     init(context: ModelContext, charts: ChartLibrary, patterns: PatternStore) {
         self.context = context
@@ -104,12 +108,24 @@ final class ProjectService {
         return step
     }
 
-    func summary(for project: Project, sequence: WorkSequence) -> ProgressSummary {
-        Pace.summarize(events: project.eventRecords, cursor: project.cursor, sequence: sequence)
+    /// The project's event log as the core package's value type, oldest first: a fetch by
+    /// predicate, so a tap never pays for the history it has already written (#79).
+    func events(for project: Project) throws -> [ProgressEventRecord] {
+        let id = project.id
+        var descriptor = FetchDescriptor<ProgressEvent>(predicate: #Predicate { $0.project?.id == id })
+        descriptor.sortBy = [SortDescriptor(\.t)]
+        return try context.fetch(descriptor).map { ProgressEventRecord(t: $0.t, row: $0.row, run: $0.run, stitch: $0.stitch, kind: $0.kind) }
     }
 
-    func estimatedFinish(for project: Project, sequence: WorkSequence) -> Date? {
-        estimatedFinish(from: summary(for: project, sequence: sequence))
+    /// Throws when the event log cannot be read: an empty history would look like a project with no
+    /// sessions and no pace, which is a wrong answer, not a degraded one.
+    func summary(for project: Project, sequence: WorkSequence) throws -> ProgressSummary {
+        assert(project.id != workingProjectID, "the summary walks every event; never compute it for the project being worked")
+        return Pace.summarize(events: try events(for: project), cursor: project.cursor, sequence: sequence)
+    }
+
+    func estimatedFinish(for project: Project, sequence: WorkSequence) throws -> Date? {
+        estimatedFinish(from: try summary(for: project, sequence: sequence))
     }
 
     /// The estimate from a summary the caller already holds: `summary(for:)` walks every event of
@@ -138,7 +154,10 @@ final class ProjectService {
         try save()
     }
 
+    /// Deletes the project and its events: with no to-many array there is no cascade to lean on.
     func delete(_ project: Project) throws {
+        let id = project.id
+        try context.delete(model: ProgressEvent.self, where: #Predicate { $0.project?.id == id })
         context.delete(project)
         try save()
     }
@@ -163,9 +182,11 @@ final class ProjectService {
         try save()
     }
 
-    func exportDocument(for project: Project) -> ProgressDocument {
+    /// Throws when the event log cannot be read: a document without its history is not an export.
+    func exportDocument(for project: Project) throws -> ProgressDocument {
         ProgressDocument(patternID: project.patternID, chartID: project.chartID, patternVersion: project.patternVersion,
-                         cursor: project.cursor, started: project.started, finished: project.finished, events: project.eventRecords)
+                         cursor: project.cursor, started: project.started, finished: project.finished,
+                         events: try events(for: project))
     }
 
     private func save() throws {

@@ -28,9 +28,11 @@ import GraphghanCore
         }
         try ctx.save()
         #expect(try ctx.fetchCount(FetchDescriptor<ProgressEvent>()) == 3)
-        #expect(p.eventRecords.map(\.run) == [0, 1, 2])
-        ctx.delete(p)
-        try ctx.save()
-        #expect(try ctx.fetchCount(FetchDescriptor<ProgressEvent>()) == 0)
+        // The events are reached by predicate on their back-reference, not through an array on the
+        // project (#79); deleting a project and its events is `ProjectService.delete`'s job now.
+        let id = p.id
+        var byProject = FetchDescriptor<ProgressEvent>(predicate: #Predicate { $0.project?.id == id })
+        byProject.sortBy = [SortDescriptor(\.t)]
+        #expect(try ctx.fetch(byProject).map(\.run) == [0, 1, 2])
     }
 }
