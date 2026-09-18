@@ -7,6 +7,8 @@ struct ProjectDetailView: View {
     let project: Project
     @State private var sequence: WorkSequence?
     @State private var summary: ProgressSummary?
+    /// The event log could not be read: shown, not hidden behind an empty summary.
+    @State private var historyError: String?
     @State private var loadError: String?
     @State private var manifest: PatternManifest?
     @State private var notes: String = ""
@@ -118,13 +120,22 @@ struct ProjectDetailView: View {
             if let error = model.projects.lastError {
                 Banner(text: "Couldn't save your progress: \(error)", kind: .failure, action: .init(label: "Dismiss") { model.projects.lastError = nil })
             }
+            if let historyError {
+                Banner(text: "Couldn't read this project's history: \(historyError)", kind: .failure, action: .init(label: "Dismiss") { self.historyError = nil })
+            }
         }
         .task { await load() }
         // The summary walks every event; recompute it when the project changes outside the Work
         // screen, never on each tap behind the cover (see ProjectSummaryKey).
         .task(id: SummaryRefresh(key: ProjectSummaryKey.make(for: project, working: model.workingProject), chartID: sequence == nil ? nil : project.chartID)) {
             guard let sequence, ProjectSummaryKey.make(for: project, working: model.workingProject) != nil || summary == nil else { return }
-            summary = model.projects.summary(for: project, sequence: sequence)
+            do {
+                summary = try model.projects.summary(for: project, sequence: sequence)
+                historyError = nil
+            } catch {
+                summary = nil
+                historyError = error.localizedDescription
+            }
         }
     }
 

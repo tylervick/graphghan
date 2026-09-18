@@ -78,7 +78,7 @@ import GraphghanCore
         // finishing the last run marks the project finished
         _ = h.service.apply(.jump(row: 2), to: p, in: seq)
         for _ in 0..<3 { _ = h.service.apply(.advance, to: p, in: seq) }
-        #expect(p.isFinished && h.service.summary(for: p, sequence: seq).percent == 100)
+        #expect(try p.isFinished && h.service.summary(for: p, sequence: seq).percent == 100)
     }
 
     @Test func summaryAndExport() async throws {
@@ -88,11 +88,11 @@ import GraphghanCore
         let seq = try await h.service.sequence(for: p)
         h.service.now = { Date(timeIntervalSince1970: 1_800_000_000) }
         _ = h.service.apply(.advance, to: p, in: seq)  // Kb 3 stitches done
-        let s = h.service.summary(for: p, sequence: seq)
+        let s = try h.service.summary(for: p, sequence: seq)
         #expect(s.stitchesDone == 3 && s.totalStitches == 24 && s.sessions.count == 1)
-        #expect(h.service.estimatedFinish(for: p, sequence: seq) == nil)  // fewer than 3 sessions
-        #expect(h.service.estimatedFinish(from: s) == h.service.estimatedFinish(for: p, sequence: seq))
-        let doc = h.service.exportDocument(for: p)
+        #expect(try h.service.estimatedFinish(for: p, sequence: seq) == nil)  // fewer than 3 sessions
+        #expect(try h.service.estimatedFinish(from: s) == h.service.estimatedFinish(for: p, sequence: seq))
+        let doc = try h.service.exportDocument(for: p)
         #expect(doc.patternID == "two-letter-codes" && doc.chartID == h.chartID && doc.cursor == Cursor(row: 1, run: 1) && doc.events.count == 1)
     }
 
@@ -151,7 +151,7 @@ import GraphghanCore
         let aEvents = try h.service.events(for: a)
         #expect(aEvents.map(\.run) == [1, 2] && aEvents.map(\.t) == [Date(timeIntervalSince1970: 1_800_000_000), Date(timeIntervalSince1970: 1_800_000_120)])
         #expect(try h.service.events(for: b).map(\.run) == [1])
-        #expect(h.service.exportDocument(for: a).events.count == 2)
+        #expect(try h.service.exportDocument(for: a).events.count == 2)
         // deleting a project deletes its events and only its events
         try h.service.delete(a)
         #expect(try h.context.fetchCount(FetchDescriptor<ProgressEvent>()) == 1)
@@ -297,7 +297,7 @@ import GraphghanCore
         #expect(p.step == .twenty && p.countStep == 20)
         _ = h.service.apply(.advance, to: p, in: seq)
         #expect(p.cursor.stitch == 30)
-        let doc = h.service.exportDocument(for: p)
+        let doc = try h.service.exportDocument(for: p)
         #expect(doc.cursor.stitch == 30 && doc.events.last?.stitch == 30)
     }
 

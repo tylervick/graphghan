@@ -7,6 +7,7 @@ struct ProjectRow: View {
     @State private var sequence: WorkSequence?
     @State private var preview: UIImage?
     @State private var summary: ProgressSummary?
+    @State private var historyUnavailable = false
 
     var body: some View {
         ProjectCardView(
@@ -24,7 +25,13 @@ struct ProjectRow: View {
         // screen, never on each tap behind the cover (see ProjectSummaryKey).
         .task(id: SummaryRefresh(key: ProjectSummaryKey.make(for: project, working: model.workingProject), chartID: sequence == nil ? nil : project.chartID)) {
             guard let sequence, ProjectSummaryKey.make(for: project, working: model.workingProject) != nil || summary == nil else { return }
-            summary = model.projects.summary(for: project, sequence: sequence)
+            do {
+                summary = try model.projects.summary(for: project, sequence: sequence)
+                historyUnavailable = false
+            } catch {
+                summary = nil
+                historyUnavailable = true
+            }
         }
         .task { preview = await model.preview(for: project.patternID, sitePath: "patterns/\(project.patternID)/preview.png") }
     }
@@ -32,6 +39,7 @@ struct ProjectRow: View {
     private struct SummaryRefresh: Hashable { let key: ProjectSummaryKey?; let chartID: String? }
 
     private func line(_ summary: ProgressSummary?) -> String {
+        if historyUnavailable { return "History couldn't be read" }
         guard let sequence, let summary else { return "" }
         return project.isFinished ? "Finished" : "Row \(project.cursor.row) of \(sequence.passes.count) · \(summary.percent.formatted())%"
     }
