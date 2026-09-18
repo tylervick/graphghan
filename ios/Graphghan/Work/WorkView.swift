@@ -1,3 +1,4 @@
+import OSLog
 import SwiftUI
 import GraphghanCore
 
@@ -92,11 +93,20 @@ struct WorkView: View {
         }
     }
 
+    private static let signposter = OSSignposter(subsystem: "com.tylervick.graphghan", category: "work")
+
     private func perform(_ action: WorkAction, sequence: WorkSequence) {
+        // "tap" spans from the tap to the next free run-loop turn, "save" is the synchronous write:
+        // the two intervals a performance audit reads first (#79).
+        let tap = Self.signposter.beginInterval("tap")
         Haptics.prepare()  // warm the Taptic Engine again after a long pause
-        guard let step = model.projects.apply(action, to: project, in: sequence) else { return }
+        let save = Self.signposter.beginInterval("save")
+        let applied = model.projects.apply(action, to: project, in: sequence)
+        Self.signposter.endInterval("save", save)
+        guard let step = applied else { Self.signposter.endInterval("tap", tap); return }
         withAnimation(.spring(duration: 0.25)) { cursor = step.cursor }
         if let feedback = WorkFeedbackRule.feedback(for: step, in: sequence) { Haptics.play(feedback) }
+        DispatchQueue.main.async { Self.signposter.endInterval("tap", tap) }
         // A failed save never blocks advancing (spec 6.6): model.projects.lastError is already set
         // for the banner above, and the cursor still moves.
     }

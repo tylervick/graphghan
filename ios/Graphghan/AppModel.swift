@@ -23,7 +23,9 @@ final class AppModel {
     /// Nothing to show at all (offline with no cache).
     var libraryError: String?
     var isLoadingLibrary = false
-    var workingProject: Project?
+    var workingProject: Project? {
+        didSet { projects.workingProjectID = workingProject?.id }
+    }
 
     private var manifests: [String: PatternManifest] = [:]
     private var images: [String: UIImage] = [:]

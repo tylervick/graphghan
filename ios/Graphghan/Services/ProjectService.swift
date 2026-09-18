@@ -30,6 +30,10 @@ final class ProjectService {
     var lastError: String?
     /// Called after every successful step (whether or not the save succeeded): the Live Activity updates from here.
     var onApply: ((Project, WorkSequence, WorkStep) -> Void)?
+    /// The project on the Work screen right now. `summary(for:)` walks every event of a project,
+    /// so nothing may compute it for this one while taps are landing (#79); the debug assertion in
+    /// `summary` is the guard, the summary-refresh key in the views is what keeps it satisfied.
+    var workingProjectID: UUID?
 
     init(context: ModelContext, charts: ChartLibrary, patterns: PatternStore) {
         self.context = context
@@ -104,8 +108,19 @@ final class ProjectService {
         return step
     }
 
+    /// The project's event log as the core package's value type, oldest first: a fetch by
+    /// predicate, so a tap never pays for the history it has already written (#79).
+    func events(for project: Project) throws -> [ProgressEventRecord] {
+        let id = project.id
+        var descriptor = FetchDescriptor<ProgressEvent>(predicate: #Predicate { $0.project?.id == id })
+        descriptor.sortBy = [SortDescriptor(\.t)]
+        return try context.fetch(descriptor).map { ProgressEventRecord(t: $0.t, row: $0.row, run: $0.run, stitch: $0.stitch, kind: $0.kind) }
+    }
+
     func summary(for project: Project, sequence: WorkSequence) -> ProgressSummary {
-        Pace.summarize(events: project.eventRecords, cursor: project.cursor, sequence: sequence)
+        assert(project.id != workingProjectID, "the summary walks every event; never compute it for the project being worked")
+        let events = (try? self.events(for: project)) ?? []
+        return Pace.summarize(events: events, cursor: project.cursor, sequence: sequence)
     }
 
     func estimatedFinish(for project: Project, sequence: WorkSequence) -> Date? {
@@ -138,7 +153,10 @@ final class ProjectService {
         try save()
     }
 
+    /// Deletes the project and its events: with no to-many array there is no cascade to lean on.
     func delete(_ project: Project) throws {
+        let id = project.id
+        try context.delete(model: ProgressEvent.self, where: #Predicate { $0.project?.id == id })
         context.delete(project)
         try save()
     }
@@ -165,7 +183,8 @@ final class ProjectService {
 
     func exportDocument(for project: Project) -> ProgressDocument {
         ProgressDocument(patternID: project.patternID, chartID: project.chartID, patternVersion: project.patternVersion,
-                         cursor: project.cursor, started: project.started, finished: project.finished, events: project.eventRecords)
+                         cursor: project.cursor, started: project.started, finished: project.finished,
+                         events: (try? events(for: project)) ?? [])
     }
 
     private func save() throws {

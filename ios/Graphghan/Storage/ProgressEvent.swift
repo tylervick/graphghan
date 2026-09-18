@@ -9,6 +9,7 @@ final class ProgressEvent {
     var run: Int
     var stitch: Int = 0
     var kindRaw: String
+    /// The project this event belongs to. Deliberately no inverse array on `Project` (#79).
     var project: Project?
 
     init(t: Date, row: Int, run: Int, stitch: Int = 0, kind: EventKind) {

@@ -23,7 +23,10 @@ final class Project {
     /// `CountStep.rawValue`: how many cells a tap counts inside a fill. App state, never exported.
     var countStep: Int = CountStep.default.rawValue
     var lastWorked: Date?
-    @Relationship(deleteRule: .cascade, inverse: \ProgressEvent.project) var events: [ProgressEvent]
+    // The event log is not modelled as an array here on purpose (#79): a to-many relationship
+    // made every insert maintain its inverse, so a tap cost time proportional to the project's
+    // history. Events point at their project (`ProgressEvent.project`) and are fetched by
+    // predicate through `ProjectService.events(for:)`; deleting a project deletes them explicitly.
 
     init(patternID: String, chartID: String, chartVariant: String, chartGaugeKey: String, patternVersion: String, title: String, started: Date) {
         self.id = UUID()
@@ -41,7 +44,6 @@ final class Project {
         self.cursorStitch = 0
         self.countStep = CountStep.default.rawValue
         self.lastWorked = nil
-        self.events = []
     }
 
     var cursor: Cursor {
@@ -55,9 +57,4 @@ final class Project {
     }
 
     var isFinished: Bool { finished != nil }
-
-    /// The event log as the core package's value type, oldest first.
-    var eventRecords: [ProgressEventRecord] {
-        events.map { ProgressEventRecord(t: $0.t, row: $0.row, run: $0.run, stitch: $0.stitch, kind: $0.kind) }.sorted { $0.t < $1.t }
-    }
 }

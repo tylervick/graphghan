@@ -70,7 +70,7 @@ import GraphghanCore
         let step = h.service.apply(.advance, to: p, in: seq)
         #expect(step?.cursor == Cursor(row: 1, run: 1))
         #expect(p.cursor == Cursor(row: 1, run: 1) && p.lastWorked == t)
-        #expect(p.eventRecords == [ProgressEventRecord(t: t, row: 1, run: 1, kind: .advance)])
+        #expect(try h.service.events(for: p) == [ProgressEventRecord(t: t, row: 1, run: 1, kind: .advance)])
         #expect(try h.context.fetchCount(FetchDescriptor<ProgressEvent>()) == 1)
         #expect(h.service.apply(.back, to: p, in: seq)?.cursor == .start)
         #expect(h.service.apply(.back, to: p, in: seq) == nil)   // no-op at the start writes nothing
@@ -109,6 +109,53 @@ import GraphghanCore
         try h.service.delete(p)
         #expect(try h.service.projects().isEmpty)
         #expect(try h.context.fetchCount(FetchDescriptor<ProgressEvent>()) == 0)
+    }
+
+    /// #79: every tap used to save in time proportional to the event log, because the events were
+    /// a to-many array on the project and each insert maintained the inverse. A ratio, not a
+    /// threshold, so the test means the same thing on a laptop, a CI runner and a phone.
+    @Test func applyCostDoesNotGrowWithTheEventLog() async throws {
+        let h = try await makeHarness()
+        let craigh = try TestFixtures.data("craigh-na-dun.chart.json")
+        await h.client.respond("/patterns/two-letter-codes/charts/final-sc/chart.json", data: craigh)
+        let manifest = TestManifest.make(chartID: try Chart.load(craigh).id)
+        let p = try await h.service.startProject(manifest: manifest, chart: manifest.charts[0], title: "growth")
+        let seq = try await h.service.sequence(for: p)
+        try h.service.setCountStep(.wholeRun, for: p)   // one event per tap, no counting inside fills
+        func advance(_ n: Int) -> Double {
+            let t = DispatchTime.now().uptimeNanoseconds
+            for _ in 0..<n { _ = h.service.apply(.advance, to: p, in: seq) }
+            return Double(DispatchTime.now().uptimeNanoseconds - t) / 1_000_000
+        }
+        _ = advance(200)                 // warm up and reach ~200 events
+        let early = advance(200)         // events 200 → 400
+        _ = advance(1600)                // → 2,000
+        let late = advance(200)          // events 2,000 → 2,200
+        #expect(try h.service.events(for: p).count == 2200)
+        #expect(late <= early * 2, "200 taps took \(early) ms at 200 events and \(late) ms at 2,000")
+    }
+
+    @Test func eventsAreFetchedPerProjectInTimeOrder() async throws {
+        let h = try await makeHarness()
+        let manifest = TestManifest.make(chartID: h.chartID)
+        let a = try await h.service.startProject(manifest: manifest, chart: manifest.charts[0], title: "a")
+        let b = try await h.service.startProject(manifest: manifest, chart: manifest.charts[0], title: "b")
+        let seq = try await h.service.sequence(for: a)
+        let t0 = Date(timeIntervalSince1970: 1_800_000_000)
+        h.service.now = { t0 }
+        _ = h.service.apply(.advance, to: a, in: seq)   // a: run 1 at t0
+        h.service.now = { t0 + 60 }
+        _ = h.service.apply(.advance, to: b, in: seq)   // b: run 1 at t0+60
+        h.service.now = { t0 + 120 }
+        _ = h.service.apply(.advance, to: a, in: seq)   // a: run 2 at t0+120
+        let aEvents = try h.service.events(for: a)
+        #expect(aEvents.map(\.run) == [1, 2] && aEvents.map(\.t) == [Date(timeIntervalSince1970: 1_800_000_000), Date(timeIntervalSince1970: 1_800_000_120)])
+        #expect(try h.service.events(for: b).map(\.run) == [1])
+        #expect(h.service.exportDocument(for: a).events.count == 2)
+        // deleting a project deletes its events and only its events
+        try h.service.delete(a)
+        #expect(try h.context.fetchCount(FetchDescriptor<ProgressEvent>()) == 1)
+        #expect(try h.service.events(for: b).count == 1)
     }
 
     @Test func workingBackwardsReopensAFinishedProject() async throws {
@@ -245,7 +292,7 @@ import GraphghanCore
         _ = h.service.apply(.jump(row: 42, run: 10), to: p, in: seq)   // the 117 C fill
         _ = h.service.apply(.advance, to: p, in: seq)
         #expect(p.cursor == Cursor(row: 42, run: 10, stitch: 10) && p.cursorStitch == 10)
-        #expect(p.eventRecords.last == ProgressEventRecord(t: p.eventRecords.last!.t, row: 42, run: 10, stitch: 10, kind: .advance))
+        #expect(try h.service.events(for: p).last == ProgressEventRecord(t: try h.service.events(for: p).last!.t, row: 42, run: 10, stitch: 10, kind: .advance))
         try h.service.setCountStep(.twenty, for: p)
         #expect(p.step == .twenty && p.countStep == 20)
         _ = h.service.apply(.advance, to: p, in: seq)
