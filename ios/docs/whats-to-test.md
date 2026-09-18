@@ -8,3 +8,5 @@ What's new for you in this build:
 Everything from build 4 still applies: the stitch next to the number, the "ch 1 in Gold, turn" line at the end of each row, and the Lock Screen and Dynamic Island saying the same.
 
 Please tell Tyler: is the "ch 1, turn" line useful or obvious? Would you rather it were somewhere else on the screen?
+
+One more question, and it decides what we build next: when you are working a row, do you look at the big number on the coloured panel, or at the chart underneath it? Either answer is fine. If it is the chart, we will make the chart bigger and the panel smaller.
