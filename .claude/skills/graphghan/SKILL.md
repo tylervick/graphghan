@@ -43,7 +43,7 @@ validated row by row, delivered as an offline viewer page and a Stitch Fiddle im
 | `graphghan render <slug> [--gauge] [--variant] [--check]` | write or verify `dist/` |
 | `graphghan check <slug>` | invariants + the pattern's tests |
 | `graphghan catalog` | refresh motif thumbnails in this skill's `assets/` |
-| `graphghan site build\|serve` | the viewer |
+| `graphghan site build\|serve` | the published pattern feed |
 
 ## Review checklist before presenting anything
 - [ ] Both gauges rendered; stats table filled; previews at true stitch proportions.

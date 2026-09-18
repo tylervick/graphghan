@@ -3,23 +3,47 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<base href="./">
 <title>Graphghan</title>
 <meta name="theme-color" content="#1E4D3A">
-<link rel="manifest" href="manifest.webmanifest">
-<link rel="icon" href="icons/icon-192.png">
-<link rel="apple-touch-icon" href="icons/icon-192.png">
-<link rel="stylesheet" href="styles.css">
+<meta name="description" content="Charts for pixel-chart crafts. This host serves the published pattern feed the Graphghan iOS app reads.">
+<style>
+  :root { color-scheme: light dark; --ink: #2B2F33; --bg: #FBF9F4; --green: #1E4D3A; --gold: #8A6508; }
+  @media (prefers-color-scheme: dark) {
+    :root { --ink: #E8E4DA; --bg: #14181B; --green: #7FBFA0; --gold: #D9A21B; }
+  }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+         font: 16px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  .wrap { max-width: 34rem; margin: 0 auto; padding: 4rem 1.25rem; }
+  .eyebrow { text-transform: uppercase; letter-spacing: .12em; font-size: .75rem; color: var(--green); }
+  h1 { font-size: 2rem; margin: .25rem 0 1rem; }
+  h2 { font-size: 1rem; margin: 2rem 0 .5rem; }
+  a { color: var(--gold); }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .9em; }
+  ul { padding-left: 1.2rem; }
+</style>
 </head>
 <body>
 <div class="wrap">
-  <header>
-    <div class="eyebrow">Graphghan · chart library</div>
-    <h1>Patterns</h1>
-    <p class="sub">Charts for pixel crochet blankets. Open one, install this page to your home screen, and it keeps working without a connection.</p>
-  </header>
-  <main class="cards" id="cards"><p class="sub">Loading patterns…</p></main>
+  <div class="eyebrow">Graphghan</div>
+  <h1>Charts for pixel-chart crafts</h1>
+  <p>Graphghan composes crochet and cross-stitch charts from motifs defined in inches, validates
+  them, and publishes them. This host serves the published pattern feed; work a pattern in the
+  iOS app, or from the chart files below.</p>
+
+  <h2>The feed</h2>
+  <ul>
+    <li><a href="patterns/index.json"><code>patterns/index.json</code></a> — every published pattern</li>
+    <li><code>patterns/&lt;slug&gt;/pattern.json</code> — one pattern's manifest: palette and every published chart</li>
+    <li><code>patterns/&lt;slug&gt;/chart.json</code>, <code>chart.png</code>, <code>written-rows.txt</code> — the default chart</li>
+    <li><a href="schema/chart.schema.json"><code>schema/</code></a> — the JSON Schemas the documents declare</li>
+  </ul>
+  <p>The format is documented in
+  <a href="https://github.com/tylervick/graphghan/blob/main/docs/chart-format.md">docs/chart-format.md</a>,
+  with conformance fixtures any reader can test against.</p>
+
+  <h2>Source</h2>
+  <p><a href="https://github.com/tylervick/graphghan">github.com/tylervick/graphghan</a> — the Python
+  package and CLI, the iOS app, and the pattern designs. Code MIT; pattern designs CC BY-NC-SA 4.0.</p>
 </div>
-<script type="module" src="app/library.js"></script>
 </body>
 </html>

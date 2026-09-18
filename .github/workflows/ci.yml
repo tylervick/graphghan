@@ -30,9 +30,8 @@ jobs:
       - run: uv sync --all-groups
       - run: hk check --all
       - run: uv run pytest -q
-      - name: Build site
-        run: |
-          if [ -f site/build.py ]; then uv run graphghan site build; else echo "no site yet"; mkdir -p site/dist; fi
+      - name: Build the pattern feed
+        run: uv run graphghan site build
       - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
         with: {path: site/dist}
   # Cheap path filter so a docs-only or Python-only change never spins up a macOS runner.

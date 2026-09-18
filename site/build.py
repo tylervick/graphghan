@@ -1,16 +1,18 @@
-"""Build the static viewer: site/src + patterns/*/dist -> site/dist (or OUT_DIR)."""
+"""Build the published pattern feed: site/src + patterns/*/dist -> site/dist (or OUT_DIR).
+
+The output is what https://graphghan.milo.cat/ serves and what the iOS app reads: a
+`patterns/index.json` listing, a `pattern.json` manifest and chart files per pattern, the JSON
+Schemas the documents point their `$id` at, and a static landing page copied from `src/`. It is a
+data feed, not an application -- the browser viewer this replaced is gone (#78).
+"""
 
 from __future__ import annotations
 
-import hashlib
-import html
 import json
 import re
 import shutil
 from datetime import datetime, timezone
 from pathlib import Path
-
-from PIL import Image, ImageDraw
 
 from graphghan.chartdoc import finished_size
 from graphghan.pattern import load_pattern
@@ -147,47 +149,27 @@ def load_patterns():
     return items
 
 
-def make_icons(out: Path):
-    """Deep green square, gold moon, three charcoal stones: recognisable at 48 px."""
-    (out / "icons").mkdir(parents=True, exist_ok=True)
-    for size in (192, 512):
-        img = Image.new("RGB", (size, size), (30, 77, 58))
-        d = ImageDraw.Draw(img)
-        u = size / 16
-        d.ellipse([11 * u, 2.5 * u, 14.5 * u, 6 * u], fill=(217, 162, 27))
-        for x0, h in ((3.5, 5), (6.5, 7), (9.5, 5.5)):
-            d.rectangle([x0 * u, (12 - h) * u, (x0 + 1.8) * u, 12 * u], fill=(43, 47, 51))
-        d.rectangle([0, 12 * u, size, size], fill=(24, 60, 45))
-        img.save(out / "icons" / f"icon-{size}.png")
-
-
 def build(out: Path):
     updated = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     out = Path(out)
     if out.exists():
         shutil.rmtree(out)
-    shutil.copytree(SRC, out, ignore=shutil.ignore_patterns("pattern.html", "sw.js"))
-    make_icons(out)
+    shutil.copytree(SRC, out)
     # The $id in each schema points at https://graphghan.milo.cat/schema/<name>.json; serve them.
     (out / "schema").mkdir(parents=True, exist_ok=True)
     for s in sorted((ROOT / "schema").glob("*.json")):
         shutil.copy(s, out / "schema" / s.name)
-    template = (SRC / "pattern.html").read_text(encoding="utf-8")
     index = []
     for d, doc in load_patterns():
         slug = doc["pattern"]["id"]
+        # The slug is the only part of a pattern document that becomes a path here, so it is the
+        # only part that can escape the output directory. Refuse it rather than sanitise it.
         if not SLUG_RE.fullmatch(slug):
             raise ValueError(f"invalid slug {slug!r}")
         pdir = out / "patterns" / slug
         pdir.mkdir(parents=True, exist_ok=True)
         for name in ("chart.json", "chart.png", "preview.png", "written-rows.txt"):
             shutil.copy(d / "dist" / name, pdir / name)
-        page = (
-            template.replace("{{title}}", html.escape(doc["pattern"]["title"], quote=True))
-            .replace("{{slug}}", html.escape(slug, quote=True))
-            .replace("{{dedication}}", html.escape(doc["pattern"].get("dedication", ""), quote=True))
-        )
-        (pdir / "index.html").write_text(page, encoding="utf-8")
         charts_src = d / "dist" / "charts"
         if charts_src.exists():
             for sub in sorted(p for p in charts_src.iterdir() if p.is_dir()):
@@ -203,24 +185,10 @@ def build(out: Path):
         index.append(entry)
     (out / "patterns").mkdir(exist_ok=True)
     (out / "patterns" / "index.json").write_text(json.dumps(index), encoding="utf-8")
-    files = sorted(p for p in out.rglob("*") if p.is_file())
-    entries = [
-        {"url": p.relative_to(out).as_posix(), "hash": hashlib.sha256(p.read_bytes()).hexdigest()[:12]}
-        for p in files
-    ]
-    build_hash = hashlib.sha256("".join(e["hash"] for e in entries).encode()).hexdigest()[:12]
-    sw = (
-        (SRC / "sw.js")
-        .read_text(encoding="utf-8")
-        .replace("__BUILD_HASH__", build_hash)
-        .replace("__PRECACHE__", json.dumps([e["url"] for e in entries]))
-    )
-    (out / "sw.js").write_text(sw, encoding="utf-8")
-    (out / "build.json").write_text(json.dumps({"hash": build_hash, "files": entries}), encoding="utf-8")
-    return out, index, build_hash
+    return out, index
 
 
 if __name__ == "__main__":
     target = globals().get("OUT_DIR") or ROOT / "site" / "dist"
-    o, idx, h = build(target)
-    print(f"built {o} ({len(idx)} patterns, build {h})")
+    o, idx = build(target)
+    print(f"built {o} ({len(idx)} patterns)")

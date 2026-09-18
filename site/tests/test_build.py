@@ -42,39 +42,30 @@ def fake_doc(slug, title, dedication=""):
 
 
 def test_build_layout_and_contracts(tmp_path):
-    out, index, h = build(tmp_path / "dist")
-    assert (
-        (out / "index.html").exists() and (out / "sw.js").exists() and (out / "manifest.webmanifest").exists()
-    )
-    assert len(h) == 12
+    out, index = build(tmp_path / "dist")
+    assert (out / "index.html").exists()  # the static landing page, copied from src/
     idx = json.loads((out / "patterns" / "index.json").read_text())
     assert index == idx and any(p["slug"] == "craigh-na-dun" for p in idx)
     p = out / "patterns" / "craigh-na-dun"
-    for name in ("index.html", "chart.json", "chart.png", "preview.png", "written-rows.txt"):
+    for name in ("chart.json", "pattern.json", "chart.png", "preview.png", "written-rows.txt"):
         assert (p / name).exists(), name
-    page = (p / "index.html").read_text()
-    assert "Craigh na Dun Blanket" in page and "{{" not in page and '<base href="../../">' in page
     doc = json.loads((p / "chart.json").read_text())
     assert doc["schema"] == 2 and len(doc["rows"]) == doc["chart"]["height"]
-    for name in ("icon-192.png", "icon-512.png"):
-        assert (out / "icons" / name).exists()
     # the schemas are served at the $id each one claims
     for name in ("chart.schema.json", "progress.schema.json"):
         assert (out / "schema" / name).exists(), name
         assert json.loads((out / "schema" / name).read_text())["$id"].endswith(f"/schema/{name}")
 
 
-def test_precache_covers_every_file(tmp_path):
-    out, _, h = build(tmp_path / "dist")
-    sw = (out / "sw.js").read_text()
-    assert "__PRECACHE__" not in sw and h in sw
-    listed = set(
-        json.loads((out / "build.json").read_text())["files"][i]["url"]
-        for i in range(len(json.loads((out / "build.json").read_text())["files"]))
-    )
-    actual = {p.relative_to(out).as_posix() for p in out.rglob("*") if p.is_file()} - {"sw.js", "build.json"}
-    assert listed == actual
-    assert "patterns/craigh-na-dun/index.html" in listed and "patterns/index.json" in listed
+def test_build_publishes_no_application(tmp_path):
+    """The feed is data and a landing page, nothing that runs (#78). A stray script or service
+    worker here would mean the viewer had grown back; the precache manifest it needed is gone too.
+    """
+    out, _ = build(tmp_path / "dist")
+    assert not (out / "sw.js").exists() and not (out / "build.json").exists()
+    assert not (out / "manifest.webmanifest").exists() and not (out / "icons").exists()
+    assert not list(out.rglob("*.js")), "the feed must not ship JavaScript"
+    assert not list((out / "patterns").rglob("*.html")), "patterns are JSON, not pages"
 
 
 def _make_fake_pattern(tmp_path, name, doc):
@@ -134,16 +125,19 @@ def test_published_docs_rejects_a_top_level_chart_of_its_own(tmp_path):
         build_module.published_docs(pattern_dir)
 
 
-def test_build_escapes_title_dedication_and_slug(tmp_path, monkeypatch):
+def test_build_carries_punctuation_through_to_json(tmp_path, monkeypatch):
+    """A title with markup characters used to be HTML-escaped into a page. The feed has no page:
+    it must reach a reader as the author wrote it, escaped as JSON and not as HTML."""
     doc = fake_doc("tam-lin", 'Tam & "Lin" <3')
     pattern_dir = _make_fake_pattern(tmp_path, "tam-lin", doc)
     monkeypatch.setattr(build_module, "load_patterns", lambda: [(pattern_dir, doc)])
 
-    out, index, _ = build_module.build(tmp_path / "dist")
+    out, index = build_module.build(tmp_path / "dist")
 
-    page = (out / "patterns" / "tam-lin" / "index.html").read_text(encoding="utf-8")
-    assert "Tam &amp; &quot;Lin&quot; &lt;3" in page
-    assert 'Tam & "Lin" <3' not in page
+    assert index[0]["title"] == 'Tam & "Lin" <3'
+    m = json.loads((out / "patterns" / "tam-lin" / "pattern.json").read_text(encoding="utf-8"))
+    assert m["title"] == 'Tam & "Lin" <3'
+    assert "&amp;" not in (out / "patterns" / "index.json").read_text(encoding="utf-8")
     # a pattern without a dedication must not crash the build
     assert index[0]["dedication"] == ""
 
@@ -158,7 +152,7 @@ def test_build_rejects_invalid_slug(tmp_path, monkeypatch):
 
 
 def test_pattern_chart_json_contract(tmp_path):
-    out, index, _ = build(tmp_path / "dist")
+    out, index = build(tmp_path / "dist")
     run_re = re.compile(r"(\d+)([A-Za-z]{1,3})")
     for entry in index:
         slug = entry["slug"]
@@ -205,7 +199,7 @@ def test_pattern_chart_json_contract(tmp_path):
 
 
 def test_manifest_and_charts_tree(tmp_path):
-    out, index, _ = build(tmp_path / "dist")
+    out, index = build(tmp_path / "dist")
     entry = next(e for e in index if e["slug"] == "craigh-na-dun")
     assert entry["manifest"] == "patterns/craigh-na-dun/pattern.json" and entry["charts"] == 2
     pdir = out / "patterns" / "craigh-na-dun"
@@ -249,7 +243,7 @@ def test_manifest_for_pattern_without_charts_dir(tmp_path, monkeypatch):
     doc = fake_doc("solo", "Solo")
     pattern_dir = _make_fake_pattern(tmp_path, "solo", doc)
     monkeypatch.setattr(build_module, "load_patterns", lambda: [(pattern_dir, doc)])
-    out, index, _ = build_module.build(tmp_path / "dist")
+    out, index = build_module.build(tmp_path / "dist")
     m = json.loads((out / "patterns" / "solo" / "pattern.json").read_text(encoding="utf-8"))
     assert (
         len(m["charts"]) == 1 and m["charts"][0]["path"] == "chart.json" and m["charts"][0]["default"] is True
@@ -272,7 +266,7 @@ def test_build_withholds_size_when_it_does_not_derive(tmp_path, monkeypatch):
 
     pattern_dir = _make_fake_pattern(tmp_path, "no-size", doc)
     monkeypatch.setattr(build_module, "load_patterns", lambda: [(pattern_dir, doc)])
-    out, index, _ = build_module.build(tmp_path / "dist")
+    out, index = build_module.build(tmp_path / "dist")
 
     index_entry = next(e for e in index if e["slug"] == "no-size")
     assert "size_in" not in index_entry

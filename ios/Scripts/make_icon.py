@@ -1,5 +1,6 @@
-"""The app icon (spec §7): the PWA icon with the weave. Moss sky, a gold moon, three charcoal
-standing stones on the hill band, on the site's 16-unit grid so `site/build.py` can share it."""
+"""The app icon (spec §7): moss sky, a gold moon, three charcoal standing stones on the hill band,
+with the weave. This script is the only definition of that geometry -- it began as a copy of the
+PWA icon's, and the PWA went away with the browser viewer (#78)."""
 
 import argparse
 
@@ -25,8 +26,8 @@ def make_icon(size: int) -> Image.Image:
         wd.line([(x, size), (x + size, 0)], fill=(*CREAM, 13), width=max(1, int(0.6 * s)))
     img.paste(Image.alpha_composite(img.convert("RGBA"), weave).convert("RGB"))
     d = ImageDraw.Draw(img)
-    # the PWA icon's geometry (site/build.py make_icons) on a 16-unit grid: hill band from 12
-    # units down, the moon at (12.75, 4.25) with radius 1.75, three stones standing on the horizon
+    # a 16-unit grid: hill band from 12 units down, the moon at (12.75, 4.25) with radius 1.75,
+    # three stones standing on the horizon
     u = size / 16
     d.rectangle([0, 12 * u, size, size], fill=MOSS_DEEP)
     d.ellipse([11 * u, 2.5 * u, 14.5 * u, 6 * u], fill=GOLD)

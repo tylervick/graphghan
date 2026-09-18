@@ -61,4 +61,4 @@ scaffolded test all build `"final"`.
 
 ## 9. Ship
 - Commit dist/, `uv run graphghan site build`, deploy (CI on main), tag `<slug>/v<version>`.
-- Hand over: viewer link, chart.png for Stitch Fiddle, written-rows.txt, yardage table.
+- Hand over: the pattern in the iOS app, chart.png for Stitch Fiddle, written-rows.txt, yardage table.
