@@ -10,6 +10,8 @@ import GraphghanCore
 /// Blank slots keep their line's height at opacity 0 and fade in when a kind fills them.
 struct WorkPanel: View {
     let content: WorkPanelContent
+    /// Tapping a part of the sequence line jumps to that run (#81). Nil draws the line inert.
+    var onSelectPart: ((Int) -> Void)? = nil
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private var runLike: Bool { content.kind != .turn && content.kind != .finished }
@@ -75,11 +77,15 @@ struct WorkPanel: View {
     private var sequenceLine: some View {
         HStack(spacing: 8) {
             ForEach(Array(content.parts.enumerated()), id: \.offset) { _, part in
-                Text(part.text).font(Font.Heather.label)
-                    .opacity(part.state == .done ? 0.45 : 1)
-                    .overlay(alignment: .bottom) {
-                        if part.state == .current { Rectangle().fill(Color.heather).frame(height: 3).offset(y: 4) }
-                    }
+                Button { onSelectPart?(part.run) } label: {
+                    Text(part.text).font(Font.Heather.label)
+                        .opacity(part.state == .done ? 0.45 : 1)
+                        .overlay(alignment: .bottom) {
+                            if part.state == .current { Rectangle().fill(Color.heather).frame(height: 3).offset(y: 4) }
+                        }
+                }
+                .buttonStyle(.plain)
+                .disabled(onSelectPart == nil)
             }
             if let reps = content.repetitions { Text("×\(reps)").font(Font.Heather.label).opacity(0.7) }
         }

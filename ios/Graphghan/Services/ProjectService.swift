@@ -84,7 +84,7 @@ final class ProjectService {
     /// -- the next successful `save()` (from any mutator) persists them.
     @discardableResult
     func apply(_ action: WorkAction, to project: Project, in sequence: WorkSequence) -> WorkStep? {
-        guard let step = WorkEngine.apply(action, to: project.cursor, in: sequence, step: project.step) else { return nil }
+        guard let step = WorkEngine.apply(action, to: project.cursor, in: sequence, step: project.step, perRepetition: project.tapPerRepetition) else { return nil }
         let t = now()
         project.cursor = step.cursor
         project.lastWorked = t
@@ -141,6 +141,11 @@ final class ProjectService {
 
     func setCountStep(_ step: CountStep, for project: Project) throws {
         project.step = step
+        try save()
+    }
+
+    func setTapPerRepetition(_ on: Bool, for project: Project) throws {
+        project.tapPerRepetition = on
         try save()
     }
 

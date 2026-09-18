@@ -12,8 +12,8 @@ import GraphghanCore
     static let end = Cursor(row: seq.passes.count, run: seq.passes.last!.runs.count)
 
     private func screen(_ cursor: Cursor, step: CountStep = .ten) -> some View {
-        WorkScreen(chart: Self.chart, sequence: Self.seq, cursor: cursor, step: step,
-                   onDone: {}, onBack: {}, onClose: {}, onJump: {}, onJumpWithinRow: { _, _ in }, onSetStep: { _ in })
+        WorkScreen(chart: Self.chart, sequence: Self.seq, cursor: cursor, step: step, perRepetition: true,
+                   onDone: {}, onBack: {}, onClose: {}, onJump: {}, onJumpWithinRow: { _, _ in }, onSetStep: { _ in }, onSetPerRepetition: { _ in })
     }
 
     @Test func plainRun() throws { #expect(try Snapshots.assert(screen(Cursor(row: 42, run: 8)), named: "work-run", size: Self.phone)) }
@@ -36,5 +36,8 @@ import GraphghanCore
         #expect(WorkScreen.actionLabel(chart: Self.chart, sequence: Self.seq, cursor: Cursor(row: 42, run: 10, stitch: 40), step: .ten) == "40 of 117 single crochet in Cream, next ten")
         #expect(WorkScreen.actionLabel(chart: Self.chart, sequence: Self.seq, cursor: Self.turn, step: .ten).hasPrefix("Ch 1 in Gold, turn"))
         #expect(WorkScreen.actionLabel(chart: Self.chart, sequence: Self.seq, cursor: Self.end, step: .ten) == "Close")
+        // a repeat's tap walks the unit, so the spoken action names the repetition (#81)
+        #expect(WorkScreen.actionLabel(chart: Self.chart, sequence: Self.seq, cursor: Cursor(row: 179, run: 8), step: .ten) == "Done with repetition 3 of 22: 5 Gold, 2 Deep Green")
+        #expect(WorkScreen.actionLabel(chart: Self.chart, sequence: Self.seq, cursor: Cursor(row: 179, run: 8), step: .ten, perRepetition: false) == "Done with 5 single crochet in Gold")
     }
 }

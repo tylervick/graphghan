@@ -36,6 +36,20 @@ import Testing
         #expect(row2.previousCode == "G" && row2.previousCount == 2)  // the last run of row 1
     }
 
+    /// Row 179's `5Y 2G` ×22 band (#81): the state names the repetition and Back's colour is the
+    /// repetition before, not the run before; with the tap unit off, neither.
+    @Test func repetitionOnTheLockScreen() throws {
+        let seq = try WorkSequence(chart: Chart.load(Fixtures.data("craigh-na-dun.chart.json")))
+        let s = try #require(LiveActivityState.make(cursor: Cursor(row: 179, run: 8), sequence: seq))
+        #expect(s.repetition == 3 && s.repetitions == 22)
+        #expect(s.previousCode == "Y" && s.previousCount == 5)   // repetition 2's first run
+        let off = try #require(LiveActivityState.make(cursor: Cursor(row: 179, run: 8), sequence: seq, perRepetition: false))
+        #expect(off.repetition == nil && off.repetitions == nil)
+        #expect(off.previousCode == "G" && off.previousCount == 2)
+        let plain = try #require(LiveActivityState.make(cursor: Cursor(row: 42, run: 8), sequence: seq))
+        #expect(plain.repetition == nil)
+    }
+
     @Test func invalidCursorIsNil() {
         #expect(LiveActivityState.make(cursor: Cursor(row: 9, run: 0), sequence: Self.seq) == nil)
     }

@@ -48,6 +48,18 @@ import GraphghanCore
         #expect(WorkFeedbackRule.feedback(for: completes, in: Self.craigh) == .run)
     }
 
+    /// Row 178's `1G 3Y 1G 2Y` ×22 (#81): a repetition inside the band is a run tick; the tap that
+    /// finishes the last repetition plays the row haptic, so the rhythm has an end.
+    @Test func theLastRepetitionIsTheRowHaptic() {
+        let inside = WorkEngine.apply(.advance, to: Cursor(row: 178, run: 83), in: Self.craigh)!
+        #expect(inside.cursor.run == 87 && WorkFeedbackRule.feedback(for: inside, in: Self.craigh) == .run)
+        let last = WorkEngine.apply(.advance, to: Cursor(row: 178, run: 87), in: Self.craigh)!
+        #expect(last.cursor.run == 91 && WorkFeedbackRule.feedback(for: last, in: Self.craigh) == .row)
+        // per run, leaving the segment is an ordinary run
+        let perRun = WorkEngine.apply(.advance, to: Cursor(row: 178, run: 90), in: Self.craigh, perRepetition: false)!
+        #expect(perRun.cursor.run == 91 && WorkFeedbackRule.feedback(for: perRun, in: Self.craigh) == .run)
+    }
+
     @Test func backAndFinished() {
         let back = WorkEngine.apply(.back, to: Cursor(row: 2, run: 1), in: Self.seq)!
         #expect(WorkFeedbackRule.feedback(for: back, in: Self.seq) == nil)

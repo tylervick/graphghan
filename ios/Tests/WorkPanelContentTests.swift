@@ -31,6 +31,17 @@ import GraphghanCore
         let c = Self.make(Cursor(row: 179, run: 8))   // third repetition, first half
         #expect(c.kind == .repeat && c.segmentLabel == "repeat · 3 of 22" && c.repetitions == 22)
         #expect(c.parts.map(\.text) == ["5 Y", "2 G"] && c.parts.map(\.state) == [.current, .upcoming])
+        #expect(c.parts.map(\.run) == [8, 9])   // the parts of this repetition, for tap-to-jump (#81)
+        #expect(c.actionLabel == "Done with repetition 3 of 22: 5 Gold, 2 Deep Green")
+        let second = Self.make(Cursor(row: 179, run: 9))
+        #expect(second.parts.map(\.run) == [8, 9] && second.parts.map(\.state) == [.done, .current])
+        let perRun = WorkPanelContent.make(chart: Self.chart, sequence: Self.seq, cursor: Cursor(row: 179, run: 8), step: .ten, perRepetition: false)
+        #expect(perRun.actionLabel == "Done with 5 single crochet in Gold" && perRun.parts == c.parts)
+    }
+
+    @Test func braidPartsCarryTheirRuns() {
+        let c = Self.make(Cursor(row: 42, run: 2))
+        #expect(c.parts.map(\.run) == Array(0..<8))
     }
 
     /// The band is `accessibilityHidden`, so the segment has to be spoken from the panel (spec §6):

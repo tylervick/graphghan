@@ -75,6 +75,8 @@ struct RunPanel: View {
             let next = state.nextCode.map { info.swatch(for: $0)?.name ?? $0 }
             return [chain, next.map { "Row \(state.row + 1) starts in \($0)" }].compactMap { $0 }.joined(separator: " · ")
         }
+        // Done walks the whole repetition (#81), so the panel says which one rather than the next run.
+        if let repetition = state.repetition, let repetitions = state.repetitions { return "repeat \(repetition) of \(repetitions)" }
         if let code = state.nextCode, let count = state.nextCount { return "then \(count) \(info.swatch(for: code)?.name ?? code)" }
         guard state.isLastInRow else { return "" }
         return state.row < state.rowCount ? "" : "last in row"

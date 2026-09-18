@@ -12,6 +12,12 @@ enum WorkFeedbackRule {
         if step.atBoundary { return .row }
         if step.cursor.stitch > 0 { return .step }
         guard let pass = seq.pass(at: step.cursor.row), step.cursor.run < pass.runs.count else { return nil }
+        // A tap that walked a whole repetition and left its segment finished the band (#81): the
+        // row haptic marks it, so the rhythm has an end even before the turn.
+        if step.kind == .advance, step.runsWalked > 1, !step.startedNewRow,
+           let seg = Segments.segment(containing: step.cursor.run - 1, in: pass), seg.kind == .repeat, !seg.runs.contains(step.cursor.run) {
+            return .row
+        }
         let code = pass.runs[step.cursor.run].code
         let previousRowCodes = Set(seq.pass(at: step.cursor.row - 1)?.runs.map(\.code) ?? [])
         let introducesColor = seq.pass(at: step.cursor.row - 1) != nil && !previousRowCodes.contains(code)

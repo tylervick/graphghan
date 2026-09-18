@@ -27,6 +27,11 @@ import GraphghanCore
     @Test func lastInRowTextNamesTheChain() {
         #expect(RunPanel.nextText(info: Self.info, state: Self.lastInRow) == "")
         #expect(RunPanel.nextText(info: Self.info, state: Self.midway).hasPrefix("then "))
+        // inside a repeat Done walks the repetition, so the trailing line names it (#81)
+        let repeating = LiveActivityState.make(cursor: Cursor(row: 179, run: 8), sequence: Self.seq)!
+        #expect(RunPanel.nextText(info: Self.info, state: repeating) == "repeat 3 of 22")
+        let perRun = LiveActivityState.make(cursor: Cursor(row: 179, run: 8), sequence: Self.seq, perRepetition: false)!
+        #expect(RunPanel.nextText(info: Self.info, state: perRun) == "then 2 Deep Green")
         let final = LiveActivityState.make(cursor: Cursor(row: Self.seq.passes.count, run: Self.seq.passes.last!.runs.count - 1), sequence: Self.seq)!
         #expect(RunPanel.nextText(info: Self.info, state: final) == "last in row")
     }

@@ -5,7 +5,8 @@ import GraphghanCore
 struct WorkPanelContent: Equatable {
     enum Kind: Equatable { case run, braid, `repeat`, fill, turn, finished }
     enum PartState: Equatable { case done, current, upcoming }
-    struct Part: Equatable { let text: String; let state: PartState }
+    /// One run of the sequence line; `run` is its index in the pass, for tap-to-jump.
+    struct Part: Equatable { let text: String; let state: PartState; let run: Int }
 
     let kind: Kind
     let hex: String
@@ -35,7 +36,9 @@ struct WorkPanelContent: Equatable {
     /// The turn and finished surfaces. Lives in `YarnSurface` because `Work/` may not hold a raw hex (DesignRulesTests).
     static let creamHex = YarnSurface.creamHex
 
-    static func make(chart: Chart, sequence: WorkSequence, cursor: Cursor, step: CountStep) -> WorkPanelContent {
+    /// `perRepetition` is what a tap does inside a repeat segment (#81): it changes the action
+    /// label, which is what VoiceOver reads for the panel, and nothing the panel draws.
+    static func make(chart: Chart, sequence: WorkSequence, cursor: Cursor, step: CountStep, perRepetition: Bool = true) -> WorkPanelContent {
         if WorkEngine.isFinished(cursor, in: sequence) {
             return WorkPanelContent(kind: .finished, hex: creamHex, count: nil, total: nil, badge: nil, code: nil, name: nil,
                                     segmentLabel: nil, bandLabel: nil, parts: [], repetitions: nil, landmark: nil, onDeck: nil, spokenValue: nil,
@@ -94,7 +97,7 @@ struct WorkPanelContent: Equatable {
         case .braid:
             let parts = segment!.runs.map { i -> Part in
                 let r = pass.runs[i]
-                return Part(text: "\(r.count)\(r.code)", state: i < cursor.run ? .done : i == cursor.run ? .current : .upcoming)
+                return Part(text: "\(r.count)\(r.code)", state: i < cursor.run ? .done : i == cursor.run ? .current : .upcoming, run: i)
             }
             let spoken = segment!.runs.map { i -> String in
                 let r = pass.runs[i]
@@ -110,17 +113,23 @@ struct WorkPanelContent: Equatable {
             let position = (cursor.run - seg.runs.lowerBound) % seg.period
             let parts = (0..<seg.period).map { j -> Part in
                 let r = pass.runs[seg.runs.lowerBound + j]
-                return Part(text: "\(r.count) \(r.code)", state: j < position ? .done : j == position ? .current : .upcoming)
+                return Part(text: "\(r.count) \(r.code)", state: j < position ? .done : j == position ? .current : .upcoming, run: cursor.run - position + j)
             }
             let spoken = (0..<seg.period).map { j -> String in
                 let r = pass.runs[seg.runs.lowerBound + j]
                 return "\(r.count) \(entry(r.code).name)\(j == position ? " (current)" : "")"
             }
+            // One tap walks the unit (#81), so the spoken action names the repetition, not the run.
+            let unit = (0..<seg.period).map { j -> String in
+                let r = pass.runs[seg.runs.lowerBound + j]
+                return "\(r.count) \(entry(r.code).name)"
+            }
+            let action = perRepetition ? "Done with repetition \(which + 1) of \(seg.repetitions): \(unit.joined(separator: ", "))" : label(run.count)
             return WorkPanelContent(kind: .repeat, hex: e.hex, count: run.count, total: nil, badge: stitch?.code, code: e.code, name: e.name,
                                     segmentLabel: "repeat · \(which + 1) of \(seg.repetitions)", bandLabel: "×\(seg.repetitions) · \(which + 1) of \(seg.repetitions)",
                                     parts: parts, repetitions: seg.repetitions, landmark: nil, onDeck: onDeck,
                                     spokenValue: "repeat \(which + 1) of \(seg.repetitions): \(spoken.joined(separator: ", "))",
-                                    title: nil, subtitle: nil, detail: nil, actionLabel: label(run.count), capsule: "checkmark")
+                                    title: nil, subtitle: nil, detail: nil, actionLabel: action, capsule: "checkmark")
         default:
             return WorkPanelContent(kind: .run, hex: e.hex, count: run.count, total: nil, badge: stitch?.code, code: e.code, name: e.name,
                                     segmentLabel: nil, bandLabel: nil, parts: [], repetitions: nil, landmark: nil, onDeck: onDeck, spokenValue: nil,
