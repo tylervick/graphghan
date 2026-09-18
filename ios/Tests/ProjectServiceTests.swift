@@ -91,6 +91,7 @@ import GraphghanCore
         let s = h.service.summary(for: p, sequence: seq)
         #expect(s.stitchesDone == 3 && s.totalStitches == 24 && s.sessions.count == 1)
         #expect(h.service.estimatedFinish(for: p, sequence: seq) == nil)  // fewer than 3 sessions
+        #expect(h.service.estimatedFinish(from: s) == h.service.estimatedFinish(for: p, sequence: seq))
         let doc = h.service.exportDocument(for: p)
         #expect(doc.patternID == "two-letter-codes" && doc.chartID == h.chartID && doc.cursor == Cursor(row: 1, run: 1) && doc.events.count == 1)
     }

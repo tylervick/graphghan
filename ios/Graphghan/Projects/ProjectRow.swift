@@ -6,22 +6,30 @@ struct ProjectRow: View {
     let project: Project
     @State private var sequence: WorkSequence?
     @State private var preview: UIImage?
+    @State private var summary: ProgressSummary?
 
     var body: some View {
-        let summary = sequence.map { model.projects.summary(for: project, sequence: $0) }
         ProjectCardView(
             title: project.title,
             percent: summary?.percent,
             line: line(summary),
-            estimate: sequence.flatMap { seq in
-                project.isFinished ? nil : model.projects.estimatedFinish(for: project, sequence: seq).map { "Done around \($0.formatted(date: .abbreviated, time: .omitted))" }
+            estimate: summary.flatMap { s in
+                project.isFinished ? nil : model.projects.estimatedFinish(from: s).map { "Done around \($0.formatted(date: .abbreviated, time: .omitted))" }
             },
             lastWorked: project.lastWorked.map { "Last worked \($0.formatted(.relative(presentation: .named)))" },
             finished: project.isFinished,
             preview: preview)
         .task(id: project.chartID) { sequence = try? await model.projects.sequence(for: project) }
+        // The summary walks every event; recompute it when the project changes outside the Work
+        // screen, never on each tap behind the cover (see ProjectSummaryKey).
+        .task(id: SummaryRefresh(key: ProjectSummaryKey.make(for: project, working: model.workingProject), chartID: sequence == nil ? nil : project.chartID)) {
+            guard let sequence, ProjectSummaryKey.make(for: project, working: model.workingProject) != nil || summary == nil else { return }
+            summary = model.projects.summary(for: project, sequence: sequence)
+        }
         .task { preview = await model.preview(for: project.patternID, sitePath: "patterns/\(project.patternID)/preview.png") }
     }
+
+    private struct SummaryRefresh: Hashable { let key: ProjectSummaryKey?; let chartID: String? }
 
     private func line(_ summary: ProgressSummary?) -> String {
         guard let sequence, let summary else { return "" }

@@ -109,8 +109,13 @@ final class ProjectService {
     }
 
     func estimatedFinish(for project: Project, sequence: WorkSequence) -> Date? {
-        let s = summary(for: project, sequence: sequence)
-        return Pace.estimatedFinish(remainingCells: s.totalCells - s.cellsDone, stitchesPerHour: s.stitchesPerHour, sessions: s.sessions, now: now())
+        estimatedFinish(from: summary(for: project, sequence: sequence))
+    }
+
+    /// The estimate from a summary the caller already holds: `summary(for:)` walks every event of
+    /// the project, so a view that shows both must not compute it twice.
+    func estimatedFinish(from s: ProgressSummary) -> Date? {
+        Pace.estimatedFinish(remainingCells: s.totalCells - s.cellsDone, stitchesPerHour: s.stitchesPerHour, sessions: s.sessions, now: now())
     }
 
     func setNotes(_ text: String, for project: Project) throws {

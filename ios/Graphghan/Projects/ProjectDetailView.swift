@@ -6,6 +6,7 @@ struct ProjectDetailView: View {
     @Environment(\.dismiss) private var dismiss
     let project: Project
     @State private var sequence: WorkSequence?
+    @State private var summary: ProgressSummary?
     @State private var loadError: String?
     @State private var manifest: PatternManifest?
     @State private var notes: String = ""
@@ -24,14 +25,13 @@ struct ProjectDetailView: View {
 
     var body: some View {
         List {
-            if let sequence {
-                let summary = model.projects.summary(for: project, sequence: sequence)
+            if let sequence, let summary {
                 Section {
                     ProgressView(value: summary.percent, total: 100).tint(.heather)
                     LabeledContent("Row", value: project.isFinished ? "Finished" : "\(project.cursor.row) of \(sequence.passes.count)")
                     LabeledContent(sequence.cellKind.label, value: "\(summary.cellsDone.formatted()) of \(summary.totalCells.formatted())")
                     if let rate = summary.stitchesPerHour { LabeledContent("Pace", value: "\(rate.formatted()) stitches per hour") }
-                    if let finish = model.projects.estimatedFinish(for: project, sequence: sequence) {
+                    if let finish = model.projects.estimatedFinish(from: summary) {
                         LabeledContent("Estimated finish", value: finish.formatted(date: .long, time: .omitted))
                     }
                 }
@@ -120,7 +120,15 @@ struct ProjectDetailView: View {
             }
         }
         .task { await load() }
+        // The summary walks every event; recompute it when the project changes outside the Work
+        // screen, never on each tap behind the cover (see ProjectSummaryKey).
+        .task(id: SummaryRefresh(key: ProjectSummaryKey.make(for: project, working: model.workingProject), chartID: sequence == nil ? nil : project.chartID)) {
+            guard let sequence, ProjectSummaryKey.make(for: project, working: model.workingProject) != nil || summary == nil else { return }
+            summary = model.projects.summary(for: project, sequence: sequence)
+        }
     }
+
+    private struct SummaryRefresh: Hashable { let key: ProjectSummaryKey?; let chartID: String? }
 
     private func load() async {
         notes = project.notes
