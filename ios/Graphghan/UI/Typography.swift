@@ -2,7 +2,8 @@ import SwiftUI
 import UIKit
 
 extension Font {
-    /// The Heather type ramp (spec §5.2). Every style scales with Dynamic Type except `done`.
+    /// The Heather type ramp (spec §5.2). Every style scales with Dynamic Type except `done` and
+    /// `annotation`.
     enum Heather {
         static let title = Font.custom("Literata-SemiBold", size: 28, relativeTo: .largeTitle)
         static let heading = Font.custom("Literata-SemiBold", size: 22, relativeTo: .title2)
@@ -12,6 +13,9 @@ extension Font {
         static let body = Font.custom("AtkinsonHyperlegible-Regular", size: 17, relativeTo: .body)
         static let label = Font.custom("AtkinsonHyperlegible-Bold", size: 15, relativeTo: .subheadline)
         static let caption = Font.custom("AtkinsonHyperlegible-Regular", size: 13, relativeTo: .footnote)
+        /// Labels drawn inside a chart (the band's ruler): fixed, because they annotate an 8 pt grid
+        /// and a scaled label overflows its strip rather than wrapping (#72).
+        static let annotation = Font.custom("AtkinsonHyperlegible-Regular", fixedSize: 13)
         static let count = Font.custom("Nunito-Black", size: 84, relativeTo: .largeTitle)
         static let code = Font.custom("AtkinsonHyperlegible-Bold", size: 34, relativeTo: .title)
     }
