@@ -11,6 +11,7 @@ enum Haptics {
 
     static func play(_ feedback: WorkFeedback) {
         switch feedback {
+        case .step: light.impactOccurred(intensity: 0.6)
         case .run: light.impactOccurred()
         case .row: medium.impactOccurred()
         case .newColor:

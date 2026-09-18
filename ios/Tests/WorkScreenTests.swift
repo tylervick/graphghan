@@ -8,43 +8,33 @@ import GraphghanCore
     static let chart = try! Chart.load(TestFixtures.data("craigh-na-dun.chart.json"))
     static let seq = try! WorkSequence(chart: chart)
     static let phone = CGSize(width: 390, height: 844)
+    static let turn = Cursor(row: 42, run: seq.pass(at: 42)!.runs.count)
+    static let end = Cursor(row: seq.passes.count, run: seq.passes.last!.runs.count)
 
-    private func screen(_ cursor: Cursor) -> some View {
-        WorkScreen(chart: Self.chart, sequence: Self.seq, cursor: cursor, onDone: {}, onBack: {}, onClose: {}, onJump: {}, onSelectRun: { _ in })
+    private func screen(_ cursor: Cursor, step: CountStep = .ten) -> some View {
+        WorkScreen(chart: Self.chart, sequence: Self.seq, cursor: cursor, step: step,
+                   onDone: {}, onBack: {}, onClose: {}, onJump: {}, onJumpWithinRow: { _, _ in }, onSetStep: { _ in })
     }
 
-    @Test func midRow() throws {
-        #expect(try Snapshots.assert(screen(Cursor(row: 42, run: 8)), named: "work-mid-row", size: Self.phone))
-    }
+    @Test func plainRun() throws { #expect(try Snapshots.assert(screen(Cursor(row: 42, run: 8)), named: "work-run", size: Self.phone)) }
+    @Test func braid() throws { #expect(try Snapshots.assert(screen(Cursor(row: 42, run: 2)), named: "work-braid", size: Self.phone)) }
+    @Test func repeatBand() throws { #expect(try Snapshots.assert(screen(Cursor(row: 179, run: 8)), named: "work-repeat", size: Self.phone)) }
+    @Test func fill() throws { #expect(try Snapshots.assert(screen(Cursor(row: 42, run: 10, stitch: 40)), named: "work-fill", size: Self.phone)) }
+    @Test func turn() throws { #expect(try Snapshots.assert(screen(Self.turn), named: "work-turn", size: Self.phone)) }
+    @Test func finished() throws { #expect(try Snapshots.assert(screen(Self.end), named: "work-finished", size: Self.phone)) }
 
-    @Test func lastRunInRow() throws {
-        let runs = Self.seq.pass(at: 42)!.runs.count
-        #expect(try Snapshots.assert(screen(Cursor(row: 42, run: runs - 1)), named: "work-last-in-row", size: Self.phone))
-    }
-
-    @Test func finished() throws {
-        let end = Cursor(row: Self.seq.passes.count, run: Self.seq.passes.last!.runs.count)
-        #expect(try Snapshots.assert(screen(end), named: "work-finished", size: Self.phone))
-    }
-
-    /// At the largest accessibility size the count may cap; nothing may clip or overlap the Done field.
+    /// At the largest accessibility size the count may cap and the landmark pill may drop; nothing clips.
     @Test func accessibilitySize() throws {
-        let view = screen(Cursor(row: 42, run: 8)).environment(\.dynamicTypeSize, .accessibility5)
-        #expect(try Snapshots.assert(view, named: "work-mid-row-ax5", size: Self.phone))
+        let view = screen(Cursor(row: 42, run: 10, stitch: 40)).environment(\.dynamicTypeSize, .accessibility5)
+        #expect(try Snapshots.assert(view, named: "work-fill-ax5", size: Self.phone))
     }
 
-    @Test func doneLabelSpellsOutTheStitch() {
-        // Craigh na Dun: gauge.stitch = sc, terms = US
-        let label = WorkScreen.doneLabel(chart: Self.chart, sequence: Self.seq, cursor: Cursor(row: 42, run: 8))
+    @Test func actionLabelsSpellOutTheStitch() {
         let run = Self.seq.pass(at: 42)!.runs[8]
         let name = Self.chart.palette[Self.chart.colorIndex(of: run.code)!].name
-        #expect(label == "Done with \(run.count) single crochet in \(name)")
-        // two-letter-codes: gauge.stitch = sc with no terms → US → still named; palette names are "Color <code>"
-        let plainChart = try! Chart.load(TestFixtures.data("two-letter-codes.chart.json"))
-        let plainSeq = try! WorkSequence(chart: plainChart)
-        #expect(WorkScreen.doneLabel(chart: plainChart, sequence: plainSeq, cursor: .start) == "Done with 3 single crochet in Color Kb")
-        // a chart with no gauge.stitch keeps today's label
-        let end = Cursor(row: Self.seq.passes.count, run: Self.seq.passes.last!.runs.count)
-        #expect(WorkScreen.doneLabel(chart: Self.chart, sequence: Self.seq, cursor: end) == "Close")
+        #expect(WorkScreen.actionLabel(chart: Self.chart, sequence: Self.seq, cursor: Cursor(row: 42, run: 8), step: .ten) == "Done with \(run.count) single crochet in \(name)")
+        #expect(WorkScreen.actionLabel(chart: Self.chart, sequence: Self.seq, cursor: Cursor(row: 42, run: 10, stitch: 40), step: .ten) == "40 of 117 single crochet in Cream, next ten")
+        #expect(WorkScreen.actionLabel(chart: Self.chart, sequence: Self.seq, cursor: Self.turn, step: .ten).hasPrefix("Ch 1 in Gold, turn"))
+        #expect(WorkScreen.actionLabel(chart: Self.chart, sequence: Self.seq, cursor: Self.end, step: .ten) == "Close")
     }
 }

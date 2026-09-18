@@ -1,6 +1,7 @@
 import GraphghanCore
 
-/// What sits under the current swatch (spec §6.1): the next run, the next row's first color, or nothing.
+/// What sits under the current swatch (spec §6.1): the next run in the row, or the foundation at
+/// the start; the turn is its own step.
 struct OnDeck: Hashable {
     let text: String
     let hex: String
@@ -27,22 +28,6 @@ enum OnDeckRule {
             let e = entry(next.code)
             let noun = chart.cellKind == .stitch ? "" : " \(chart.cellKind.nounPlural)"
             return OnDeck(text: "then \(next.count) \(e.name)\(noun)", hex: e.hex)
-        }
-        if let nextPass = sequence.pass(at: cursor.row + 1), let first = nextPass.runs.first {
-            let e = entry(first.code)
-            var text = "next row starts in \(e.name)"
-            // Only a `turn` boundary changes the line; other kinds are for later readers (spec §6.1).
-            if let boundary = chart.stitch?.boundary, boundary.kind == .turn {
-                let chain: String
-                if boundary.chain > 0 {
-                    chain = boundary.color == .next ? "ch \(boundary.chain) in \(e.name), turn" : "ch \(boundary.chain), turn"
-                } else {
-                    chain = "turn"
-                }
-                text = "\(chain) — \(text)"
-                if boundary.countsAsStitch { text += " (counts as a st)" }
-            }
-            return OnDeck(text: text, hex: e.hex)
         }
         return nil
     }

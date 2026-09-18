@@ -13,12 +13,12 @@ import Testing
         }
     }
 
-    @Test func matchesTheProgressFixture() throws {
-        let doc = try ProgressDocument.decode(Fixtures.data("progress-basic.progress.json"))
-        let raw = try Fixtures.json("progress-basic.progress.json")
+    @Test(arguments: ["progress-basic", "progress-stitch"]) func matchesTheProgressFixture(_ name: String) throws {
+        let doc = try ProgressDocument.decode(Fixtures.data("\(name).progress.json"))
+        let raw = try Fixtures.json("\(name).progress.json")
         let chartName = try #require(((raw["ext"] as? [String: Any])?["fixture"] as? [String: Any])?["chart"] as? String)
         let seq = try WorkSequence(chart: Chart.load(Fixtures.data("\(chartName).chart.json")))
-        let expected = try JSONDecoder().decode(Expected.self, from: Fixtures.data("progress-basic.progress.expected.json"))
+        let expected = try JSONDecoder().decode(Expected.self, from: Fixtures.data("\(name).progress.expected.json"))
         let s = Pace.summarize(events: doc.events, cursor: doc.cursor, sequence: seq)
         #expect(abs(s.percent - expected.percent) < 0.001)
         #expect(s.cellsDone == expected.cellsDone && s.totalCells == expected.totalCells)

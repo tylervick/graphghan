@@ -2,7 +2,8 @@ import Foundation
 import Testing
 
 /// Guards the tokens rule (spec §3/§5.2): no raw hex, no `Color(red:`/`Color(white:`, no
-/// `.accentColor`, no system `.secondary`/`.tertiary`/`.white`/`.black` foreground, and no system
+/// `.accentColor`, no system `.secondary`/`.tertiary`/`.white`/`.black` foreground, no raw
+/// `GraphicsContext.Shading.color(.black)`/`.color(.white)` in a `Canvas`, and no system
 /// text-style or `.font(.system(` font outside the shared token files. Everything under
 /// `Graphghan/` and `Shared/` goes through `Color.*` (Shared/Theme.swift) and `Font.Heather.*`
 /// (Graphghan/UI/Typography.swift) instead.
@@ -71,6 +72,10 @@ import Testing
         if line.contains(".accentColor") { flagged = true }
         for token in ["secondary", "tertiary", "white", "black"] {
             if line.contains("foregroundStyle(." + token + ")") { flagged = true }
+        }
+        // GraphicsContext.Shading.color(_:), a Canvas fill/stroke, not a SwiftUI foregroundStyle.
+        for token in ["black", "white"] {
+            if line.contains(".color(." + token) { flagged = true }
         }
         if !fontRulesAllowlisted.contains(path) {
             if systemTextStyleFont.firstMatch(in: line, range: range) != nil { flagged = true }

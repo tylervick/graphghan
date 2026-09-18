@@ -1,38 +1,54 @@
 import SwiftUI
 import GraphghanCore
 
-/// The Work screen without the model (spec §6.1): stone ground, the strip and chips on a small
-/// card, and below them the color columns under glass that carry the run and the actions.
-/// `WorkView` owns state and haptics and feeds this.
+/// The Work screen without the model (spec §5): header, the panel in the run's colour, the chart
+/// band at stitch scale, and the bar. `WorkView` owns state, persistence and haptics and feeds this.
 struct WorkScreen: View {
     let chart: Chart
     let sequence: WorkSequence
     let cursor: Cursor
+    let step: CountStep
     let onDone: () -> Void
     let onBack: () -> Void
     let onClose: () -> Void
     let onJump: () -> Void
-    let onSelectRun: (Int) -> Void
+    let onJumpWithinRow: (_ run: Int, _ stitch: Int) -> Void
+    let onSetStep: (CountStep) -> Void
+
+    @State private var mode: ChartBand.Mode = .band
+    @State private var showRunList = false
     @Environment(\.verticalSizeClass) private var verticalSizeClass
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private var finished: Bool { WorkEngine.isFinished(cursor, in: sequence) }
+    private var content: WorkPanelContent { WorkPanelContent.make(chart: chart, sequence: sequence, cursor: cursor, step: step) }
+    private var canGoBack: Bool { WorkEngine.apply(.back, to: cursor, in: sequence, step: step) != nil }
+
+    static func actionLabel(chart: Chart, sequence: WorkSequence, cursor: Cursor, step: CountStep) -> String {
+        WorkPanelContent.make(chart: chart, sequence: sequence, cursor: cursor, step: step).actionLabel
+    }
 
     var body: some View {
+        let c = content
         Group {
             if verticalSizeClass == .compact {
-                HStack(spacing: 0) {
-                    VStack(spacing: 14) { header; card }.frame(maxWidth: .infinity)
-                    field.frame(maxWidth: .infinity)
+                HStack(spacing: 14) {
+                    VStack(spacing: 14) { header; panel(c); Spacer(minLength: 0); bar(c) }.frame(maxWidth: .infinity)
+                    band(c).frame(maxWidth: .infinity)
                 }
+                .padding(.bottom, 16)
             } else {
-                VStack(spacing: 14) { header; card; field }
+                VStack(spacing: 14) { header; panel(c); band(c); bar(c) }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        // The field is the tap target down to the display edge; the controls' own bottom padding
-        // keeps them above the home indicator.
         .ignoresSafeArea(edges: .bottom)
         .background(Color.ground.weave().ignoresSafeArea())
+        .sheet(isPresented: $showRunList) {
+            if let pass = sequence.pass(at: cursor.row) {
+                RunListSheet(chart: chart, pass: pass, current: cursor.run) { onJumpWithinRow($0, 0) }
+            }
+        }
     }
 
     private var header: some View {
@@ -50,13 +66,12 @@ struct WorkScreen: View {
                         .font(Font.Heather.rowNumber).monospacedDigit()
                         .lineLimit(1)
                         .minimumScaleFactor(0.6)
+                        .onTapGesture { withAnimation { mode = mode == .band ? .whole : .band } }
                         .onLongPressGesture(perform: onJump)
                         .accessibilityHint("Long press to jump to a row")
                         .accessibilityAction(named: "Jump to row", onJump)
                     Text(finished ? "Every row worked" : sideText(pass)).font(Font.Heather.caption).foregroundStyle(Color.ink2)
-                        .lineLimit(2)
-                        .multilineTextAlignment(.center)
-                        .minimumScaleFactor(0.8)
+                        .lineLimit(2).multilineTextAlignment(.center).minimumScaleFactor(0.8)
                 }
             }
             Spacer()
@@ -67,93 +82,123 @@ struct WorkScreen: View {
         .padding(.top, 8)
     }
 
-    /// The strip and the chips: the row's context, in a small Panel card above the field.
-    private var card: some View {
-        VStack(spacing: 10) {
-            RowStripView(chart: chart, sequence: sequence, cursor: cursor)
-            if !finished, let pass = sequence.pass(at: cursor.row) {
-                RunChipsView(chart: chart, pass: pass, cursor: cursor, onSelect: onSelectRun)
+    /// The panel is the spoken element: one label, the on-deck line as its value, the actions as rotor actions (spec §6).
+    private func panel(_ c: WorkPanelContent) -> some View {
+        WorkPanel(content: c)
+            .padding(.horizontal, 12)
+            .contentShape(Rectangle())
+            .onTapGesture(perform: finished ? onClose : onDone)
+            .accessibilityElement(children: .ignore)
+            .accessibilityAddTraits(.isButton)
+            .accessibilityLabel(c.actionLabel)
+            .accessibilityValue([c.spokenValue, c.onDeck].compactMap { $0 }.joined(separator: ". "))
+            .accessibilityAction { finished ? onClose() : onDone() }
+            .accessibilityAction(named: "Back", onBack)
+            .accessibilityAction(named: "Jump to row", onJump)
+            .accessibilityAction(named: "Jump within row") { showRunList = true }
+            .accessibilityAction(named: "Choose counting step") { onSetStep(step.next) }
+    }
+
+    private func band(_ c: WorkPanelContent) -> some View {
+        // Finished: the whole chart solid, not the last row with a turn marker on it (spec §5.1).
+        // The band is then locked to `.whole`, so its tap -- which returns from the whole chart --
+        // has nowhere to go and closes, the same thing every other surface does when finished.
+        ChartBand(chart: chart, sequence: sequence, cursor: cursor, segmentLabel: c.bandLabel, mode: finished ? .whole : mode,
+                  onAdvance: finished ? onClose : onDone, onJump: onJumpWithinRow,
+                  onToggleMode: finished ? onClose : { withAnimation { mode = mode == .band ? .whole : .band } })
+            .padding(.horizontal, 12)
+            .frame(maxHeight: .infinity)
+    }
+
+    private func bar(_ c: WorkPanelContent) -> some View {
+        let nextHex = sequence.pass(at: cursor.row + 1)?.runs.first.map { chart.palette[chart.colorIndex(of: $0.code) ?? 0].hex }
+        let doneHex = c.kind == .turn ? (nextHex ?? WorkPanelContent.creamHex) : c.hex
+        // Back can itself land on a boundary position (`run == runs.count`); clamp to that row's
+        // last run so the capsule wears the colour it returns to rather than falling back to Cream.
+        let prevHex = WorkEngine.apply(.back, to: cursor, in: sequence, step: step).flatMap { s in
+            sequence.pass(at: s.cursor.row).flatMap { p in p.runs.isEmpty ? nil : p.runs[min(s.cursor.run, p.runs.count - 1)] }
+        }.map { chart.palette[chart.colorIndex(of: $0.code) ?? 0].hex } ?? YarnSurface.creamHex
+        let action = Button(action: finished ? onClose : onDone) {
+            Group {
+                if c.capsule == "checkmark" { Image(systemName: "checkmark").font(.system(size: 30, weight: .bold)) }
+                else { Text(c.capsule).font(Font.Heather.done).minimumScaleFactor(0.6).lineLimit(1) }
+            }
+            .frame(maxWidth: .infinity).frame(height: 72)
+            .foregroundStyle(YarnSurface.foreground(doneHex))
+            .contentShape(Capsule())
+            .capsuleGlass(doneHex)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(c.actionLabel)
+        return HStack(spacing: 12) {
+            if !finished {
+                Button(action: onBack) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "arrow.uturn.backward").font(.system(size: 22, weight: .semibold))
+                        // At an accessibility size the word no longer fits beside the arrow in 110 pt,
+                        // and truncating it is worse than dropping it: the label still says "Back".
+                        if !dynamicTypeSize.isAccessibilitySize { Text("Back").font(Font.Heather.label) }
+                    }
+                    .frame(width: 110, height: 72)
+                    .foregroundStyle(YarnSurface.foreground(prevHex).opacity(canGoBack ? 1 : 0.4))
+                    .contentShape(Capsule())
+                    .capsuleGlass(prevHex)
+                }
+                .buttonStyle(.plain)
+                .disabled(!canGoBack)
+                .accessibilityLabel("Back")
+            }
+            // The step picker hangs off the capsule for every kind, not only fills and runs (spec
+            // §5.4); finished has nothing to pick, and an empty `contextMenu` is a dead long press.
+            if finished {
+                action
+            } else {
+                action.contextMenu {
+                    ForEach(CountStep.allCases, id: \.rawValue) { s in
+                        Button { onSetStep(s) } label: {
+                            if s == step { Label(s.title, systemImage: "checkmark") } else { Text(s.title) }
+                        }
+                    }
+                }
             }
         }
-        .padding(10)
-        .background(Color.panel, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).strokeBorder(Color.line, lineWidth: 1))
-        .contentShape(Rectangle())
-        .onTapGesture {}  // the card swallows taps: nothing inside advances by accident
-        .padding(.horizontal, 12)
-        .foregroundStyle(Color.ink)
-    }
-
-    /// The color columns under glass: previous, current, and a sliver of the next.
-    private var field: some View {
-        WorkField(finished: finished, canGoBack: cursor != .start, content: fieldContent, doneLabel: doneLabel,
-                  doneForeground: (currentEntry?.hex).map(YarnSurface.foreground) ?? Color.ink,
-                  backForeground: (previousEntry?.hex).map(YarnSurface.foreground) ?? Color.ink2,
-                  stops: trackStops,
-                  onDone: finished ? onClose : onDone, onBack: onBack)
-            .frame(maxHeight: .infinity)
-            .padding(.bottom, 44)
-    }
-
-    private var fieldContent: WorkFieldContent? {
-        guard !finished, let pass = sequence.pass(at: cursor.row), let entry = currentEntry else { return nil }
-        return WorkFieldContent(count: pass.runs[cursor.run].count, code: entry.code, name: entry.name,
-                                onDeck: OnDeckRule.onDeck(cursor: cursor, chart: chart, sequence: sequence)?.text,
-                                stitch: chart.stitch?.code)
-    }
-
-    /// The run Back returns to: the one before the cursor, or the last run of the previous row.
-    private var previousEntry: ChartDocument.PaletteEntry? {
-        guard let step = WorkEngine.apply(.back, to: cursor, in: sequence) else { return nil }
-        return entry(at: step.cursor)
-    }
-
-    /// The runs two back through two ahead of the cursor, walked with the engine so row boundaries
-    /// behave exactly as Back and Done do; the ones off screen are what make the slide possible.
-    private var trackStops: [TrackStop] {
-        var stops: [TrackStop] = []
-        var back = cursor
-        for offset in 1...2 {
-            guard let step = WorkEngine.apply(.back, to: back, in: sequence) else { break }
-            back = step.cursor
-            stops.insert(TrackStop(cursor: back, offset: -offset, hex: entry(at: back)?.hex), at: 0)
-        }
-        stops.append(TrackStop(cursor: cursor, offset: 0, hex: entry(at: cursor)?.hex))
-        var ahead = cursor
-        for offset in 1...2 {
-            guard let step = WorkEngine.apply(.advance, to: ahead, in: sequence) else { break }
-            ahead = step.cursor
-            stops.append(TrackStop(cursor: ahead, offset: offset, hex: entry(at: ahead)?.hex))
-        }
-        return stops
-    }
-
-    private func entry(at c: Cursor) -> ChartDocument.PaletteEntry? {
-        guard let pass = sequence.pass(at: c.row), c.run < pass.runs.count else { return nil }
-        return chart.palette[chart.colorIndex(of: pass.runs[c.run].code) ?? 0]
-    }
-
-    /// The palette entry of the run under the cursor; nil once finished or past the last run.
-    private var currentEntry: ChartDocument.PaletteEntry? { finished ? nil : entry(at: cursor) }
-
-    private var doneLabel: String { Self.doneLabel(chart: chart, sequence: sequence, cursor: cursor) }
-
-    /// "Done with 4 single crochet in Charcoal": the stitch name when the chart states one the
-    /// tables know, its abbreviation otherwise, nothing when the chart is silent (spec §6.4).
-    static func doneLabel(chart: Chart, sequence: WorkSequence, cursor: Cursor) -> String {
-        guard !WorkEngine.isFinished(cursor, in: sequence) else { return "Close" }
-        guard let pass = sequence.pass(at: cursor.row), cursor.run < pass.runs.count else { return "Done" }
-        let run = pass.runs[cursor.run]
-        let entry = chart.palette[chart.colorIndex(of: run.code) ?? 0]
-        if let stitch = chart.stitch {
-            return "Done with \(run.count) \(stitch.name ?? stitch.code) in \(entry.name)"
-        }
-        return "Done with \(run.count) \(entry.name)"
+        .padding(.horizontal, 16)
+        .padding(.bottom, 44)
     }
 
     private func sideText(_ pass: Pass) -> String {
         let dir = pass.direction.map { $0 == .ltr ? "read left to right" : "read right to left" } ?? "read direction not specified"
         guard let side = pass.side else { return dir }
         return "\(side == .ws ? "Wrong side" : "Right side") · \(dir)"
+    }
+}
+
+extension CountStep {
+    var title: String {
+        switch self {
+        case .one: "Count every stitch"
+        case .five: "Count by 5"
+        case .ten: "Count by 10"
+        case .twenty: "Count by 20"
+        case .wholeRun: "One tap per run"
+        }
+    }
+    /// The next step in the picker's order, for the VoiceOver action that cycles it.
+    var next: CountStep {
+        let all = CountStep.allCases
+        return all[(all.firstIndex(of: self)! + 1) % all.count]
+    }
+}
+
+private extension View {
+    /// Clear Liquid Glass over the yarn colour on iOS 26; a thin material over it before that.
+    @ViewBuilder func capsuleGlass(_ hex: String) -> some View {
+        if #available(iOS 26, *) {
+            background(YarnSurface.fill(hex).opacity(0.85), in: Capsule())
+                .glassEffect(.clear.interactive(), in: Capsule())
+        } else {
+            background(YarnSurface.fill(hex), in: Capsule())
+                .overlay(Capsule().strokeBorder(YarnSurface.hairline, lineWidth: 1))
+        }
     }
 }

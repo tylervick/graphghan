@@ -25,8 +25,28 @@ public struct ProgressEventRecord: Codable, Equatable, Sendable {
     public let t: Date
     public let row: Int
     public let run: Int
+    public let stitch: Int
     public let kind: EventKind
-    public init(t: Date, row: Int, run: Int, kind: EventKind) { self.t = t; self.row = row; self.run = run; self.kind = kind }
+    public init(t: Date, row: Int, run: Int, stitch: Int = 0, kind: EventKind) { self.t = t; self.row = row; self.run = run; self.stitch = stitch; self.kind = kind }
+    public var cursor: Cursor { Cursor(row: row, run: run, stitch: stitch) }
+
+    enum CodingKeys: String, CodingKey { case t, row, run, stitch, kind }
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        t = try c.decode(Date.self, forKey: .t)
+        row = try c.decode(Int.self, forKey: .row)
+        run = try c.decode(Int.self, forKey: .run)
+        stitch = try c.decodeIfPresent(Int.self, forKey: .stitch) ?? 0
+        kind = try c.decode(EventKind.self, forKey: .kind)
+    }
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(t, forKey: .t)
+        try c.encode(row, forKey: .row)
+        try c.encode(run, forKey: .run)
+        if stitch != 0 { try c.encode(stitch, forKey: .stitch) }
+        try c.encode(kind, forKey: .kind)
+    }
 }
 
 /// Progress document, schema 1 (docs/chart-format.md). Every event records the cursor after the action.

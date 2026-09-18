@@ -91,6 +91,7 @@ import GraphghanCore
         let s = h.service.summary(for: p, sequence: seq)
         #expect(s.stitchesDone == 3 && s.totalStitches == 24 && s.sessions.count == 1)
         #expect(h.service.estimatedFinish(for: p, sequence: seq) == nil)  // fewer than 3 sessions
+        #expect(h.service.estimatedFinish(from: s) == h.service.estimatedFinish(for: p, sequence: seq))
         let doc = h.service.exportDocument(for: p)
         #expect(doc.patternID == "two-letter-codes" && doc.chartID == h.chartID && doc.cursor == Cursor(row: 1, run: 1) && doc.events.count == 1)
     }
@@ -230,5 +231,38 @@ import GraphghanCore
         #expect(seen == [Cursor(row: 1, run: 1)])
         #expect(try h.service.project(id: p.id)?.id == p.id)
         #expect(try h.service.project(id: UUID()) == nil)
+    }
+
+    @Test func applyCountsAFillWithTheProjectsStepAndRecordsStitch() async throws {
+        let h = try await makeHarness()
+        let craigh = try TestFixtures.data("craigh-na-dun.chart.json")
+        let craighID = try Chart.load(craigh).id
+        await h.client.respond("/patterns/two-letter-codes/charts/final-sc/chart.json", data: craigh)
+        let manifest = TestManifest.make(chartID: craighID)
+        let p = try await h.service.startProject(manifest: manifest, chart: manifest.charts[0], title: "x")
+        let seq = try await h.service.sequence(for: p)
+        #expect(p.step == .ten && p.cursorStitch == 0)
+        _ = h.service.apply(.jump(row: 42, run: 10), to: p, in: seq)   // the 117 C fill
+        _ = h.service.apply(.advance, to: p, in: seq)
+        #expect(p.cursor == Cursor(row: 42, run: 10, stitch: 10) && p.cursorStitch == 10)
+        #expect(p.eventRecords.last == ProgressEventRecord(t: p.eventRecords.last!.t, row: 42, run: 10, stitch: 10, kind: .advance))
+        try h.service.setCountStep(.twenty, for: p)
+        #expect(p.step == .twenty && p.countStep == 20)
+        _ = h.service.apply(.advance, to: p, in: seq)
+        #expect(p.cursor.stitch == 30)
+        let doc = h.service.exportDocument(for: p)
+        #expect(doc.cursor.stitch == 30 && doc.events.last?.stitch == 30)
+    }
+
+    @Test func aTurnIsAnEventAndBackUndoesIt() async throws {
+        let h = try await makeHarness()
+        let manifest = TestManifest.make(chartID: h.chartID)
+        let p = try await h.service.startProject(manifest: manifest, chart: manifest.charts[0], title: "x")
+        let seq = try await h.service.sequence(for: p)
+        for _ in 0..<3 { _ = h.service.apply(.advance, to: p, in: seq) }   // three runs of row 1
+        #expect(p.cursor == Cursor(row: 1, run: 3) && !p.isFinished)          // the boundary, not row 2
+        #expect(h.service.apply(.advance, to: p, in: seq)?.cursor == Cursor(row: 2, run: 0))
+        #expect(h.service.apply(.back, to: p, in: seq)?.cursor == Cursor(row: 1, run: 3))
+        #expect(try h.context.fetchCount(FetchDescriptor<ProgressEvent>()) == 5)
     }
 }

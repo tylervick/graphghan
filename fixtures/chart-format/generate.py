@@ -225,6 +225,35 @@ PROGRESS_BASIC_EXPECTED = {
     "stitches_per_hour": 120.0,
 }
 
+PROGRESS_STITCH_EVENTS = [
+    {"t": "2026-09-12T18:00:00Z", "row": 1, "run": 0, "stitch": 10, "kind": "advance"},  # ten of the 14
+    {
+        "t": "2026-09-12T18:00:30Z",
+        "row": 1,
+        "run": 1,
+        "kind": "advance",
+    },  # the boundary position: row worked, not turned
+    {"t": "2026-09-12T18:01:00Z", "row": 2, "run": 0, "kind": "advance"},  # turned
+    {"t": "2026-09-12T18:01:30Z", "row": 1, "run": 1, "kind": "back"},  # back to the boundary
+    {"t": "2026-09-12T18:02:00Z", "row": 2, "run": 0, "kind": "advance"},
+    {"t": "2026-09-12T19:00:00Z", "row": 3, "run": 1, "stitch": 5, "kind": "jump"},  # a jump into a run
+    {"t": "2026-09-12T19:03:00Z", "row": 3, "run": 2, "kind": "advance"},  # the step that completes it
+]
+
+PROGRESS_STITCH_EXPECTED = {
+    "percent": 23.8,
+    "cells_done": 40,
+    "total_cells": 168,
+    "stitches_done": 40,
+    "total_stitches": 168,
+    "sessions": [
+        {"start": "2026-09-12T18:00:00Z", "end": "2026-09-12T18:02:00Z", "cells": 14, "stitches": 14},
+        {"start": "2026-09-12T19:00:00Z", "end": "2026-09-12T19:03:00Z", "cells": 26, "stitches": 26},
+    ],
+    "active_seconds": 300,
+    "stitches_per_hour": 480.0,
+}
+
 
 def progress_fixtures(charts: dict) -> dict[str, tuple[dict, dict]]:
     """name -> (progress doc, expected summary). Each names the chart fixture it runs against."""
@@ -240,7 +269,21 @@ def progress_fixtures(charts: dict) -> dict[str, tuple[dict, dict]]:
         "events": PROGRESS_BASIC_EVENTS,
         "ext": {"fixture": {"chart": "minimal-rows"}},
     }
-    return {"progress-basic": (doc, PROGRESS_BASIC_EXPECTED)}
+    stitch_doc = {
+        "schema": 1,
+        "pattern_id": "minimal",
+        "chart_id": minimal["chart"]["id"],
+        "pattern_version": "1.0.0",
+        "cursor": {"row": 3, "run": 2},
+        "started": "2026-09-12T18:00:00Z",
+        "finished": None,
+        "events": PROGRESS_STITCH_EVENTS,
+        "ext": {"fixture": {"chart": "minimal-rows"}},
+    }
+    return {
+        "progress-basic": (doc, PROGRESS_BASIC_EXPECTED),
+        "progress-stitch": (stitch_doc, PROGRESS_STITCH_EXPECTED),
+    }
 
 
 def canonical_passes(passes) -> bytes:

@@ -23,6 +23,11 @@ gauge convention) — both count tiles, so the finished size derives. Removing i
 declaration reverts the cell kind to the `stitch` default, disagrees with the `tiles` gauge unit,
 and withholds the size.
 
+`progress-stitch` pins the optional `stitch` on the progress cursor and events (#59): an offset
+inside a run, the boundary position after a row, a Back onto the boundary, and a jump into a run.
+A reader that ignores `stitch` still validates the document; one that reads it reproduces the
+expected summary.
+
 `tests/test_js_parity.py` is how the PWA's conformance is enforced in this repo: for every fixture
 here it runs `site/src/app/data.js`'s `sequence()` under node and compares it pass for pass with
 `graphghan.chartdoc.sequence`, including the `null` for the unknown-technique fixture. node is

@@ -13,6 +13,8 @@ import GraphghanCore
     static let unavailable = WorkActivityState.unavailable("This project is no longer available.")
     /// Past the last run of the last pass: the cursor the Work screen ends on.
     static let finished = LiveActivityState.make(cursor: Cursor(row: seq.passes.count, run: seq.passes.last!.runs.count), sequence: seq)!
+    static let fill = LiveActivityState.make(cursor: Cursor(row: 42, run: 10, stitch: 40), sequence: seq)!
+    static let turn = LiveActivityState.make(cursor: Cursor(row: 42, run: seq.pass(at: 42)!.runs.count), sequence: seq)!
 
     @Test func hexColor() {
         #expect(HexColor.isLight("#F2E8D5") && !HexColor.isLight("#2B2F33"))
@@ -23,16 +25,26 @@ import GraphghanCore
     }
 
     @Test func lastInRowTextNamesTheChain() {
-        #expect(Self.info.turningChain == 1)  // from the fixture, via LiveActivityState.info
-        #expect(RunPanel.nextText(info: Self.info, state: Self.lastInRow) == "ch 1, turn")
-        let plain = WorkActivityInfo(projectID: Self.info.projectID, title: Self.info.title, totalRows: Self.info.totalRows,
-                                     totalCells: Self.info.totalCells, palette: Self.info.palette)
-        #expect(RunPanel.nextText(info: plain, state: Self.lastInRow) == "last in row")
-        let zero = WorkActivityInfo(projectID: Self.info.projectID, title: "t", totalRows: 1, totalCells: 1, palette: [], stitch: "sc", turningChain: 0)
-        #expect(RunPanel.nextText(info: zero, state: Self.lastInRow) == "turn")
+        #expect(RunPanel.nextText(info: Self.info, state: Self.lastInRow) == "")
         #expect(RunPanel.nextText(info: Self.info, state: Self.midway).hasPrefix("then "))
         let final = LiveActivityState.make(cursor: Cursor(row: Self.seq.passes.count, run: Self.seq.passes.last!.runs.count - 1), sequence: Self.seq)!
         #expect(RunPanel.nextText(info: Self.info, state: final) == "last in row")
+    }
+
+    @Test func countTextCountsUpInsideAFill() {
+        #expect(RunPanel.countText(state: Self.fill) == "40 of 117")
+        #expect(RunPanel.countText(state: Self.midway) == "\(Self.midway.currentCount!)")
+    }
+
+    @Test func boundaryTextNamesTheTurnAndTheNextRow() {
+        #expect(RunPanel.nextText(info: Self.info, state: Self.turn) == "ch 1, turn · Row 43 starts in Gold")
+        let plain = WorkActivityInfo(projectID: Self.info.projectID, title: Self.info.title, totalRows: Self.info.totalRows, totalCells: Self.info.totalCells, palette: Self.info.palette)
+        #expect(RunPanel.nextText(info: plain, state: Self.turn) == "turn · Row 43 starts in Gold")
+    }
+
+    @Test func lockScreenFillAndTurn() throws {
+        #expect(try Snapshots.assert(WorkLockScreenView(info: Self.info, state: Self.fill).background(Color.activityCard).environment(\.colorScheme, .dark), named: "lock-fill", size: CGSize(width: 360, height: 170)))
+        #expect(try Snapshots.assert(WorkLockScreenView(info: Self.info, state: Self.turn).background(Color.activityCard).environment(\.colorScheme, .dark), named: "lock-turn", size: CGSize(width: 360, height: 170)))
     }
 
     @Test func lockScreenLastInRow() throws {
@@ -51,6 +63,17 @@ import GraphghanCore
         #expect(try Snapshots.assert(WorkCompactLeadingView(info: Self.info, state: Self.midway), named: "compact-leading", size: CGSize(width: 64, height: 36)))
         #expect(try Snapshots.assert(WorkCompactTrailingView(state: Self.midway), named: "compact-trailing", size: CGSize(width: 64, height: 36)))
         #expect(try Snapshots.assert(WorkMinimalView(info: Self.info, state: Self.midway), named: "minimal", size: CGSize(width: 44, height: 36)))
+    }
+
+    @Test func compactAndMinimalCountInsideAFill() throws {
+        #expect(try Snapshots.assert(WorkCompactLeadingView(info: Self.info, state: Self.fill).background(Color.activityCard).environment(\.colorScheme, .dark), named: "compact-leading-fill", size: CGSize(width: 64, height: 36)))
+        #expect(try Snapshots.assert(WorkMinimalView(info: Self.info, state: Self.fill).background(Color.activityCard).environment(\.colorScheme, .dark), named: "minimal-fill", size: CGSize(width: 44, height: 36)))
+    }
+
+    /// At the turn the compact view shows the next row's first run, not the finished checkmark:
+    /// `currentCode` is nil at every boundary, so only `finished` may show the checkmark.
+    @Test func compactAtTheTurnShowsTheNextRun() throws {
+        #expect(try Snapshots.assert(WorkCompactLeadingView(info: Self.info, state: Self.turn).background(Color.activityCard).environment(\.colorScheme, .dark), named: "compact-leading-turn", size: CGSize(width: 64, height: 36)))
     }
 
     @Test func expanded() throws {

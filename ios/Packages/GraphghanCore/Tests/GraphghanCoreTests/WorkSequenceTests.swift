@@ -15,8 +15,10 @@ import Testing
         try WorkSequence(chart: Chart.load(Fixtures.data("\(name).chart.json")))
     }
 
-    /// A chart with no explicit passes, so the working order comes from `technique`.
-    static func derived(technique: JSONValue, rows: [String], codes: [String] = ["A", "B"]) throws -> WorkSequence {
+    /// A chart with no explicit passes, so the working order comes from `technique`. `boundary` is
+    /// raw `gauge.boundary` JSON, paired with a stated stitch so `Chart.stitch` (and with it
+    /// `turnBoundary`) is non-nil.
+    static func derived(technique: JSONValue, rows: [String], codes: [String] = ["A", "B"], boundary: String? = nil) throws -> WorkSequence {
         let id = ChartID.compute(codes: codes, rows: rows, technique: technique, passes: nil)
         let palette = codes.enumerated().map { i, c in
             #"{"code":"\#(c)","name":"n\#(i)","hex":"\#(String(format: "#%06x", i * 0x111111))"}"#
@@ -25,7 +27,7 @@ import Testing
         let json = #"""
         {"schema":2,"pattern":{"id":"t","title":"T","version":"1"},"chart":{"id":"\#(id)","width":\#(width),"height":\#(rows.count)},
          "palette":[\#(palette)],"rows":[\#(rows.map { "\"\($0)\"" }.joined(separator: ","))],
-         "gauge":{"stitches":14,"rows":16,"over":{"value":4,"unit":"in"}},"technique":\#(CanonicalJSON.encode(technique))}
+         "gauge":{"stitches":14,"rows":16,"over":{"value":4,"unit":"in"}\#(boundary.map { ",\"stitch\":\"sc\",\"boundary\":\($0)" } ?? "")},"technique":\#(CanonicalJSON.encode(technique))}
         """#
         return try WorkSequence(chart: Chart.load(Data(json.utf8)))
     }
@@ -141,5 +143,34 @@ import Testing
         // The id no longer matches after editing passes, so build the document directly.
         let doc = try ChartDocument.decode(Data(json.utf8))
         #expect(throws: SequenceError.self) { try WorkSequence(chart: try Chart.unchecked(document: doc)) }
+    }
+
+    @Test func cursorStitchCountsTowardCellsDone() throws {
+        let seq = try WorkSequence(chart: Chart.load(Fixtures.data("minimal-rows.chart.json")))
+        #expect(seq.cellsBefore(Cursor(row: 1, run: 0, stitch: 10)) == 10)
+        #expect(seq.cellsBefore(Cursor(row: 3, run: 1, stitch: 5)) == 28 + 2 + 5)
+        #expect(seq.isValid(Cursor(row: 1, run: 0, stitch: 13)))
+        #expect(!seq.isValid(Cursor(row: 1, run: 0, stitch: 14)))      // a completed run is the next run at 0
+        #expect(seq.isValid(Cursor(row: 1, run: 1, stitch: 0)))        // the boundary position
+        #expect(!seq.isValid(Cursor(row: 1, run: 1, stitch: 1)))
+        #expect(seq.cellsBefore(Cursor(row: 1, run: 1)) == 14)
+    }
+
+    @Test func boundaryStepFollowsRowsButNotTheLastPass() throws {
+        let rows = try WorkSequence(chart: Chart.load(Fixtures.data("minimal-rows.chart.json")))
+        #expect(rows.technique == "rows" && !rows.turnBoundary)
+        #expect(rows.hasBoundaryStep(after: 1) && rows.hasBoundaryStep(after: 11) && !rows.hasBoundaryStep(after: 12))
+        let rounds = try WorkSequence(chart: Chart.load(Fixtures.data("minimal-rounds.chart.json")))
+        #expect(rounds.technique == "rounds" && !rounds.hasBoundaryStep(after: 1))
+        // Worked in the round there is nothing to turn, so a declared `turn` boundary -- which a
+        // pattern may state for its flat parts -- still buys no boundary step (spec §4.4).
+        let turningRounds = try Self.derived(technique: .object(["type": .string("rounds")]), rows: ["2A2B", "2B2A"],
+                                             boundary: #"{"kind":"turn","chain":1}"#)
+        #expect(turningRounds.technique == "rounds" && turningRounds.turnBoundary && !turningRounds.hasBoundaryStep(after: 1))
+        let explicit = try WorkSequence(chart: Chart.load(Fixtures.data("explicit-passes.chart.json")))
+        #expect(explicit.technique == nil && !explicit.hasBoundaryStep(after: 1))
+        let craigh = try WorkSequence(chart: Chart.load(Fixtures.data("craigh-na-dun.chart.json")))
+        #expect(craigh.turnBoundary && craigh.hasBoundaryStep(after: 42))
+        #expect(!WorkSequence(passes: []).hasBoundaryStep(after: 1))
     }
 }

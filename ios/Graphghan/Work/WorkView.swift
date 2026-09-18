@@ -56,17 +56,19 @@ struct WorkView: View {
         }
         .onChange(of: project.cursorRow) { _, _ in cursor = project.cursor }
         .onChange(of: project.cursorRun) { _, _ in cursor = project.cursor }
+        .onChange(of: project.cursorStitch) { _, _ in cursor = project.cursor }
         .statusBarHidden(true)
     }
 
     @ViewBuilder
     private func content(chart: Chart, sequence: WorkSequence) -> some View {
-        WorkScreen(chart: chart, sequence: sequence, cursor: cursor,
+        WorkScreen(chart: chart, sequence: sequence, cursor: cursor, step: project.step,
                    onDone: { perform(.advance, sequence: sequence) },
                    onBack: { perform(.back, sequence: sequence) },
                    onClose: { dismiss() },
                    onJump: { showJump = true },
-                   onSelectRun: { run in perform(.jump(row: cursor.row, run: run), sequence: sequence) })
+                   onJumpWithinRow: { run, stitch in perform(.jump(row: cursor.row, run: run, stitch: stitch), sequence: sequence) },
+                   onSetStep: { step in try? model.projects.setCountStep(step, for: project) })
         .overlay(alignment: .top) {
             VStack(spacing: 0) {
                 if let saveError = model.projects.lastError {

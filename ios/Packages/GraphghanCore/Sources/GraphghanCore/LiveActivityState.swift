@@ -53,18 +53,52 @@ public struct WorkActivityState: Codable, Hashable, Sendable {
     /// The run Back returns to (the one before the cursor, or the last of the previous row); nil at the start.
     public var previousCode: String?
     public var previousCount: Int?
+    /// Cells of the current run already worked; only meaningful when `counting`.
+    public var stitch: Int
+    /// The current run is a fill: the lock screen shows `stitch of currentCount`.
+    public var counting: Bool
+    /// The row is worked and the turn is the next tap.
+    public var atBoundary: Bool
 
     public init(row: Int, rowCount: Int, side: String?, runIndex: Int, currentCode: String?, currentCount: Int?, nextCode: String?, nextCount: Int?,
-                isLastInRow: Bool, percent: Double, finished: Bool, message: String? = nil, previousCode: String? = nil, previousCount: Int? = nil) {
+                isLastInRow: Bool, percent: Double, finished: Bool, message: String? = nil, previousCode: String? = nil, previousCount: Int? = nil,
+                stitch: Int = 0, counting: Bool = false, atBoundary: Bool = false) {
         self.row = row; self.rowCount = rowCount; self.side = side; self.runIndex = runIndex
         self.currentCode = currentCode; self.currentCount = currentCount; self.nextCode = nextCode; self.nextCount = nextCount
         self.isLastInRow = isLastInRow; self.percent = percent; self.finished = finished; self.message = message
         self.previousCode = previousCode; self.previousCount = previousCount
+        self.stitch = stitch; self.counting = counting; self.atBoundary = atBoundary
     }
 
     public static func unavailable(_ message: String) -> WorkActivityState {
         WorkActivityState(row: 0, rowCount: 0, side: nil, runIndex: 0, currentCode: nil, currentCount: nil, nextCode: nil, nextCount: nil,
                           isLastInRow: true, percent: 0, finished: true, message: message)
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case row, rowCount, side, runIndex, currentCode, currentCount, nextCode, nextCount, isLastInRow, percent, finished, message
+        case previousCode, previousCount, stitch, counting, atBoundary
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        row = try c.decode(Int.self, forKey: .row)
+        rowCount = try c.decode(Int.self, forKey: .rowCount)
+        side = try c.decodeIfPresent(String.self, forKey: .side)
+        runIndex = try c.decode(Int.self, forKey: .runIndex)
+        currentCode = try c.decodeIfPresent(String.self, forKey: .currentCode)
+        currentCount = try c.decodeIfPresent(Int.self, forKey: .currentCount)
+        nextCode = try c.decodeIfPresent(String.self, forKey: .nextCode)
+        nextCount = try c.decodeIfPresent(Int.self, forKey: .nextCount)
+        isLastInRow = try c.decode(Bool.self, forKey: .isLastInRow)
+        percent = try c.decode(Double.self, forKey: .percent)
+        finished = try c.decode(Bool.self, forKey: .finished)
+        message = try c.decodeIfPresent(String.self, forKey: .message)
+        previousCode = try c.decodeIfPresent(String.self, forKey: .previousCode)
+        previousCount = try c.decodeIfPresent(Int.self, forKey: .previousCount)
+        stitch = try c.decodeIfPresent(Int.self, forKey: .stitch) ?? 0
+        counting = try c.decodeIfPresent(Bool.self, forKey: .counting) ?? false
+        atBoundary = try c.decodeIfPresent(Bool.self, forKey: .atBoundary) ?? false
     }
 }
 
@@ -73,18 +107,26 @@ public enum LiveActivityState {
     public static func make(cursor: Cursor, sequence: WorkSequence) -> WorkActivityState? {
         guard let pass = sequence.pass(at: cursor.row), let done = sequence.cellsBefore(cursor) else { return nil }
         let finished = WorkEngine.isFinished(cursor, in: sequence)
+        let atBoundary = !finished && cursor.run == pass.runs.count
         let current: Run? = cursor.run < pass.runs.count ? pass.runs[cursor.run] : nil
-        let next: Run? = cursor.run + 1 < pass.runs.count ? pass.runs[cursor.run + 1] : nil
+        let next: Run? = atBoundary
+            ? sequence.pass(at: cursor.row + 1)?.runs.first
+            : (cursor.run + 1 < pass.runs.count ? pass.runs[cursor.run + 1] : nil)
         let total = sequence.totalCells
         let percent = total > 0 ? (100 * Double(done) / Double(total) * 10).rounded(.toNearestOrEven) / 10 : 0
+        // At the boundary, or crossing a row: `apply(.back)` can itself land on a boundary
+        // position (`run == runs.count`), so clamp to the row's last run rather than miss it.
         let previous: Run? = WorkEngine.apply(.back, to: cursor, in: sequence).flatMap { step in
-            sequence.pass(at: step.cursor.row).flatMap { step.cursor.run < $0.runs.count ? $0.runs[step.cursor.run] : nil }
+            sequence.pass(at: step.cursor.row).flatMap { pass in
+                pass.runs.isEmpty ? nil : pass.runs[min(step.cursor.run, pass.runs.count - 1)]
+            }
         }
         return WorkActivityState(
             row: cursor.row, rowCount: sequence.passes.count, side: pass.side?.rawValue, runIndex: cursor.run,
             currentCode: current?.code, currentCount: current?.count, nextCode: next?.code, nextCount: next?.count,
-            isLastInRow: next == nil, percent: percent, finished: finished, message: nil,
-            previousCode: previous?.code, previousCount: previous?.count)
+            isLastInRow: atBoundary || cursor.run + 1 >= pass.runs.count, percent: percent, finished: finished, message: nil,
+            previousCode: previous?.code, previousCount: previous?.count,
+            stitch: cursor.stitch, counting: WorkEngine.isCounting(cursor, in: sequence), atBoundary: atBoundary)
     }
 
     public static func info(projectID: UUID, chart: Chart, sequence: WorkSequence) -> WorkActivityInfo {

@@ -25,4 +25,17 @@ import Testing
         #expect(ProgressDates.parse("2026-09-12T18:00:00.250Z") != nil)
         #expect(ProgressDates.parse("yesterday") == nil)
     }
+
+    @Test func stitchIsOptionalAndOmittedWhenZero() throws {
+        let doc = try ProgressDocument.decode(Fixtures.data("progress-basic.progress.json"))
+        #expect(doc.cursor.stitch == 0 && doc.events.allSatisfy { $0.stitch == 0 })
+        let text = String(decoding: try doc.encode(), as: UTF8.self)
+        #expect(!text.contains("\"stitch\""))
+        var withStitch = ProgressDocument.legacy(slug: "x", row: 3, run: 1)
+        withStitch.cursor.stitch = 5
+        withStitch.events = [ProgressEventRecord(t: Date(timeIntervalSince1970: 0), row: 3, run: 1, stitch: 5, kind: .advance)]
+        let encoded = String(decoding: try withStitch.encode(), as: UTF8.self)
+        #expect(encoded.contains("\"cursor\":{\"row\":3,\"run\":1,\"stitch\":5}"))
+        #expect(try ProgressDocument.decode(try withStitch.encode()) == withStitch)
+    }
 }

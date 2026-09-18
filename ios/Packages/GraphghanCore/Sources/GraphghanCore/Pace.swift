@@ -58,7 +58,7 @@ public enum Pace {
                 end = e.t
                 fromCursor = prevCursor
             }
-            toCursor = Cursor(row: e.row, run: e.run)
+            toCursor = e.cursor
             prevCursor = toCursor
         }
         close()

@@ -114,32 +114,8 @@ semibold for display, SF Pro for text, SF Rounded heavy for the count.
 
 ### 6.1 Work screen
 
-Ground with the weave is the screen ground. Below the card, the chart itself is the Done target.
-
-- Header: close glyph at the leading edge in Ink 2, row number (Row number style) in Ink and the
-  side line (Caption, Ink 2) centered. Long press on the row number jumps.
-- One Panel card, 12 pt inset, 18 pt radius, Line hairline, 10 pt padding, holding the strip
-  (section 6.1 strip rules: Panel box, current row outlined 2 pt Heather, worked rows dimmed 45%,
-  Heather marker on the starting edge) and the chip row (section 6.3, 4 pt of vertical room so the
-  current chip's ring is not clipped; the row scrolls when it does not fit). The card swallows
-  taps; nothing inside advances by accident.
-- Field: everything below the card down to 44 pt above the display edge, on the Ground weave.
-  It is made of full-height color columns under clear Liquid Glass (iOS 26; thin material panels
-  with the yarn hairline before that), 28 pt radius, keyed by cursor position so they slide:
-  the previous run's color as a 72 pt Back column at the leading edge, the current run's color as
-  the wide column beside it, and the next run's color as a 28 pt sliver peeking in at the
-  trailing edge with no glass and no label, so it reads as what's coming rather than a button.
-  Runs two back and two ahead wait off screen. The current column's glass carries the Count,
-  the Code, the name in Heading, the on-deck line in Label at 75% ("then 4 Charcoal", or "next
-  row starts in Gold" on the last run of a row), and "Done" in the Done style; tapping it, or any
-  bare part of the field, advances. Back's glass carries the arrow and "Back" in Label, at 40%
-  when there is nothing to return to. Each label takes its column's readable foreground. On Done
-  the columns slide left on the swatch's spring: the color just finished becomes the Back
-  column and the sliver widens into the current one; Back reverses it. Swipe right anywhere
-  still goes back.
-- Finished: the field is a single Cream column under glass with "Finished" in the Title style,
-  the send-off line in Body, and "Close", which dismisses; the card keeps the strip.
-- Landscape keeps the same pieces in two columns: card leading, field trailing.
+Superseded on 2026-09-16 by `2026-09-16-work-screen-field-design.md` §5: the field is the chart
+at stitch scale with a panel above it and a bar below. The tokens and the header are unchanged.
 
 ### 6.2 Cards and list rows
 
@@ -192,8 +168,10 @@ panel in its yarn color through the yarn-surface helper, with the count in SF Ro
 the code in SF title3 bold, the name in New York title3 semibold, and the on-deck line ("then 4
 Charcoal" or "last in row") in SF footnote at the trailing end; then Back and Done as prominent
 capsules, 40 pt tall, Back tinted with the previous run's yarn color (Moss Deep and disabled at
-the start) and Done with the current run's, labels in each yarn's readable foreground. These
-sizes are smaller than the Work screen because Apple clips a lock-screen activity past 160 pt.
+the start) and Done with the current run's, labels in each yarn's readable foreground. Inside a
+fill the count reads `40 of 130`; at the turn the panel carries the turn line ("ch 1, turn ·
+Row 43 starts in Gold") in the next row's colour and Done reads "Turned". These sizes are smaller
+than the Work screen because Apple clips a lock-screen activity past 160 pt.
 The Dynamic Island keeps its current layout with the swatch and count; its expanded view shows
 the same header, panel, and buttons. The activity state carries the previous run's code and
 count alongside the current and next.
