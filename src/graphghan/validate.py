@@ -66,7 +66,8 @@ def run_all(a, meta):
         ("palette codes", palette_codes_valid(codes), f"codes: {', '.join(codes)}"),
         ("palette closure", used <= set(range(len(meta.palette))), f"indices used: {sorted(used)}"),
     ]
-    if checks.get("solid_edge"):
+    # A width of 0 (or an absent key) means the check is off; `first_row_solid` is a plain switch.
+    if checks.get("solid_edge", 0) > 0:
         n = checks["solid_edge"]
         results.append(
             (
@@ -75,14 +76,14 @@ def run_all(a, meta):
                 f"outer {n} cell(s) are {meta.first_row_color}",
             )
         )
-    if checks.get("first_row_solid"):
+    if checks.get("first_row_solid", False) is True:
         results.append(
             ("first row solid", first is not None and bool((a[-1] == first).all()), "row 1 is a single color")
         )
-    if checks.get("mirror_lr"):
+    if checks.get("mirror_lr", 0) > 0:
         n = checks["mirror_lr"]
         results.append((f"mirror left/right (outer {n} cols)", mirror_lr(a, n), ""))
-    if checks.get("mirror_tb"):
+    if checks.get("mirror_tb", 0) > 0:
         n = checks["mirror_tb"]
         results.append((f"mirror top/bottom (outer {n} rows)", mirror_tb(a, n), ""))
     results += [
