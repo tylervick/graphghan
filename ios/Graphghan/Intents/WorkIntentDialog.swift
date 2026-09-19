@@ -28,8 +28,10 @@ enum WorkIntentDialog {
             return Text("You're at the beginning.")
         case .nowhereToGo:
             return Text("You've already finished this one.")
-        case .moved(let step, let sequence):
-            return text(for: step, in: sequence)
+        case .ambiguous(let candidates):
+            return Text(questionText(candidates))
+        case .moved(let landing):
+            return text(for: landing.step, in: landing.sequence)
         }
     }
 
@@ -38,7 +40,25 @@ enum WorkIntentDialog {
         return t.supporting == t.full ? IntentDialog("\(t.full)") : IntentDialog(full: "\(t.full)", supporting: "\(t.supporting)")
     }
 
-    private static func text(for step: WorkStep, in sequence: WorkSequence) -> Text {
+    /// Spec §4.3: the question the intent asks when the working project is ambiguous, naming the
+    /// blankets so the maker can answer with one of them.
+    static func question(_ candidates: [ProjectSnapshot]) -> IntentDialog {
+        IntentDialog("\(questionText(candidates))")
+    }
+
+    static func questionText(_ candidates: [ProjectSnapshot]) -> String {
+        let titles = candidates.map(\.title)
+        let list: String
+        switch titles.count {
+        case 0: list = "which one"
+        case 1: list = titles[0]
+        case 2: list = "\(titles[0]) or \(titles[1])"
+        default: list = titles.dropLast().joined(separator: ", ") + ", or " + titles[titles.count - 1]
+        }
+        return "Which blanket — \(list)?"
+    }
+
+    static func text(for step: WorkStep, in sequence: WorkSequence) -> Text {
         if step.finished { return Text("That's the last one. The blanket is done.") }
         let c = step.cursor
         guard let pass = sequence.pass(at: c.row), c.run < pass.runs.count else {

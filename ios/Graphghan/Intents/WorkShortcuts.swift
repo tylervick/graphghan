@@ -7,17 +7,20 @@ import GraphghanCore
 /// in that extension, where nothing has registered `WorkIntentHandler`. The lock-screen pair is
 /// safe there because the system runs a `LiveActivityIntent` in the app.
 ///
-/// Neither intent names a project. Voice acts on the project being worked (spec §3.2), and one
-/// spoken Done is one tapped Done: the project's count step, or the rest of the run.
+/// Voice acts on the project being worked (spec §3.2) unless the maker names one (spec §4.3), and
+/// one spoken Done is one tapped Done: the project's count step, or the rest of the run.
 struct MarkDoneIntent: AppIntent {
     static let title: LocalizedStringResource = "Mark the next stitches done"
     // One literal: `IntentDescription` takes a `LocalizedStringResource`, which a concatenation is not.
     static let description = IntentDescription("Counts one Done in the crochet chart you are working — the project's count step, or the rest of the run — and moves the cursor, exactly as the Done button does.")
     static let openAppWhenRun = false
 
+    /// Absent, the app decides (spec §3.2); present, it wins; asked for when the app cannot choose.
+    @Parameter(title: "Project") var project: ProjectEntity?
+
     @MainActor
-    func perform() async throws -> some IntentResult & ProvidesDialog {
-        .result(dialog: WorkIntentDialog.dialog(for: try await WorkIntentHandler.shared.stepWorkingProject(.advance)))
+    func perform() async throws -> some IntentResult & ProvidesDialog & ShowsSnippetView {
+        try await WorkShortcut.perform(.advance, project: $project)
     }
 }
 
@@ -26,9 +29,11 @@ struct UndoDoneIntent: AppIntent {
     static let description = IntentDescription("Takes back the last Done in the crochet chart you are working and moves the cursor back, exactly as the Back button does.")
     static let openAppWhenRun = false
 
+    @Parameter(title: "Project") var project: ProjectEntity?
+
     @MainActor
-    func perform() async throws -> some IntentResult & ProvidesDialog {
-        .result(dialog: WorkIntentDialog.dialog(for: try await WorkIntentHandler.shared.stepWorkingProject(.back)))
+    func perform() async throws -> some IntentResult & ProvidesDialog & ShowsSnippetView {
+        try await WorkShortcut.perform(.back, project: $project)
     }
 }
 
@@ -69,11 +74,25 @@ enum WorkIntentError: Error, CustomLocalizedStringResourceConvertible {
     }
 }
 
+/// The one path both intents take: wait for the app, step, ask when the app could not choose a
+/// project (spec §4.3), then answer in words and, on a phone, with the band (spec §4.4).
+enum WorkShortcut {
+    @MainActor
+    static func perform(_ action: WorkAction, project: IntentParameter<ProjectEntity?>) async throws -> some IntentResult & ProvidesDialog & ShowsSnippetView {
+        var outcome = try await WorkIntentHandler.shared.stepWorkingProject(action, chosen: project.wrappedValue?.id)
+        if case .ambiguous(let candidates) = outcome {
+            let choice = try await project.requestDisambiguation(among: candidates.map(ProjectEntity.init), dialog: WorkIntentDialog.question(candidates))
+            outcome = try await WorkIntentHandler.shared.stepWorkingProject(action, chosen: choice.id)
+        }
+        return .result(dialog: WorkIntentDialog.dialog(for: outcome), view: WorkSnippetView(outcome: outcome))
+    }
+}
+
 extension WorkIntentHandler {
     /// The working-project step for a discoverable intent: waits for the app (spec §3.1), then
     /// performs. Throwing, not no-op'ing, is what keeps a dropped Done from being confirmed.
-    func stepWorkingProject(_ action: WorkAction, timeout: Duration = .seconds(5)) async throws -> WorkIntentOutcome {
+    func stepWorkingProject(_ action: WorkAction, chosen: UUID? = nil, timeout: Duration = .seconds(5)) async throws -> WorkIntentOutcome {
         guard await awaitRegistration(timeout: timeout), let performWorking else { throw WorkIntentError.appNotReady }
-        return await performWorking(action)
+        return await performWorking(action, chosen)
     }
 }

@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 import GraphghanCore
 @testable import Graphghan
@@ -17,7 +18,7 @@ struct WorkIntentDialogTests {
 
     func said(_ action: WorkAction, from cursor: Cursor, in seq: WorkSequence, step: CountStep = .default) throws -> WorkIntentDialog.Text {
         let s = try #require(WorkEngine.apply(action, to: cursor, in: seq, step: step))
-        return WorkIntentDialog.text(for: .moved(s, in: seq))
+        return WorkIntentDialog.text(for: s, in: seq)
     }
 
     @Test func landingOnANewRun() throws {
@@ -68,7 +69,19 @@ struct WorkIntentDialogTests {
 
     @Test func aDialogIsBuiltForEveryOutcome() throws {
         _ = WorkIntentDialog.dialog(for: .noProject)
-        let s = try #require(WorkEngine.apply(.advance, to: .start, in: Self.fill))
-        _ = WorkIntentDialog.dialog(for: .moved(s, in: Self.fill))
+        _ = WorkIntentDialog.dialog(for: .nowhereToGo(.back))
+        _ = WorkIntentDialog.dialog(for: .ambiguous([]))
+    }
+
+    static func snapshot(_ title: String) -> ProjectSnapshot {
+        ProjectSnapshot(id: UUID(), title: title, patternTitle: "p", percent: 0, lastWorked: nil, isFinished: false)
+    }
+
+    @Test func theQuestionNamesTheBlankets() {
+        let two = [Self.snapshot("Craigh na Dun"), Self.snapshot("Baby Blanket")]
+        #expect(WorkIntentDialog.questionText(two) == "Which blanket — Craigh na Dun or Baby Blanket?")
+        let three = two + [Self.snapshot("Scarf")]
+        #expect(WorkIntentDialog.questionText(three) == "Which blanket — Craigh na Dun, Baby Blanket, or Scarf?")
+        #expect(WorkIntentDialog.text(for: .ambiguous(two)).full == "Which blanket — Craigh na Dun or Baby Blanket?")
     }
 }

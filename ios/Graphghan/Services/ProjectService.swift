@@ -30,6 +30,10 @@ final class ProjectService {
     var lastError: String?
     /// Called after every successful step (whether or not the save succeeded): the Live Activity updates from here.
     var onApply: ((Project, WorkSequence, WorkStep) -> Void)?
+    /// Called when the set of projects, or what one is, changes: started, finished or unfinished
+    /// (by hand or by the last Done), switched to a new chart, deleted. Not on a plain step. The
+    /// Spotlight index of projects hangs off this (App Intents spec §4.2).
+    var onProjectsChanged: (() -> Void)?
     /// The project on the Work screen right now. `summary(for:)` walks every event of a project,
     /// so nothing may compute it for this one while taps are landing (#79); the debug assertion in
     /// `summary` is the guard, the summary-refresh key in the views is what keeps it satisfied.
@@ -58,6 +62,7 @@ final class ProjectService {
                               patternVersion: manifest.version, title: title.isEmpty ? manifest.title : title, started: now())
         context.insert(project)
         try save()
+        onProjectsChanged?()
         return project
     }
 
@@ -86,6 +91,7 @@ final class ProjectService {
     func apply(_ action: WorkAction, to project: Project, in sequence: WorkSequence) -> WorkStep? {
         guard let step = WorkEngine.apply(action, to: project.cursor, in: sequence, step: project.step, perRepetition: project.tapPerRepetition) else { return nil }
         let t = now()
+        let wasFinished = project.isFinished
         project.cursor = step.cursor
         project.lastWorked = t
         if step.finished {
@@ -95,6 +101,7 @@ final class ProjectService {
             // offered again instead of the detail screen becoming a dead end.
             project.finished = nil
         }
+        let finishedChanged = wasFinished != project.isFinished
         let event = ProgressEvent(t: t, row: step.cursor.row, run: step.cursor.run, stitch: step.cursor.stitch, kind: step.kind)
         event.project = project
         context.insert(event)
@@ -105,6 +112,7 @@ final class ProjectService {
             // queued for the next save.
         }
         onApply?(project, sequence, step)
+        if finishedChanged { onProjectsChanged?() }
         return step
     }
 
@@ -152,11 +160,13 @@ final class ProjectService {
     func markFinished(_ project: Project) throws {
         project.finished = now()
         try save()
+        onProjectsChanged?()
     }
 
     func markUnfinished(_ project: Project) throws {
         project.finished = nil
         try save()
+        onProjectsChanged?()
     }
 
     /// Deletes the project and its events: with no to-many array there is no cascade to lean on.
@@ -165,6 +175,7 @@ final class ProjectService {
         try context.delete(model: ProgressEvent.self, where: #Predicate { $0.project?.id == id })
         context.delete(project)
         try save()
+        onProjectsChanged?()
     }
 
     /// Spec 4.5: same chart id means nothing changed, whatever the version says.
@@ -185,6 +196,7 @@ final class ProjectService {
         project.chartGaugeKey = chart.gaugeKey
         project.patternVersion = manifest.version
         try save()
+        onProjectsChanged?()
     }
 
     /// Throws when the event log cannot be read: a document without its history is not an export.

@@ -34,7 +34,10 @@ struct GraphghanApp: App {
             RootView()
                 .environment(model)
                 .modelContainer(container)
-                .task { await model.reconcileActivities() }
+                .task {
+                    await model.reconcileActivities()
+                    model.scheduleReindex()  // Spotlight follows the store; a launch is the cheapest place to catch up
+                }
         }
     }
 }

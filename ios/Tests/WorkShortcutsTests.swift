@@ -51,7 +51,7 @@ extension WorkIntentTests {
         let h = try await make()
         let other = try await startAnother(h, title: "other")
         h.project.lastWorked = Date(timeIntervalSince1970: 1_000)
-        other.lastWorked = Date(timeIntervalSince1970: 2_000)
+        other.lastWorked = Date(timeIntervalSince1970: 10_000)  // hours apart: no question (spec §4.3)
         _ = try await MarkDoneIntent().perform()
         #expect(try kinds(h, other) == [.advance])
         #expect(try kinds(h, h.project).isEmpty)
@@ -71,7 +71,7 @@ extension WorkIntentTests {
         let h = try await make()
         let other = try await startAnother(h, title: "other")
         h.project.lastWorked = Date(timeIntervalSince1970: 1_000)
-        other.lastWorked = Date(timeIntervalSince1970: 2_000)
+        other.lastWorked = Date(timeIntervalSince1970: 10_000)
         try h.model.projects.markFinished(other)
         _ = try await MarkDoneIntent().perform()
         #expect(try kinds(h, h.project) == [.advance])
@@ -130,6 +130,68 @@ extension WorkIntentTests {
         #expect(try kinds(h, h.project) == [.advance])
         #expect(h.backend.calls == [.start(h.project.id)])
         #expect(h.backend.active().count == 1)
+    }
+
+    // MARK: spec §4.3, the question
+
+    @Test func twoProjectsWorkedInTheSameHourAreAQuestion() async throws {
+        let h = try await make()
+        let other = try await startAnother(h, title: "other")
+        h.project.lastWorked = Date(timeIntervalSince1970: 1_000)
+        other.lastWorked = Date(timeIntervalSince1970: 1_600)
+        let outcome = await h.model.performIntent(.advance)
+        guard case .ambiguous(let candidates) = outcome else { Issue.record("expected a question"); return }
+        #expect(candidates.map(\.id) == [other.id, h.project.id])  // most recent first
+        #expect(try kinds(h, h.project).isEmpty && kinds(h, other).isEmpty)
+    }
+
+    @Test func aChosenProjectIsNeverQuestioned() async throws {
+        let h = try await make()
+        let other = try await startAnother(h, title: "other")
+        h.project.lastWorked = Date(timeIntervalSince1970: 1_000)
+        other.lastWorked = Date(timeIntervalSince1970: 1_600)
+        _ = await h.model.performIntent(.advance, chosen: h.project.id)
+        #expect(try kinds(h, h.project) == [.advance])
+        #expect(try kinds(h, other).isEmpty)
+    }
+
+    @Test func aLiveActivityIsNeverQuestioned() async throws {
+        let h = try await make()
+        let other = try await startAnother(h, title: "other")
+        h.project.lastWorked = Date(timeIntervalSince1970: 1_000)
+        other.lastWorked = Date(timeIntervalSince1970: 1_600)
+        let (info, state) = try #require(await h.model.activityState(for: h.project))
+        await h.model.liveActivity.start(projectID: h.project.id, info: info, state: state)
+        _ = try await MarkDoneIntent().perform()
+        #expect(try kinds(h, h.project) == [.advance])
+    }
+
+    @Test func aChosenProjectThatIsGoneIsNoProject() async throws {
+        let h = try await make()
+        let outcome = await h.model.performIntent(.advance, chosen: UUID())
+        guard case .noProject = outcome else { Issue.record("expected .noProject"); return }
+    }
+
+    // MARK: spec §4.2, the index follows the store
+
+    @Test func theIndexFollowsEveryProjectMutation() async throws {
+        let h = try await make()
+        var indexed: [[UUID]] = []
+        h.model.indexesProjects = true
+        h.model.reindex = { indexed.append($0.map(\.id)) }
+        let other = try await startAnother(h, title: "other")
+        await h.model.indexUpdate?.value
+        #expect(indexed.last?.sorted(by: { $0.uuidString < $1.uuidString }) == [h.project.id, other.id].sorted(by: { $0.uuidString < $1.uuidString }))
+        let seq = try await h.model.projects.sequence(for: h.project)
+        _ = h.model.projects.apply(.advance, to: h.project, in: seq)
+        await h.model.indexUpdate?.value
+        #expect(indexed.count == 1)  // a step is not a change to what the project is
+        try h.model.projects.markFinished(other)
+        await h.model.indexUpdate?.value
+        #expect(indexed.count == 2)
+        try h.model.projects.delete(other)
+        await h.model.indexUpdate?.value
+        #expect(indexed.count == 3 && indexed.last == [h.project.id])
     }
 
     // MARK: spec §3.4, nowhere to go
