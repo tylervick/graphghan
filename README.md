@@ -7,13 +7,15 @@ deliverables:
 1. **`graphghan` Python package + CLI** — compose charts from motifs defined in inches, validate
    them (row totals, palette closure, min run length, mirror symmetry), and export chart data,
    PNGs, and written-row instructions.
-2. **A static, installable viewer (PWA)** on GitHub Pages — follow a pattern row by row on a
-   phone or tablet, mostly offline, with per-row progress saved on the device.
+2. **A published pattern feed** on GitHub Pages — every chart as data: a `patterns/index.json`
+   listing, a manifest per pattern, the chart files, and the JSON Schemas. The iOS app reads it;
+   so can anything else.
 3. **A Claude skill** (`graphghan`) — the design workflow and rules as a Claude Code skill, so a
    brief ("a blanket with this quote and these motifs") turns into an options page and a
    finished, validated pattern.
 
-Live site: **https://graphghan.milo.cat/**
+Published at **https://graphghan.milo.cat/** (a landing page over the feed; to work a pattern,
+use the iOS app).
 
 The first pattern is **Craigh na Dun Blanket** (for Meaghan): 189x184 sc, 5 colors, standing
 stones, thistles, a dragonfly, and a braided gold twist border.
@@ -47,7 +49,7 @@ uv run graphghan options <slug>                  # compare variants/gauges, writ
 uv run graphghan render <slug>                   # publish every [publish] chart to dist/
 uv run graphghan check <slug>                    # generic invariants + the pattern's own tests
 uv run graphghan export <slug> --format oxs        # also png (1 px/stitch) and csv; --chart final-hdc picks a chart
-uv run graphghan site serve                      # build and serve the viewer at :8765
+uv run graphghan site serve                      # build and serve the pattern feed at :8765
 ```
 
 Existing patterns work the same way, e.g. `uv run graphghan render craigh-na-dun --check` diffs a
@@ -70,12 +72,12 @@ committed. See `docs/superpowers/specs/2026-09-09-graphghan-design.md` for the f
 Charts are JSON documents in the graphghan chart format (schema 2): a palette, run-length rows,
 a gauge, and a `technique` that defines working order, with a content-hash id. The format is
 documented in `docs/chart-format.md`, has JSON Schemas under `schema/`, and ships conformance
-fixtures under `fixtures/chart-format/` that any reader (the PWA, the iOS app, yours) can test
+fixtures under `fixtures/chart-format/` that any reader (the iOS app, yours) can test
 against. `graphghan export` writes 1-px PNG, OXS, and CSV.
 
 ## iOS app
 
-`ios/` holds a SwiftUI app for working a published pattern on an iPhone (see `ios/README.md`):
+`ios/` holds the SwiftUI app for working a published pattern on an iPhone (see `ios/README.md`):
 a Patterns tab fed from this site, a Projects tab with per-project progress, and a full-screen
 Work screen. `ios/Packages/GraphghanCore` is the Swift reader for the chart format and passes the
 same conformance fixtures as the Python package. The Work screen also drives a Live Activity on
@@ -100,7 +102,7 @@ Then from Claude Code, a brief like "a blanket with this quote and these motifs"
 
 - Code (`src/`, `site/`, tooling): MIT — see `LICENSE`.
 - Pattern designs (`patterns/`): CC BY-NC-SA 4.0 — see `PATTERNS-LICENSE.md`.
-- Fonts (`fonts/`, `site/src/fonts/`): SIL Open Font License.
+- Fonts (`fonts/`): SIL Open Font License.
 
 The lettering face used throughout is [Metamorphous](https://fonts.google.com/specimen/Metamorphous)
 by Sorkin Type Co, licensed under the OFL.

@@ -2,24 +2,157 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<base href="./">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Graphghan</title>
 <meta name="theme-color" content="#1E4D3A">
-<link rel="manifest" href="manifest.webmanifest">
-<link rel="icon" href="icons/icon-192.png">
-<link rel="apple-touch-icon" href="icons/icon-192.png">
-<link rel="stylesheet" href="styles.css">
+<meta name="description" content="A toolkit for pixel-chart crochet: compose a chart from motifs, validate it, publish it, and work it stitch by stitch on an iPhone.">
+<style>
+  @font-face {
+    font-family: 'Metamorphous';
+    src: url('fonts/Metamorphous-Regular.ttf') format('truetype');
+    font-display: swap;
+  }
+  /* The app's own tokens (ios/Shared/Tokens.xcassets), so the page and the app read as one thing. */
+  :root {
+    color-scheme: light dark;
+    --ground: #EEEBE4; --panel: #F8F6F1; --ink: #1F2A24; --ink2: #5B675F;
+    --line: #D3D0C6; --moss: #1E4D3A; --moss-deep: #163B2D; --heather: #7C5E8C;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ground: #1B1917; --panel: #262320; --ink: #F1ECE2; --ink2: #A39C90;
+      --line: #3A352F; --moss: #2E7D5B; --moss-deep: #245F48; --heather: #C9A8DC;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--ground); color: var(--ink);
+    font: 17px/1.65 -apple-system, BlinkMacSystemFont, system-ui, "Segoe UI", sans-serif;
+    -webkit-text-size-adjust: 100%;
+  }
+  .wrap { max-width: 46rem; margin: 0 auto; padding: 0 1.25rem 5rem; }
+  h1, h2, .display { font-family: 'Metamorphous', Georgia, serif; font-weight: 400; }
+
+  header { padding: 4.5rem 0 3rem; }
+  .eyebrow { font-size: .78rem; letter-spacing: .14em; text-transform: uppercase; color: var(--moss); }
+  @media (prefers-color-scheme: dark) { .eyebrow { color: var(--heather); } }
+  h1 { font-size: clamp(2.1rem, 7vw, 3.1rem); line-height: 1.15; margin: .5rem 0 1rem; }
+  .lede { font-size: 1.15rem; color: var(--ink2); margin: 0; max-width: 34rem; }
+
+  .beta {
+    display: inline-block; margin-top: 1.75rem; padding: .55rem .9rem;
+    border: 1px solid var(--line); border-radius: .5rem; background: var(--panel);
+    font-size: .92rem; color: var(--ink2);
+  }
+  .beta strong { color: var(--ink); font-weight: 600; }
+
+  section { padding: 2.5rem 0; border-top: 1px solid var(--line); }
+  h2 { font-size: 1.5rem; margin: 0 0 1rem; }
+  p { margin: 0 0 1rem; }
+  a { color: var(--moss); text-underline-offset: .18em; }
+  @media (prefers-color-scheme: dark) { a { color: var(--heather); } }
+
+  .feature { display: grid; gap: 1.25rem; grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr)); margin: 0; padding: 0; }
+  .feature div { background: var(--panel); border: 1px solid var(--line); border-radius: .7rem; padding: 1rem 1.1rem; }
+  .feature dt { font-weight: 600; margin-bottom: .3rem; }
+  .feature dd { margin: 0; color: var(--ink2); font-size: .95rem; }
+
+  figure { margin: 0 0 1.5rem; }
+  figure img {
+    display: block; width: 100%; height: auto; border-radius: .7rem;
+    border: 1px solid var(--line); background: var(--panel);
+  }
+  figcaption { margin-top: .6rem; font-size: .9rem; color: var(--ink2); }
+
+  .swatches { display: flex; flex-wrap: wrap; gap: .5rem; list-style: none; margin: 0 0 1.25rem; padding: 0; }
+  .swatches li { display: flex; align-items: center; gap: .45rem; font-size: .88rem; color: var(--ink2); }
+  .swatches span { width: 1rem; height: 1rem; border-radius: 50%; border: 1px solid var(--line); }
+
+  .facts { list-style: none; margin: 0; padding: 0; font-size: .95rem; }
+  .facts li { padding: .45rem 0; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; gap: 1rem; }
+  .facts li:last-child { border-bottom: 0; }
+  .facts b { font-weight: 600; }
+  .facts span { color: var(--ink2); text-align: right; }
+
+  blockquote {
+    margin: 0 0 1.5rem; padding-left: 1rem; border-left: 3px solid var(--moss);
+    font-family: 'Metamorphous', Georgia, serif; font-size: 1.1rem; color: var(--ink2);
+  }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .88em; }
+  footer { padding-top: 2.5rem; border-top: 1px solid var(--line); font-size: .9rem; color: var(--ink2); }
+  footer p { margin: 0 0 .5rem; }
+</style>
 </head>
 <body>
 <div class="wrap">
+
   <header>
-    <div class="eyebrow">Graphghan · chart library</div>
-    <h1>Patterns</h1>
-    <p class="sub">Charts for pixel crochet blankets. Open one, install this page to your home screen, and it keeps working without a connection.</p>
+    <div class="eyebrow">Graphghan</div>
+    <h1>Charts for pixel crochet, and an app to work them in.</h1>
+    <p class="lede">A hobby project in three parts: a toolkit that composes a blanket chart from
+    motifs measured in inches, a published feed of the finished patterns, and an iPhone app that
+    walks you through one stitch by stitch.</p>
+    <p class="beta"><strong>The app is in TestFlight beta.</strong> Not on the App Store yet.</p>
   </header>
-  <main class="cards" id="cards"><p class="sub">Loading patterns…</p></main>
+
+  <section>
+    <h2>The app</h2>
+    <p>Built in SwiftUI for iOS 17 and later. It reads the pattern feed this site serves, keeps a
+    project per blanket you start, and remembers exactly where you stopped.</p>
+    <dl class="feature">
+      <div><dt>Work screen</dt><dd>Full screen, one run at a time, with Done and Back as the only
+      two things you need to hit.</dd></div>
+      <div><dt>Live Activity</dt><dd>The current row on the lock screen and in the Dynamic Island,
+      so you can count without unlocking.</dd></div>
+      <div><dt>Progress per project</dt><dd>Every advance is stored, so the row you are on survives
+      putting the phone down for a month.</dd></div>
+      <div><dt>Charts and written rows</dt><dd>The grid, or the written-out row instructions, from
+      the same source document.</dd></div>
+    </dl>
+  </section>
+
+  <section>
+    <h2>The first pattern</h2>
+    <figure>
+      <img src="patterns/craigh-na-dun/preview.png" width="1512" height="1288"
+           alt="The Craigh na Dun blanket chart: standing stones, thistles and a dragonfly in cream, charcoal, deep green, purple and gold.">
+      <figcaption>Craigh na Dun Blanket — standing stones, thistles, a dragonfly, and a braided
+      gold twist border. For Meaghan.</figcaption>
+    </figure>
+    <blockquote>Lord, you gave me a rare woman, and God! I loved her well.</blockquote>
+    <ul class="swatches">
+      <li><span style="background:#f2e8d5"></span>Cream</li>
+      <li><span style="background:#2b2f33"></span>Charcoal</li>
+      <li><span style="background:#1e4d3a"></span>Deep Green</li>
+      <li><span style="background:#6b2d5c"></span>Purple</li>
+      <li><span style="background:#d9a21b"></span>Gold</li>
+    </ul>
+    <ul class="facts">
+      <li><b>Single crochet</b> <span>189 × 184 stitches · 54 × 46 in</span></li>
+      <li><b>Half double</b> <span>176 × 115 stitches · 54.2 × 46 in</span></li>
+      <li><b>Yarn</b> <span>about 3,280 yards across 5 colors</span></li>
+      <li><b>License</b> <span>CC BY-NC-SA 4.0</span></li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>The format</h2>
+    <p>Every chart is a JSON document: a palette, run-length rows, a gauge, and a technique that
+    defines working order. It is <a href="https://github.com/tylervick/graphghan/blob/main/docs/chart-format.md">documented</a>,
+    has <a href="schema/chart.schema.json">JSON Schemas</a>, and ships conformance fixtures, so the
+    app is not the only thing that can read a pattern — anything you write can too.</p>
+    <p>This host serves the feed: <a href="patterns/index.json"><code>patterns/index.json</code></a>
+    lists every pattern, and each one has a <code>pattern.json</code> manifest beside its chart
+    files.</p>
+  </section>
+
+  <footer>
+    <p><a href="https://github.com/tylervick/graphghan">github.com/tylervick/graphghan</a></p>
+    <p>Code MIT. Pattern designs CC BY-NC-SA 4.0. Lettering set in
+    <a href="https://fonts.google.com/specimen/Metamorphous">Metamorphous</a> by Sorkin Type Co,
+    under the <a href="fonts/OFL.txt">SIL Open Font License</a>.</p>
+  </footer>
+
 </div>
-<script type="module" src="app/library.js"></script>
 </body>
 </html>

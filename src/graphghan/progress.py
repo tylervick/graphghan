@@ -83,7 +83,7 @@ def summarize(doc: dict, passes: list[dict], gap_seconds: int = GAP_SECONDS, kin
 
 
 def from_legacy_code(slug: str, row: int, run: int) -> dict:
-    """A cursor-only document from the PWA's base64 {slug,row,run} code."""
+    """A cursor-only document from the retired web viewer's base64 {slug,row,run} code (#78)."""
     return {
         "schema": 1,
         "pattern_id": slug,

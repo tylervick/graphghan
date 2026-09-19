@@ -227,7 +227,7 @@ def cmd_site(args) -> int:
     root = find_repo_root()
     build = root / "site" / "build.py"
     if not build.exists():
-        print("site/build.py not found (the site plan adds it)")
+        print("site/build.py not found")
         return 1
     out = Path(args.out) if args.out else root / "site" / "dist"
     runpy.run_path(str(build), run_name="__main__", init_globals={"OUT_DIR": out})
@@ -323,9 +323,9 @@ def build_parser():
     k.add_argument("--out", help="output directory for thumbnails (default: .claude/skills/graphghan/assets)")
     k.set_defaults(fn=cmd_catalog)
 
-    s = sub.add_parser("site", help="build or serve the static docs/site")
-    s.add_argument("site_cmd", choices=["build", "serve"], help="build the site once, or build and serve it")
-    s.add_argument("--out", help="output directory for the built site (default: site/dist)")
+    s = sub.add_parser("site", help="build or serve the published pattern feed")
+    s.add_argument("site_cmd", choices=["build", "serve"], help="build the feed once, or build and serve it")
+    s.add_argument("--out", help="output directory for the built feed (default: site/dist)")
     s.add_argument("--port", type=int, default=8765, help="port to serve on for 'serve' (default: 8765)")
     s.set_defaults(fn=cmd_site)
     return p
