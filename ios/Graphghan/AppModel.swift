@@ -33,14 +33,21 @@ final class AppModel {
     private var chartCache: [String: Chart] = [:]
     /// The activity refresh the last `apply` kicked off, so an intent can wait for it (below).
     private var activityUpdate: Task<Void, Never>?
-    /// The Spotlight refresh the last project mutation kicked off (spec §4.2), so tests can wait for it.
+    /// The Spotlight work the last project change kicked off (spec §4.2), so tests can wait for it.
+    /// Every scheduled task awaits the one before it, so refreshes and upserts land in the order
+    /// they were asked for: an older full refresh can never re-add an entity a newer one deleted.
     private(set) var indexUpdate: Task<Void, Never>?
-    /// What a refresh does with the projection. Only the live app indexes (`live()` turns this on
-    /// and points it at `ProjectIndexer`); merely constructing a model must not touch Spotlight, so
-    /// tests record instead.
+    /// Bumped by every full refresh; a queued refresh that is no longer the newest skips its work.
+    private var indexGeneration = 0
+    /// What the index does with the projection. Only the live app indexes (`live()` turns this on
+    /// and points these at `ProjectIndexer`); merely constructing a model must not touch Spotlight,
+    /// so tests record instead.
     var indexesProjects = false
     var reindex: @MainActor ([ProjectSnapshot]) async -> Void = { snapshots in
         if #available(iOS 18, *) { await ProjectIndexer.refresh(snapshots) }
+    }
+    var reindexOne: @MainActor (ProjectSnapshot) async -> Void = { snapshot in
+        if #available(iOS 18, *) { await ProjectIndexer.upsert(snapshot) }
     }
 
     init(context: ModelContext, patterns: PatternStore, charts: ChartLibrary,
@@ -61,6 +68,10 @@ final class AppModel {
             guard let state = LiveActivityState.make(cursor: step.cursor, sequence: sequence, perRepetition: project.tapPerRepetition) else { return }
             self.activityUpdate = Task { await self.liveActivity.update(projectID: project.id, info: info, state: state) }
         }
+        // A step changes one project's percent and last-worked, which Spotlight shows under the
+        // title: upsert that one entity, with the sequence the step already has, so the tap path
+        // never pays for the full refresh's chart loads (#79).
+        projects.onStep = { [weak self] project, sequence in self?.scheduleReindex(of: project, sequence: sequence) }
         projects.onProjectsChanged = { [weak self] in self?.scheduleReindex() }
     }
 
@@ -245,8 +256,13 @@ final class AppModel {
     }
 
     func snapshot(for project: Project) async -> ProjectSnapshot {
+        await snapshot(for: project, sequence: try? await projects.sequence(for: project))
+    }
+
+    /// With a sequence the caller already holds, the only await is the manifest lookup.
+    func snapshot(for project: Project, sequence: WorkSequence?) async -> ProjectSnapshot {
         var percent = 0.0
-        if let sequence = try? await projects.sequence(for: project), let done = sequence.cellsBefore(project.cursor), sequence.totalCells > 0 {
+        if let sequence, let done = sequence.cellsBefore(project.cursor), sequence.totalCells > 0 {
             percent = (100 * Double(done) / Double(sequence.totalCells) * 10).rounded(.toNearestOrEven) / 10
         }
         let patternTitle = await patterns.cachedManifest(for: project.patternID)?.title ?? project.patternID
@@ -254,14 +270,30 @@ final class AppModel {
                                lastWorked: project.lastWorked, isFinished: project.isFinished)
     }
 
-    /// Spec §4.2: the index follows the store. Every mutation that changes what a project *is*
-    /// (not where its cursor sits) lands here through `ProjectService.onProjectsChanged`, and the
-    /// app calls it once at launch.
+    /// Spec §4.2: the index follows the store. Every mutation that changes what a project *is* or
+    /// which projects exist lands here through `ProjectService.onProjectsChanged`, and the app calls
+    /// it once at launch. Queued behind whatever index work is already running; skipped if a newer
+    /// full refresh has been asked for since, because that one will see this one's state too.
     func scheduleReindex() {
         guard indexesProjects else { return }
+        indexGeneration += 1
+        let generation = indexGeneration
+        let previous = indexUpdate
         indexUpdate = Task { [weak self] in
-            guard let self else { return }
+            await previous?.value
+            guard let self, generation == self.indexGeneration else { return }
             await self.reindex(await self.projectSnapshots())
+        }
+    }
+
+    /// One project moved: upsert its entity alone, in order with everything else queued.
+    func scheduleReindex(of project: Project, sequence: WorkSequence) {
+        guard indexesProjects else { return }
+        let previous = indexUpdate
+        indexUpdate = Task { [weak self] in
+            await previous?.value
+            guard let self else { return }
+            await self.reindexOne(await self.snapshot(for: project, sequence: sequence))
         }
     }
 

@@ -72,7 +72,9 @@ projected from the store through `AppModel.projectSnapshots` with no storage of 
 answer "how far am I on the Craigh na Dun blanket" with the app closed and resolve a project by its
 own title or its pattern's. On iOS 18 and later the entities are indexed for Spotlight
 (`ProjectIndexer`), refreshed at launch and whenever `ProjectService` starts, finishes, unfinishes,
-switches or deletes a project (`onProjectsChanged`); a step never triggers a refresh. The entity
+switches or deletes a project (`onProjectsChanged`); a step upserts just the project that moved
+(`onStep`), so the percent Spotlight shows is current without a full refresh on the tap path. Index
+work is queued in order, and a full refresh that is no longer the newest is skipped. The entity
 and the optional project parameter are not availability-gated, because Swift cannot gate a stored
 `@Parameter`; only the Spotlight conformance and the indexer are `@available(iOS 18, *)`.
 

@@ -212,7 +212,9 @@ no sharing for Siri to be careful about until #14 or #15 exists.
 `IndexedEntity` with `CSSearchableIndex.indexAppEntities`, refreshed when a project is created,
 finished or unfinished (by hand or by the last Done), switched to a new chart, or deleted — every one
 of those already goes through `ProjectService`, which fires `onProjectsChanged`, so the index has
-exactly one place to be kept honest; the app also refreshes once at launch. The app has no rename
+exactly one place to be kept honest; the app also refreshes once at launch, and a step upserts the
+one project that moved, since Spotlight shows its percent. Index work runs in the order it was
+asked for, and a full refresh that has been superseded is skipped. The app has no rename
 path today; when one exists it goes through the same hook. A project count in the tens makes an
 `IntentValueQuery` unnecessary; #98's patterns are the larger set. Resolution by name is an
 `EntityStringQuery` matching the project's own title or its pattern's.

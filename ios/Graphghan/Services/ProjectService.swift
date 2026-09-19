@@ -34,6 +34,9 @@ final class ProjectService {
     /// (by hand or by the last Done), switched to a new chart, deleted. Not on a plain step. The
     /// Spotlight index of projects hangs off this (App Intents spec §4.2).
     var onProjectsChanged: (() -> Void)?
+    /// Called after every successful step with the sequence it was applied in: the one project's
+    /// Spotlight entry follows its cursor from here (App Intents spec §4.2).
+    var onStep: ((Project, WorkSequence) -> Void)?
     /// The project on the Work screen right now. `summary(for:)` walks every event of a project,
     /// so nothing may compute it for this one while taps are landing (#79); the debug assertion in
     /// `summary` is the guard, the summary-refresh key in the views is what keeps it satisfied.
@@ -112,6 +115,7 @@ final class ProjectService {
             // queued for the next save.
         }
         onApply?(project, sequence, step)
+        onStep?(project, sequence)
         if finishedChanged { onProjectsChanged?() }
         return step
     }

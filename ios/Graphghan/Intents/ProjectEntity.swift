@@ -87,14 +87,24 @@ extension ProjectEntity: IndexedEntity {
 }
 
 /// Keeps Spotlight honest with the store (spec §4.2): every create, finish, chart switch and
-/// delete refreshes the whole set, which is tens of projects at most. Spotlight is a cache of the
-/// store, so a failed refresh is not an error the maker can act on; the next mutation tries again.
+/// delete refreshes the whole set, which is tens of projects at most, and every step upserts the
+/// one project that moved. Spotlight is a cache of the store, so a failed write is not an error the
+/// maker can act on; the next change tries again.
 @available(iOS 18, *)
 enum ProjectIndexer {
     static func refresh(_ snapshots: [ProjectSnapshot], index: CSSearchableIndex = .default()) async {
         do {
             try await index.deleteAppEntities(ofType: ProjectEntity.self)
             try await index.indexAppEntities(snapshots.map(ProjectEntity.init))
+        } catch {
+            // see above
+        }
+    }
+
+    /// Indexing an entity whose id is already present replaces it.
+    static func upsert(_ snapshot: ProjectSnapshot, index: CSSearchableIndex = .default()) async {
+        do {
+            try await index.indexAppEntities([ProjectEntity(snapshot)])
         } catch {
             // see above
         }

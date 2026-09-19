@@ -177,22 +177,40 @@ extension WorkIntentTests {
     @Test func theIndexFollowsEveryProjectMutation() async throws {
         let h = try await make()
         var indexed: [[UUID]] = []
+        var upserted: [ProjectSnapshot] = []
         h.model.indexesProjects = true
         h.model.reindex = { indexed.append($0.map(\.id)) }
+        h.model.reindexOne = { upserted.append($0) }
         let other = try await startAnother(h, title: "other")
         await h.model.indexUpdate?.value
         let firstRefresh = indexed.last.map(Set.init)
         #expect(firstRefresh == [h.project.id, other.id])
+        // A step is not a change to which projects exist, so no full refresh; but Spotlight shows
+        // the percent under the title, so the one project that moved is upserted.
         let seq = try await h.model.projects.sequence(for: h.project)
         _ = h.model.projects.apply(.advance, to: h.project, in: seq)
         await h.model.indexUpdate?.value
-        #expect(indexed.count == 1)  // a step is not a change to what the project is
+        #expect(indexed.count == 1)
+        #expect(upserted.map(\.id) == [h.project.id] && upserted.last?.percent == 12.5)
         try h.model.projects.markFinished(other)
         await h.model.indexUpdate?.value
         #expect(indexed.count == 2)
         try h.model.projects.delete(other)
         await h.model.indexUpdate?.value
         #expect(indexed.count == 3 && indexed.last == [h.project.id])
+    }
+
+    /// Two refreshes asked for back to back run as one: the older is superseded before it starts,
+    /// so it can never index a snapshot the newer one has already replaced.
+    @Test func overlappingRefreshesAreSerializedAndTheStaleOneSkipped() async throws {
+        let h = try await make()
+        var indexed: [[UUID]] = []
+        h.model.indexesProjects = true
+        h.model.reindex = { indexed.append($0.map(\.id)) }
+        h.model.scheduleReindex()
+        try h.model.projects.delete(h.project)  // schedules again before the first has run
+        await h.model.indexUpdate?.value
+        #expect(indexed == [[]])
     }
 
     // MARK: spec §3.4, nowhere to go

@@ -73,8 +73,13 @@ struct WorkIntentDialogTests {
         _ = WorkIntentDialog.dialog(for: .ambiguous([]))
     }
 
-    static func snapshot(_ title: String) -> ProjectSnapshot {
-        ProjectSnapshot(id: UUID(), title: title, patternTitle: "p", percent: 0, lastWorked: nil, isFinished: false)
+    static func snapshot(_ title: String, pattern: String = "p") -> ProjectSnapshot {
+        ProjectSnapshot(id: UUID(), title: title, patternTitle: pattern, percent: 0, lastWorked: nil, isFinished: false)
+    }
+
+    @Test func aRepeatedTitleIsToldApartByItsPattern() {
+        let twins = [Self.snapshot("Blanket", pattern: "Craigh na Dun"), Self.snapshot("Blanket", pattern: "Baby Blanket"), Self.snapshot("Scarf")]
+        #expect(WorkIntentDialog.questionText(twins) == "Which blanket — Blanket (Craigh na Dun), Blanket (Baby Blanket), or Scarf?")
     }
 
     @Test func theQuestionNamesTheBlankets() {

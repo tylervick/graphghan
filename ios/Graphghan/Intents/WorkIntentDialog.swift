@@ -46,8 +46,12 @@ enum WorkIntentDialog {
         IntentDialog("\(questionText(candidates))")
     }
 
+    /// Titles are the maker's own and need not be unique; two "Blanket"s are told apart by their
+    /// pattern, which is the only other name a maker would say.
     static func questionText(_ candidates: [ProjectSnapshot]) -> String {
-        let titles = candidates.map(\.title)
+        let titles = candidates.map { candidate in
+            candidates.filter { $0.title == candidate.title }.count > 1 ? "\(candidate.title) (\(candidate.patternTitle))" : candidate.title
+        }
         let list: String
         switch titles.count {
         case 0: list = "which one"
