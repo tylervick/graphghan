@@ -29,8 +29,9 @@ def test_real_fixture(entry):
             pytest.skip(f"real prose {entry['prose']} is absent; see fixtures/import/real/README.md")
         kwargs["prose"] = prose_path
     if entry.get("unsupported"):
-        with pytest.raises(ValueError, match="no grid found"):
-            import_file(path, **kwargs)
+        result = import_file(path, **kwargs)
+        assert result.kind == "no-grid" and result.grid is None
+        assert any(w.startswith("no grid found") for w in result.warnings)
         return
     if entry.get("expect_error"):
         with pytest.raises(ValueError, match=re.escape(entry["expect_error"])):

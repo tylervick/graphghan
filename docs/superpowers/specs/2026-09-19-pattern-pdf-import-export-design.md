@@ -1,7 +1,7 @@
 # Pattern PDFs: export like a sold pattern, import what people already own
 
 Date: 2026-09-19
-Status: draft (spec for #109, #17, #108; one doc because the exporter exists to feed the importer)
+Status: implemented (PRs #116, #120, #121 merged 2026-09-19; the Outlander stretch case followed)
 Builds on: `2026-09-09-graphghan-design.md` (pattern folder contract, `export.py`),
 `2026-09-10-graphghan-ios-app-design.md` §3 (importers named as the follow-on),
 `docs/chart-format.md` (schema 2: run strings, `chart.cell`, `gauge.unit`)
@@ -375,6 +375,14 @@ the fetch script, the on-hand ten) and repeats that they are copyrighted.
 Order of work on real inputs: the three C2C colour grids first (grid half only, no prose
 needed), then the three tapestry patterns with written rows (prose half), then Outlander as the
 stretch case where the "written rows" are a raster image the model reads by eye.
+
+Outcome of the stretch case (2026-09-19): the Outlander pages hold each row as a line of
+coloured boxes with a count in each. Code reads the boxes' colours and order
+(`rasterchart.box_rows`, staged as `boxes.json`); the model reads the counts. Its page 11 turned
+out to be a raster chart the corpus had coded as absent, so the 118 rows were checked three ways:
+every row sums to 72, the seven per-colour totals equal the pattern's own Total row, and the chart
+page agrees on all 8,496 cells. A pattern with no chart page at all takes the same path with
+`chart.width`, `chart.height` and a hex per key colour, checked by the totals alone.
 
 ## 8. Non-goals and follow-ons
 

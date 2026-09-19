@@ -52,7 +52,7 @@ TEMPLATES = Path(__file__).parent / "templates"
 
 @dataclass
 class ImportResult:
-    grid: np.ndarray  # (height, width) palette indexes
+    grid: np.ndarray | None  # (height, width) palette indexes; None until the prose supplies them
     palette: list[dict]  # chart-format entries: code, name, hex, yarn, use
     source: str
     kind: str  # oxs | csv | pixels | raster | pdf | graphghan-pdf
@@ -62,11 +62,11 @@ class ImportResult:
 
     @property
     def width(self) -> int:
-        return int(self.grid.shape[1])
+        return 0 if self.grid is None else int(self.grid.shape[1])
 
     @property
     def height(self) -> int:
-        return int(self.grid.shape[0])
+        return 0 if self.grid is None else int(self.grid.shape[0])
 
     @property
     def codes(self) -> list[str]:
@@ -74,7 +74,7 @@ class ImportResult:
 
     @property
     def rows(self) -> list[str]:
-        return rows_to_strings(self.grid, self.codes)
+        return [] if self.grid is None else rows_to_strings(self.grid, self.codes)
 
     @property
     def hexes(self) -> list[str]:
@@ -291,8 +291,14 @@ def read_raster(
     return idx, entries, descriptions, [f"page {page_no}: {w}" for w in chosen.warnings] + warnings
 
 
+PIXEL_CHART_MAX = 512  # a 1-px-per-cell chart is at most this wide or tall; a picture of a chart is bigger
+
+
 def _looks_like_pixels(img: Image.Image) -> bool:
-    """A 1-px-per-cell chart has no grid covering it; a picture of a chart does."""
+    """A 1-px-per-cell chart is small and has no grid covering it; a picture of a chart is big, or
+    has a grid over most of it."""
+    if max(img.width, img.height) > PIXEL_CHART_MAX:
+        return False
     regions = rc.find_regions(img)
     if not regions:
         return True
@@ -366,15 +372,20 @@ def _read_grid(
     if suffix == ".pdf":
         if mode == "auto" and is_own_pdf(path):
             return stitch_own_pdf(path)
-        idx, entries, regions, warnings = read_raster(
-            iter_pages(path),
-            lambda n: render_page(path, n),
-            palette=palette,
-            cells=cells,
-            page=page,
-            region=region,
-            box=box,
-        )
+        try:
+            idx, entries, regions, warnings = read_raster(
+                iter_pages(path),
+                lambda n: render_page(path, n),
+                palette=palette,
+                cells=cells,
+                page=page,
+                region=region,
+                box=box,
+            )
+        except ValueError as e:
+            if not str(e).startswith("no grid found"):
+                raise
+            return ImportResult(None, [], str(path), "no-grid", [], [str(e)])
         return ImportResult(idx, entries, str(path), "pdf", regions, warnings)
     if suffix in (".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp"):
         img = Image.open(path).convert("RGB")
@@ -384,9 +395,14 @@ def _read_grid(
                 return ImportResult(read_png(img, palette), palette, str(path), "pixels")
             idx, hexes, warnings = rc.cluster_palette(np.asarray(img), radius=2.0)
             return ImportResult(idx, _entries_from_hexes(hexes), str(path), "pixels", [], warnings)
-        idx, entries, regions, warnings = read_raster(
-            [(1, img)], lambda _n: img, palette=palette, cells=cells, region=region, box=box
-        )
+        try:
+            idx, entries, regions, warnings = read_raster(
+                [(1, img)], lambda _n: img, palette=palette, cells=cells, region=region, box=box
+            )
+        except ValueError as e:
+            if not str(e).startswith("no grid found"):
+                raise
+            return ImportResult(None, [], str(path), "no-grid", [], [str(e)])
         return ImportResult(idx, entries, str(path), "raster", regions, warnings)
     raise ValueError(f"cannot import {path.name}: not a .pdf, .png/.jpg, .oxs or .csv file")
 
@@ -538,6 +554,9 @@ def apply_prose(result: ImportResult, doc: dict, rows_source: str = "auto") -> N
     row1 = chart.get("row1", "bottom-right")
     result.meta["row1"] = row1
     rows = doc.get("written_rows") or []
+    if result.grid is None:
+        _rows_alone(result, entries, chart, rows, row1)
+        return
     use_rows = bool(rows) and rows_source != "grid"
     clustered = (
         result.kind in ("raster", "pdf", "pixels")
@@ -591,6 +610,33 @@ def apply_prose(result: ImportResult, doc: dict, rows_source: str = "auto") -> N
                 p["use"] = p["use"] or "no stitch"
 
 
+def _rows_alone(result: ImportResult, entries: list[dict], chart: dict, rows: list[dict], row1: str) -> None:
+    """No picture of the chart anywhere: the written rows are the chart, checked by nothing but
+    their own totals, and every colour must come from the key."""
+    if not rows:
+        raise ValueError(
+            "no grid was found on any page and the prose has no written rows: nothing to build a chart from"
+        )
+    width, height = chart.get("width"), chart.get("height")
+    if not width or not height:
+        raise ValueError(
+            "no grid was found on any page: chart.width and chart.height must be given with the written rows"
+        )
+    missing = [e["code"] for e in entries if not e.get("hex")]
+    if not entries or missing:
+        raise ValueError(
+            f"no picture to take colours from: give every key colour a hex ({', '.join(missing) or 'no key at all'})"
+        )
+    written, problems = pr.written_to_grid(rows, [e["code"] for e in entries], width, height, row1)
+    if problems:
+        raise ValueError("written rows: " + "; ".join(problems))
+    result.grid = written
+    result.palette = entries
+    result.kind = "rows"
+    result.warnings = [w for w in result.warnings if not w.startswith("no grid found")]
+    result.meta["cross_check"] = f"{len(rows)} written rows; no picture of the chart to check them against"
+
+
 def _names_by_code(result: ImportResult, entries: list[dict]) -> None:
     """Codes came with the file (OXS, CSV, --palette, our own PDF): add names and yarn by code."""
     by_code = {e["code"]: e for e in entries}
@@ -613,10 +659,29 @@ def stage_request(source: Path, result: ImportResult, into: Path, repo_root: Pat
     (folder / "pages").mkdir(parents=True, exist_ok=True)
     texts: list[str] = []
     hints: list[str] = []
+    boxes: dict[str, list[dict]] = {}
+
+    def note_boxes(page_no: int, img: Image.Image) -> None:
+        """Rows drawn as coloured boxes: their colours in order, at the saved image's half scale."""
+        bands = rc.box_rows(img)
+        if sum(1 for b in bands if b["label"]) >= 2:
+            boxes[str(page_no)] = [
+                {
+                    "y": b["y"] // 2,
+                    "h": b["h"] // 2,
+                    "label": b["label"],
+                    "boxes": [{"x": x["x"] // 2, "w": x["w"] // 2, "hex": x["hex"]} for x in b["boxes"]],
+                }
+                for b in bands
+            ]
+            hints.append(
+                f"- page {page_no}: rows drawn as coloured boxes ({sum(1 for b in bands if b['label'])} rows)"
+            )
+
     if source.suffix.lower() == ".pdf":
         texts = page_texts(source)
-        for i, img in iter_pages(source, scale=2):
-            img.save(folder / "pages" / f"p{i:02d}.png")
+        for i, img in iter_pages(source):
+            img.resize((img.width // 2, img.height // 2)).save(folder / "pages" / f"p{i:02d}.png")
             (folder / "pages" / f"p{i:02d}.txt").write_text(texts[i - 1], encoding="utf-8")
             low = texts[i - 1].lower()
             found = [
@@ -624,16 +689,21 @@ def stage_request(source: Path, result: ImportResult, into: Path, repo_root: Pat
             ]
             if found:
                 hints.append(f"- page {i}: mentions {', '.join(found)}")
+            note_boxes(i, img)
     else:
-        Image.open(source).convert("RGB").save(folder / "pages" / "p01.png")
+        img = Image.open(source).convert("RGB")
+        img.save(folder / "pages" / "p01.png")
+        note_boxes(1, img.resize((img.width * 2, img.height * 2)))
+    if boxes:
+        (folder / "boxes.json").write_text(json.dumps(boxes, indent=1), encoding="utf-8")
     (folder / "grid.json").write_text(
         json.dumps(
             {
                 "source": str(source),
-                "width": result.width,
-                "height": result.height,
+                "width": result.width or None,
+                "height": result.height or None,
                 "palette": result.palette,
-                "rows": result.rows,
+                "rows": result.rows or None,
                 "regions": result.regions,
                 "warnings": result.warnings,
             },
@@ -642,12 +712,18 @@ def stage_request(source: Path, result: ImportResult, into: Path, repo_root: Pat
         encoding="utf-8",
     )
     schema = Path(__file__).resolve().parents[2] / "schema" / "import-prose.schema.json"
+    grid_line = (
+        f"The grid reader found a {result.width} x {result.height} chart with {len(result.palette)} colours "
+        "(see grid.json)."
+        if result.grid is not None
+        else "The grid reader found no chart on any page, so the written rows will be the chart: give"
+        " `chart.width` and `chart.height` and a hex for every key colour."
+    )
     request = (
         [
             f"# Import request: {source.name}",
             "",
-            f"The grid reader found a {result.width} x {result.height} chart with {len(result.palette)} colours "
-            f"(see grid.json). What it cannot read is the prose. Write `{folder / 'prose.json'}` in the",
+            f"{grid_line} What it cannot read is the prose. Write `{folder / 'prose.json'}` in the",
             "`graphghan-import/1` shape (the contract is `.claude/skills/graphghan/references/import.md`;",
             f"the schema is `{schema}`), then run the same `graphghan import ... --into {into.name}` again.",
             "",
@@ -665,6 +741,17 @@ def stage_request(source: Path, result: ImportResult, into: Path, repo_root: Pat
             "",
         ]
         + (hints or ["- (no page mentions a key, gauge, or row 1 by word; look at the images)"])
+        + (
+            [
+                "",
+                "Rows drawn as coloured boxes: `boxes.json` lists, per page, every band of boxes with each box's",
+                "colour in order (positions in the saved page images' pixels). A band with `label` true starts a",
+                "row; one without continues the row above. Read the count printed in each box and pair it with",
+                "that box's colour, in order, to make the row's runs; the colours are the key's hexes.",
+            ]
+            if boxes
+            else []
+        )
         + [
             "",
             f"Page images: `{folder / 'pages'}` (p01.png ...), text beside each as pNN.txt.",
