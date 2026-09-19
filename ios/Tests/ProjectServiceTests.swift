@@ -280,6 +280,28 @@ import GraphghanCore
         #expect(try h.service.project(id: UUID()) == nil)
     }
 
+    @Test func applyWalksARepetitionUnlessTheProjectSaysOtherwise() async throws {
+        let h = try await makeHarness()
+        let craigh = try TestFixtures.data("craigh-na-dun.chart.json")
+        let craighID = try Chart.load(craigh).id
+        await h.client.respond("/patterns/two-letter-codes/charts/final-sc/chart.json", data: craigh)
+        let manifest = TestManifest.make(chartID: craighID)
+        let p = try await h.service.startProject(manifest: manifest, chart: manifest.charts[0], title: "x")
+        let seq = try await h.service.sequence(for: p)
+        #expect(p.tapPerRepetition)
+        _ = h.service.apply(.jump(row: 179, run: 4), to: p, in: seq)   // the `5Y 2G` ×22 band
+        let step = h.service.apply(.advance, to: p, in: seq)
+        #expect(step?.runsWalked == 2 && p.cursor == Cursor(row: 179, run: 6))
+        // one event per tap, recording the cursor after it; the walked runs are in the cursor
+        #expect(try h.service.events(for: p).last?.run == 6)
+        try h.service.setTapPerRepetition(false, for: p)
+        #expect(!p.tapPerRepetition)
+        _ = h.service.apply(.advance, to: p, in: seq)
+        #expect(p.cursor == Cursor(row: 179, run: 7))
+        _ = h.service.apply(.back, to: p, in: seq)
+        #expect(p.cursor == Cursor(row: 179, run: 6))
+    }
+
     @Test func applyCountsAFillWithTheProjectsStepAndRecordsStitch() async throws {
         let h = try await makeHarness()
         let craigh = try TestFixtures.data("craigh-na-dun.chart.json")

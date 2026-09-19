@@ -49,7 +49,7 @@ final class AppModel {
         projects.onApply = { [weak self] project, sequence, step in
             guard let self, let chart = self.chartCache[project.chartID] else { return }
             let info = LiveActivityState.info(projectID: project.id, chart: chart, sequence: sequence)
-            guard let state = LiveActivityState.make(cursor: step.cursor, sequence: sequence) else { return }
+            guard let state = LiveActivityState.make(cursor: step.cursor, sequence: sequence, perRepetition: project.tapPerRepetition) else { return }
             self.activityUpdate = Task { await self.liveActivity.update(projectID: project.id, info: info, state: state) }
         }
     }
@@ -139,7 +139,7 @@ final class AppModel {
     /// The attributes and current state for a project, or nil when its chart cannot be read.
     func activityState(for project: Project) async -> (WorkActivityInfo, WorkActivityState)? {
         guard let chart = try? await projects.chart(for: project), let sequence = try? WorkSequence(chart: chart),
-              let state = LiveActivityState.make(cursor: project.cursor, sequence: sequence) else { return nil }
+              let state = LiveActivityState.make(cursor: project.cursor, sequence: sequence, perRepetition: project.tapPerRepetition) else { return nil }
         chartCache[project.chartID] = chart
         return (LiveActivityState.info(projectID: project.id, chart: chart, sequence: sequence), state)
     }
@@ -160,7 +160,7 @@ final class AppModel {
         // A tap can launch the app in the background, where the launch reconcile (a scene `.task`)
         // may never run: the controller then holds no current activity and would drop the refresh.
         // `start` adopts the activity that is already live for this project, so the refresh below lands.
-        if liveActivity.currentProjectID != projectID, let state = LiveActivityState.make(cursor: project.cursor, sequence: sequence) {
+        if liveActivity.currentProjectID != projectID, let state = LiveActivityState.make(cursor: project.cursor, sequence: sequence, perRepetition: project.tapPerRepetition) {
             let info = LiveActivityState.info(projectID: projectID, chart: chart, sequence: sequence)
             await liveActivity.start(projectID: projectID, info: info, state: state)
         }

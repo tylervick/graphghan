@@ -124,29 +124,35 @@ struct ChartBand: View {
             let gridRow = y - k * sign
             drawRow(gridRow: gridRow, top: layout.rowTop(k), height: layout.rowHeight(k), opacity: layout.rowOpacity(k), context: &context, offset: offset)
         }
-        // the current row ahead of the cursor is faint: cover it with Ground at 70%
+        // The current row past the run is faint: cover it with Ground at 70%. Inside the run the
+        // ring says what is left (#74): the counted stitches sit outside it at full colour, and
+        // nothing is overlaid on the remainder, because on Cream a 70% Ground wash is invisible.
         let top = layout.rowTop(0)
         if let ring = layout.ring, cursor.run < pass.runs.count {
             let ltr = pass.direction != .rtl
-            let workedCells = CGFloat(cursor.stitch) * cell
-            let aheadInRun = ltr
-                ? CGRect(x: ring.minX + workedCells - offset, y: top, width: ring.width - workedCells, height: ring.height)
-                : CGRect(x: ring.minX - offset, y: top, width: ring.width - workedCells, height: ring.height)
-            context.fill(Path(aheadInRun), with: .color(Color.ground.opacity(0.7)))
             let restOfRow = ltr
                 ? CGRect(x: ring.maxX - offset, y: top, width: CGFloat(chart.width) * cell - ring.maxX, height: ring.height)
                 : CGRect(x: -offset, y: top, width: ring.minX, height: ring.height)
             context.fill(Path(restOfRow), with: .color(Color.ground.opacity(0.7)))
-            // the ring
+            // the ring, around the remainder
             let ringRect = CGRect(x: ring.minX - offset + 1.5, y: top + 1.5, width: ring.width - 3, height: ring.height - 3)
             context.stroke(Path(ringRect), with: .color(.heather), lineWidth: 3)
-            // ruler
-            let base = layout.rowTop(layout.rowsBelow) + layout.rowHeight(layout.rowsBelow) + 4
+            // ruler, with the hook's own tick where the count stands (#74)
+            // The ruler sits in its own strip directly under the current row (spec §5.3, #72). Its
+            // labels are chart annotations at a fixed size: scaled with Dynamic Type they overflow
+            // the strip and vanish under the next row.
+            let base = layout.rulerTop
+            let hook = layout.ticks.isEmpty ? nil : layout.hook
             for tick in layout.ticks {
                 context.fill(Path(CGRect(x: tick.x - offset - 0.5, y: base, width: 1, height: 6)), with: .color(.ink2))
-                if tick.label > 0 {
-                    context.draw(Text("\(tick.label)").font(Font.Heather.caption).foregroundStyle(Color.ink2), at: CGPoint(x: tick.x - offset, y: base + 14))
+                let underHook = hook.map { abs($0.x - tick.x) < 0.5 } ?? false
+                if tick.label > 0, !underHook {
+                    context.draw(Text("\(tick.label)").font(Font.Heather.annotation).foregroundStyle(Color.ink2), at: CGPoint(x: tick.x - offset, y: base + 14))
                 }
+            }
+            if let hook {
+                context.fill(Path(CGRect(x: hook.x - offset - 1, y: base - 4, width: 2, height: 10)), with: .color(.heather))
+                context.draw(Text("\(hook.stitch)").font(Font.Heather.annotation.bold()).foregroundStyle(Color.heather), at: CGPoint(x: hook.x - offset, y: base + 14))
             }
         } else if let bx = layout.boundaryX {
             // the whole row is worked: mark its end and point at the next row's first stitch

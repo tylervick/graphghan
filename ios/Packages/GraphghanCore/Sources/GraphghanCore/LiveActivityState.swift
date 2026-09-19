@@ -59,15 +59,20 @@ public struct WorkActivityState: Codable, Hashable, Sendable {
     public var counting: Bool
     /// The row is worked and the turn is the next tap.
     public var atBoundary: Bool
+    /// The current run sits in a repeat segment and Done walks the whole repetition (#81):
+    /// `repetition` of `repetitions`, 1-based. Nil elsewhere, and when the tap unit is the run.
+    public var repetition: Int?
+    public var repetitions: Int?
 
     public init(row: Int, rowCount: Int, side: String?, runIndex: Int, currentCode: String?, currentCount: Int?, nextCode: String?, nextCount: Int?,
                 isLastInRow: Bool, percent: Double, finished: Bool, message: String? = nil, previousCode: String? = nil, previousCount: Int? = nil,
-                stitch: Int = 0, counting: Bool = false, atBoundary: Bool = false) {
+                stitch: Int = 0, counting: Bool = false, atBoundary: Bool = false, repetition: Int? = nil, repetitions: Int? = nil) {
         self.row = row; self.rowCount = rowCount; self.side = side; self.runIndex = runIndex
         self.currentCode = currentCode; self.currentCount = currentCount; self.nextCode = nextCode; self.nextCount = nextCount
         self.isLastInRow = isLastInRow; self.percent = percent; self.finished = finished; self.message = message
         self.previousCode = previousCode; self.previousCount = previousCount
         self.stitch = stitch; self.counting = counting; self.atBoundary = atBoundary
+        self.repetition = repetition; self.repetitions = repetitions
     }
 
     public static func unavailable(_ message: String) -> WorkActivityState {
@@ -77,7 +82,7 @@ public struct WorkActivityState: Codable, Hashable, Sendable {
 
     enum CodingKeys: String, CodingKey {
         case row, rowCount, side, runIndex, currentCode, currentCount, nextCode, nextCount, isLastInRow, percent, finished, message
-        case previousCode, previousCount, stitch, counting, atBoundary
+        case previousCode, previousCount, stitch, counting, atBoundary, repetition, repetitions
     }
 
     public init(from decoder: Decoder) throws {
@@ -99,12 +104,16 @@ public struct WorkActivityState: Codable, Hashable, Sendable {
         stitch = try c.decodeIfPresent(Int.self, forKey: .stitch) ?? 0
         counting = try c.decodeIfPresent(Bool.self, forKey: .counting) ?? false
         atBoundary = try c.decodeIfPresent(Bool.self, forKey: .atBoundary) ?? false
+        repetition = try c.decodeIfPresent(Int.self, forKey: .repetition)
+        repetitions = try c.decodeIfPresent(Int.self, forKey: .repetitions)
     }
 }
 
 /// Pure builders: no ActivityKit here, so the app and its tests share one definition of "what the lock screen shows".
 public enum LiveActivityState {
-    public static func make(cursor: Cursor, sequence: WorkSequence) -> WorkActivityState? {
+    /// `perRepetition` is the project's tap unit inside repeats (#81): it decides what Back returns
+    /// to and whether the state names the repetition.
+    public static func make(cursor: Cursor, sequence: WorkSequence, perRepetition: Bool = true) -> WorkActivityState? {
         guard let pass = sequence.pass(at: cursor.row), let done = sequence.cellsBefore(cursor) else { return nil }
         let finished = WorkEngine.isFinished(cursor, in: sequence)
         let atBoundary = !finished && cursor.run == pass.runs.count
@@ -116,17 +125,20 @@ public enum LiveActivityState {
         let percent = total > 0 ? (100 * Double(done) / Double(total) * 10).rounded(.toNearestOrEven) / 10 : 0
         // At the boundary, or crossing a row: `apply(.back)` can itself land on a boundary
         // position (`run == runs.count`), so clamp to the row's last run rather than miss it.
-        let previous: Run? = WorkEngine.apply(.back, to: cursor, in: sequence).flatMap { step in
+        let previous: Run? = WorkEngine.apply(.back, to: cursor, in: sequence, perRepetition: perRepetition).flatMap { step in
             sequence.pass(at: step.cursor.row).flatMap { pass in
                 pass.runs.isEmpty ? nil : pass.runs[min(step.cursor.run, pass.runs.count - 1)]
             }
         }
+        let segment = current == nil || !perRepetition ? nil : Segments.segment(containing: cursor.run, in: pass)
+        let repetition = segment.flatMap { Segments.repetition(of: cursor.run, in: $0) }.map { $0 + 1 }
         return WorkActivityState(
             row: cursor.row, rowCount: sequence.passes.count, side: pass.side?.rawValue, runIndex: cursor.run,
             currentCode: current?.code, currentCount: current?.count, nextCode: next?.code, nextCount: next?.count,
             isLastInRow: atBoundary || cursor.run + 1 >= pass.runs.count, percent: percent, finished: finished, message: nil,
             previousCode: previous?.code, previousCount: previous?.count,
-            stitch: cursor.stitch, counting: WorkEngine.isCounting(cursor, in: sequence), atBoundary: atBoundary)
+            stitch: cursor.stitch, counting: WorkEngine.isCounting(cursor, in: sequence), atBoundary: atBoundary,
+            repetition: repetition, repetitions: repetition == nil ? nil : segment?.repetitions)
     }
 
     public static func info(projectID: UUID, chart: Chart, sequence: WorkSequence) -> WorkActivityInfo {

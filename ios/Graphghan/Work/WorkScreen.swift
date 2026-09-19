@@ -8,12 +8,15 @@ struct WorkScreen: View {
     let sequence: WorkSequence
     let cursor: Cursor
     let step: CountStep
+    /// Inside a repeat segment a tap is one repetition (#81); the project's setting.
+    let perRepetition: Bool
     let onDone: () -> Void
     let onBack: () -> Void
     let onClose: () -> Void
     let onJump: () -> Void
     let onJumpWithinRow: (_ run: Int, _ stitch: Int) -> Void
     let onSetStep: (CountStep) -> Void
+    let onSetPerRepetition: (Bool) -> Void
 
     @State private var mode: ChartBand.Mode = .band
     @State private var showRunList = false
@@ -21,11 +24,11 @@ struct WorkScreen: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private var finished: Bool { WorkEngine.isFinished(cursor, in: sequence) }
-    private var content: WorkPanelContent { WorkPanelContent.make(chart: chart, sequence: sequence, cursor: cursor, step: step) }
-    private var canGoBack: Bool { WorkEngine.apply(.back, to: cursor, in: sequence, step: step) != nil }
+    private var content: WorkPanelContent { WorkPanelContent.make(chart: chart, sequence: sequence, cursor: cursor, step: step, perRepetition: perRepetition) }
+    private var canGoBack: Bool { WorkEngine.apply(.back, to: cursor, in: sequence, step: step, perRepetition: perRepetition) != nil }
 
-    static func actionLabel(chart: Chart, sequence: WorkSequence, cursor: Cursor, step: CountStep) -> String {
-        WorkPanelContent.make(chart: chart, sequence: sequence, cursor: cursor, step: step).actionLabel
+    static func actionLabel(chart: Chart, sequence: WorkSequence, cursor: Cursor, step: CountStep, perRepetition: Bool = true) -> String {
+        WorkPanelContent.make(chart: chart, sequence: sequence, cursor: cursor, step: step, perRepetition: perRepetition).actionLabel
     }
 
     var body: some View {
@@ -84,7 +87,9 @@ struct WorkScreen: View {
 
     /// The panel is the spoken element: one label, the on-deck line as its value, the actions as rotor actions (spec §6).
     private func panel(_ c: WorkPanelContent) -> some View {
-        WorkPanel(content: c)
+        // A part of the sequence line jumps to that run, so a repetition can still be walked one
+        // run at a time when the tap unit is the repetition (#81).
+        WorkPanel(content: c, onSelectPart: { onJumpWithinRow($0, 0) })
             .padding(.horizontal, 12)
             .contentShape(Rectangle())
             .onTapGesture(perform: finished ? onClose : onDone)
@@ -97,6 +102,7 @@ struct WorkScreen: View {
             .accessibilityAction(named: "Jump to row", onJump)
             .accessibilityAction(named: "Jump within row") { showRunList = true }
             .accessibilityAction(named: "Choose counting step") { onSetStep(step.next) }
+            .accessibilityAction(named: perRepetition ? "Switch to one tap per run in repeats" : "Switch to one tap per repetition") { onSetPerRepetition(!perRepetition) }
     }
 
     private func band(_ c: WorkPanelContent) -> some View {
@@ -115,7 +121,7 @@ struct WorkScreen: View {
         let doneHex = c.kind == .turn ? (nextHex ?? WorkPanelContent.creamHex) : c.hex
         // Back can itself land on a boundary position (`run == runs.count`); clamp to that row's
         // last run so the capsule wears the colour it returns to rather than falling back to Cream.
-        let prevHex = WorkEngine.apply(.back, to: cursor, in: sequence, step: step).flatMap { s in
+        let prevHex = WorkEngine.apply(.back, to: cursor, in: sequence, step: step, perRepetition: perRepetition).flatMap { s in
             sequence.pass(at: s.cursor.row).flatMap { p in p.runs.isEmpty ? nil : p.runs[min(s.cursor.run, p.runs.count - 1)] }
         }.map { chart.palette[chart.colorIndex(of: $0.code) ?? 0].hex } ?? YarnSurface.creamHex
         let action = Button(action: finished ? onClose : onDone) {
@@ -158,6 +164,11 @@ struct WorkScreen: View {
                         Button { onSetStep(s) } label: {
                             if s == step { Label(s.title, systemImage: "checkmark") } else { Text(s.title) }
                         }
+                    }
+                    Divider()
+                    // The same menu for the other tap unit (#81): what a tap means in a repeat.
+                    Button { onSetPerRepetition(!perRepetition) } label: {
+                        if perRepetition { Label("One tap per repetition", systemImage: "checkmark") } else { Text("One tap per repetition") }
                     }
                 }
             }

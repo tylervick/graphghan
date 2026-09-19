@@ -51,7 +51,7 @@ struct WorkView: View {
         .onDisappear {
             UIApplication.shared.isIdleTimerDisabled = false
             Task {
-                let final = sequence.flatMap { LiveActivityState.make(cursor: project.cursor, sequence: $0) }
+                let final = sequence.flatMap { LiveActivityState.make(cursor: project.cursor, sequence: $0, perRepetition: project.tapPerRepetition) }
                 await model.liveActivity.end(projectID: project.id, finalState: final)
             }
         }
@@ -63,13 +63,14 @@ struct WorkView: View {
 
     @ViewBuilder
     private func content(chart: Chart, sequence: WorkSequence) -> some View {
-        WorkScreen(chart: chart, sequence: sequence, cursor: cursor, step: project.step,
+        WorkScreen(chart: chart, sequence: sequence, cursor: cursor, step: project.step, perRepetition: project.tapPerRepetition,
                    onDone: { perform(.advance, sequence: sequence) },
                    onBack: { perform(.back, sequence: sequence) },
                    onClose: { dismiss() },
                    onJump: { showJump = true },
                    onJumpWithinRow: { run, stitch in perform(.jump(row: cursor.row, run: run, stitch: stitch), sequence: sequence) },
-                   onSetStep: { step in try? model.projects.setCountStep(step, for: project) })
+                   onSetStep: { step in try? model.projects.setCountStep(step, for: project) },
+                   onSetPerRepetition: { on in try? model.projects.setTapPerRepetition(on, for: project) })
         .overlay(alignment: .top) {
             VStack(spacing: 0) {
                 if let saveError = model.projects.lastError {

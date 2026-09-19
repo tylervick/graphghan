@@ -14,8 +14,13 @@ import GraphghanCore
             .background(Color.ground)
     }
 
-    @Test func fillKeepsItsEndInView() throws {
+    /// #74: at 40 of 117 the hook is a quarter in from the left with its tick labelled 40, and the
+    /// ring is the 77 stitches left; at 110 the end is pinned and the landmark's Purple is in frame.
+    @Test func fillFollowsTheHook() throws {
         #expect(try Snapshots.assert(band(Cursor(row: 42, run: 10, stitch: 40)), named: "band-fill", size: Self.size))
+    }
+    @Test func fillNearItsEndPinsTheEnd() throws {
+        #expect(try Snapshots.assert(band(Cursor(row: 42, run: 10, stitch: 110)), named: "band-fill-end", size: Self.size))
     }
     @Test func braidBracket() throws {
         #expect(try Snapshots.assert(band(Cursor(row: 42, run: 2), label: "border braid"), named: "band-braid", size: Self.size))

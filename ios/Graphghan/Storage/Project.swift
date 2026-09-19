@@ -22,6 +22,9 @@ final class Project {
     var cursorStitch: Int = 0
     /// `CountStep.rawValue`: how many cells a tap counts inside a fill. App state, never exported.
     var countStep: Int = CountStep.default.rawValue
+    /// Inside a repeat segment a tap is one repetition, not one run (#81). App state, never exported;
+    /// the default is what makes this a lightweight migration.
+    var tapPerRepetition: Bool = true
     var lastWorked: Date?
     // The event log is not modelled as an array here on purpose (#79): a to-many relationship
     // made every insert maintain its inverse, so a tap cost time proportional to the project's
@@ -43,6 +46,7 @@ final class Project {
         self.cursorRun = 0
         self.cursorStitch = 0
         self.countStep = CountStep.default.rawValue
+        self.tapPerRepetition = true
         self.lastWorked = nil
     }
 
