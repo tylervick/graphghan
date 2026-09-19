@@ -43,6 +43,13 @@ grep -q "Focus on the lock screen." <<<"$out" || fail "preamble missing; got: $o
 [ "$(grep -n "Focus on" <<<"$out" | cut -d: -f1)" -lt "$(grep -n "since build 3" <<<"$out" | cut -d: -f1)" ] || fail "preamble not above the changelog"
 pass "a preamble is included verbatim above the changelog"
 
+r="$(make_repo stale 'printf "Focus on the lock screen.\n" > ios/docs/whats-to-test.md; git add -A; git commit -qm p; git tag -f ios-build-3 >/dev/null; touch_commit ios/x "fix(ios): thing"')"
+out="$(notes "$r")" || fail "stale-preamble case failed: $out"
+! grep -q "Focus on the lock screen." <<<"$out" || fail "a preamble unchanged since the previous build must be left out; got: $out"
+grep -q "leaving it out" <<<"$out" || fail "leaving the preamble out must be said on stderr; got: $out"
+grep -q -- "- Thing$" <<<"$out" || fail "the changelog must still be there; got: $out"
+pass "a preamble that already shipped with the previous build is left out"
+
 r="$(make_repo nothing '')"
 if notes "$r" >"$TMP/o" 2>&1; then fail "no changes and no preamble should fail"; fi
 grep -qi "no changes" "$TMP/o" || fail "error did not explain; got: $(cat "$TMP/o")"

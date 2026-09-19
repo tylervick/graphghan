@@ -133,6 +133,28 @@ jobs:
           path: ${{ runner.temp }}/TestResults.xcresult
           if-no-files-found: ignore
           retention-days: 7
+  # Ships what just merged (#106, docs/release.md): the TestFlight workflow, gated inside on app code
+  # having changed since the last shipped build and here on the tests having passed. `ios` may be
+  # skipped (no iOS paths in this push) while a build is still owed from an earlier failed run, so a
+  # skip is not a veto; a failure or a cancel is.
+  testflight:
+    needs: [test, ios]
+    if: ${{ !cancelled() && github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.test.result == 'success' && (needs.ios.result == 'success' || needs.ios.result == 'skipped') }}
+    # contents: write for the ios-build-N tag the called workflow pushes; the caller's grant is the ceiling.
+    permissions:
+      contents: write
+    concurrency:
+      group: testflight
+      cancel-in-progress: false
+    uses: ./.github/workflows/testflight.yml
+    secrets:
+      BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
+      P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
+      PROVISIONING_PROFILE_APP_BASE64: ${{ secrets.PROVISIONING_PROFILE_APP_BASE64 }}
+      PROVISIONING_PROFILE_WIDGETS_BASE64: ${{ secrets.PROVISIONING_PROFILE_WIDGETS_BASE64 }}
+      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+      ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
   deploy:
     if: github.ref == 'refs/heads/main'
     needs: test

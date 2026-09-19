@@ -1,6 +1,18 @@
 # Releasing to TestFlight
 
-The release path is `.github/workflows/testflight.yml`, dispatched by hand. Nothing ships on a push or a tag.
+The release path is `.github/workflows/testflight.yml`. It runs in two ways:
+
+- **On merge.** `ci.yml` calls it after its test jobs pass on a push to `main`. Its first job checks
+  whether anything that goes into the binary (`ios/`, less `docs/`, `Tests/` and `Scripts/`) changed
+  since the newest `ios-build-*` tag, and skips the archive otherwise. So a merge that changes the
+  app ships a build; a docs-only, test-only or Python-only merge does not.
+- **By hand.** Actions › TestFlight › Run workflow, for a dry run (`validate_only`) or a retry with
+  an explicit `build_number`. A dispatch always ships.
+
+Who gets a build is decided in App Store Connect, not here: the internal group has automatic
+distribution on, so every processed build reaches the team without review; the external group has
+it off, so an outside tester gets a build only when one is added to that group by hand (step 5 under
+"Shipping a build"). Nothing in the workflow adds a build to a group.
 
 ## One-time setup
 
@@ -17,7 +29,7 @@ Done once per account/app; the state persists in the Apple developer portal, App
    The profiles are bound to the account's single **unexpired** Apple Distribution certificate (expiry is read from the API, not from Apple's status string). If the account holds more than one, the script refuses to guess: it lists each candidate's id, name, and expiry and asks you to re-run as `ASC_CERT_ID=<id> Scripts/asc-profiles.sh`, choosing the certificate whose private key the `BUILD_CERTIFICATE_BASE64` p12 holds. Profiles expire with the certificate, so re-run the script after a renewal: an `ACTIVE` same-name profile is downloaded unchanged, while one left `EXPIRED` or `INVALID` by the renewal is deleted and recreated — Apple refuses to create a second profile under a name already in use, so replacing it is the only way the name survives.
 4. **App Store Connect key.** Reuse Waddle's `ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_PRIVATE_KEY` (base64 of the `.p8`). The key needs the App Manager role for the app.
 5. **App record.** In App Store Connect, create the app "Graphghan" for bundle id `com.tylervick.graphghan` (platform iOS, SKU `graphghan`). `whats-to-test.sh` refuses to run until the record exists.
-6. **TestFlight group.** Create an external group (for example "Crocheters") and add the tester by email. The first build sent to an external group goes through Beta App Review (usually a day); later builds are available as soon as processing finishes. An internal tester (a user on the team) can install builds without review.
+6. **TestFlight groups.** The internal group (team members) has "Enable automatic distribution" on: that is what makes a merge reach the team. Create an external group (for example "Crocheters") with it **off** and add the tester by email. The first build sent to an external group goes through Beta App Review (usually a day); later builds are available as soon as processing finishes. An internal tester can install builds without review.
 
 Secrets checklist for `tylervick/graphghan`:
 
@@ -29,17 +41,30 @@ Secrets checklist for `tylervick/graphghan`:
 
 ## Shipping a build
 
-1. Run the manual checks in `ios/docs/qa.md` on a device build.
-2. Optionally write a preamble in `ios/docs/whats-to-test.md` and merge it; preview the notes with `ios/Scripts/whats-to-test.sh --print`.
-3. Actions › TestFlight › Run workflow on `main`. Tick `validate_only` for a dry run (no build number consumed). Leave `build_number` empty; the workflow derives it from the run number.
-4. The run uploads the IPA as an artifact, uploads to App Store Connect, pushes the `ios-build-N` tag, and attaches the notes. Confirm the build in App Store Connect; the summary says why a green run is not proof by itself.
-5. In App Store Connect › TestFlight, add the build to the external group if it is not set to auto-distribute.
+1. Merge the change to `main`. If it touches app code, the `testflight` job of that push's CI run
+   archives, uploads, pushes the `ios-build-N` tag, and attaches the What to Test notes. Confirm the
+   build in App Store Connect; the run summary says why a green run is not proof by itself.
+2. The notes are the derived changelog since the previous build, headed by the preamble in
+   `ios/docs/whats-to-test.md` **only if that file changed since the previous build's tag**: a
+   preamble is written for the next build, and the same text must not go out with every build
+   after. Write it in the PR that ships the change (or merge it before that PR; on its own it does
+   not trigger a build). Preview with `ios/Scripts/whats-to-test.sh --print`.
+3. Build numbers are the newest `ios-build-*` tag plus one, whichever path runs, so the manual and
+   the automatic path never collide. Runs serialize on one concurrency group.
+4. Before an external release, run the manual checks in `ios/docs/qa.md` on a device build.
+5. In App Store Connect › TestFlight, add the build to the external group. It is not set to
+   auto-distribute, on purpose.
+
+Manual path: Actions › TestFlight › Run workflow on `main`. Tick `validate_only` for a dry run (no
+build number consumed). Leave `build_number` empty unless retrying a release whose upload succeeded
+but whose tag did not land.
 
 ## When something fails
 
 - Signing: "No Apple Distribution identity" means the p12 secret lacks its private key or the certificate expired. Regenerate the p12 and the profiles.
 - Export: 'No "iOS App Store" profiles ... matching' means a profile name drifted between `project.yml`, `ExportOptions-ci.plist`, and the portal, or the widget profile secret is missing.
-- Tag or notes failed after the upload: the build IS uploaded. Do not re-run; follow the message in the log (tag by hand, or set the notes in App Store Connect).
+- Tag or notes failed after the upload: the build IS uploaded. Do not re-run; follow the message in the log (tag by hand, or set the notes in App Store Connect). Tag promptly: the next merge derives its build number from the newest tag, and without this one it would reuse the number App Store Connect already has.
+- The `testflight` job of a CI run was skipped: its `decide` job found nothing under `ios/` (less docs, tests, scripts) changed since the newest tag, or a test job failed. The job's log says which.
 - Distribution logs are attached as the `xcdistributionlogs` artifact on failure.
 
 ## Local archive

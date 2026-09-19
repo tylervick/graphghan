@@ -1,6 +1,11 @@
 name: TestFlight
 
-# Manual only. Shipping is a deliberate act: no push, merge, or tag ships anything.
+# Ships on merge (#106). `ci.yml` calls this after its test jobs pass on a push to `main`, and the
+# `decide` job below skips the archive unless app code has changed since the last shipped build. Every
+# build reaches the internal TestFlight group through its automatic-distribution setting in App Store
+# Connect; the external group's stays off, so a tester outside the team gets a build only when one is
+# added there by hand. Nothing here adds a build to a group. The manual dispatch remains for a dry run
+# (`validate_only`) or a retry with an explicit build number.
 on:
   workflow_dispatch:
     inputs:
@@ -14,9 +19,29 @@ on:
         type: string
         required: false
         default: ''
+  workflow_call:
+    inputs:
+      validate_only:
+        type: boolean
+        required: false
+        default: false
+      build_number:
+        type: string
+        required: false
+        default: ''
+    # Named rather than inherited, so the caller states exactly what the release lane can reach.
+    secrets:
+      BUILD_CERTIFICATE_BASE64: {required: true}
+      P12_PASSWORD: {required: true}
+      PROVISIONING_PROFILE_APP_BASE64: {required: true}
+      PROVISIONING_PROFILE_WIDGETS_BASE64: {required: true}
+      ASC_KEY_ID: {required: true}
+      ASC_ISSUER_ID: {required: true}
+      ASC_PRIVATE_KEY: {required: true}
 
-# Ref-independent so two dispatches on different refs serialize; no cancel, because cancelling
-# mid-upload burns a build number server-side while reporting nothing.
+# Ref-independent so two runs on different refs serialize (the caller job in ci.yml declares the same
+# group, since a called workflow's own concurrency is not guaranteed to apply); no cancel, because
+# cancelling mid-upload burns a build number server-side while reporting nothing.
 concurrency:
   group: testflight
   cancel-in-progress: false
@@ -26,13 +51,45 @@ permissions: {}
 
 env:
   XCODE_VERSION: "26.2"
-  # A new app: no build numbers are consumed, so the first CI release is 1. Numbers have gaps whenever
-  # a run fails before the upload; App Store Connect needs unique and increasing, not contiguous.
+  # Only for the very first build, before any ios-build-* tag exists: that one is OFFSET + run number.
+  # Every later build is the newest tag plus one, so the manual and the automatic path share one
+  # sequence whatever their run numbers are. App Store Connect needs unique and increasing, not
+  # contiguous, so a run that fails before its upload leaves no gap and one that fails after it
+  # leaves one (docs/release.md says how to tag that by hand).
   BUILD_NUMBER_OFFSET: 0
 
 jobs:
+  # Cheap and first: a tester installs the binary, so only a change to what goes into it is worth a
+  # macOS runner (about five minutes end to end) and a build in their inbox. Docs, tests and the release scripts under ios/ are
+  # not the binary; a What to Test preamble merged on its own waits for the next code change. A hand
+  # dispatch always ships (or validates).
+  decide:
+    name: Anything to ship?
+    runs-on: ubuntu-latest
+    outputs:
+      ship: ${{ steps.gate.outputs.ship }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with: {fetch-depth: 0, persist-credentials: false}
+      - id: gate
+        env:
+          EVENT: ${{ github.event_name }}
+        run: |
+          ship() { echo "ship=$1" >> "$GITHUB_OUTPUT"; echo "$2"; }
+          if [ "$EVENT" = "workflow_dispatch" ]; then ship true "Dispatched by hand: shipping."; exit 0; fi
+          NEWEST="$(git tag --list 'ios-build-*' --sort=-v:refname | head -n 1)"
+          if [ -z "$NEWEST" ]; then ship true "No build shipped yet: shipping."; exit 0; fi
+          CHANGED="$(git diff --name-only "$NEWEST..HEAD" -- 'ios/' ':(exclude)ios/docs/' ':(exclude)ios/Tests/' ':(exclude)ios/Scripts/')"
+          if [ -n "$CHANGED" ]; then
+            ship true "App code changed since $NEWEST:"; echo "$CHANGED"
+          else
+            ship false "Nothing that goes into the binary has changed since $NEWEST; not shipping."
+          fi
+
   testflight:
     name: Archive and upload
+    needs: decide
+    if: ${{ needs.decide.outputs.ship == 'true' }}
     runs-on: macos-26
     timeout-minutes: 60
     # contents: write exists only for the ios-build-N tag push.
@@ -56,14 +113,16 @@ jobs:
           OFFSET: ${{ env.BUILD_NUMBER_OFFSET }}
           RUN_NUMBER: ${{ github.run_number }}
         run: |
-          if [ -n "$OVERRIDE" ]; then N="$OVERRIDE"; else N=$(( OFFSET + RUN_NUMBER )); fi
+          # The ios-build-* tags are the local record of the numbers App Store Connect has seen; the
+          # checkout above uses fetch-depth 0, so they are present. Runs serialize on the concurrency
+          # group, so the tag the previous run pushed is here before this one reads it.
+          NEWEST="$(git tag --list 'ios-build-*' --sort=-v:refname | head -n 1 | sed 's/^ios-build-//')"
+          if [ -n "$OVERRIDE" ]; then N="$OVERRIDE"; elif [ -n "$NEWEST" ]; then N=$(( NEWEST + 1 )); else N=$(( OFFSET + RUN_NUMBER )); fi
           [[ "$N" =~ ^[0-9]+$ ]] || { echo "::error::build number '$N' is not numeric"; exit 1; }
           [ "$N" -ge 1 ] || { echo "::error::build number must be at least 1"; exit 1; }
           # App Store Connect needs a build number strictly above every number already used for this
-          # version, and the ios-build-* tags are the local record of those. Catching it here costs
-          # seconds; letting it through costs a 20-minute archive and then a rejected upload. The
-          # checkout above uses fetch-depth 0, so the tags are present.
-          NEWEST="$(git tag --list 'ios-build-*' --sort=-v:refname | head -n 1 | sed 's/^ios-build-//')"
+          # version. Only an override can fail this now; catching it here costs seconds, letting it
+          # through costs the archive and then a rejected upload.
           if [ -n "$NEWEST" ] && [ "$N" -le "$NEWEST" ]; then
             echo "::error::build number $N is not above the newest shipped build $NEWEST"
             exit 1
@@ -255,13 +314,15 @@ jobs:
         if: always()
         env:
           REF: ${{ github.ref_name }}
+          EVENT: ${{ github.event_name }}
           BUILD_NUM: ${{ steps.buildnum.outputs.value }}
           VALIDATE_ONLY: ${{ inputs.validate_only }}
         run: |
           if [ "$VALIDATE_ONLY" = "true" ]; then MODE="validate only"; else MODE="upload"; fi
+          if [ "$EVENT" = "workflow_dispatch" ]; then HOW="dispatched by hand"; else HOW="on merge ($EVENT)"; fi
           {
             echo "### TestFlight run"; echo
-            echo "- Build number: **$BUILD_NUM**"; echo "- Mode: $MODE"; echo "- Ref: \`$REF\`"; echo
+            echo "- Build number: **$BUILD_NUM**"; echo "- Mode: $MODE"; echo "- Ref: \`$REF\`"; echo "- Trigger: $HOW"; echo
             echo "Confirm the build appears in App Store Connect: Xcode 26's altool can report success for an upload that did not happen."
           } >> "$GITHUB_STEP_SUMMARY"
 

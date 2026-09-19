@@ -3,7 +3,8 @@
 #   Scripts/whats-to-test.sh --print          assemble and print (no network)
 #   Scripts/whats-to-test.sh <build-number>   assemble and attach via the App Store Connect API
 #
-# Notes = optional hand-written preamble (ios/docs/whats-to-test.md) + a changelog DERIVED from git:
+# Notes = optional hand-written preamble (ios/docs/whats-to-test.md, used only if it changed since the
+# previous build's tag: it is written for the next build, not for every build after) + a changelog DERIVED from git:
 # commits since the newest ios-build-* tag below the current build, restricted to paths a tester can
 # notice (ios/ and patterns/), grouped "In the app" (feat/fix/perf) and "Behind the scenes" (the rest),
 # with the conventional-commit prefix and any trailing "(#N)" removed. Trimmed to App Store Connect's
@@ -82,10 +83,15 @@ assemble_notes() { # [current-build-number]
     TAG="$(prev_tag "${1:-}")"
     if [ -n "$TAG" ]; then
         HEADING="Changes since build ${TAG#"$TAG_PREFIX"}:"
-        if [ -n "${1:-}" ] && git rev-parse -q --verify "refs/tags/${TAG_PREFIX}$1" >/dev/null; then
-            BODY="$(changelog "$TAG..${TAG_PREFIX}$1" | format_groups)"
-        else
-            BODY="$(changelog "$TAG..HEAD" | format_groups)"
+        UPTO="HEAD"
+        if [ -n "${1:-}" ] && git rev-parse -q --verify "refs/tags/${TAG_PREFIX}$1" >/dev/null; then UPTO="${TAG_PREFIX}$1"; fi
+        BODY="$(changelog "$TAG..$UPTO" | format_groups)"
+        # A preamble is written for the next build. Builds ship on merge now, so the same text must
+        # not ride along on every build after the one it was for: keep it only if the file changed
+        # between the previous build's tag and this build.
+        if [ -n "$PREAMBLE" ] && git diff --quiet "$TAG" "$UPTO" -- "$PREAMBLE_FILE" 2>/dev/null; then
+            echo "note: $PREAMBLE_FILE is unchanged since $TAG, so it was written for that build; leaving it out." >&2
+            PREAMBLE=""
         fi
     else
         HEADING="Recent changes (no previous build tag; showing the last 20 commits):"

@@ -119,4 +119,6 @@ set, so it can never overwrite a committed reference by accident.
 
 `mise run script-test` runs the hermetic tests for the shell scripts under `Scripts/`.
 
-Shipping a build to TestFlight is manual; see `docs/release.md`.
+A merge to `main` that changes the app ships a TestFlight build to the internal group; `docs/release.md`
+has the details, the group settings that keep external testers out of the automatic path, and the
+manual dispatch for dry runs and retries.
