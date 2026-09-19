@@ -190,7 +190,9 @@ struct ChartBand: View {
         let rightX = CGFloat(chart.width) * BandLayout.cell - offset
         let leftX = -offset
         let style = StrokeStyle(lineWidth: 2, dash: [3, 3])
-        if sequence.pass(at: cursor.row + 1) != nil, rightX > -40, rightX < size.width + 40 {
+        // Only where the engine has a turn step (spec §4.4): a chart worked in the round has no fold
+        // between passes, so the ribbon there is one unbroken line and draws no arc and no label.
+        if sequence.hasBoundaryStep(after: cursor.row), rightX > -40, rightX < size.width + 40 {
             var up = Path()
             up.move(to: CGPoint(x: rightX, y: top + 20))
             up.addQuadCurve(to: CGPoint(x: rightX, y: top - 20), control: CGPoint(x: rightX + 22, y: top))
@@ -198,7 +200,7 @@ struct ChartBand: View {
             context.draw(Text("turn").font(Font.Heather.annotation).foregroundStyle(Color.heather.opacity(0.8)),
                          at: CGPoint(x: min(rightX - 16, size.width - 16), y: layout.rulerTop + 14), anchor: .center)
         }
-        if cursor.row > 1, leftX > -40, leftX < size.width + 40 {
+        if sequence.hasBoundaryStep(after: cursor.row - 1), leftX > -40, leftX < size.width + 40 {
             var from = Path()
             from.move(to: CGPoint(x: leftX, y: layout.rowTop(1) + 20))
             from.addQuadCurve(to: CGPoint(x: leftX, y: bottom - 20), control: CGPoint(x: leftX - 22, y: bottom + (layout.rowTop(1) - bottom) / 2))
