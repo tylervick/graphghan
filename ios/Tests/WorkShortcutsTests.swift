@@ -181,7 +181,8 @@ extension WorkIntentTests {
         h.model.reindex = { indexed.append($0.map(\.id)) }
         let other = try await startAnother(h, title: "other")
         await h.model.indexUpdate?.value
-        #expect(indexed.last?.sorted(by: { $0.uuidString < $1.uuidString }) == [h.project.id, other.id].sorted(by: { $0.uuidString < $1.uuidString }))
+        let firstRefresh = indexed.last.map(Set.init)
+        #expect(firstRefresh == [h.project.id, other.id])
         let seq = try await h.model.projects.sequence(for: h.project)
         _ = h.model.projects.apply(.advance, to: h.project, in: seq)
         await h.model.indexUpdate?.value

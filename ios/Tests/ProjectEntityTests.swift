@@ -10,11 +10,16 @@ extension WorkIntentTests {
         let h = try await make()  // titled "x"; the pattern is two-letter-codes, uncached here so the id stands in
         let named = try await startAnother(h, title: "For Meaghan")
         let query = ProjectEntityQuery()
-        #expect(try await query.entities(matching: "meaghan").map(\.id) == [named.id])
-        #expect(try await query.entities(matching: "two-letter").map(\.id).sorted(by: { $0.uuidString < $1.uuidString })
-                == [h.project.id, named.id].sorted(by: { $0.uuidString < $1.uuidString }))
-        #expect(try await query.entities(matching: "   ").isEmpty)
-        #expect(try await query.entities(for: [named.id]).map(\.title) == ["For Meaghan"])
+        // Locals, not one expression per assertion: Swift 6.2 (CI's Xcode 26.2) gives up type-checking
+        // a `#expect` that chains `try await`, `map` and a comparison.
+        let byOwnTitle = try await query.entities(matching: "meaghan").map(\.id)
+        #expect(byOwnTitle == [named.id])
+        let byPattern = try await query.entities(matching: "two-letter").map(\.id)
+        #expect(Set(byPattern) == [h.project.id, named.id])
+        let blank = try await query.entities(matching: "   ")
+        #expect(blank.isEmpty)
+        let byID = try await query.entities(for: [named.id]).map(\.title)
+        #expect(byID == ["For Meaghan"])
     }
 
     @Test func suggestionsAreUnfinishedMostRecentFirst() async throws {
@@ -25,9 +30,11 @@ extension WorkIntentTests {
         other.lastWorked = Date(timeIntervalSince1970: 2_000)
         done.lastWorked = Date(timeIntervalSince1970: 3_000)
         try h.model.projects.markFinished(done)
-        #expect(try await ProjectEntityQuery().suggestedEntities().map(\.id) == [other.id, h.project.id])
+        let suggested = try await ProjectEntityQuery().suggestedEntities().map(\.id)
+        #expect(suggested == [other.id, h.project.id])
         // Finished projects still resolve by name: "how far am I on …" has an answer for them.
-        #expect(try await ProjectEntityQuery().entities(matching: "done").map(\.id) == [done.id])
+        let finished = try await ProjectEntityQuery().entities(matching: "done").map(\.id)
+        #expect(finished == [done.id])
     }
 
     @Test func percentComesFromTheCursor() async throws {
@@ -51,6 +58,7 @@ extension WorkIntentTests {
         let querying = Task { try await ProjectEntityQuery().entities(for: [h.project.id]) }
         try await Task.sleep(for: .milliseconds(100))
         h.model.registerIntentHandler()
-        #expect(try await querying.value.map(\.id) == [h.project.id])
+        let found = try await querying.value.map(\.id)
+        #expect(found == [h.project.id])
     }
 }
