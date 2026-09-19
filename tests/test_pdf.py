@@ -131,3 +131,12 @@ def test_tile_cell_kind_prints_no_stitch_count():
 def test_refuses_rounds():
     with pytest.raises(ValueError, match="rows"):
         to_pdf(load("minimal-rounds"))
+
+
+def test_refuses_a_document_that_does_not_validate():
+    doc = load("craigh-na-dun")
+    doc["rows"][3] = doc["rows"][3] + "1Q"  # a code the palette does not have, and a row one too wide
+    with pytest.raises(ValueError, match="refused an invalid chart document.*row 3"):
+        to_pdf(doc)
+    with pytest.raises(ValueError, match="'rows' is missing"):
+        to_pdf({"pattern": {}, "chart": {}, "palette": [], "gauge": {}})

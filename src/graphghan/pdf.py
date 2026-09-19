@@ -24,7 +24,7 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfgen import canvas
 
-from .chartdoc import cell_kind, finished_size
+from .chartdoc import cell_kind, finished_size, validate_document
 from .export import decode_rows, preview_image, rle_rows, written_rows
 from .text import FONT_METAMORPHOUS
 
@@ -391,7 +391,17 @@ def _rows(w: _Writer, doc: dict, a, codes: list[str]) -> None:
 
 
 def to_pdf(doc: dict) -> bytes:
-    """A printable pattern for a schema 2 chart document, as PDF bytes. Deterministic."""
+    """A printable pattern for a schema 2 chart document, as PDF bytes. Deterministic.
+
+    The document is validated first: a chart.json from anywhere else than `graphghan render`
+    (a hand edit, another writer) must not reach the layout code with rows that do not sum or a
+    palette a run string does not name."""
+    for key in ("pattern", "chart", "palette", "rows", "gauge"):
+        if not isinstance(doc.get(key), (dict, list)):
+            raise ValueError(f"PDF export needs a schema 2 chart document; {key!r} is missing")
+    problems = validate_document(doc)
+    if problems:
+        raise ValueError("PDF export refused an invalid chart document: " + "; ".join(problems))
     technique = doc.get("technique") or {}
     if technique.get("type") != "rows":
         raise ValueError("PDF export lays out row-worked charts only (technique.type must be 'rows')")
