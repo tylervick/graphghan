@@ -1,0 +1,36 @@
+# Revyl Test Definition
+
+_meta:
+    remote_id: ab2addbe-6d3f-4efc-ac29-763dc2bde1b0
+    remote_version: 1
+    local_version: 1
+    last_synced_at: "2026-09-19T16:06:52-07:00"
+    checksum: ad46741837def03664a6bac94b7ffd7118627e67361a2b7b85677158c780bcde
+test:
+    metadata:
+        name: pattern-feed-to-project
+        platform: ios
+        tags:
+            - patterns
+            - network
+            - pr-review
+    build:
+        name: Graphghan
+    variables:
+        pattern-name: Craigh na Dun Blanket
+        project-name: Feed Probe
+    blocks:
+        - type: validation
+          step_description: The Patterns tab is showing a list that includes a pattern titled "{{pattern-name}}" with a thumbnail of the chart and a line giving its finished size, stitch and colour count. An empty state reading "No patterns yet" means the app could not reach the pattern feed and is a failure.
+        - type: instructions
+          step_description: Open "{{pattern-name}}" from the Patterns list.
+        - type: validation
+          step_description: The detail screen for "{{pattern-name}}" is open and its Chart summary is filled in, reading 189 × 184 stitches × rows, a finished size of 54 × 46 in, a stitch of sc, and a version. Placeholder dashes or empty values mean the manifest did not load.
+        - type: instructions
+          step_description: Scroll to the very bottom of the detail screen, past the Setup and Colors notes and the "Published charts" list, and tap the green "Start project" button at the end.
+        - type: validation
+          step_description: A "Start project" sheet has opened with Cancel and Start buttons in its header, a Chart section offering "final · sc" and "final · hdc" with one of them ticked, and a Name field.
+        - type: instructions
+          step_description: Replace the contents of the Name field with "{{project-name}}", leave the ticked chart as it is, and tap Start.
+        - type: validation
+          step_description: The app is now showing the Projects tab, which lists a project named "{{project-name}}" with the pattern's thumbnail and a progress line reading "Row 1 of 184 · 0%". Remaining on the pattern detail screen, or an empty Projects tab, is a failure.

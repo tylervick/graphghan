@@ -1,0 +1,45 @@
+# Revyl Test Definition
+
+_meta:
+    remote_id: 9437fa7e-89f4-4f86-98c0-7875ee494d7a
+    remote_version: 1
+    local_version: 1
+    last_synced_at: "2026-09-19T16:06:58-07:00"
+    checksum: 8a217aba8c3c1ceea3d3c4ffb20536e696fedc4f2bd37e8a3b35891ef49333f8
+test:
+    metadata:
+        name: work-progress-persists
+        platform: ios
+        tags:
+            - work
+            - persistence
+            - pr-review
+    build:
+        name: Graphghan
+    variables:
+        pattern-name: Craigh na Dun Blanket
+        project-name: Row Probe
+    blocks:
+        - type: instructions
+          step_description: 'Start a project named "{{project-name}}" from the "{{pattern-name}}" pattern: open it from the Patterns tab, scroll to the bottom of its detail screen, tap "Start project", replace the Name field with "{{project-name}}", and tap Start.'
+        - type: validation
+          step_description: The Projects tab lists a project named "{{project-name}}" reading "Row 1 of 184 · 0%".
+        - type: instructions
+          step_description: Open "{{project-name}}" and tap its "Work" button to enter the full-screen Work screen.
+        - type: validation
+          step_description: The full-screen Work screen is open, headed "Row 1 of 184" with "Right side · read right to left" beneath it. A large coloured card shows the current run as "0 of 189" with its colour named, and there is a "Back" control and an advance control reading "+10" at the bottom.
+        - type: instructions
+          step_description: Tap the advance control at the bottom right twice. It reads "+10" on screen; to an element query it is labelled like "0 of 189 single crochet in Gold, next ten". The large coloured card above it carries the same label and does the same thing, so either is fine.
+        - type: validation
+          step_description: The run counter now reads "20 of 189". The header still reads "Row 1 of 184" and that is correct -- a run is worked in tens within a row, so the row number is not expected to move yet.
+        - type: manual
+          step_type: kill_app
+        - type: manual
+          step_type: open_app
+        - type: manual
+          step_type: wait
+          step_description: "3"
+        - type: instructions
+          step_description: Open the Projects tab.
+        - type: validation
+          step_description: The project "{{project-name}}" is still listed after the restart, and its progress line shows a non-zero percentage -- "Row 1 of 184 · 0.1%" -- with a "Last worked" line beneath it. A project that has reverted to 0% has lost the work and is a failure.
