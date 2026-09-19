@@ -22,6 +22,7 @@ GAP_TOLERANCE = 0.25  # consecutive line gaps within this fraction of the median
 CENTRE_FRACTION = 0.4  # the part of each cell that is sampled
 MAX_NOISE = 12.0  # mean grey-level spread inside cell centres above which a region is a photo
 MAX_SILENT = 40  # lines that may hide inside same-coloured cells before the grid is taken to end
+MAX_PIXELS = 40_000_000  # the reader holds several int16 copies of the image; a PDF page at 4x is 8 MP
 COLOR_NAMES = {
     "white": (255, 255, 255),
     "cream": (245, 235, 210),
@@ -352,6 +353,11 @@ def _overlap(a: Region, b: Region) -> float:
 
 def find_regions(img: Image.Image) -> list[Region]:
     """Every grid on the image, largest first."""
+    if img.width * img.height > MAX_PIXELS:
+        raise ValueError(
+            f"image is {img.width}x{img.height} px, more than the {MAX_PIXELS // 1_000_000} megapixels the "
+            "grid reader takes; scale it down first (a chart page needs about 40 px per cell)"
+        )
     rgb = np.asarray(img.convert("RGB"), dtype=np.int16)
     gray = np.asarray(img.convert("L"), dtype=float)
     ex = np.abs(np.diff(rgb, axis=1)).max(axis=2) > EDGE_THRESHOLD  # (h, w-1): vertical edges

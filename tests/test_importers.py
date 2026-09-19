@@ -134,3 +134,24 @@ def test_cli_import_dry_run_writes_nothing(tmp_path):
     src.write_text(exporters.to_oxs(doc), encoding="utf-8")
     assert main(["import", str(src), "--into", str(tmp_path / "nothing"), "--dry-run"]) == 0
     assert not (tmp_path / "nothing").exists()
+
+
+def test_pdf_pages_are_rendered_one_at_a_time(monkeypatch):
+    """A long PDF never sits in memory whole: pages stream through the grid search and only the
+    chosen page is rendered again."""
+    from graphghan import importers as imp
+
+    live = []
+    real = imp.iter_pages
+
+    def counting(path, scale=imp.RENDER_SCALE):
+        for page_no, img in real(path, scale):
+            live.append(page_no)
+            yield page_no, img
+
+    monkeypatch.setattr(imp, "iter_pages", counting)
+    monkeypatch.setattr(imp, "is_own_pdf", lambda _p: False)
+    pdf = ROOT / "fixtures" / "import" / "craigh-na-dun-final-hdc.pdf"
+    result = imp.import_file(pdf, page=5)
+    assert (result.width, result.height) == (44, 39)
+    assert live == list(range(1, imp.page_count(pdf) + 1))

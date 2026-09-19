@@ -17,6 +17,7 @@ import shutil
 import subprocess
 import sys
 import xml.etree.ElementTree as ET
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -132,9 +133,21 @@ def load_chart_png(path: str | Path, palette: Palette) -> np.ndarray:
     return read_png(Image.open(path), palette_entries(palette))
 
 
-def render_pages(pdf_path: str | Path, scale: int = RENDER_SCALE) -> list[Image.Image]:
+def page_count(pdf_path: str | Path) -> int:
+    return len(pdfium.PdfDocument(str(pdf_path)))
+
+
+def render_page(pdf_path: str | Path, page_no: int, scale: int = RENDER_SCALE) -> Image.Image:
+    """One page (1-based) as an RGB image; a page is about 8 megapixels at the default scale."""
     pdf = pdfium.PdfDocument(str(pdf_path))
-    return [pdf[i].render(scale=scale).to_pil().convert("RGB") for i in range(len(pdf))]
+    return pdf[page_no - 1].render(scale=scale).to_pil().convert("RGB")
+
+
+def iter_pages(pdf_path: str | Path, scale: int = RENDER_SCALE) -> Iterator[tuple[int, Image.Image]]:
+    """(page number, image) one page at a time, so a long PDF never sits in memory whole."""
+    pdf = pdfium.PdfDocument(str(pdf_path))
+    for i in range(len(pdf)):
+        yield i + 1, pdf[i].render(scale=scale).to_pil().convert("RGB")
 
 
 def page_texts(pdf_path: str | Path) -> list[str]:
@@ -177,15 +190,15 @@ def stitch_own_pdf(pdf_path: str | Path) -> ImportResult:
     palette = read_key(texts)
     if not palette:
         raise ValueError(f"{pdf_path}: no key page in the graphghan layout")
-    pages = render_pages(pdf_path)
     grid = None
     covered = None
     regions: list[str] = []
     warnings: list[str] = []
-    for page_no, (text, img) in enumerate(zip(texts, pages, strict=True), start=1):
+    for page_no, text in enumerate(texts, start=1):
         m = HEADER_RE.match(text)
         if not m:
             continue
+        img = render_page(pdf_path, page_no)
         a, b, W, c, d, H = (int(m.group(g)) for g in ("a", "b", "W", "c", "d", "H"))
         if grid is None:
             grid = np.zeros((H, W), dtype=np.uint8)
@@ -217,10 +230,10 @@ def stitch_own_pdf(pdf_path: str | Path) -> ImportResult:
 
 
 def _pick(
-    candidates: list[tuple[int, int, rc.Region, Image.Image]],
+    candidates: list[tuple[int, int, rc.Region]],
     page: int | None,
     region: int | None,
-) -> tuple[int, int, rc.Region, Image.Image]:
+) -> tuple[int, int, rc.Region]:
     if not candidates:
         raise ValueError("no grid found on any page")
     if page is not None:
@@ -245,7 +258,8 @@ def _crop(img: Image.Image, box: tuple[float, float, float, float] | None) -> tu
 
 
 def read_raster(
-    images: list[Image.Image],
+    pages: Iterator[tuple[int, Image.Image]] | list[tuple[int, Image.Image]],
+    render: Callable[[int], Image.Image],
     *,
     palette: list[dict] | None = None,
     cells: tuple[int, int] | None = None,
@@ -253,19 +267,22 @@ def read_raster(
     region: int | None = None,
     box: tuple[float, float, float, float] | None = None,
 ) -> tuple[np.ndarray, list[dict], list[str], list[str]]:
-    """Every grid on every image; the chosen one sampled and clustered or snapped."""
+    """Every grid on every page; the chosen one sampled and clustered or snapped. Pages arrive one
+    at a time and are dropped after their grids are noted; `render(page_no)` brings the chosen
+    one back, so memory holds one page however long the PDF is."""
     candidates = []
     descriptions = []
-    for page_no, img in enumerate(images, start=1):
+    for page_no, img in pages:
         if page is not None and page_no != page:
             continue
         cropped, ox, oy = _crop(img, box)
         for i, r in enumerate(rc.find_regions(cropped), start=1):
             if ox or oy:
                 r = rc.Region([x + ox for x in r.xs], [y + oy for y in r.ys], r.noise, r.warnings)
-            candidates.append((page_no, i, r, img))
+            candidates.append((page_no, i, r))
             descriptions.append(f"page {page_no} region {i}: {r.describe()}")
-    page_no, i, chosen, img = _pick(candidates, page, region)
+    page_no, i, chosen = _pick(candidates, page, region)
+    img = render(page_no)
     descriptions.insert(0, f"chosen: page {page_no} region {i}")
     samples = rc.read_region(img, chosen, cells)
     idx, entries, warnings = _indexes(samples, palette)
@@ -307,9 +324,14 @@ def import_file(
     if suffix == ".pdf":
         if mode == "auto" and is_own_pdf(path):
             return stitch_own_pdf(path)
-        images = render_pages(path)
         idx, entries, regions, warnings = read_raster(
-            images, palette=palette, cells=cells, page=page, region=region, box=box
+            iter_pages(path),
+            lambda n: render_page(path, n),
+            palette=palette,
+            cells=cells,
+            page=page,
+            region=region,
+            box=box,
         )
         return ImportResult(idx, entries, str(path), "pdf", regions, warnings)
     if suffix in (".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp"):
@@ -321,7 +343,7 @@ def import_file(
             idx, hexes, warnings = rc.cluster_palette(np.asarray(img), radius=2.0)
             return ImportResult(idx, _entries_from_hexes(hexes), str(path), "pixels", [], warnings)
         idx, entries, regions, warnings = read_raster(
-            [img], palette=palette, cells=cells, region=region, box=box
+            [(1, img)], lambda _n: img, palette=palette, cells=cells, region=region, box=box
         )
         return ImportResult(idx, entries, str(path), "raster", regions, warnings)
     raise ValueError(f"cannot import {path.name}: not a .pdf, .png/.jpg, .oxs or .csv file")

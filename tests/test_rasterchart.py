@@ -141,3 +141,9 @@ def test_cluster_orders_codes_by_frequency_and_flags_bleed():
 
 def test_colour_names():
     assert rc.name_colour("#d9a21b") == "gold" and rc.name_colour("#ffffff") == "white"
+
+
+def test_an_oversized_image_is_refused(monkeypatch):
+    monkeypatch.setattr(rc, "MAX_PIXELS", 10_000)
+    with pytest.raises(ValueError, match="more than the 0 megapixels"):
+        rc.find_regions(Image.new("RGB", (200, 200)))
