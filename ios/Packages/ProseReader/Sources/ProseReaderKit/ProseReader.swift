@@ -18,9 +18,13 @@ public enum RowBatching: String, Sendable {
 public struct ReaderOptions: Sendable {
     public var batching: RowBatching
     public var reuseSession: Bool
-    public init(batching: RowBatching = .row, reuseSession: Bool = true) {
+    /// Rows longer than this many runs are read in parts (0 turns it off): the on-device model
+    /// cannot hold a 40-run braid row in one answer.
+    public var chunkRuns: Int
+    public init(batching: RowBatching = .row, reuseSession: Bool = false, chunkRuns: Int = 8) {
         self.batching = batching
         self.reuseSession = reuseSession
+        self.chunkRuns = chunkRuns
     }
 }
 
@@ -92,16 +96,15 @@ public struct ProseReader: Sendable {
             let pageNo = index + 1
             let blocks = RowText.blocks(in: text)
             if blocks.isEmpty { continue }
-            let batches: [[String]] = options.batching == .page ? [blocks] : blocks.map { [$0] }
-            for batch in batches {
+            if options.batching == .page {
                 if session == nil || !options.reuseSession {
                     session = makeSession(instructions: Self.rowInstructions)
                 }
-                let prompt = "Transcribe every row in this text:\n" + batch.joined(separator: "\n")
+                let prompt = "Transcribe every row in this text:\n" + blocks.joined(separator: "\n")
                 do {
                     let got = try await session!.respond(to: prompt, generating: RowsPageOut.self)
                     for (i, r) in got.content.rows.enumerated() {
-                        let source = i < batch.count ? batch[i] : batch.last ?? ""
+                        let source = i < blocks.count ? blocks[i] : blocks.last ?? ""
                         rows.append(
                             ProseDocument.Row(
                                 row: r.row, page: pageNo, text: source,
@@ -109,15 +112,42 @@ public struct ProseReader: Sendable {
                                 total: r.total > 0 ? r.total : nil, error: nil))
                     }
                 } catch {
-                    // A refusal, a decode failure, or an overflowed window on this batch must not lose the rest.
-                    for source in batch {
+                    for source in blocks {
                         rows.append(
                             ProseDocument.Row(
                                 row: 0, page: pageNo, text: source, runs: [], total: nil,
                                 error: String(describing: error).prefix(200).description))
                     }
-                    session = nil  // a fresh transcript for the next batch
+                    session = nil
                 }
+                progress?(ReaderProgress(page: pageNo, rowsSoFar: rows.count, seconds: Date().timeIntervalSince(started)))
+                continue
+            }
+            for block in blocks {
+                // One row per prompt, in parts when the row is long: each part is one answer the
+                // model can hold, and the parts join in order.
+                let parts = RowText.chunks(of: block, maxRuns: options.chunkRuns)
+                var rowNo = 0
+                var runs: [[ProseDocument.RunValue]] = []
+                var total: Int? = nil
+                var failure: String? = nil
+                for (k, part) in parts.enumerated() {
+                    if session == nil || !options.reuseSession {
+                        session = makeSession(instructions: Self.rowInstructions)
+                    }
+                    let label = parts.count > 1 ? " (part \(k + 1) of \(parts.count) of one row)" : ""
+                    do {
+                        let got = try await session!.respond(to: "Transcribe this row\(label):\n" + part, generating: WrittenRowOut.self)
+                        if rowNo == 0 { rowNo = got.content.row }
+                        runs = RowText.join(runs, RowText.cleanRuns(got.content.runs, key: key))
+                        if got.content.total > 0 { total = got.content.total }
+                    } catch {
+                        failure = String(describing: error).prefix(200).description
+                        session = nil
+                        break
+                    }
+                }
+                rows.append(ProseDocument.Row(row: failure == nil ? rowNo : 0, page: pageNo, text: block, runs: failure == nil ? runs : [], total: total, error: failure))
                 progress?(ReaderProgress(page: pageNo, rowsSoFar: rows.count, seconds: Date().timeIntervalSince(started)))
             }
         }
@@ -188,6 +218,31 @@ public enum RowText {
             }
         }
         return blocks
+    }
+
+    /// A long row cut into parts of at most `maxRuns` comma-separated items after its "Row N:" head,
+    /// each part carrying the head so the model knows what it is reading. 0 means never cut.
+    public static func chunks(of block: String, maxRuns: Int) -> [String] {
+        guard maxRuns > 0, let colon = block.range(of: ": ") else { return [block] }
+        let head = String(block[..<colon.lowerBound])
+        let items = block[colon.upperBound...].components(separatedBy: ", ")
+        if items.count <= maxRuns { return [block] }
+        var parts: [String] = []
+        var i = 0
+        while i < items.count {
+            let slice = items[i..<min(i + maxRuns, items.count)]
+            parts.append(head + ": " + slice.joined(separator: ", "))
+            i += maxRuns
+        }
+        return parts
+    }
+
+    /// Runs from two parts of one row joined, merging a run that straddles the cut.
+    static func join(_ a: [[ProseDocument.RunValue]], _ b: [[ProseDocument.RunValue]]) -> [[ProseDocument.RunValue]] {
+        guard let last = a.last, let first = b.first, case .code(let c1) = last[0], case .code(let c2) = first[0], c1 == c2,
+              case .count(let n1) = last[1], case .count(let n2) = first[1]
+        else { return a + b }
+        return a.dropLast() + [[.code(c1), .count(n1 + n2)]] + b.dropFirst()
     }
 
     public static func isCode(_ s: String) -> Bool {

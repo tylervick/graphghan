@@ -27,3 +27,12 @@ import Testing
     }
     #expect(flat.map(\.0) == ["A", "B", "Gd"] && flat.map(\.1) == [9, 5, 4])
 }
+
+
+@Test func longRowsAreCutIntoPartsThatKeepTheirHead() {
+    let row = "Row 41 (RS): ch 1, turn, " + (1...20).map { "\($0) Y" }.joined(separator: ", ") + " (189 sts)"
+    let parts = RowText.chunks(of: row, maxRuns: 8)
+    #expect(parts.count == 3 && parts.allSatisfy { $0.hasPrefix("Row 41 (RS): ") } && parts.last!.hasSuffix("(189 sts)"))
+    #expect(RowText.chunks(of: "Row 1 (RS): 189 Y (189 sts)", maxRuns: 8) == ["Row 1 (RS): 189 Y (189 sts)"])
+    #expect(RowText.chunks(of: row, maxRuns: 0) == [row])
+}

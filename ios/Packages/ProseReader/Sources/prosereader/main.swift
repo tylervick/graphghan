@@ -1,4 +1,4 @@
-// prosereader <pdf|dir of pNN.txt> --model ondevice|cloud [--batch row|page] [--fresh-session] [--out prose.json]
+// prosereader <pdf|dir of pNN.txt> --model ondevice|cloud [--batch row|page] [--chunk N] [--reuse-session] [--out prose.json]
 //
 // Reads a pattern's text through Apple's Foundation Models and writes the graphghan-import/1
 // document the Python importer consumes. Text comes from PDFKit for a PDF, or from the
@@ -20,10 +20,11 @@ func run() async -> Int32 {
     let modelName = take("--model") ?? "ondevice"
     let batchName = take("--batch") ?? "row"
     let out = take("--out")
-    let fresh = args.contains("--fresh-session")
-    args.removeAll { $0 == "--fresh-session" }
+    let reuse = args.contains("--reuse-session")
+    args.removeAll { $0 == "--reuse-session" }
+    let chunk = Int(take("--chunk") ?? "8") ?? 8
     guard let input = args.first, let model = ReaderModel(rawValue: modelName), let batching = RowBatching(rawValue: batchName) else {
-        FileHandle.standardError.write("usage: prosereader <pdf|dir> --model ondevice|cloud [--batch row|page] [--fresh-session] [--out prose.json]\n".data(using: .utf8)!)
+        FileHandle.standardError.write("usage: prosereader <pdf|dir> --model ondevice|cloud [--batch row|page] [--chunk N] [--reuse-session] [--out prose.json]\n".data(using: .utf8)!)
         return 2
     }
     let pages: [String]
@@ -37,7 +38,7 @@ func run() async -> Int32 {
         FileHandle.standardError.write("cannot read \(input)\n".data(using: .utf8)!)
         return 1
     }
-    let reader = ProseReader(model: model, options: ReaderOptions(batching: batching, reuseSession: !fresh))
+    let reader = ProseReader(model: model, options: ReaderOptions(batching: batching, reuseSession: reuse, chunkRuns: chunk))
     if let why = reader.unavailableReason() {
         FileHandle.standardError.write("\(why)\n".data(using: .utf8)!)
         return 1
