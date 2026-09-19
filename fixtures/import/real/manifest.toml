@@ -1,4 +1,5 @@
 # One [[fixture]] per real file. `rows_sha256 = ""` means dimensions only, not yet eyeballed.
+# The four hashes below were pinned after Tyler compared each import against its PDF on 2026-09-19.
 # `kwargs` are the import_file keyword arguments that pick the chart.
 
 [[fixture]]
@@ -9,7 +10,7 @@ kwargs = {}
 width = 28
 height = 28
 colors = 2
-rows_sha256 = ""
+rows_sha256 = "19bcddc644ddf5a991d93fff01e90b28138a71542cc134868412b3454aba66c7"
 
 [[fixture]]
 id = "mdc-c2c-santa-blanket"
@@ -19,7 +20,7 @@ kwargs = {}
 width = 56
 height = 56
 colors = 8
-rows_sha256 = ""
+rows_sha256 = "9447f03d86f6f7df4b2a2c4cda80271180d9d088ff40d65306bfd8760478af2b"
 
 [[fixture]]
 id = "onhand-en-orcacrossbodybagpdfpattern-front"
@@ -29,7 +30,7 @@ kwargs = { page = 9, region = 1 }
 width = 29
 height = 77
 colors = 4
-rows_sha256 = ""
+rows_sha256 = "6acc8b81c9f2196a0193425490b38b7c7505ccc63e19830926bf9616d615c89b"
 
 [[fixture]]
 id = "onhand-en-orcacrossbodybagpdfpattern-back"
@@ -39,7 +40,7 @@ kwargs = { page = 9, region = 2 }
 width = 29
 height = 77
 colors = 4
-rows_sha256 = ""
+rows_sha256 = "cc51137e04d63393335c69d6dbcdb63b2a23399b31d765a5865b86be7f644c51"
 
 [[fixture]]
 id = "ys-caron-argyle-c2c-crochet-baby-blanket"
