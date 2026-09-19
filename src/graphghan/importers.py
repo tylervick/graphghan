@@ -440,54 +440,166 @@ def _match_palette(result: ImportResult, entries: list[dict]) -> list[str]:
     return warnings
 
 
+def _covered(doc: dict, result: ImportResult, width: int, height: int) -> tuple[slice, slice] | None:
+    """Which chart rows and columns the picture shows, as display-order slices, or None when the
+    picture is the whole chart. A partial picture (a strip of rows 1-10) is described by
+    chart.pages[].rows/cols; row 1 is at the bottom unless chart.row1 says top."""
+    if (result.width, result.height) == (width, height):
+        return slice(0, height), slice(0, width)
+    pages = (doc.get("chart") or {}).get("pages") or []
+    for page in pages:
+        rows, cols = page.get("rows"), page.get("cols")
+        if not rows or not cols:
+            continue
+        r0, r1 = sorted(int(v) for v in rows)
+        c0, c1 = sorted(int(v) for v in cols)
+        if (c1 - c0 + 1, r1 - r0 + 1) != (result.width, result.height):
+            continue
+        row1 = (doc.get("chart") or {}).get("row1", "bottom-right")
+        ys = slice(height - r1, height - r0 + 1) if row1.startswith("bottom") else slice(r0 - 1, r1)
+        xs = slice(width - c1, width - c0 + 1) if row1.endswith("right") else slice(c0 - 1, c1)
+        return ys, xs
+    return None
+
+
+def _match_by_rows(result: ImportResult, entries: list[dict], written: np.ndarray) -> list[str]:
+    """Pair the chart's colour clusters with the key's codes by which code the written rows put
+    in those cells (a majority vote per cluster); hexes come from the chart. Returns warnings."""
+    warnings: list[str] = []
+    codes = [e["code"] for e in entries]
+    mapping: dict[int, int] = {}
+    for g in range(len(result.palette)):
+        cells = written[result.grid == g]
+        if cells.size == 0:
+            continue
+        counts = np.bincount(cells, minlength=len(codes))
+        k = int(counts.argmax())
+        share = counts[k] / cells.size
+        if share < 0.9:
+            warnings.append(
+                f"chart colour {result.palette[g]['hex']} is {codes[k]!r} in {share:.0%} of its cells and other "
+                "codes elsewhere; the rows and the picture disagree there"
+            )
+        mapping[g] = k
+    claimed = list(mapping.values())
+    if len(set(claimed)) != len(claimed):
+        dup = sorted({codes[k] for k in claimed if claimed.count(k) > 1})
+        raise ValueError(
+            f"two chart colours both read as {dup} in the written rows; the picture has more colours than the key, or a row is wrong"
+        )
+    unmatched = [result.palette[g]["hex"] for g in range(len(result.palette)) if g not in mapping]
+    if unmatched:
+        raise ValueError(
+            f"chart colours {unmatched} fall on no written row; the picture and the rows do not line up"
+        )
+    for g, k in mapping.items():
+        if not entries[k].get("hex"):
+            entries[k]["hex"] = result.palette[g]["hex"]
+        elif entries[k]["hex"].lower() != result.palette[g]["hex"].lower():
+            warnings.append(
+                f"key colour {entries[k]['code']} is {entries[k]['hex']}, the chart shows {result.palette[g]['hex']}"
+            )
+    for e in entries:
+        if not e.get("hex"):  # a colour the picture does not show (a strip of the chart): placeholder
+            e["hex"] = _placeholder_hex([x["hex"] for x in entries if x.get("hex")])
+            warnings.append(
+                f"key colour {e['code']} ({e['name']}) is on no row the picture shows and has no hex; "
+                f"placeholder {e['hex']} written, fill it in"
+            )
+    remap = np.zeros(len(result.palette), dtype=np.uint8)
+    for g, k in mapping.items():
+        remap[g] = k
+    result.grid = remap[result.grid]
+    result.palette = entries
+    return warnings
+
+
+PLACEHOLDERS = ("#ff00ff", "#00ffff", "#ffff00", "#ff8000", "#8000ff", "#00ff80", "#ff0080", "#0080ff")
+
+
+def _placeholder_hex(taken: list[str]) -> str:
+    """A loud colour no other palette entry is near, so a placeholder is never mistaken for real."""
+    have = (
+        np.array([[int(h[i : i + 2], 16) for i in (1, 3, 5)] for h in taken]) if taken else np.zeros((0, 3))
+    )
+    for cand in PLACEHOLDERS:
+        c = np.array([[int(cand[i : i + 2], 16) for i in (1, 3, 5)]])
+        if not len(have) or np.linalg.norm(rc._to_lab(have) - rc._to_lab(c), axis=1).min() > 20:
+            return cand
+    return PLACEHOLDERS[-1]
+
+
 def apply_prose(result: ImportResult, doc: dict, rows_source: str = "auto") -> None:
-    """Fold the prose into the result: palette, metadata, and the written rows as the grid."""
+    """Fold the prose into the result: metadata, the written rows as the grid (cross-checked
+    against the picture), and the palette paired with the key."""
     result.meta.update(pr.meta_from_prose(doc))
     entries = pr.palette_entries(doc)
-    if entries:
-        if (
-            result.kind in ("raster", "pdf", "pixels")
-            and result.palette
-            and result.palette[0]["code"] == "A"
-            and not any(p.get("yarn") for p in result.palette)
-        ):
-            result.warnings += _match_palette(result, entries)
-        else:  # codes came with the file (OXS, CSV, a --palette, our own PDF): add names and yarn by code
-            by_code = {e["code"]: e for e in entries}
-            for p in result.palette:
-                e = by_code.get(p["code"])
-                if e:
-                    p["name"] = e["name"] or p["name"]
-                    p["yarn"] = e["yarn"] or p["yarn"]
-                    p["use"] = e["use"] or p["use"]
     chart = doc.get("chart") or {}
     row1 = chart.get("row1", "bottom-right")
     result.meta["row1"] = row1
-    if chart.get("no_stitch"):
-        for p in result.palette:
-            if p["hex"].lower() == chart["no_stitch"].lower():
-                p["use"] = "no stitch"
     rows = doc.get("written_rows") or []
-    if not rows or rows_source == "grid":
-        if rows and rows_source == "grid":
+    use_rows = bool(rows) and rows_source != "grid"
+    clustered = (
+        result.kind in ("raster", "pdf", "pixels")
+        and bool(result.palette)
+        and result.palette[0]["code"] == "A"
+        and not any(p.get("yarn") for p in result.palette)
+    )
+    if use_rows:
+        width = chart.get("width") or result.width
+        height = chart.get("height") or result.height
+        codes = [e["code"] for e in entries] if entries else result.codes
+        written, problems = pr.written_to_grid(rows, codes, width, height, row1)
+        if problems:
+            raise ValueError("written rows: " + "; ".join(problems))
+        covered = _covered(doc, result, width, height)
+        if covered is None:
+            raise ValueError(
+                f"the picture reads {result.width}x{result.height} but the written rows give {width}x{height}; "
+                "say which rows and columns the picture shows in chart.pages"
+            )
+        ys, xs = covered
+        if entries and clustered:
+            result.warnings += _match_by_rows(result, entries, written[ys, xs])
+        elif entries:
+            _names_by_code(result, entries)
+        mismatches, error = pr.cross_check(written[ys, xs], result.grid, row1)
+        if error:
+            raise ValueError("written rows against the chart: " + error)
+        result.warnings += [f"written rows against the chart: {m}" for m in mismatches]
+        shown = ys.stop - ys.start
+        partial = "" if shown == height else f" (the picture shows {shown} of the {height} rows)"
+        result.meta["cross_check"] = (
+            f"{len(rows)} written rows, {len(mismatches)} disagree with the chart{partial}"
+        )
+        result.grid = written
+        result.kind = result.kind + "+rows"
+    else:
+        if entries and clustered:
+            result.warnings += _match_palette(result, entries)
+        elif entries:
+            _names_by_code(result, entries)
+        if rows:
             result.warnings += [
                 f"written rows not used (--rows grid): {w}"
                 for w in pr.row_total_problems(rows, result.width)
                 + pr.row_number_problems(rows, result.height)
             ]
-        return
-    width = chart.get("width") or result.width
-    height = chart.get("height") or result.height
-    grid, problems = pr.written_to_grid(rows, result.codes, width, height, row1)
-    if problems:
-        raise ValueError("written rows: " + "; ".join(problems))
-    mismatches, error = pr.cross_check(grid, result.grid, row1)
-    if error:
-        raise ValueError("written rows against the chart: " + error)
-    result.warnings += [f"written rows against the chart: {m}" for m in mismatches]
-    result.meta["cross_check"] = f"{len(rows)} written rows, {len(mismatches)} disagree with the chart"
-    result.grid = grid
-    result.kind = result.kind + "+rows"
+    if chart.get("no_stitch"):
+        for p in result.palette:
+            if p["hex"] and p["hex"].lower() == chart["no_stitch"].lower():
+                p["use"] = p["use"] or "no stitch"
+
+
+def _names_by_code(result: ImportResult, entries: list[dict]) -> None:
+    """Codes came with the file (OXS, CSV, --palette, our own PDF): add names and yarn by code."""
+    by_code = {e["code"]: e for e in entries}
+    for p in result.palette:
+        e = by_code.get(p["code"])
+        if e:
+            p["name"] = e["name"] or p["name"]
+            p["yarn"] = e["yarn"] or p["yarn"]
+            p["use"] = e["use"] or p["use"]
 
 
 def stage_dir(repo_root: Path, source: Path) -> Path:

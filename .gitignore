@@ -26,3 +26,6 @@ mise.local.toml
 
 # brainstorming visual companion sessions
 .superpowers/
+
+# graphghan import staging (build/import/<stem>/): rendered pages of other people's PDFs
+/build/

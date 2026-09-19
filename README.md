@@ -78,8 +78,11 @@ against. `graphghan export` writes 1-px PNG, OXS, CSV, and a printable PDF laid 
 (cover, key, tiled chart, written rows); `fixtures/import/` holds one such PDF per published chart.
 `graphghan import` goes the other way: it finds the grid on a chart page or a picture of a chart,
 samples the cells, clusters the colours, and writes a pattern folder that renders and checks; every
-fixture PDF round-trips with zero drift. A pattern folder made from someone else's PDF is local by
-design and never committed.
+fixture PDF round-trips with zero drift, both through the grid and through the written rows. The
+prose half (the colour key, gauge, sizes, and the written rows, which are the primary source when a
+pattern has them) is read by the Claude skill into a `prose.json` (`schema/import-prose.schema.json`)
+that the second run of `import` consumes; see `.claude/skills/graphghan/references/import.md`. A
+pattern folder made from someone else's PDF is local by design and never committed.
 
 ## iOS app
 

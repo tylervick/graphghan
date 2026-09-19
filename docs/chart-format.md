@@ -284,7 +284,11 @@ references at their relative paths. Defined so tools agree; no tool in this repo
 - **Import** (`graphghan import <file> --into <slug>`): the reverse of all four. OXS and CSV are
   read as written; a PNG is one pixel per cell unless a grid covers it, in which case it is read
   like a PDF chart page: grid lines found by their edges, cell centres sampled, colours clustered
-  or snapped to a `--palette`. A graphghan-made PDF is stitched back from its page headers and key.
+  or snapped to a `--palette`. A graphghan-made PDF is stitched back from its page headers and key,
+  and reads its own written rows. For any other pattern the prose (key, gauge, sizes, written rows)
+  arrives as a `prose.json` in the `graphghan-import/1` shape (`schema/import-prose.schema.json`),
+  written by the graphghan skill; written rows are the chart when present and the picture is the
+  cross-check, and a row that does not sum to the width is reported by number, never fixed.
 
 ## Conformance
 

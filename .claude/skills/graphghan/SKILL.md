@@ -58,8 +58,18 @@ validated row by row, delivered as an offline viewer page and a Stitch Fiddle im
   after `render`) and explained (border, lettering, or motif).
 - [ ] One sentence per option on what it is, not how it was made.
 
+## Importing a pattern someone else wrote (details: references/import.md)
+1. `uv run graphghan import <file.pdf|jpg|png> --into <slug>`: code reads the grid and stops, staging
+   the pages and a request under `build/import/<stem>/`.
+2. Read the pages it names and write `build/import/<stem>/prose.json` (schema `graphghan-import/1`):
+   the colour key, gauge, hook, sizes, title, and every written row with its runs in working order,
+   exactly as printed. Never fix a row that does not add up.
+3. Run the same command again; read `patterns/<slug>/import-report.md`. A row-total failure names
+   the row and page: look at the page, do not change the number. Nothing from someone else's pattern
+   is committed.
+
 ## References
-- references/workflow.md · references/design-rules.md · references/motifs.md · references/crochet.md · references/stitchfiddle.md
+- references/workflow.md · references/design-rules.md · references/motifs.md · references/crochet.md · references/stitchfiddle.md · references/import.md
 
 ## Publishing and export
 

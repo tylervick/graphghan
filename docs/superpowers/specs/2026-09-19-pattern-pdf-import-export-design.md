@@ -293,6 +293,13 @@ Rules the assembler applies:
 - `chart.no_stitch` names a colour that is a background, not a stitch. It stays in the palette
   with `use = "no stitch"` so the grid remains rectangular; shaped rows are #37's problem, and the
   report says so when the written rows and the grid disagree only in those cells.
+- `chart.row1` is where **written row 1** sits on the printed chart, not how the picture labels
+  its rows: Treasurie's heart numbers the picture 1 at the top while its written rows build up
+  from the foundation. The cross-check names the corner to try when the guess is wrong.
+- When written rows exist, the key's codes are paired with the picture's colours by which code
+  the rows put in those cells, so a key without hexes still pairs; a picture that shows only
+  part of the chart (Spotted Horse's rows 1–10 strip) is described in `chart.pages` and only
+  those rows are cross-checked.
 
 ### 6.3 Written rows first, grid as the cross-check
 
