@@ -48,7 +48,7 @@ uv run graphghan new <slug> --title "<Title>"    # scaffold patterns/<slug>/
 uv run graphghan options <slug>                  # compare variants/gauges, writes an HTML page
 uv run graphghan render <slug>                   # publish every [publish] chart to dist/
 uv run graphghan check <slug>                    # generic invariants + the pattern's own tests
-uv run graphghan export <slug> --format oxs        # also png (1 px/stitch) and csv; --chart final-hdc picks a chart
+uv run graphghan export <slug> --format oxs        # also png (1 px/stitch), csv, and pdf (printable); --chart final-hdc picks a chart
 uv run graphghan site serve                      # build and serve the pattern feed at :8765
 ```
 
@@ -73,7 +73,8 @@ Charts are JSON documents in the graphghan chart format (schema 2): a palette, r
 a gauge, and a `technique` that defines working order, with a content-hash id. The format is
 documented in `docs/chart-format.md`, has JSON Schemas under `schema/`, and ships conformance
 fixtures under `fixtures/chart-format/` that any reader (the iOS app, yours) can test
-against. `graphghan export` writes 1-px PNG, OXS, and CSV.
+against. `graphghan export` writes 1-px PNG, OXS, CSV, and a printable PDF laid out like a sold pattern
+(cover, key, tiled chart, written rows); `fixtures/import/` holds one such PDF per published chart.
 
 ## iOS app
 
