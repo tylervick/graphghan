@@ -142,12 +142,19 @@ blink setup claude-code
 # interpreter this task can count on, and --no-project keeps it clear of .venv
 # (which need not exist yet when setup runs).
 #
-# Nothing here inspects an exit status, and the parser catches nothing: every way
-# this can go wrong -- doctor missing, doctor erroring, output that is not JSON,
-# a doctor that no longer reports these two keys -- ends in a traceback on the
-# suppressed stderr and an empty $probe, which is the one condition the branches
-# below test. That is deliberately a wider net than `if mise doctor; then`, which
-# would still call a run that succeeded and printed nothing a success.
+# Nothing here inspects an exit status, and that is required rather than sloppy.
+# `mise doctor` exits 1 on ANY problem it finds -- an untrusted config file, a
+# tool that another mise.toml pins and nobody installed -- while still printing
+# complete JSON. Measured: a directory with an untrusted config and one
+# uninstalled tool exits 1 and still reports both keys read here. Gating on the
+# status would turn every unrelated complaint into "could not read
+# shims_on_path" and a refused setup on a machine whose shims are fine.
+#
+# The parser catches nothing, which covers the same ground from the other side:
+# every way this can go wrong -- doctor missing, output that is not JSON, a
+# doctor that no longer reports these two keys, a typo in the key names here --
+# ends in a traceback on the suppressed stderr and an empty $probe, which is the
+# one condition the branches below test.
 probe="$(mise doctor --json 2>/dev/null | uv run --no-project python -c '
 import json, sys
 doctor = json.load(sys.stdin)
