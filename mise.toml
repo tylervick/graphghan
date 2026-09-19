@@ -141,14 +141,18 @@ blink setup claude-code
 # supplies the parser -- it is pinned a few lines up, so it is the one
 # interpreter this task can count on, and --no-project keeps it clear of .venv
 # (which need not exist yet when setup runs).
+#
+# Nothing here inspects an exit status, and the parser catches nothing: every way
+# this can go wrong -- doctor missing, doctor erroring, output that is not JSON,
+# a doctor that no longer reports these two keys -- ends in a traceback on the
+# suppressed stderr and an empty $probe, which is the one condition the branches
+# below test. That is deliberately a wider net than `if mise doctor; then`, which
+# would still call a run that succeeded and printed nothing a success.
 probe="$(mise doctor --json 2>/dev/null | uv run --no-project python -c '
 import json, sys
-try:
-    d = json.load(sys.stdin)
-    print(d["dirs"]["shims"])
-    print("yes" if d["shims_on_path"] else "no")
-except Exception:
-    pass
+doctor = json.load(sys.stdin)
+print(doctor["dirs"]["shims"])
+print("yes" if doctor["shims_on_path"] else "no")
 ' 2>/dev/null || true)"
 shims="$(printf '%s\n' "$probe" | sed -n 1p)"
 
