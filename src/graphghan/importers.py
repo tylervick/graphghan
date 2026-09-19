@@ -555,6 +555,8 @@ def apply_prose(result: ImportResult, doc: dict, rows_source: str = "auto") -> N
     result.meta["row1"] = row1
     rows = doc.get("written_rows") or []
     if result.grid is None:
+        if rows_source == "grid":
+            return  # the caller asked for the grid and there is none: leave the no-grid result as it is
         _rows_alone(result, entries, chart, rows, row1)
         return
     use_rows = bool(rows) and rows_source != "grid"
@@ -591,6 +593,7 @@ def apply_prose(result: ImportResult, doc: dict, rows_source: str = "auto") -> N
         result.meta["cross_check"] = (
             f"{len(rows)} written rows, {len(mismatches)} disagree with the chart{partial}"
         )
+        result.meta["checked_against_grid"] = True
         result.grid = written
         result.kind = result.kind + "+rows"
     else:
@@ -635,6 +638,7 @@ def _rows_alone(result: ImportResult, entries: list[dict], chart: dict, rows: li
     result.kind = "rows"
     result.warnings = [w for w in result.warnings if not w.startswith("no grid found")]
     result.meta["cross_check"] = f"{len(rows)} written rows; no picture of the chart to check them against"
+    result.meta["checked_against_grid"] = False
 
 
 def _names_by_code(result: ImportResult, entries: list[dict]) -> None:
@@ -895,12 +899,12 @@ def report_md(result: ImportResult, folder: Path, title: str) -> str:
     for i, p in enumerate(result.palette):
         lines.append(f"- `{p['code']}` {p['name']} {p['hex']}: {int(counts[i]):,} cells")
     if result.meta.get("cross_check"):
-        lines += [
-            "",
-            "## Written rows",
-            "",
-            f"- {result.meta['cross_check']} (the written rows are the chart; the grid was the cross-check)",
-        ]
+        how = (
+            "the written rows are the chart; the grid was the cross-check"
+            if result.meta.get("checked_against_grid")
+            else "the written rows are the chart; there was no picture to check them against"
+        )
+        lines += ["", "## Written rows", "", f"- {result.meta['cross_check']} ({how})"]
     if result.meta.get("uncertain"):
         lines += ["", "## The reader was unsure of", ""] + [f"- {u}" for u in result.meta["uncertain"]]
     if result.regions:
