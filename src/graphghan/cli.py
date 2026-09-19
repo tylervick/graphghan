@@ -20,6 +20,7 @@ from .exporters import to_csv, to_oxs, to_png
 from .motifs import CATALOG
 from .options_page import build_options_html
 from .pattern import find_repo_root, load_design, load_pattern, pattern_dir
+from .pdf import to_pdf
 from .publish import chart_key, check_published, render_published
 from .validate import run_all
 
@@ -261,6 +262,8 @@ def cmd_export(args) -> int:
     out.parent.mkdir(parents=True, exist_ok=True)
     if args.format == "png":
         to_png(doc).save(out)
+    elif args.format == "pdf":
+        out.write_bytes(to_pdf(doc))
     elif args.format == "oxs":
         out.write_text(to_oxs(doc), encoding="utf-8")
     else:
@@ -309,10 +312,11 @@ def build_parser():
     o.set_defaults(fn=cmd_options)
 
     e = sub.add_parser(
-        "export", help="export a committed chart as a 1-px PNG, OXS (cross stitch), or CSV grid"
+        "export",
+        help="export a committed chart as a 1-px PNG, OXS (cross stitch), CSV grid, or printable PDF",
     )
     e.add_argument("pattern", help="pattern slug (looked up under patterns/) or a path to a pattern folder")
-    e.add_argument("--format", required=True, choices=["png", "oxs", "csv"], help="output format")
+    e.add_argument("--format", required=True, choices=["png", "oxs", "csv", "pdf"], help="output format")
     e.add_argument(
         "--chart", help="published chart key such as final-hdc (default: the pattern's default chart)"
     )
