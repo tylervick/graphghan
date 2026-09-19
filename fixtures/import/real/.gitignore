@@ -1,0 +1,5 @@
+# Other people's patterns: never committed. Only the manifest and README are.
+*
+!.gitignore
+!README.md
+!manifest.toml

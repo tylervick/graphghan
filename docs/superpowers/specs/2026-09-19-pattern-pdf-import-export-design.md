@@ -381,6 +381,9 @@ stretch case where the "written rows" are a raster image the model reads by eye.
 - #64: `render --check` compares parsed JSON; the round-trip test compares strings on purpose.
 - Symbol-only grids (`symbol-grid`, 7 in the corpus) and symbol diagrams: the sampler ignores a
   symbol over a colour, it does not read one without a colour. That is a later chart.
+- Rotated charts. The argyle C2C chart (`ys-caron-argyle-c2c-crochet-baby-blanket`) turned out to
+  be a diamond rotated 45° with hatched symbol fills, not the colour grid its corpus row suggests;
+  the reader finds no grid on it and the real-fixture manifest records it as `unsupported`.
 - The chart format does not change. Nothing here adds a key to `chart.json`.
 
 ## 9. Optional last: an on-device reader spike

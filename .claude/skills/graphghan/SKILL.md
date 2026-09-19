@@ -42,6 +42,7 @@ validated row by row, delivered as an offline viewer page and a Stitch Fiddle im
 | `graphghan options <slug> [--gauges sc,hdc]` | comparison page for the pick |
 | `graphghan render <slug> [--gauge] [--variant] [--check]` | write or verify `dist/` |
 | `graphghan check <slug>` | invariants + the pattern's tests |
+| `graphghan import <file> --into <slug> [--palette toml] [--page N --region K] [--dry-run]` | a chart PDF, a picture of a chart, a 1-px PNG, OXS, or CSV into a pattern folder; lists every grid it finds |
 | `graphghan catalog` | refresh motif thumbnails in this skill's `assets/` |
 | `graphghan site build\|serve` | the published pattern feed |
 

@@ -1,0 +1,49 @@
+# One [[fixture]] per real file. `rows_sha256 = ""` means dimensions only, not yet eyeballed.
+# `kwargs` are the import_file keyword arguments that pick the chart.
+
+[[fixture]]
+id = "ys-bernat-corner-to-corner-crochet-cactus-blanket"
+source = "https://www.yarnspirations.com/products/bernat-corner-to-corner-crochet-cactus-blanket"
+file = "ys-bernat-corner-to-corner-crochet-cactus-blanket.pdf"
+kwargs = {}
+width = 28
+height = 28
+colors = 2
+rows_sha256 = ""
+
+[[fixture]]
+id = "mdc-c2c-santa-blanket"
+source = "https://makeanddocrew.com/c2c-crochet-santa-blanket-pattern/"
+file = "mdc-c2c-santa-blanket.pdf"
+kwargs = {}
+width = 56
+height = 56
+colors = 8
+rows_sha256 = ""
+
+[[fixture]]
+id = "onhand-en-orcacrossbodybagpdfpattern-front"
+source = "local"
+file = "EN_OrcaCrossbodyBagPDFPattern.pdf"
+kwargs = { page = 9, region = 1 }
+width = 29
+height = 77
+colors = 4
+rows_sha256 = ""
+
+[[fixture]]
+id = "onhand-en-orcacrossbodybagpdfpattern-back"
+source = "local"
+file = "EN_OrcaCrossbodyBagPDFPattern.pdf"
+kwargs = { page = 9, region = 2 }
+width = 29
+height = 77
+colors = 4
+rows_sha256 = ""
+
+[[fixture]]
+id = "ys-caron-argyle-c2c-crochet-baby-blanket"
+source = "https://www.yarnspirations.com/products/caron-argyle-c2c-crochet-baby-blanket"
+file = "ys-caron-argyle-c2c-crochet-baby-blanket.pdf"
+kwargs = {}
+unsupported = "the chart is a diamond rotated 45 degrees with hatched symbol fills; the reader finds no grid"

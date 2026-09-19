@@ -1,0 +1,20 @@
+# Real importer fixtures
+
+Pattern PDFs and chart images that belong to other people. They are gitignored here; only
+`manifest.toml` (ids, sources, expected dimensions and, once eyeballed, the hash of the imported
+rows) and this note are committed. `tests/test_import_real.py` skips any entry whose file is
+absent and says which one.
+
+Where the files come from:
+
+- `docs/research/corpus/pdf/` in a checkout that has run `fetch-yarnspirations.sh` (the
+  Yarnspirations set) or holds the ten on-hand PDFs (see `docs/research/corpus/sources.md`).
+  Copy the file named in the manifest into this folder.
+- `mdc-c2c-santa-blanket.pdf` is the free graph download linked from the Make & Do Crew page
+  in the manifest.
+
+To pin a new entry: run `uv run graphghan import <file> --into <slug> --dry-run`, look at the
+preview against the PDF, then write the width, height, colour count and the sha256 of the
+imported run strings (`hashlib.sha256("\n".join(result.rows).encode())`) into the manifest.
+An entry with `unsupported` set documents a layout the grid reader does not read; its test
+asserts only that the import refuses.

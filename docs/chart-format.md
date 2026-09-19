@@ -281,6 +281,10 @@ references at their relative paths. Defined so tools agree; no tool in this repo
   cells with bold lines every 10, written rows). Real text throughout; the chart page headers, key
   rows and written rows are in grammars fixed in `graphghan/pdf.py` so the importer can read them
   back. Byte-reproducible; `fixtures/import/` commits one per published chart.
+- **Import** (`graphghan import <file> --into <slug>`): the reverse of all four. OXS and CSV are
+  read as written; a PNG is one pixel per cell unless a grid covers it, in which case it is read
+  like a PDF chart page: grid lines found by their edges, cell centres sampled, colours clustered
+  or snapped to a `--palette`. A graphghan-made PDF is stitched back from its page headers and key.
 
 ## Conformance
 

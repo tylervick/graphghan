@@ -49,6 +49,7 @@ uv run graphghan options <slug>                  # compare variants/gauges, writ
 uv run graphghan render <slug>                   # publish every [publish] chart to dist/
 uv run graphghan check <slug>                    # generic invariants + the pattern's own tests
 uv run graphghan export <slug> --format oxs        # also png (1 px/stitch), csv, and pdf (printable); --chart final-hdc picks a chart
+uv run graphghan import <file> --into <slug>       # a chart PDF, a picture of a chart, a 1-px PNG, OXS, or CSV into patterns/<slug>/
 uv run graphghan site serve                      # build and serve the pattern feed at :8765
 ```
 
@@ -75,6 +76,10 @@ documented in `docs/chart-format.md`, has JSON Schemas under `schema/`, and ship
 fixtures under `fixtures/chart-format/` that any reader (the iOS app, yours) can test
 against. `graphghan export` writes 1-px PNG, OXS, CSV, and a printable PDF laid out like a sold pattern
 (cover, key, tiled chart, written rows); `fixtures/import/` holds one such PDF per published chart.
+`graphghan import` goes the other way: it finds the grid on a chart page or a picture of a chart,
+samples the cells, clusters the colours, and writes a pattern folder that renders and checks; every
+fixture PDF round-trips with zero drift. A pattern folder made from someone else's PDF is local by
+design and never committed.
 
 ## iOS app
 
