@@ -54,10 +54,11 @@ final class AppModel {
         }
     }
 
-    /// Claims the process-wide handler the Live Activity intents call. Only the app's one live model
-    /// does this -- merely constructing an `AppModel` must not steal the handler from another one.
+    /// Claims the process-wide handler the intents call. Only the app's one live model does this --
+    /// merely constructing an `AppModel` must not steal the handler from another one.
     func registerIntentHandler() {
         WorkIntentHandler.shared.perform = { [weak self] action, id in await self?.performIntent(action, projectID: id) }
+        WorkIntentHandler.shared.performWorking = { [weak self] action in await self?.performIntent(action) ?? .noProject }
     }
 
     static func live(context: ModelContext) -> AppModel {
@@ -156,16 +157,54 @@ final class AppModel {
             await endActivityUnavailable(projectID: projectID)
             return
         }
-        chartCache[project.chartID] = chart
         // A tap can launch the app in the background, where the launch reconcile (a scene `.task`)
         // may never run: the controller then holds no current activity and would drop the refresh.
-        // `start` adopts the activity that is already live for this project, so the refresh below lands.
-        if liveActivity.currentProjectID != projectID, let state = LiveActivityState.make(cursor: project.cursor, sequence: sequence, perRepetition: project.tapPerRepetition) {
-            let info = LiveActivityState.info(projectID: projectID, chart: chart, sequence: sequence)
-            await liveActivity.start(projectID: projectID, info: info, state: state)
+        // `start` adopts the activity that is already live for this project, so the refresh lands.
+        if liveActivity.currentProjectID != projectID {
+            await adoptActivity(for: project, chart: chart, sequence: sequence)
         }
-        _ = projects.apply(action, to: project, in: sequence)
+        _ = await step(action, on: project, chart: chart, sequence: sequence)
+    }
+
+    /// A Done or Back said to Siri, or from the Action Button (spec §3): the same mutation path as
+    /// the Work screen and the lock-screen button, on the project `workingProjectForIntent` picks.
+    /// Voice never starts a Live Activity -- the Work screen owns that lifecycle -- but a Done said
+    /// while one is up refreshes it, the same as the button.
+    func performIntent(_ action: WorkAction) async -> WorkIntentOutcome {
+        guard let project = try? workingProjectForIntent() else { return .noProject }
+        guard let chart = try? await projects.chart(for: project), let sequence = try? WorkSequence(chart: chart) else {
+            return .chartUnavailable(title: project.title)
+        }
+        if liveActivity.currentProjectID != project.id, liveActivity.liveProjectID == project.id {
+            await adoptActivity(for: project, chart: chart, sequence: sequence)
+        }
+        guard let step = await step(action, on: project, chart: chart, sequence: sequence) else { return .nowhereToGo(action) }
+        return .moved(step, in: sequence)
+    }
+
+    /// Spec §3.2, in order: the project whose Live Activity is running, else the unfinished project
+    /// worked most recently, else nil. A project never worked counts from when it was started, so
+    /// a maker who just started one and says "done" is not told they have no project going.
+    func workingProjectForIntent() throws -> Project? {
+        if let id = liveActivity.liveProjectID, let project = try projects.project(id: id), !project.isFinished { return project }
+        return try projects.projects().filter { !$0.isFinished }.max { ($0.lastWorked ?? $0.started) < ($1.lastWorked ?? $1.started) }
+    }
+
+    /// Tells the controller about the activity the system already shows for this project.
+    private func adoptActivity(for project: Project, chart: Chart, sequence: WorkSequence) async {
+        guard let state = LiveActivityState.make(cursor: project.cursor, sequence: sequence, perRepetition: project.tapPerRepetition) else { return }
+        let info = LiveActivityState.info(projectID: project.id, chart: chart, sequence: sequence)
+        await liveActivity.start(projectID: project.id, info: info, state: state)
+    }
+
+    /// The step every intent takes once it has its project: apply, then wait for the activity
+    /// refresh `onApply` kicked off, so the lock screen the system snapshots when the intent
+    /// returns already shows the new run.
+    private func step(_ action: WorkAction, on project: Project, chart: Chart, sequence: WorkSequence) async -> WorkStep? {
+        chartCache[project.chartID] = chart
+        let step = projects.apply(action, to: project, in: sequence)
         await activityUpdate?.value
+        return step
     }
 
     private func endActivityUnavailable(projectID: UUID) async {
