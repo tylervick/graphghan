@@ -45,6 +45,7 @@ HEADER_RE = re.compile(
 )
 KEY_RE = re.compile(r"^(?P<code>[A-Za-z]{1,3}) (?P<name>.+?) (?P<hex>#[0-9a-fA-F]{6})(?: (?P<yarn>.*))?$")
 RENDER_SCALE = 4  # 288 dpi: a 10 pt cell is 40 px, a 0.3 pt line is a clean edge
+MAX_FILE_BYTES = 200 * 1024 * 1024  # a pattern PDF is a few MB; the Orca bag, all photos, is 18 MB
 TEMPLATES = Path(__file__).parent / "templates"
 
 
@@ -309,6 +310,11 @@ def import_file(
     box: tuple[float, float, float, float] | None = None,
 ) -> ImportResult:
     path = Path(path)
+    size = path.stat().st_size
+    if size > MAX_FILE_BYTES:
+        raise ValueError(
+            f"{path.name} is {size / 1_048_576:.0f} MB; the most import reads is {MAX_FILE_BYTES // 1_048_576} MB"
+        )
     palette = _entries_from_toml(Path(palette_toml)) if palette_toml else None
     suffix = path.suffix.lower()
     if suffix == ".oxs":

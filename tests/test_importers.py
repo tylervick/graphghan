@@ -155,3 +155,13 @@ def test_pdf_pages_are_rendered_one_at_a_time(monkeypatch):
     result = imp.import_file(pdf, page=5)
     assert (result.width, result.height) == (44, 39)
     assert live == list(range(1, imp.page_count(pdf) + 1))
+
+
+def test_an_oversized_file_is_refused(tmp_path, monkeypatch):
+    from graphghan import importers as imp
+
+    monkeypatch.setattr(imp, "MAX_FILE_BYTES", 10)
+    src = tmp_path / "big.csv"
+    src.write_text("A,A,A,A,A,A,A,A\n")
+    with pytest.raises(ValueError, match="the most import reads is 0 MB"):
+        imp.import_file(src)
