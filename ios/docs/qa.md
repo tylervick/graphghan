@@ -27,6 +27,16 @@ Run this on a device build (`ios/README.md`) before dispatching the TestFlight w
 - [ ] Kill the app while the activity is showing, then relaunch: the activity is refreshed to the stored cursor (or ended if the project was deleted).
 - [ ] Settings › Graphghan › Live Activities off, open Work: the one-time hint appears with Open Settings.
 
+## Siri and the Action Button
+- [ ] With the Work screen open, lock the phone and say "Done in Graphghan": Siri answers with the row and run, the activity shows the new run, and the Work screen has moved when you unlock.
+- [ ] Kill the app, leave the activity showing, say "Done in Graphghan": the count lands (unlock and check the event log) and the activity refreshed. Then "Back in Graphghan": it steps back.
+- [ ] No activity, two projects: "Done in Graphghan" counts on the one worked most recently, and says which row and run.
+- [ ] Inside a long fill, "Done in Graphghan" twice: each reply says how many are left in the run, so two Dones never sound the same.
+- [ ] On the last run of a row: "End of row N. Turn." Then "Row N+1, run 1 of M."
+- [ ] Every project finished (or none): "You don't have a project going."; at the start, "Back in Graphghan": "You're at the beginning."
+- [ ] Settings › Action Button › Shortcut › Graphghan › Done: one press counts one step, with the phone locked.
+- [ ] Shortcuts app › Graphghan: exactly two actions, Done and Back; nothing asks for a project ID.
+
 ## Looks right
 - [ ] Home screen: the icon shows the moon, hill, and chain; it reads at the settings size too.
 - [ ] Patterns and Projects: cards on the stone weave, Literata titles, Moss tab tint, no system blue anywhere.

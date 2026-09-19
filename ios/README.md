@@ -53,6 +53,23 @@ Snapshots of the lock screen and Dynamic Island layouts live under `Tests/__Snap
 PNG to re-record it. Those references are tied to the iPhone 17 simulator, so re-record on that
 device if they drift after an OS update.
 
+## App Intents
+
+Done and Back can be said to Siri, run from Shortcuts, or bound to the Action Button
+(`Graphghan/Intents/`). `MarkDoneIntent` and `UndoDoneIntent` are plain, discoverable `AppIntent`s;
+`GraphghanShortcuts` offers "Done in Graphghan" (also "Next", "Mark a done") and "Back in Graphghan"
+(also "Undo that"). Neither names a project: `AppModel.workingProjectForIntent` picks the one with
+the Live Activity, else the unfinished project worked most recently, and a spoken Done is exactly a
+tapped Done -- the project's count step, or the rest of the run -- applied through
+`ProjectService.apply` like every other path. The reply (`WorkIntentDialog`) says where the cursor
+landed: the run, what is left in a fill, the turn, or that the blanket is done. The lock-screen
+pair in `Shared/WorkIntents.swift` stays undiscoverable, because its project parameter is a bare
+UUID; the discoverable pair lives in the app target only, because `Shared/` also compiles into the
+widget extension and a plain intent declared there would run in the extension, where nothing is
+registered. Every intent waits for `AppModel.live` to register `WorkIntentHandler` before it acts,
+so a request that launches the app in the background is counted rather than dropped. The design
+is `../docs/superpowers/specs/2026-09-18-ios-app-intents-design.md`.
+
 ## Design language
 
 The spec is `../docs/superpowers/specs/2026-09-11-ios-design-language-design.md` ("Heather"). Colors are the

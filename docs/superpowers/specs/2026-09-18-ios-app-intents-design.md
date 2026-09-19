@@ -67,8 +67,12 @@ The two audiences want opposite parameters: the button knows the project and nee
 the voice request knows no project and must resolve one. One type cannot be both without carrying a
 parameter that is wrong for whichever caller it is not serving. Two types, one handler.
 
-`MarkDoneIntent` and `UndoDoneIntent` therefore live beside the existing pair in
-`Shared/WorkIntents.swift`, as plain `AppIntent`s with `openAppWhenRun = false`:
+`MarkDoneIntent` and `UndoDoneIntent` are therefore plain `AppIntent`s with
+`openAppWhenRun = false`. They share `WorkIntentHandler` with the existing pair but compile into the
+app target only (`Graphghan/Intents/`), not `Shared/`: `Shared/` also builds into the widget
+extension, and a plain intent an extension declares runs in that extension, where nothing has
+registered the handler. The lock-screen pair is safe in `Shared/` because the system runs a
+`LiveActivityIntent` in the app.
 
 ```swift
 struct MarkDoneIntent: AppIntent {
@@ -134,7 +138,10 @@ cannot see the screen has no other confirmation that the count moved:
 
 - Advanced inside a run: `IntentDialog(full: "Row 47, run 3, eight left in it.", supporting: "Row 47, run 3")`
 - Landed on a new run: "Row 47, run 4 of 9."
-- Crossed into a new row (`WorkStep.startedNewRow`): "Row 48. Turn."
+- The row is worked and the turn is the next step (`WorkStep.atBoundary`): "End of row 47. Turn."
+  The turn is said here, not on the row that follows: in flat work the turn is itself a step, so
+  by the time `WorkStep.startedNewRow` is true the maker has turned, and a new row reads as a new
+  run -- "Row 48, run 1 of 9."
 - Finished the chart (`WorkStep.finished`): "That's the last one. The blanket is done."
 - Nowhere to go — `ProjectService.apply` returns `nil`, which is how Back at the very start and
   Done past the end both present: "You're at the beginning" / "You've already finished this one."
