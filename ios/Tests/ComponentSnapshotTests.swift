@@ -1,9 +1,19 @@
 import SwiftUI
+import GraphghanCore
 import Testing
 @testable import Graphghan
 
 @MainActor
 @Suite struct ComponentSnapshotTests {
+    /// The Siri snippet is the Work screen's panel over its band (App Intents spec §4.4).
+    @Test func workSnippet() throws {
+        let chart = try Chart.load(TestFixtures.data("two-letter-codes.chart.json"))
+        let sequence = try WorkSequence(chart: chart)
+        let step = try #require(WorkEngine.apply(.advance, to: .start, in: sequence))
+        let landing = WorkIntentLanding(step: step, sequence: sequence, chart: chart, countStep: .default, perRepetition: true)
+        #expect(try Snapshots.assert(WorkSnippetView(outcome: .moved(landing)), named: "work-snippet", size: CGSize(width: 360, height: 640)))
+    }
+
     @Test func componentsSheet() throws {
         let sheet = VStack(alignment: .leading, spacing: 20) {
             HStack(spacing: 6) {

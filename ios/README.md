@@ -53,6 +53,39 @@ Snapshots of the lock screen and Dynamic Island layouts live under `Tests/__Snap
 PNG to re-record it. Those references are tied to the iPhone 17 simulator, so re-record on that
 device if they drift after an OS update.
 
+## App Intents
+
+Done and Back can be said to Siri, run from Shortcuts, or bound to the Action Button
+(`Graphghan/Intents/`). `MarkDoneIntent` and `UndoDoneIntent` are plain, discoverable `AppIntent`s;
+`GraphghanShortcuts` offers "Done in Graphghan" (also "Next", "Mark a done") and "Back in Graphghan"
+(also "Undo that"). Neither needs a project named: `AppModel.resolveWorkingProject` picks the one
+with the Live Activity, else the unfinished project worked most recently, and when two were worked
+within the same hour the intent asks which blanket rather than guessing (a wrong guess writes into
+the wrong project's history). A spoken Done is exactly a tapped Done -- the project's count step, or
+the rest of the run -- applied through `ProjectService.apply` like every other path. The reply
+(`WorkIntentDialog`) says where the cursor landed: the run, what is left in a fill, the turn, or that
+the blanket is done; on a phone the snippet (`WorkSnippetView`) shows the Work screen's own panel
+and band at that cursor.
+
+A project is also an `AppEntity` (`ProjectEntity`): title, pattern, percent done and last worked,
+projected from the store through `AppModel.projectSnapshots` with no storage of its own, so Siri can
+answer "how far am I on the Craigh na Dun blanket" with the app closed and resolve a project by its
+own title or its pattern's. On iOS 18 and later the entities are indexed for Spotlight
+(`ProjectIndexer`), refreshed at launch and whenever `ProjectService` starts, finishes, unfinishes,
+switches or deletes a project (`onProjectsChanged`); a step upserts just the project that moved
+(`onStep`), so the percent Spotlight shows is current without a full refresh on the tap path. Index
+work is queued in order, and a full refresh that is no longer the newest is skipped. The entity
+and the optional project parameter are not availability-gated, because Swift cannot gate a stored
+`@Parameter`; only the Spotlight conformance and the indexer are `@available(iOS 18, *)`.
+
+The lock-screen pair in `Shared/WorkIntents.swift` stays undiscoverable, because its project
+parameter is a bare UUID; the discoverable pair lives in the app target only, because `Shared/`
+also compiles into the widget extension and a plain intent declared there would run in the
+extension, where nothing is registered. Every intent and entity query waits for `AppModel.live` to
+register `WorkIntentHandler` before it acts, so a request that launches the app in the background is
+counted rather than dropped. The design is
+`../docs/superpowers/specs/2026-09-18-ios-app-intents-design.md`.
+
 ## Design language
 
 The spec is `../docs/superpowers/specs/2026-09-11-ios-design-language-design.md` ("Heather"). Colors are the

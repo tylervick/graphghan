@@ -80,6 +80,52 @@ import GraphghanCore
         #expect(h.backend.active().count == 1)
     }
 
+    /// Spec §3.1: a Siri request or a lock-screen tap can launch the app in the background, and
+    /// nothing promises the intent performs after `AppModel.live` has claimed the handler. A Done
+    /// that lands in that window must wait for the registration, not vanish.
+    @Test func coldHandlerStillAppliesTheDone() async throws {
+        let h = try await make()
+        WorkIntentHandler.shared.perform = nil
+        WorkIntentHandler.shared.performWorking = nil
+        let intent = AdvanceRunIntent(projectID: h.project.id)
+        let performing = Task { @MainActor in _ = try await intent.perform() }
+        try await Task.sleep(for: .milliseconds(100))
+        #expect(h.project.cursor == .start)  // nothing registered yet, nothing moved
+        h.model.registerIntentHandler()
+        try await performing.value
+        #expect(h.project.cursor == Cursor(row: 1, run: 1))
+        let events = try h.model.projects.events(for: h.project)
+        #expect(events.map(\.kind) == [.advance])
+    }
+
+    /// The wait has an end: a process where nothing ever registers (a test host without a model)
+    /// gives up, and the intent leaves the store as it found it.
+    @Test func unregisteredHandlerGivesUp() async throws {
+        let h = try await make()
+        WorkIntentHandler.shared.perform = nil
+        WorkIntentHandler.shared.performWorking = nil
+        let registered = await WorkIntentHandler.shared.awaitRegistration(timeout: .milliseconds(50))
+        #expect(registered == false)
+        #expect(try h.model.projects.events(for: h.project).isEmpty)
+        h.model.registerIntentHandler()  // leave the shared handler as the other cases expect it
+    }
+
+    /// A cancelled intent must not sit on the main actor until the deadline: that is the actor the
+    /// registration it waits for needs.
+    @Test func aCancelledWaitGivesUpAtOnce() async throws {
+        let h = try await make()
+        WorkIntentHandler.shared.perform = nil
+        WorkIntentHandler.shared.performWorking = nil
+        let clock = ContinuousClock()
+        let started = clock.now
+        let waiting = Task { @MainActor in await WorkIntentHandler.shared.awaitRegistration(timeout: .seconds(5)) }
+        waiting.cancel()
+        let registered = await waiting.value
+        #expect(registered == false)
+        #expect(clock.now - started < .seconds(1))
+        h.model.registerIntentHandler()
+    }
+
     @Test func reconcileOnLaunch() async throws {
         let h = try await make()
         let (info, _) = try #require(await h.model.activityState(for: h.project))

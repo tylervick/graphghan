@@ -27,6 +27,21 @@ Run this on a device build (`ios/README.md`) before dispatching the TestFlight w
 - [ ] Kill the app while the activity is showing, then relaunch: the activity is refreshed to the stored cursor (or ended if the project was deleted).
 - [ ] Settings › Graphghan › Live Activities off, open Work: the one-time hint appears with Open Settings.
 
+## Siri and the Action Button
+- [ ] With the Work screen open, lock the phone and say "Done in Graphghan": Siri answers with the row and run, the activity shows the new run, and the Work screen has moved when you unlock.
+- [ ] Kill the app, leave the activity showing, say "Done in Graphghan": the count lands (unlock and check the event log) and the activity refreshed. Then "Back in Graphghan": it steps back.
+- [ ] No activity, two projects: "Done in Graphghan" counts on the one worked most recently, and says which row and run.
+- [ ] Inside a long fill, "Done in Graphghan" twice: each reply says how many are left in the run, so two Dones never sound the same.
+- [ ] On the last run of a row: "End of row N. Turn." Then "Row N+1, run 1 of M."
+- [ ] Every project finished (or none): "You don't have a project going."; at the start, "Back in Graphghan": "You're at the beginning."
+- [ ] Settings › Action Button › Shortcut › Graphghan › Done: one press counts one step, with the phone locked.
+- [ ] Shortcuts app › Graphghan: exactly two actions, Done and Back; the only field is an optional Project that offers the projects by title.
+- [ ] Two projects both worked in the last hour, no activity: "Done in Graphghan" asks "Which blanket — A or B?", and the answer gets the count. Start a third project and the question names all three.
+- [ ] On the phone (not a HomePod or CarPlay), a Done shows a card with the panel and the band at the new cursor, the same as the Work screen.
+- [ ] Spotlight: search a project's title and the pattern's title; the project appears with "43% · Craigh na Dun Blanket" under it. Finish or delete it and search again.
+- [ ] Siri (iPhone 15 Pro or later, English, Apple Intelligence on): "How far am I on the Craigh na Dun blanket?" answers with the percent; a project titled differently from its pattern answers to both names.
+- [ ] Phrase competition (spec §4.5), with a timer running in Clock: "done", "next row", "undo", and "mark a done in Graphghan". Note which each went to; only the last is ours to expect, and the first three tell us how contested the verbs are.
+
 ## Looks right
 - [ ] Home screen: the icon shows the moon, hill, and chain; it reads at the settings size too.
 - [ ] Patterns and Projects: cards on the stone weave, Literata titles, Moss tab tint, no system blue anywhere.
