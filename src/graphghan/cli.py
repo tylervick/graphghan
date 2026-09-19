@@ -17,7 +17,7 @@ from . import grid as gr
 from .chartdoc import cell_aspect, finished_size
 from .export import chart_json, preview_png, write_dist
 from .exporters import to_csv, to_oxs, to_png
-from .importers import check_folder, import_file, remove_folder, write_pattern
+from .importers import check_folder, import_file, remove_folder, stage_dir, stage_request, write_pattern
 from .motifs import CATALOG
 from .options_page import build_options_html
 from .pattern import find_repo_root, load_design, load_pattern, pattern_dir
@@ -302,6 +302,11 @@ def cmd_import(args) -> int:
     into = Path(args.into)
     if into.parent == Path(".") and not into.exists():
         into = find_repo_root() / "patterns" / args.into
+    root = find_repo_root()
+    prose = args.prose
+    staged = stage_dir(root, src) / "prose.json"
+    if prose is None and staged.exists() and not args.grid_only:
+        prose = staged
     try:
         cells, box = _parse_cells(args.cells), _parse_box(args.box)
         mode = "pixels" if args.pixels else "raster" if args.raster else "auto"
@@ -313,8 +318,23 @@ def cmd_import(args) -> int:
             page=args.page,
             region=args.region,
             box=box,
+            prose=prose,
+            rows_source=args.rows,
         )
-    except ValueError as e:
+        needs_prose = (
+            prose is None and not args.grid_only and args.rows != "grid" and result.kind in ("pdf", "raster")
+        )
+        if needs_prose:
+            folder = stage_request(src, result, into, root)
+            for line in result.regions:
+                print(line)
+            print(
+                f"read {result.width}x{result.height} cells, {len(result.palette)} colour(s) from {src.name}; "
+                f"the prose is not read yet.\nwaiting for {folder / 'prose.json'}: open {folder / 'request.md'} "
+                "with the graphghan skill, then run this command again (or pass --grid-only)."
+            )
+            return 0
+    except (ValueError, FileNotFoundError) as e:
         print(f"import failed: {e}", file=sys.stderr)
         return 1
     for line in result.regions:
@@ -412,6 +432,18 @@ def build_parser():
         "--region", type=int, help="which grid on the page (1-based, as listed) when there are several"
     )
     i.add_argument("--box", help="x0,y0,x1,y1 page fractions to look inside for the grid")
+    i.add_argument(
+        "--prose", help="a prose.json written by the graphghan skill (default: the staged one, if any)"
+    )
+    i.add_argument(
+        "--rows",
+        choices=["auto", "written", "grid"],
+        default="auto",
+        help="the chart's source: the written rows when present (auto), always the written rows, or the grid",
+    )
+    i.add_argument(
+        "--grid-only", action="store_true", help="skip the prose: write the folder with placeholders"
+    )
     i.add_argument(
         "--force", action="store_true", help="write into an existing folder, and keep a failing import"
     )

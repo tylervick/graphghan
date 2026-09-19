@@ -25,6 +25,7 @@ import numpy as np
 import pypdfium2 as pdfium
 from PIL import Image
 
+from . import prose as pr
 from . import rasterchart as rc
 from .chartdoc import CODE_RE, TECHNIQUE_ROWS, chart_id, validate_document
 from .export import chart_png, palette_entries, rows_to_strings
@@ -308,13 +309,48 @@ def import_file(
     page: int | None = None,
     region: int | None = None,
     box: tuple[float, float, float, float] | None = None,
+    prose: dict | str | Path | None = None,
+    rows_source: str = "auto",
 ) -> ImportResult:
+    """Read the file into an ImportResult. `prose` is a prose.json document or its path; a
+    graphghan-made PDF supplies its own when none is given. `rows_source` is auto (written rows
+    when present), written, or grid."""
+    if rows_source not in ("auto", "written", "grid"):
+        raise ValueError(f"rows_source must be auto, written or grid, not {rows_source!r}")
     path = Path(path)
     size = path.stat().st_size
     if size > MAX_FILE_BYTES:
         raise ValueError(
             f"{path.name} is {size / 1_048_576:.0f} MB; the most import reads is {MAX_FILE_BYTES // 1_048_576} MB"
         )
+    if isinstance(prose, (str, Path)):
+        prose = pr.load_prose(prose)
+    elif prose is not None:
+        problems = pr.check_prose(prose)
+        if problems:
+            raise ValueError("prose.json: " + "; ".join(problems))
+    result = _read_grid(
+        path, palette_toml=palette_toml, cells=cells, mode=mode, page=page, region=region, box=box
+    )
+    if prose is None and result.kind == "graphghan-pdf" and rows_source != "grid":
+        from .pdfself import prose_from_own_pdf  # local: pdfself imports this module
+
+        prose = prose_from_own_pdf(path)
+    if prose is not None:
+        apply_prose(result, prose, rows_source)
+    return result
+
+
+def _read_grid(
+    path: Path,
+    *,
+    palette_toml: str | Path | None = None,
+    cells: tuple[int, int] | None = None,
+    mode: str = "auto",
+    page: int | None = None,
+    region: int | None = None,
+    box: tuple[float, float, float, float] | None = None,
+) -> ImportResult:
     palette = _entries_from_toml(Path(palette_toml)) if palette_toml else None
     suffix = path.suffix.lower()
     if suffix == ".oxs":
@@ -355,6 +391,177 @@ def import_file(
     raise ValueError(f"cannot import {path.name}: not a .pdf, .png/.jpg, .oxs or .csv file")
 
 
+# ---------- the prose half ----------
+
+
+def _match_palette(result: ImportResult, entries: list[dict]) -> list[str]:
+    """Rewrite the grid's cluster indexes onto the prose palette's order. Entries with a hex claim
+    the nearest cluster; without hexes the orders must simply agree. Returns warnings."""
+    warnings: list[str] = []
+    n_prose, n_grid = len(entries), len(result.palette)
+    if n_prose == n_grid and all(e["hex"] for e in entries):
+        grid_hexes = result.hexes
+        d = np.linalg.norm(
+            rc._to_lab(np.array([[int(h[i : i + 2], 16) for i in (1, 3, 5)] for h in grid_hexes]))[:, None, :]
+            - rc._to_lab(np.array([[int(e["hex"][i : i + 2], 16) for i in (1, 3, 5)] for e in entries]))[
+                None, :, :
+            ],
+            axis=2,
+        )
+        claim = [int(k) for k in d.argmin(axis=1)]  # each grid cluster's nearest prose entry
+        if len(set(claim)) != n_grid:
+            raise ValueError(
+                "the key's colours do not pair one-to-one with the colours read off the chart: "
+                + ", ".join(
+                    f"{g} -> {entries[k]['code']} {entries[k]['hex']}"
+                    for g, k in zip(grid_hexes, claim, strict=True)
+                )
+            )
+        remap = np.array(claim, dtype=np.uint8)
+        far = [g for g, k in zip(grid_hexes, claim, strict=True) if d[grid_hexes.index(g), k] > 25]
+        if far:
+            warnings.append(f"chart colours {far} are far from every key colour; check the key")
+    elif n_prose == n_grid:
+        warnings.append(
+            "the key gives no colours; its entries were paired with the chart's colours in order of use"
+        )
+        remap = np.arange(n_grid, dtype=np.uint8)
+    else:
+        raise ValueError(
+            f"the key has {n_prose} colours but the chart reads {n_grid}; add hex values to the key or fix the count"
+        )
+    result.grid = remap[result.grid]
+    for k, e in enumerate(entries):
+        if not e["hex"]:
+            e["hex"] = result.palette[
+                claim.index(k) if n_prose == n_grid and all(x["hex"] for x in entries) else k
+            ]["hex"]
+    result.palette = entries
+    return warnings
+
+
+def apply_prose(result: ImportResult, doc: dict, rows_source: str = "auto") -> None:
+    """Fold the prose into the result: palette, metadata, and the written rows as the grid."""
+    result.meta.update(pr.meta_from_prose(doc))
+    entries = pr.palette_entries(doc)
+    if entries:
+        if (
+            result.kind in ("raster", "pdf", "pixels")
+            and result.palette
+            and result.palette[0]["code"] == "A"
+            and not any(p.get("yarn") for p in result.palette)
+        ):
+            result.warnings += _match_palette(result, entries)
+        else:  # codes came with the file (OXS, CSV, a --palette, our own PDF): add names and yarn by code
+            by_code = {e["code"]: e for e in entries}
+            for p in result.palette:
+                e = by_code.get(p["code"])
+                if e:
+                    p["name"] = e["name"] or p["name"]
+                    p["yarn"] = e["yarn"] or p["yarn"]
+                    p["use"] = e["use"] or p["use"]
+    chart = doc.get("chart") or {}
+    row1 = chart.get("row1", "bottom-right")
+    result.meta["row1"] = row1
+    if chart.get("no_stitch"):
+        for p in result.palette:
+            if p["hex"].lower() == chart["no_stitch"].lower():
+                p["use"] = "no stitch"
+    rows = doc.get("written_rows") or []
+    if not rows or rows_source == "grid":
+        if rows and rows_source == "grid":
+            result.warnings += [
+                f"written rows not used (--rows grid): {w}"
+                for w in pr.row_total_problems(rows, result.width)
+                + pr.row_number_problems(rows, result.height)
+            ]
+        return
+    width = chart.get("width") or result.width
+    height = chart.get("height") or result.height
+    grid, problems = pr.written_to_grid(rows, result.codes, width, height, row1)
+    if problems:
+        raise ValueError("written rows: " + "; ".join(problems))
+    mismatches, error = pr.cross_check(grid, result.grid, row1)
+    if error:
+        raise ValueError("written rows against the chart: " + error)
+    result.warnings += [f"written rows against the chart: {m}" for m in mismatches]
+    result.meta["cross_check"] = f"{len(rows)} written rows, {len(mismatches)} disagree with the chart"
+    result.grid = grid
+    result.kind = result.kind + "+rows"
+
+
+def stage_dir(repo_root: Path, source: Path) -> Path:
+    return repo_root / "build" / "import" / source.stem
+
+
+def stage_request(source: Path, result: ImportResult, into: Path, repo_root: Path) -> Path:
+    """First run on a foreign file: rendered pages, their text, what the grid read, and what the
+    skill must write into prose.json. Returns the staging folder."""
+    folder = stage_dir(repo_root, source)
+    (folder / "pages").mkdir(parents=True, exist_ok=True)
+    texts: list[str] = []
+    hints: list[str] = []
+    if source.suffix.lower() == ".pdf":
+        texts = page_texts(source)
+        for i, img in enumerate(render_pages(source, scale=2), start=1):
+            img.save(folder / "pages" / f"p{i:02d}.png")
+            (folder / "pages" / f"p{i:02d}.txt").write_text(texts[i - 1], encoding="utf-8")
+            low = texts[i - 1].lower()
+            found = [
+                w for w in ("key", "gauge", "hook", "row 1", "materials", "finished", "measure") if w in low
+            ]
+            if found:
+                hints.append(f"- page {i}: mentions {', '.join(found)}")
+    else:
+        Image.open(source).convert("RGB").save(folder / "pages" / "p01.png")
+    (folder / "grid.json").write_text(
+        json.dumps(
+            {
+                "source": str(source),
+                "width": result.width,
+                "height": result.height,
+                "palette": result.palette,
+                "rows": result.rows,
+                "regions": result.regions,
+                "warnings": result.warnings,
+            },
+            indent=1,
+        ),
+        encoding="utf-8",
+    )
+    schema = Path(__file__).resolve().parents[2] / "schema" / "import-prose.schema.json"
+    request = (
+        [
+            f"# Import request: {source.name}",
+            "",
+            f"The grid reader found a {result.width} x {result.height} chart with {len(result.palette)} colours "
+            f"(see grid.json). What it cannot read is the prose. Write `{folder / 'prose.json'}` in the",
+            "`graphghan-import/1` shape (the contract is `.claude/skills/graphghan/references/import.md`;",
+            f"the schema is `{schema}`), then run the same `graphghan import ... --into {into.name}` again.",
+            "",
+            "Read from the pages:",
+            "",
+            "- the colour key: every colour as the pattern names it, with its hex if printed or shown;",
+            "- gauge (stitches and rows over a length), hook, yarn weight, finished size, title, designer;",
+            "- the written rows, if the pattern has them: every row, runs in working order exactly as printed, and",
+            "  the corner the chart's row 1 starts in (`chart.row1`), read off the chart's own numbering;",
+            "- setup notes and colour notes worth keeping.",
+            "",
+            "Do not fix a row whose numbers do not add up: transcribe it as printed and let the import report it.",
+            "",
+            "Pages:",
+            "",
+        ]
+        + (hints or ["- (no page mentions a key, gauge, or row 1 by word; look at the images)"])
+        + [
+            "",
+            f"Page images: `{folder / 'pages'}` (p01.png ...), text beside each as pNN.txt.",
+        ]
+    )
+    (folder / "request.md").write_text("\n".join(request) + "\n", encoding="utf-8")
+    return folder
+
+
 # ---------- the pattern folder ----------
 
 
@@ -391,41 +598,85 @@ def _toml_str(s: str) -> str:
 
 
 def pattern_toml(result: ImportResult, slug: str, title: str, source: str) -> str:
+    meta = result.meta
     bottom = result.grid[-1]
     first = result.codes[int(np.bincount(bottom).argmax())]
     w, h = result.width, result.height
+    stitch = meta.get("stitch", "sc")
+    gauge = meta.get("gauge") or (3.5, 4.0)
+    placeholder = "gauge" not in meta
+    size = meta.get("size_in") or (round(w / gauge[0], 1), round(h / gauge[1], 1))
     lines = [
         "[pattern]",
         f"slug = {_toml_str(slug)}",
         f"title = {_toml_str(title)}",
-        'dedication = ""',
-        'quote = ""',
-        'version = "0.1.0"',
-        'stitch = "sc"',
-        f"size_in = [{round(w / 3.5, 1)}, {round(h / 4.0, 1)}]  # IMPORTED: at the placeholder sc gauge below",
-        'hook = ""  # IMPORTED: fill me',
-        'yarn_weight = ""  # IMPORTED: fill me',
+        f"dedication = {_toml_str(meta.get('dedication', ''))}",
+        f"quote = {_toml_str(meta.get('quote', ''))}",
+        f"version = {_toml_str(meta.get('version', '0.1.0'))}",
+        f"stitch = {_toml_str(stitch)}",
+        f"size_in = [{size[0]}, {size[1]}]"
+        + ("  # IMPORTED: at the placeholder gauge below" if placeholder and "size_in" not in meta else ""),
+        f"hook = {_toml_str(meta.get('hook', ''))}" + ("" if meta.get("hook") else "  # IMPORTED: fill me"),
+        f"yarn_weight = {_toml_str(meta.get('yarn_weight', ''))}"
+        + ("" if meta.get("yarn_weight") else "  # IMPORTED: fill me"),
         f"first_row_color = {_toml_str(first)}",
-        'author = ""  # IMPORTED: the source pattern\'s designer',
-        'license = ""',
-        "",
-        f"# Imported from {source}. The chart lives in chart.png (one pixel per cell); the gauge below",
-        "# is a placeholder until the source's own gauge is written in.",
-        "[gauge]",
-        "sc = [3.5, 4.0]",
-        "",
+        f"author = {_toml_str(meta.get('author', ''))}"
+        + ("" if meta.get("author") else "  # IMPORTED: the source pattern's designer"),
+        f"license = {_toml_str(meta.get('license', ''))}",
     ]
+    for key in ("craft", "terms", "language"):
+        if meta.get(key):
+            lines.append(f"{key} = {_toml_str(meta[key])}")
+    lines += [
+        "",
+        f"# Imported from {source}. The chart lives in chart.png (one pixel per cell).",
+    ]
+    if placeholder:
+        lines.append("# The gauge below is a placeholder until the source's own gauge is written in.")
+    lines += ["[gauge]", f"{stitch} = [{gauge[0]}, {gauge[1]}]", ""]
+    if meta.get("boundary") or meta.get("stitch_name") or meta.get("unit"):
+        lines.append(f"[stitch.{stitch}]")
+        if meta.get("stitch_name"):
+            lines.append(f"name = {_toml_str(meta['stitch_name'])}")
+        b = meta.get("boundary") or {}
+        if b:
+            lines.append(f"boundary = {_toml_str(b['kind'])}")
+            lines.append(f"chain = {int(b['chain'])}")
+            if "counts_as_stitch" in b:
+                lines.append(f"counts_as_stitch = {'true' if b['counts_as_stitch'] else 'false'}")
+            if b.get("color"):
+                lines.append(f"chain_color = {_toml_str(b['color'])}")
+        if meta.get("unit"):
+            lines.append(f"unit = {_toml_str(meta['unit'])}")
+        lines.append("")
     for p in result.palette:
+        yarn = p.get("yarn") or {}
         lines += [
             "[[colors]]",
             f"code = {_toml_str(p['code'])}",
             f"name = {_toml_str(p['name'])}",
             f"hex = {_toml_str(p['hex'])}",
-            f"yarn = {_toml_str(p.get('yarn', {}).get('note', ''))}",
-            f"use = {_toml_str(p.get('use', ''))}",
+        ]
+        if len(yarn) == 1 and "note" in yarn:
+            lines.append(f"yarn = {_toml_str(yarn['note'])}")
+        elif yarn:
+            lines.append("yarn = { " + ", ".join(f"{k} = {_toml_str(v)}" for k, v in yarn.items()) + " }")
+        else:
+            lines.append('yarn = ""')
+        lines += [f"use = {_toml_str(p.get('use', ''))}", ""]
+    notes = meta.get("notes") or {}
+    lines += ["[notes]"]
+    for key in ("setup", "colors"):
+        items = notes.get(key) or []
+        lines.append(f"{key} = [" + ", ".join(_toml_str(x) for x in items) + "]")
+    lines += ["", "[publish]", f'charts = [["final", {_toml_str(stitch)}]]', ""]
+    for sec in meta.get("instructions") or []:
+        lines += [
+            "[[instructions]]",
+            f"title = {_toml_str(sec['title'])}",
+            f"text = {_toml_str(sec['text'])}",
             "",
         ]
-    lines += ["[notes]", "setup = []", "colors = []", "", "[publish]", 'charts = [["final", "sc"]]', ""]
     return "\n".join(lines)
 
 
@@ -444,6 +695,15 @@ def report_md(result: ImportResult, folder: Path, title: str) -> str:
     counts = np.bincount(result.grid.ravel(), minlength=len(result.palette))
     for i, p in enumerate(result.palette):
         lines.append(f"- `{p['code']}` {p['name']} {p['hex']}: {int(counts[i]):,} cells")
+    if result.meta.get("cross_check"):
+        lines += [
+            "",
+            "## Written rows",
+            "",
+            f"- {result.meta['cross_check']} (the written rows are the chart; the grid was the cross-check)",
+        ]
+    if result.meta.get("uncertain"):
+        lines += ["", "## The reader was unsure of", ""] + [f"- {u}" for u in result.meta["uncertain"]]
     if result.regions:
         lines += ["", "## Grids found", ""] + [f"- {r}" for r in result.regions]
     lines += ["", "## Warnings", ""] + ([f"- {w}" for w in result.warnings] or ["- none"])

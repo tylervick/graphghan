@@ -106,22 +106,22 @@ def _shift(a: np.ndarray, s: int) -> np.ndarray:
     return out
 
 
-def _close(mask: np.ndarray) -> np.ndarray:
-    """Binary closing down axis 0 with radius BRIDGE: gaps up to 2*BRIDGE inside a run vanish."""
+def _close(mask: np.ndarray, bridge: int = BRIDGE) -> np.ndarray:
+    """Binary closing down axis 0 with radius `bridge`: gaps up to twice it inside a run vanish."""
     d = mask.copy()
-    for s in range(1, BRIDGE + 1):
+    for s in range(1, bridge + 1):
         d |= _shift(mask, s) | _shift(mask, -s)
     e = d.copy()
-    for s in range(1, BRIDGE + 1):
+    for s in range(1, bridge + 1):
         e &= _shift(d, s) | ~_shift(np.ones_like(d), s)
         e &= _shift(d, -s) | ~_shift(np.ones_like(d), -s)
     return e & (d | mask)
 
 
-def _longest_runs(mask: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+def _longest_runs(mask: np.ndarray, bridge: int = BRIDGE) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Per column of a boolean (n, m) mask: the longest run of True down that column (short gaps
     bridged), and where it starts and ends."""
-    closed = _close(mask)
+    closed = _close(mask, bridge)
     n, m = closed.shape
     padded = np.zeros((n + 2, m), dtype=np.int8)
     padded[1:-1] = closed
@@ -217,7 +217,9 @@ def _pitch(positions: list[float]) -> float | None:
     if pitch <= 0:
         return None
     unit = gaps[(gaps > 0.6 * pitch) & (gaps < 1.4 * pitch)]
-    return float(np.median(unit)) if len(unit) else pitch
+    # The mean, not the median: lines land on whole pixels, so an 11.3 px pitch reads as gaps of
+    # 11, 11, 12 and the median would drift a third of a pixel per line.
+    return float(np.mean(unit)) if len(unit) else pitch
 
 
 def _window_max(mask: np.ndarray, r: int) -> np.ndarray:
@@ -233,13 +235,15 @@ def _refine_axis(edges: np.ndarray, seeds: list[float], pitch: float, band_noise
     """Fit the line positions along axis 1 of `edges` (a (span, n) edge mask limited to the other
     axis's extent): snap each seed to the nearest edge-density peak, keep the lattice most seeds
     agree on, walk outward one pitch at a time while a thin line is there and the cells it adds
-    are flat colour (`band_noise(a, b)` is the colour spread of the strip a..b), then lay every
+    are flat colour (`band_noise(a, b)` is the (mean, median) colour spread of the strip a..b), then lay every
     interior line on the fitted pitch."""
     span, n = edges.shape
     wide = _window_max(edges, 2)
     density = wide.mean(axis=0)
     raw = edges.mean(axis=0)  # unwidened: how wide a line really is
-    longest = _longest_runs(wide)[0]
+    # A run may bridge a crossing line (about a tenth of a cell) but not the gap between two
+    # stacked digits, which at a tiny pitch is about as long: bridge less when cells are small.
+    longest = _longest_runs(wide, bridge=max(1, min(BRIDGE, int(pitch / 12))))[0]
     r_seed = max(2, int(pitch / 4))
     r_next = max(2, int(pitch / 8))
 
@@ -283,31 +287,38 @@ def _refine_axis(edges: np.ndarray, seeds: list[float], pitch: float, band_noise
     def present(x: int) -> bool:
         return density[x] >= 0.3 * base and longest[x] >= 1.5 * pitch and thin(x)
 
-    def walk(direction: int) -> list[int]:
-        """From the anchor outward: a position joins when a line is there; positions with no line
-        but flat cells (a run of same-coloured cells hides the line) are carried until a line
-        reappears; text, numbers or a photo in the cells ends the grid."""
-        committed, pending, last = [anchor], [], float(anchor)
+    def walk(direction: int) -> list[tuple[int, int]]:
+        """From the anchor outward, one lattice step at a time: a position joins when a line is
+        there; positions with no line but flat cells (a run of same-coloured cells hides the line)
+        are carried until a line reappears; text, numbers or a photo in the cells ends the grid.
+        Returns (position, lattice index) pairs; the pitch is re-estimated from what is committed,
+        so a long grid does not drift off a first estimate that was a third of a pixel out."""
+        committed, pending, last, k, step = [(anchor, 0)], [], float(anchor), 0, pitch
         while True:
-            expected = last + direction * pitch
+            k += direction
+            expected = last + direction * step
             p = peak(expected, r_next)
             if p is None or p <= 0 or p >= n - 1:
                 break
             if present(p):  # a visible line: the cells may carry a watermark or symbols
-                committed += pending + [p]
+                committed += pending + [(p, k)]
                 pending, last = [], float(p)
+                (x0, k0), (x1, k1) = committed[0], committed[-1]
+                if abs(k1 - k0) >= 3:
+                    step = abs((x1 - x0) / (k1 - k0))
             else:  # no line: only flat cells (the line hidden in one colour) may carry on
                 lo, hi = (last, p) if direction > 0 else (p, last)
-                if band_noise(lo, hi) > MAX_NOISE:
+                if band_noise(lo, hi)[0] > MAX_NOISE:
                     break
-                pending.append(int(round(expected)))
+                pending.append((int(round(expected)), k))
                 last = expected
                 if len(pending) > MAX_SILENT:
                     break
         return committed
 
-    found = sorted(set(walk(-1) + walk(1)))
-    ks = np.array([round((x - found[0]) / pitch) for x in found])
+    pairs = sorted(set(walk(-1) + walk(1)))
+    found = [x for x, _ in pairs]
+    ks = np.array([k for _, k in pairs]) - pairs[0][1]
     if len(set(ks.tolist())) < 2:
         return None
     slope, intercept = np.polyfit(ks, np.array(found, dtype=float), 1)
@@ -317,9 +328,9 @@ def _refine_axis(edges: np.ndarray, seeds: list[float], pitch: float, band_noise
     return [float(intercept + slope * k) for k in range(count + 1)]
 
 
-def _band_noise(band: np.ndarray, pitch: float) -> float:
-    """Mean grey spread of the cell centres in a one-cell-thick strip: `band` is (thickness, length)
-    and cells lie along its length at `pitch`."""
+def _band_noise(band: np.ndarray, pitch: float) -> tuple[float, float]:
+    """Grey spread of the cell centres in a one-cell-thick strip, as (mean, median) over the cells:
+    `band` is (thickness, length) and cells lie along its length at `pitch`."""
     t, length = band.shape
     c0, c1 = int(t * (0.5 - CENTRE_FRACTION / 2)), max(int(t * (0.5 + CENTRE_FRACTION / 2)), int(t * 0.5) + 1)
     core = band[c0:c1]
@@ -329,7 +340,9 @@ def _band_noise(band: np.ndarray, pitch: float) -> float:
         a = int(k * pitch + pitch * (0.5 - CENTRE_FRACTION / 2))
         b = max(a + 1, int(k * pitch + pitch * (0.5 + CENTRE_FRACTION / 2)))
         spreads.append(core[:, a:b].std())
-    return float(np.mean(spreads)) if spreads else 0.0
+    if not spreads:
+        return 0.0, 0.0
+    return float(np.mean(spreads)), float(np.median(spreads))
 
 
 def _fits(line: Line, lo: float, hi: float) -> bool:

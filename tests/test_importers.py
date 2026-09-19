@@ -165,3 +165,63 @@ def test_an_oversized_file_is_refused(tmp_path, monkeypatch):
     src.write_text("A,A,A,A,A,A,A,A\n")
     with pytest.raises(ValueError, match="the most import reads is 0 MB"):
         imp.import_file(src)
+
+
+def test_cli_stages_a_request_for_a_foreign_pdf_and_consumes_the_prose(tmp_path, monkeypatch):
+    """The two-run flow (spec §6.1) on our own PDF disguised as a foreign one."""
+    import shutil
+
+    from graphghan.pdfself import prose_from_own_pdf
+
+    src = tmp_path / "foreign.pdf"
+    shutil.copy(ROOT / "fixtures" / "import" / "craigh-na-dun-final-hdc.pdf", src)
+    monkeypatch.setattr("graphghan.importers.is_own_pdf", lambda _p: False)
+    monkeypatch.setattr("graphghan.cli.find_repo_root", lambda *a, **k: tmp_path)
+    into = tmp_path / "patterns" / "foreign"
+    # First run: the grid is read (the largest tile), the prose is staged, nothing is written.
+    assert main(["import", str(src), "--into", str(into), "--page", "5"]) == 0
+    staged = tmp_path / "build" / "import" / "foreign"
+    assert (staged / "request.md").exists() and (staged / "grid.json").exists()
+    assert (staged / "pages" / "p05.png").exists() and (staged / "pages" / "p05.txt").exists()
+    assert not into.exists()
+    # The skill writes prose.json; here our own reader stands in for it, restricted to the tile.
+    doc = prose_from_own_pdf(src)
+    doc["chart"] = {"row1": "bottom-right", "width": 44, "height": 39}
+    doc["written_rows"] = [
+        {"row": r["row"], "runs": [[c, n] for c, n in r["runs"]]}
+        for r in doc["written_rows"]
+        if r["row"] <= 39
+    ]
+    # Tile 1 holds columns 1-44 of 176: keep the rightmost 44 stitches of each row (odd rows read right to left).
+    for r in doc["written_rows"]:
+        runs = r["runs"] if r["row"] % 2 == 1 else [[c, n] for c, n in reversed(r["runs"])]
+        kept, left = [], 44
+        for c, n in runs:
+            take = min(n, left)
+            if take:
+                kept.append([c, take])
+            left -= take
+        r["runs"] = kept if r["row"] % 2 == 1 else [[c, n] for c, n in reversed(kept)]
+    (staged / "prose.json").write_text(json.dumps(doc), encoding="utf-8")
+    # Second run: the staged prose is picked up, the rows become the chart, the folder is written.
+    assert main(["import", str(src), "--into", str(into), "--page", "5"]) == 0
+    report = (into / "import-report.md").read_text()
+    assert "39 written rows, 0 disagree with the chart" in report
+    toml = (into / "pattern.toml").read_text()
+    assert (
+        'hook = "5 mm (US H-8)"' in toml
+        and "hdc = [3.25, 2.5]" in toml
+        and 'dedication = "For Meaghan"' in toml
+    )
+
+
+def test_cli_grid_only_skips_the_prose(tmp_path, monkeypatch):
+    import shutil
+
+    src = tmp_path / "foreign.pdf"
+    shutil.copy(ROOT / "fixtures" / "import" / "craigh-na-dun-final-hdc.pdf", src)
+    monkeypatch.setattr("graphghan.importers.is_own_pdf", lambda _p: False)
+    monkeypatch.setattr("graphghan.cli.find_repo_root", lambda *a, **k: tmp_path)
+    into = tmp_path / "grid-only"
+    assert main(["import", str(src), "--into", str(into), "--page", "5", "--grid-only"]) == 0
+    assert (into / "chart.png").exists() and "IMPORTED: fill me" in (into / "pattern.toml").read_text()
