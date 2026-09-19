@@ -28,6 +28,32 @@ zizmor = "1.29.0"
 # Only needed when a workflow gains or bumps an action; see `mise run pin-actions`.
 pinact = "4.1.1"
 
+# Revyl (https://revyl.ai) runs the iOS app on cloud devices and reviews pull
+# requests against it; `.revyl/config.yaml` is the recipe. Its own install path is
+# `curl -fsSL https://revyl.com/install.sh | sh`, which drops an unpinned "latest"
+# in ~/.revyl/bin -- outside mise, invisible to everyone else here, and different
+# on every machine and every CI run. This pins it like everything above.
+#
+# Three things about this line are load-bearing, and all three were established by
+# installing it rather than by reading a manual:
+#
+#   * `github:`, not `ubi:`. They are the same resolver, but mise deprecated the
+#     `ubi:` prefix (removal in 2027.1.0) and Renovate prefers `github:` too.
+#   * `matching_regex`. Every release carries TWO binaries per platform --
+#     `revyl-darwin-arm64` and `revyl-computer-darwin-arm64` -- and left to itself
+#     the resolver picks `revyl-computer`, a different program with a different
+#     command set. The first sign of this is `unknown command "version"`. The
+#     regex is written per-platform rather than pinned to darwin-arm64 so a Linux
+#     runner resolves its own asset.
+#   * `rename_exe`. The asset name is what lands on disk, so without this the
+#     command is `revyl-darwin-arm64`, and nothing -- not this repo, not the docs,
+#     not the CLI's own error messages -- calls it that.
+#
+# Renovate's mise manager reads this (github-releases on RevylAI/revyl-cli). Its
+# documented gaps there are `tag_regex` and `version_prefix`; this pin uses
+# neither, so bumps arrive as ordinary pull requests.
+"github:RevylAI/revyl-cli" = { version = "0.1.119", matching_regex = "^revyl-(darwin|linux)-(amd64|arm64)$", rename_exe = "revyl" }
+
 # Blink (https://blink.review) reviews each Claude Code turn's diff and hands the
 # findings back to the agent. Its own install path is
 # `curl -fsSL https://blink.review/install.sh | sh`, which always takes the newest
@@ -184,4 +210,72 @@ case "$(printf '%s\n' "$probe" | sed -n 2p)" in
     exit 1
     ;;
 esac
+'''
+
+[tasks.revyl-setup]
+description = "Sign in to Revyl and install its agent skills (once per machine)"
+# Per-developer, not per-checkout, for the same reason `blink-setup` is: it signs
+# a person in and writes agent skills that `revyl skill update` owns afterwards.
+# What the repository carries is the pinned CLI and `.revyl/config.yaml`; this
+# task is the part that cannot be committed.
+run = '''
+# Revyl's own installer (`curl -fsSL https://revyl.com/install.sh | sh`) drops an
+# unpinned binary in ~/.revyl/bin AND prepends that directory to PATH in your
+# shell profile. mise APPENDS its tool directories rather than prepending them,
+# so on a machine that has ever run that installer the vendor's copy wins -- in
+# your shell, and inside this task. Measured here: `mise exec -- command -v revyl`
+# answered /Users/.../.revyl/bin/revyl with the pin installed and active.
+#
+# That silently undoes the pin. The two copies agree on the day you install them
+# and then drift, because `revyl upgrade` moves one of them and mise.toml the
+# other, and nothing announces which one ran. So this fails closed before doing
+# any work, rather than signing in and installing skills through a binary the
+# repository did not choose.
+#
+# The test is "is the revyl that answers underneath mise's data directory",
+# which accepts both the install directory and the shims directory -- either is
+# mise's -- without this task needing to know which one your PATH reaches first.
+pinned_dir="$(mise where 'github:RevylAI/revyl-cli')"
+data_dir="${pinned_dir%/installs/*}"
+found="$(command -v revyl || true)"
+
+case "$found" in
+  "$data_dir"/*)
+    echo "ok - revyl resolves to $found"
+    ;;
+  "")
+    echo "ERROR: no 'revyl' on PATH at all, even with the mise pin installed." >&2
+    echo "Run 'mise install' first." >&2
+    exit 1
+    ;;
+  *)
+    echo "ERROR: 'revyl' resolves to $found, which is not mise's copy." >&2
+    echo "mise.toml pins the CLI so everyone here runs the same build; that copy" >&2
+    echo "is outside the pin and will drift from it. To hand the name back:" >&2
+    echo >&2
+    echo "  rm -rf \"\$HOME/.revyl/bin\"" >&2
+    echo "  # then delete the vendor installer's line from your shell profile:" >&2
+    echo "  #   export PATH=\"\$HOME/.revyl/bin:\$PATH\"" >&2
+    echo >&2
+    echo "Your login stays put -- it lives in ~/.revyl/credentials.json, which" >&2
+    echo "removing only bin/ leaves alone." >&2
+    exit 1
+    ;;
+esac
+
+if revyl auth status >/dev/null 2>&1; then
+  echo "already signed in to Revyl"
+else
+  revyl auth login
+fi
+
+# --cli --claude installs the CLI skill family into .agents/skills with Claude
+# Code links under .claude/skills/revyl-*. Both are gitignored: `revyl skill
+# update` owns that content, so a vendored copy would go stale against whatever
+# CLI version is pinned above.
+revyl skill install --cli --claude --yes
+
+# Cheap, and it is the thing most likely to be wrong after an edit: the config
+# is hand-written (the CLI's own `revyl github setup` needs a TTY).
+revyl config validate
 '''

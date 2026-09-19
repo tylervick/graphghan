@@ -136,6 +136,41 @@ Two things to know when reading a review:
   by hand — and not `blink update`, which drops an unpinned copy in `~/.local/bin` that then
   shadows or diverges from the pinned one depending on your `PATH` order.
 
+## Device testing and PR review (Revyl)
+
+[Revyl](https://revyl.ai) runs the iOS app on cloud devices and, on a pull request that can change
+the app, reviews the change against a build of it. `.revyl/config.yaml` is the whole contract: the
+build recipe, which paths trigger a review, and the invariants every review checks regardless of
+what the diff touched. `revyl config validate` checks an edit; `revyl config push` publishes one.
+
+The CLI is pinned in `mise.toml` like every other tool here, rather than installed with the
+vendor's `curl | sh`:
+
+```bash
+mise install            # includes the pinned revyl
+mise run revyl-setup    # sign in, install the agent skills, validate the config
+```
+
+Three things to know:
+
+- **Do not run Revyl's own installer.** It writes an unpinned binary to `~/.revyl/bin` *and*
+  prepends that directory to your `PATH` in your shell profile. mise appends its tool directories
+  rather than prepending them, so that copy then wins everywhere — including inside `mise run` —
+  and the pin silently stops meaning anything. `mise run revyl-setup` refuses to do anything until
+  that copy is gone and tells you how to remove it without losing your login.
+- The agent skills (`revyl skill install`, which `revyl-setup` runs) land in `.agents/skills` with
+  links under `.claude/skills/revyl-*`. Both are gitignored — the CLI owns that content and
+  `revyl skill update` refreshes it, so a vendored copy would go stale against the pinned version.
+- CI uploads the artifact; Revyl does not build it. The `revyl-preview` job in
+  `.github/workflows/ci.yml` builds a standalone simulator bundle and hands it over, because this
+  workflow already has a macOS runner with the right Xcode standing up for the `ios` job. That job
+  and `pr_review.review_triggers.paths` share one path list (`ios/`, `fixtures/`, `schema/`,
+  `ci.yml`) and have to stay in step: a path in one and not the other either wastes a build or
+  withholds one from a review that wanted it.
+
+Uploads need a `REVYL_API_KEY` repository secret. Without it the job prints a notice and skips, so
+a fork's pull request — and every run before the secret is added — stays green.
+
 ## Licensing
 
 - Code (`src/`, `site/`, tooling): MIT — see `LICENSE`.

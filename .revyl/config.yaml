@@ -1,0 +1,179 @@
+# Revyl project configuration. Scaffolded by `revyl init`, then rewritten by
+# hand: the detected recipe pointed at ios/Graphghan.xcodeproj, which is a
+# GENERATED file (.gitignore covers `ios/*.xcodeproj`) and does not exist in a
+# fresh checkout. Anything that builds this app has to run XcodeGen first.
+#
+# Validate edits with `revyl config validate` and publish them with
+# `revyl config push`. The CLI itself is pinned in mise.toml, so everyone here
+# runs the same build -- see the `revyl-setup` task there.
+project:
+    id: db7d31a1-3c1c-49b7-9b56-60a9951ae1e8
+session:
+    idle_timeout_seconds: 1800
+build:
+    framework: ios
+    profiles:
+        development:
+            ios:
+                # Binds this recipe to the Revyl app that receives the
+                # artifact. project.id above identifies the PROJECT, not the
+                # app, and a remote build without app_id is rejected before the
+                # runner ever reaches build_commands.
+                app_id: "967d62a9-5f96-4a09-af6e-2204601be5ac"
+                # Matches XCODE_VERSION in .github/workflows/ci.yml, so a cloud
+                # build compiles with the same Xcode CI already builds and tests
+                # with. Revyl's default image is newer; pinning keeps the two in
+                # step, and a bump belongs here and in that workflow together.
+                image: ios-macos-26-xcode-26.2
+                # Headroom, not a measurement. The xcodebuild step below was
+                # measured at 25s with cold DerivedData on an M-series laptop;
+                # what is unmeasured is what a cold Revyl runner pays for the
+                # mise install and the XcodeGen download ahead of it. This
+                # recipe has not been run end-to-end on a Revyl runner.
+                timeout_seconds: 1800
+                build_commands:
+                    # mise owns xcodegen (ios/mise.toml). Not assumed present on
+                    # the image.
+                    - curl -fsSL https://mise.run | sh
+                    # A no-op under mise's normal mode, where `install` and
+                    # `exec` auto-trust their active config. Kept for paranoid
+                    # mode, which requires explicit content-bound trust and
+                    # cannot prompt on an unattended runner. --all because the
+                    # tool needed here is pinned in ios/mise.toml while the
+                    # repo-root mise.toml is its parent config.
+                    - ~/.local/bin/mise trust --all
+                    # `install xcodegen`, not a bare `install`: the root
+                    # mise.toml pins uv, hk and four linters that have no part in
+                    # building the app, plus Blink and the Revyl CLI itself.
+                    # Naming the one tool keeps a cloud build from downloading
+                    # the other seven.
+                    - ~/.local/bin/mise -C ios install xcodegen
+                    # Graphghan.xcodeproj is generated and gitignored, so it is
+                    # absent from the worktree a runner receives; without this
+                    # the xcodebuild below fails on a missing project rather than
+                    # on anything to do with the code.
+                    - ~/.local/bin/mise -C ios exec xcodegen -- xcodegen generate --quiet
+                    # ENABLE_DEBUG_DYLIB=NO drops Graphghan.debug.dylib and
+                    # __preview.dylib, so the artifact is a standalone bundle
+                    # rather than the Xcode debug-dylib layout. The app tests in
+                    # ci.yml deliberately do NOT set it, which is why their
+                    # product cannot be reused here.
+                    #
+                    # CODE_SIGNING_ALLOWED=NO because Debug uses automatic
+                    # signing (ios/project.yml), which needs a signed-in Xcode
+                    # account no build runner has. A simulator build needs no
+                    # signature to install.
+                    #
+                    # Debug rather than Release: Release is the TestFlight
+                    # configuration, pinned to a distribution profile that exists
+                    # on no build runner.
+                    #
+                    # No ARCHS override, unlike the Waddle recipe this is modelled
+                    # on: nothing here links a prebuilt xcframework, so a generic
+                    # simulator destination happily builds both slices and the
+                    # artifact then installs on an Intel or an Apple Silicon
+                    # simulator. Measured universal at 25s cold; there is nothing
+                    # to buy by cutting it to one architecture.
+                    - xcodebuild -project ios/Graphghan.xcodeproj -scheme Graphghan -configuration Debug -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath ios/build/RevylDerivedData ENABLE_DEBUG_DYLIB=NO CODE_SIGNING_ALLOWED=NO build
+                # Under ios/build/, which .gitignore already covers. The
+                # repo-root build/ is taken -- it is the pattern-import staging
+                # directory -- so this does not go there.
+                output_path: ios/build/RevylDerivedData/Build/Products/Debug-iphonesimulator/Graphghan.app
+# Pull-request automation. Written by hand rather than by `revyl github setup`,
+# which needs an interactive terminal and refuses to run unattended.
+pr_review:
+    enabled: true
+    review_triggers:
+        # Repository-root-relative, matched against the paths GitHub reports.
+        # These are the same four paths as the `ios-changes` job's filter in
+        # .github/workflows/ci.yml, and they have to stay that way: that job
+        # gates the workflow below that produces the artifact, so a path listed
+        # here but not there asks for a review of a build nobody uploaded.
+        # fixtures/ and schema/ are in the list because GraphghanCore reads the
+        # chart format and is tested against them -- they change app behaviour
+        # without a line of Swift moving.
+        paths:
+            - "ios/**"
+            - "fixtures/**"
+            - "schema/**"
+            - ".github/workflows/ci.yml"
+        labels: []
+        drafts: false
+    build:
+        # ci_upload_to_revyl, not revyl: ci.yml already stands up a macOS runner
+        # with the right Xcode for this pull request, so it may as well hand over
+        # the artifact rather than have a cloud runner repeat the whole checkout,
+        # toolchain install and compile. Revyl matches the uploaded artifact to
+        # the review by repository and head SHA.
+        kind: ci_upload_to_revyl
+        app_ids:
+            ios: "967d62a9-5f96-4a09-af6e-2204601be5ac"
+    proof_of_changes:
+        # Depends on the artifact from the CI upload arriving first; proof has
+        # nothing to install without it.
+        enabled: true
+        harness:
+            kind: revyl
+        # Checked on every run in addition to whatever the diff touched. These
+        # are the paths the unit suite cannot reach: the tests run against a stub
+        # HTTP client and an in-memory store, so nothing in them proves the app
+        # can actually reach the published feed or that a project survives being
+        # worked.
+        always_verify:
+            # The Patterns tab is the whole front door and it is network-backed:
+            # the app downloads the feed from https://graphghan.milo.cat/. A unit
+            # suite with a stub client cannot tell a working fetch from a broken
+            # one. "No patterns yet" and a stuck "Loading patterns…" are the two
+            # failures to watch for.
+            - "On the Patterns tab the app lists at least one published pattern (currently 'Craigh na Dun Blanket') fetched from the live feed -- not the 'No patterns yet' empty state, and not a spinner reading 'Loading patterns…' that never resolves."
+            # Opening a pattern downloads its manifest and chart files, which is
+            # a second, separate network path from the index above.
+            - "Tapping a pattern in the Patterns tab opens its detail screen with the chart information filled in, and the 'Start project' button is enabled rather than greyed out."
+            # The Work screen is a full-screen cover that renders the chart and
+            # owns a Live Activity. It is the part of the app someone actually
+            # uses, and it is behind two navigations that no test drives
+            # end-to-end.
+            - "A project started from a pattern appears on the Projects tab, and its 'Work' button reaches the full-screen Work screen with the chart rendered and a row counter -- not a blank screen or an error."
+        system_prompt: |
+            Graphghan is an iOS app for working crochet and cross-stitch charts
+            ("graphghans") published as data at https://graphghan.milo.cat/. It
+            has exactly two tabs: Patterns and Projects.
+
+            Patterns is a browser over a published feed the app downloads at
+            launch, so the device under test needs network. The feed is small --
+            at the time of writing it publishes one pattern, "Craigh na Dun
+            Blanket" -- so a list with a single row is correct and complete, not
+            a half-loaded screen. Tapping a pattern opens a detail screen with a
+            "Start project" button.
+
+            Projects is empty on a fresh install and correctly shows "No
+            projects -- Start one from a pattern." That is the expected first-run
+            state, not a defect. Create a project from the Patterns tab if you
+            need one.
+
+            Opening a project and pressing "Work" presents a full-screen Work
+            screen: the chart drawn as bands of coloured stitches, a row counter,
+            and Back and Done controls that advance or rewind the position. This
+            screen also starts a Live Activity on the lock screen; whether the
+            lock screen is reachable on a test device is not something to judge
+            the app by.
+
+            The chart is drawn, not laid out from views, so element queries will
+            find little inside it. Judge it from the screenshots. Everything
+            around it -- tabs, navigation bars, buttons, sheets -- is ordinary
+            SwiftUI and can be addressed normally.
+
+            The app is deliberately quiet and low-contrast: a muted "Heather"
+            palette on a woven paper background, with serif headings. Faint is
+            the intended look, not a rendering failure. Dark mode values are
+            declared but not yet tuned, so dark mode is not a fair target.
+    # This field takes workflow UUIDs, not names, and a UUID exists only once the
+    # workflow does -- which is an org-side resource, not something a checkout
+    # can carry. Nothing runs here until tests are written and grouped: #127.
+    workflow_ids: []
+    strict_ci_check:
+        # false until the upload step has proven itself on a real pull request.
+        # true makes a missing or failed upload block the merge, and that is not
+        # a promise to make on a path that has never run. Flip it together with
+        # `continue-on-error` on the upload step in ci.yml: #126.
+        build: false

@@ -119,6 +119,19 @@ set, so it can never overwrite a committed reference by accident.
 
 `mise run script-test` runs the hermetic tests for the shell scripts under `Scripts/`.
 
+The same pull request also gets a `revyl-preview` job: a standalone simulator bundle
+(`ENABLE_DEBUG_DYLIB=NO`, so it is a real app bundle rather than the Xcode debug-dylib layout)
+uploaded to [Revyl](https://revyl.ai), which runs the app on a cloud device and reviews the change
+against it. It is a separate job from `ios` deliberately — a build that fails its suite is often the
+one you most want on a device — and it uploads without promoting the build to the app's current
+version. `.revyl/config.yaml` holds the recipe, the invariants every review checks, and a prompt
+describing this app to the agent driving the device; the repo root `README.md` covers the CLI and
+the local setup. Local equivalent, once `mise run revyl-setup` has signed you in:
+
+    mise x -- revyl build --local     # build this recipe here and upload the artifact
+    mise x -- revyl build             # or build it on a Revyl cloud runner
+
+
 A merge to `main` that changes the app ships a TestFlight build to the internal group; `docs/release.md`
 has the details, the group settings that keep external testers out of the automatic path, and the
 manual dispatch for dry runs and retries.

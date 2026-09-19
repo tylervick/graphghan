@@ -27,5 +27,13 @@ mise.local.toml
 # brainstorming visual companion sessions
 .superpowers/
 
+# Revyl ships its agent skills as a CLI-managed package set in .agents/skills and
+# links them into .claude/skills. `revyl skill update` owns that content, so a
+# vendored copy here would go stale against the CLI version mise.toml pins;
+# reinstall with `mise run revyl-setup` instead. The glob is deliberately narrow
+# -- .claude/skills/graphghan is this repo's own skill and stays tracked.
+.agents/
+.claude/skills/revyl-*
+
 # graphghan import staging (build/import/<stem>/): rendered pages of other people's PDFs
 /build/
