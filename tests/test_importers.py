@@ -292,3 +292,35 @@ def test_an_imported_pattern_passes_graphghan_check(tmp_path):
     src.write_text(exporters.to_oxs(doc), encoding="utf-8")
     folder = importers.write_pattern(importers.import_file(src), tmp_path / "imported", title="Imported")
     assert main(["check", str(folder)]) == 0
+
+
+def test_rows_grid_with_no_grid_stays_a_no_grid_result(tmp_path):
+    """--rows grid asks for the picture; with none, the rows must not stand in for it."""
+    import sys
+
+    sys.path.insert(0, str(ROOT / "tests"))
+    from test_rasterchart import draw_box_rows
+
+    src = tmp_path / "rows.png"
+    draw_box_rows([["#000000"], ["#ffffff", "#000000", "#ffffff"], ["#000000"]]).save(src)
+    prose = {
+        "schema": "graphghan-import/1",
+        "palette": [
+            {"code": "K", "name": "Black", "hex": "#000000"},
+            {"code": "W", "name": "White", "hex": "#ffffff"},
+        ],
+        "chart": {"width": 5, "height": 3},
+        "written_rows": [
+            {"row": 1, "runs": [["K", 5]]},
+            {"row": 2, "runs": [["W", 2], ["K", 1], ["W", 2]]},
+            {"row": 3, "runs": [["K", 5]]},
+        ],
+    }
+    result = importers.import_file(src, prose=prose, rows_source="grid")
+    assert result.kind == "no-grid" and result.grid is None
+    rows_only = importers.import_file(src, prose=prose)
+    report = importers.report_md(rows_only, tmp_path / "p", "Rows Only")
+    assert (
+        "there was no picture to check them against" in report
+        and "the grid was the cross-check" not in report
+    )
