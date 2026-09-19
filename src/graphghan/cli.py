@@ -17,9 +17,11 @@ from . import grid as gr
 from .chartdoc import cell_aspect, finished_size
 from .export import chart_json, preview_png, write_dist
 from .exporters import to_csv, to_oxs, to_png
+from .importers import check_folder, import_file, remove_folder, stage_dir, stage_request, write_pattern
 from .motifs import CATALOG
 from .options_page import build_options_html
 from .pattern import find_repo_root, load_design, load_pattern, pattern_dir
+from .pdf import to_pdf
 from .publish import chart_key, check_published, render_published
 from .validate import run_all
 
@@ -261,11 +263,101 @@ def cmd_export(args) -> int:
     out.parent.mkdir(parents=True, exist_ok=True)
     if args.format == "png":
         to_png(doc).save(out)
+    elif args.format == "pdf":
+        out.write_bytes(to_pdf(doc))
     elif args.format == "oxs":
         out.write_text(to_oxs(doc), encoding="utf-8")
     else:
         out.write_text(to_csv(doc), encoding="utf-8")
     print(f"wrote {out}")
+    return 0
+
+
+def _parse_cells(s: str | None) -> tuple[int, int] | None:
+    if s is None:
+        return None
+    m = re.fullmatch(r"(\d+)x(\d+)", s)
+    if not m:
+        raise ValueError(f"--cells wants WxH such as 72x118, not {s!r}")
+    return int(m.group(1)), int(m.group(2))
+
+
+def _parse_box(s: str | None) -> tuple[float, float, float, float] | None:
+    if s is None:
+        return None
+    parts = s.split(",")
+    if len(parts) != 4:
+        raise ValueError(f"--box wants x0,y0,x1,y1 as page fractions, not {s!r}")
+    box = tuple(float(v) for v in parts)
+    if not all(0 <= v <= 1 for v in box) or box[0] >= box[2] or box[1] >= box[3]:
+        raise ValueError(f"--box fractions must be 0..1 with x0<x1 and y0<y1, not {s!r}")
+    return box
+
+
+def cmd_import(args) -> int:
+    src = Path(args.file)
+    if not src.exists():
+        print(f"no such file: {src}", file=sys.stderr)
+        return 2
+    into = Path(args.into)
+    if into.parent == Path(".") and not into.exists():
+        into = find_repo_root() / "patterns" / args.into
+    root = find_repo_root()
+    prose = args.prose
+    staged = stage_dir(root, src) / "prose.json"
+    if prose is None and staged.exists() and not args.grid_only:
+        prose = staged
+    try:
+        cells, box = _parse_cells(args.cells), _parse_box(args.box)
+        mode = "pixels" if args.pixels else "raster" if args.raster else "auto"
+        result = import_file(
+            src,
+            palette_toml=args.palette,
+            cells=cells,
+            mode=mode,
+            page=args.page,
+            region=args.region,
+            box=box,
+            prose=prose,
+            rows_source=args.rows,
+        )
+        needs_prose = (
+            prose is None and not args.grid_only and args.rows != "grid" and result.kind in ("pdf", "raster")
+        )
+        if needs_prose:
+            folder = stage_request(src, result, into, root)
+            for line in result.regions:
+                print(line)
+            print(
+                f"read {result.width}x{result.height} cells, {len(result.palette)} colour(s) from {src.name}; "
+                f"the prose is not read yet.\nwaiting for {folder / 'prose.json'}: open {folder / 'request.md'} "
+                "with the graphghan skill, then run this command again (or pass --grid-only)."
+            )
+            return 0
+    except (ValueError, FileNotFoundError) as e:
+        print(f"import failed: {e}", file=sys.stderr)
+        return 1
+    for line in result.regions:
+        print(line)
+    for line in result.warnings:
+        print(f"warning: {line}")
+    print(f"read {result.width}x{result.height} cells, {len(result.palette)} colour(s) from {src.name}")
+    if args.dry_run:
+        return 0
+    try:
+        folder = write_pattern(result, into, title=args.title, force=args.force)
+    except (ValueError, FileExistsError) as e:
+        print(f"import failed: {e}", file=sys.stderr)
+        return 1
+    ok, output = check_folder(folder, find_repo_root())
+    if not ok:
+        print(output, file=sys.stderr)
+        print(f"{folder} did not pass its own checks; see above", file=sys.stderr)
+        if not args.force:
+            remove_folder(folder)
+            print("removed the folder; pass --force to keep a failing import", file=sys.stderr)
+        return 1
+    print(f"wrote {folder}; see {folder / 'import-report.md'}")
     return 0
 
 
@@ -309,15 +401,54 @@ def build_parser():
     o.set_defaults(fn=cmd_options)
 
     e = sub.add_parser(
-        "export", help="export a committed chart as a 1-px PNG, OXS (cross stitch), or CSV grid"
+        "export",
+        help="export a committed chart as a 1-px PNG, OXS (cross stitch), CSV grid, or printable PDF",
     )
     e.add_argument("pattern", help="pattern slug (looked up under patterns/) or a path to a pattern folder")
-    e.add_argument("--format", required=True, choices=["png", "oxs", "csv"], help="output format")
+    e.add_argument("--format", required=True, choices=["png", "oxs", "csv", "pdf"], help="output format")
     e.add_argument(
         "--chart", help="published chart key such as final-hdc (default: the pattern's default chart)"
     )
     e.add_argument("--out", help="output file (default: <pattern>/build/exports/<key>.<format>)")
     e.set_defaults(fn=cmd_export)
+
+    i = sub.add_parser(
+        "import",
+        help="turn a chart PDF, a picture of a chart, a 1-px PNG, an OXS file, or a CSV into a pattern folder",
+    )
+    i.add_argument("file", help="the file to import (.pdf, .png/.jpg, .oxs, .csv)")
+    i.add_argument(
+        "--into", required=True, help="pattern slug (written under patterns/) or a path to a folder"
+    )
+    i.add_argument("--title", help="pattern title (default: from the file, else the slug)")
+    i.add_argument(
+        "--palette", help="a pattern.toml whose [[colors]] the cells are snapped to (CSV needs it)"
+    )
+    i.add_argument("--cells", help="the chart's size as WxH, checked against the grid lines found")
+    i.add_argument("--pixels", action="store_true", help="read an image as one pixel per cell")
+    i.add_argument("--raster", action="store_true", help="read an image as a picture of a chart")
+    i.add_argument("--page", type=int, help="PDF page (1-based) to read the chart from")
+    i.add_argument(
+        "--region", type=int, help="which grid on the page (1-based, as listed) when there are several"
+    )
+    i.add_argument("--box", help="x0,y0,x1,y1 page fractions to look inside for the grid")
+    i.add_argument(
+        "--prose", help="a prose.json written by the graphghan skill (default: the staged one, if any)"
+    )
+    i.add_argument(
+        "--rows",
+        choices=["auto", "written", "grid"],
+        default="auto",
+        help="the chart's source: the written rows when present (auto), always the written rows, or the grid",
+    )
+    i.add_argument(
+        "--grid-only", action="store_true", help="skip the prose: write the folder with placeholders"
+    )
+    i.add_argument(
+        "--force", action="store_true", help="write into an existing folder, and keep a failing import"
+    )
+    i.add_argument("--dry-run", action="store_true", help="read and report, write nothing")
+    i.set_defaults(fn=cmd_import)
 
     k = sub.add_parser("catalog", help="render thumbnail PNGs for every motif in the catalog")
     k.add_argument("--out", help="output directory for thumbnails (default: .claude/skills/graphghan/assets)")

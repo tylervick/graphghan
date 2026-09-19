@@ -62,6 +62,19 @@ def render_published(pattern_dir: str | Path, meta, design) -> list[dict]:
     return docs
 
 
+def committed_charts(root: str | Path) -> list[tuple[str, str, Path]]:
+    """Every committed chart.json under patterns/*/dist/charts/<key>/, as (slug, key, path)."""
+    out = []
+    for d in sorted((Path(root) / "patterns").iterdir()):
+        charts = d / "dist" / "charts"
+        if not (d / "pattern.toml").exists() or not charts.is_dir():
+            continue
+        for sub in sorted(p for p in charts.iterdir() if p.is_dir()):
+            if (sub / "chart.json").exists():
+                out.append((d.name, sub.name, sub / "chart.json"))
+    return out
+
+
 def drift_message(committed: dict, fresh: dict) -> str | None:
     # `generator` records the package version, which moves on its own: a release bump is not drift.
     committed = {k: v for k, v in committed.items() if k != "generator"}

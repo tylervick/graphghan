@@ -175,3 +175,9 @@ def test_export_formats_and_default_paths(tmp_path, monkeypatch):
     default = ROOT / "patterns" / "craigh-na-dun" / "build" / "exports" / "final-sc.csv"
     assert default.exists()
     default.unlink()
+
+
+def test_export_pdf_writes_a_printable_pattern(tmp_path):
+    out = tmp_path / "craigh.pdf"
+    assert main(["export", "craigh-na-dun", "--format", "pdf", "--out", str(out)]) == 0
+    assert out.read_bytes()[:5] == b"%PDF-"

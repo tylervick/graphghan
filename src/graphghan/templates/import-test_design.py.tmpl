@@ -1,0 +1,41 @@
+"""Checks for an imported chart: the grid is the one that was imported, its rows and palette are
+sound, and the published document validates. The bordered-blanket checks in validate.run_all
+(solid edge, mirrors) do not apply to a chart made elsewhere (#114)."""
+
+import hashlib
+from pathlib import Path
+
+import pytest
+
+from graphghan import validate
+from graphghan.chartdoc import validate_document
+from graphghan.export import chart_json, rows_to_strings
+from graphghan.pattern import load_design, load_pattern
+
+HERE = Path(__file__).resolve().parent.parent
+ROWS_SHA256 = "{sha}"
+
+
+@pytest.fixture(scope="module")
+def chart():
+    meta = load_pattern(HERE)
+    g, report = load_design(HERE).build(meta.stitch, "final")
+    return g.a, report, meta
+
+
+def test_chart_is_the_imported_one(chart):
+    a, _, meta = chart
+    rows = rows_to_strings(a, meta.palette.codes)
+    assert hashlib.sha256("\n".join(rows).encode()).hexdigest() == ROWS_SHA256
+
+
+def test_rows_and_palette_are_sound(chart):
+    a, _, meta = chart
+    checks = {{name: (ok, detail) for name, ok, detail in validate.run_all(a, meta)}}
+    for name in ("row totals", "palette codes", "palette closure"):
+        assert checks[name][0], (name, checks[name][1])
+
+
+def test_document_validates(chart):
+    a, report, meta = chart
+    assert validate_document(chart_json(a, meta, meta.stitch, report)) == []

@@ -75,7 +75,8 @@ def chart_png(a, rgb, path):
     img.convert("RGB").save(path)
 
 
-def preview_png(a, rgb, path, cw=8, ch=None, grid=False, bold_every=10):
+def preview_image(a, rgb, cw=8, ch=None, grid=False, bold_every=10) -> Image.Image:
+    """The preview as a PIL image: `cw` px per column and, by default, the fabric proportion per row."""
     h, w = a.shape
     if ch is None:
         ch = max(1, int(round(cw * gr.SH / gr.SW)))
@@ -90,7 +91,11 @@ def preview_png(a, rgb, path, cw=8, ch=None, grid=False, bold_every=10):
             d.line(
                 [(0, y * ch), (w * cw, y * ch)], fill=(0, 0, 0) if y % bold_every == 0 else (120, 120, 120)
             )
-    img.save(path)
+    return img
+
+
+def preview_png(a, rgb, path, cw=8, ch=None, grid=False, bold_every=10):
+    preview_image(a, rgb, cw, ch, grid, bold_every).save(path)
 
 
 def stats(a, codes, kind="stitch", sized=True):

@@ -1,0 +1,21 @@
+"""{title}: an imported chart. chart.png holds one pixel per cell in the palette of pattern.toml."""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+from graphghan import Grid, palette
+from graphghan import grid as gr
+from graphghan.importers import load_chart_png
+
+PAL = palette.load(__file__)
+
+VARIANTS = {{"final": {{}}}}
+
+
+def build(gauge_key: str = "sc", variant: str = "final"):
+    gr.set_gauge(gauge_key)
+    a = load_chart_png(Path(__file__).with_name("chart.png"), PAL)
+    g = Grid(a.shape[1], a.shape[0])
+    g.a[:] = a
+    return g, {{"panel": (0, 0, g.w, g.h), "text": []}}

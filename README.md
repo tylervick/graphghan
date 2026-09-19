@@ -48,7 +48,8 @@ uv run graphghan new <slug> --title "<Title>"    # scaffold patterns/<slug>/
 uv run graphghan options <slug>                  # compare variants/gauges, writes an HTML page
 uv run graphghan render <slug>                   # publish every [publish] chart to dist/
 uv run graphghan check <slug>                    # generic invariants + the pattern's own tests
-uv run graphghan export <slug> --format oxs        # also png (1 px/stitch) and csv; --chart final-hdc picks a chart
+uv run graphghan export <slug> --format oxs        # also png (1 px/stitch), csv, and pdf (printable); --chart final-hdc picks a chart
+uv run graphghan import <file> --into <slug>       # a chart PDF, a picture of a chart, a 1-px PNG, OXS, or CSV into patterns/<slug>/
 uv run graphghan site serve                      # build and serve the pattern feed at :8765
 ```
 
@@ -73,7 +74,15 @@ Charts are JSON documents in the graphghan chart format (schema 2): a palette, r
 a gauge, and a `technique` that defines working order, with a content-hash id. The format is
 documented in `docs/chart-format.md`, has JSON Schemas under `schema/`, and ships conformance
 fixtures under `fixtures/chart-format/` that any reader (the iOS app, yours) can test
-against. `graphghan export` writes 1-px PNG, OXS, and CSV.
+against. `graphghan export` writes 1-px PNG, OXS, CSV, and a printable PDF laid out like a sold pattern
+(cover, key, tiled chart, written rows); `fixtures/import/` holds one such PDF per published chart.
+`graphghan import` goes the other way: it finds the grid on a chart page or a picture of a chart,
+samples the cells, clusters the colours, and writes a pattern folder that renders and checks; every
+fixture PDF round-trips with zero drift, both through the grid and through the written rows. The
+prose half (the colour key, gauge, sizes, and the written rows, which are the primary source when a
+pattern has them) is read by the Claude skill into a `prose.json` (`schema/import-prose.schema.json`)
+that the second run of `import` consumes; see `.claude/skills/graphghan/references/import.md`. A
+pattern folder made from someone else's PDF is local by design and never committed.
 
 ## iOS app
 

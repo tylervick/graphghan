@@ -1,0 +1,105 @@
+# One [[fixture]] per real file. `rows_sha256 = ""` means dimensions only, not yet eyeballed.
+# The four hashes below were pinned after Tyler compared each import against its PDF on 2026-09-19.
+# `kwargs` are the import_file keyword arguments that pick the chart.
+
+[[fixture]]
+id = "ys-bernat-corner-to-corner-crochet-cactus-blanket"
+source = "https://www.yarnspirations.com/products/bernat-corner-to-corner-crochet-cactus-blanket"
+file = "ys-bernat-corner-to-corner-crochet-cactus-blanket.pdf"
+kwargs = {}
+width = 28
+height = 28
+colors = 2
+rows_sha256 = "19bcddc644ddf5a991d93fff01e90b28138a71542cc134868412b3454aba66c7"
+
+[[fixture]]
+id = "mdc-c2c-santa-blanket"
+source = "https://makeanddocrew.com/c2c-crochet-santa-blanket-pattern/"
+file = "mdc-c2c-santa-blanket.pdf"
+kwargs = {}
+width = 56
+height = 56
+colors = 8
+rows_sha256 = "9447f03d86f6f7df4b2a2c4cda80271180d9d088ff40d65306bfd8760478af2b"
+
+[[fixture]]
+id = "onhand-en-orcacrossbodybagpdfpattern-front"
+source = "local"
+file = "EN_OrcaCrossbodyBagPDFPattern.pdf"
+kwargs = { page = 9, region = 1 }
+width = 29
+height = 77
+colors = 4
+rows_sha256 = "6acc8b81c9f2196a0193425490b38b7c7505ccc63e19830926bf9616d615c89b"
+
+[[fixture]]
+id = "onhand-en-orcacrossbodybagpdfpattern-back"
+source = "local"
+file = "EN_OrcaCrossbodyBagPDFPattern.pdf"
+kwargs = { page = 9, region = 2 }
+width = 29
+height = 77
+colors = 4
+rows_sha256 = "cc51137e04d63393335c69d6dbcdb63b2a23399b31d765a5865b86be7f644c51"
+
+[[fixture]]
+id = "ys-caron-argyle-c2c-crochet-baby-blanket"
+source = "https://www.yarnspirations.com/products/caron-argyle-c2c-crochet-baby-blanket"
+file = "ys-caron-argyle-c2c-crochet-baby-blanket.pdf"
+kwargs = {}
+unsupported = "the chart is a diamond rotated 45 degrees with hatched symbol fills; the reader finds no grid"
+
+# ---- the prose half (PR 3): written rows read by the skill into a gitignored <id>.prose.json ----
+# The heart and the dedup Spotted Horse hashes are pinned because the written rows and the picture agree on
+# every cell the picture shows; the rows are the chart there.
+
+[[fixture]]
+id = "tr-tapestry-heart"
+source = "https://blog.treasurie.com/tapestry-crochet-easy-for-beginners-with-free-pattern/"
+file = "tr-tapestry-heart.jpg"
+prose = "tr-tapestry-heart.prose.json"
+kwargs = {}
+width = 17
+height = 15
+colors = 2
+cross_check = "15 written rows, 0 disagree with the chart"
+rows_sha256 = "729f02f37cb11ab72dd91f84bcc85946b140444aa1b64a60ea2677083511935e"
+
+[[fixture]]
+id = "shd-tapestry-blanket"
+source = "https://spottedhorsedesignco.com/easy-tapestry-crochet-blanket-pattern/"
+file = "shd-tapestry-rows-1-10.png"
+prose = "shd-tapestry-blanket.prose.json"
+kwargs = { cells = [104, 10] }
+expect_error = "row 21 printed twice"
+
+[[fixture]]
+id = "onhand-en-orcacrossbodybagpdfpattern-front-written"
+source = "local"
+file = "EN_OrcaCrossbodyBagPDFPattern.pdf"
+prose = "onhand-en-orcacrossbodybagpdfpattern-front.prose.json"
+kwargs = { page = 9, region = 1 }
+expect_error = "row 1: runs sum to 9, chart width is 29"
+
+[[fixture]]
+id = "onhand-en-orcacrossbodybagpdfpattern-front-grid"
+source = "local"
+file = "EN_OrcaCrossbodyBagPDFPattern.pdf"
+prose = "onhand-en-orcacrossbodybagpdfpattern-front.prose.json"
+kwargs = { page = 9, region = 1, rows_source = "grid" }
+width = 29
+height = 77
+colors = 4
+rows_sha256 = "6acc8b81c9f2196a0193425490b38b7c7505ccc63e19830926bf9616d615c89b"
+
+[[fixture]]
+id = "shd-tapestry-blanket-dedup"
+source = "https://spottedhorsedesignco.com/easy-tapestry-crochet-blanket-pattern/"
+file = "shd-tapestry-rows-1-10.png"
+prose = "shd-tapestry-blanket-dedup.prose.json"
+kwargs = {}
+width = 104
+height = 97
+colors = 5
+cross_check = "97 written rows, 0 disagree with the chart (the picture shows 10 of the 97 rows)"
+rows_sha256 = "5362fc2645ea22fdc836ec5fd28d0197d655c6470d97a12a727ece7fc142afa7"

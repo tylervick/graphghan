@@ -42,6 +42,7 @@ validated row by row, delivered as an offline viewer page and a Stitch Fiddle im
 | `graphghan options <slug> [--gauges sc,hdc]` | comparison page for the pick |
 | `graphghan render <slug> [--gauge] [--variant] [--check]` | write or verify `dist/` |
 | `graphghan check <slug>` | invariants + the pattern's tests |
+| `graphghan import <file> --into <slug> [--palette toml] [--page N --region K] [--dry-run]` | a chart PDF, a picture of a chart, a 1-px PNG, OXS, or CSV into a pattern folder; lists every grid it finds |
 | `graphghan catalog` | refresh motif thumbnails in this skill's `assets/` |
 | `graphghan site build\|serve` | the published pattern feed |
 
@@ -57,16 +58,26 @@ validated row by row, delivered as an offline viewer page and a Stitch Fiddle im
   after `render`) and explained (border, lettering, or motif).
 - [ ] One sentence per option on what it is, not how it was made.
 
+## Importing a pattern someone else wrote (details: references/import.md)
+1. `uv run graphghan import <file.pdf|jpg|png> --into <slug>`: code reads the grid and stops, staging
+   the pages and a request under `build/import/<stem>/`.
+2. Read the pages it names and write `build/import/<stem>/prose.json` (schema `graphghan-import/1`):
+   the colour key, gauge, hook, sizes, title, and every written row with its runs in working order,
+   exactly as printed. Never fix a row that does not add up.
+3. Run the same command again; read `patterns/<slug>/import-report.md`. A row-total failure names
+   the row and page: look at the page, do not change the number. Nothing from someone else's pattern
+   is committed.
+
 ## References
-- references/workflow.md · references/design-rules.md · references/motifs.md · references/crochet.md · references/stitchfiddle.md
+- references/workflow.md · references/design-rules.md · references/motifs.md · references/crochet.md · references/stitchfiddle.md · references/import.md
 
 ## Publishing and export
 
 - `[publish] charts = [["final", "sc"], ["final", "hdc"]]` in `pattern.toml` declares which
   variant/gauge combinations `graphghan render <slug>` writes to `dist/charts/<variant>-<gauge>/`;
   the first is the default and is also copied to `dist/`. `render --check` (run in CI) covers all.
-- `graphghan export <slug> --format png|oxs|csv [--chart final-hdc]` writes interchange files under
-  `patterns/<slug>/build/exports/`.
+- `graphghan export <slug> --format png|oxs|csv|pdf [--chart final-hdc]` writes interchange files under
+  `patterns/<slug>/build/exports/`; `pdf` is the printable pattern (cover, key, tiled chart, written rows).
 - The chart JSON is schema 2 (`docs/chart-format.md`): `pattern.*`, `chart.*` (with a content-hash
   id), `gauge`, `technique`, `instructions`. Stats are under `stats` as before.
 - The iOS app (`ios/`) reads the published manifest and charts; anything the site publishes is

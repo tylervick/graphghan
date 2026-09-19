@@ -1,0 +1,427 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://graphghan.milo.cat/schema/import-prose.schema.json",
+  "title": "Graphghan import prose document, graphghan-import/1",
+  "description": "What a reader of a pattern's prose (a model, or graphghan's own-layout reader) hands to `graphghan import`: the colour key, gauge, sizes, titles and the written rows, shaped like the chart document and pattern.toml. Every field but `schema` is optional; absent means 'not in the source', never 'unknown'. Readers ignore unknown keys. See docs/superpowers/specs/2026-09-19-pattern-pdf-import-export-design.md \u00a76.2. Free-text fields carry a maxLength: a document is a few pages of a pattern, and a reader must not have to hold more.",
+  "type": "object",
+  "required": [
+    "schema"
+  ],
+  "properties": {
+    "schema": {
+      "const": "graphghan-import/1"
+    },
+    "pattern": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "author": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "dedication": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "quote": {
+          "type": "string",
+          "maxLength": 1000
+        },
+        "license": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "version": {
+          "type": "string",
+          "maxLength": 50
+        },
+        "craft": {
+          "enum": [
+            "crochet",
+            "knit",
+            "tunisian",
+            "cross-stitch"
+          ]
+        },
+        "terms": {
+          "enum": [
+            "US",
+            "UK"
+          ]
+        },
+        "language": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 16
+        }
+      }
+    },
+    "gauge": {
+      "type": "object",
+      "description": "As printed: N stitches and M rows over a length. `stitch` is the gauge key (sc, hdc, dc); `stitch_name` the words.",
+      "properties": {
+        "stitches": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "rows": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "over": {
+          "type": "object",
+          "required": [
+            "value",
+            "unit"
+          ],
+          "properties": {
+            "value": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "unit": {
+              "enum": [
+                "in",
+                "cm"
+              ]
+            }
+          }
+        },
+        "stitch": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]*$"
+        },
+        "stitch_name": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "hook": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "yarn_weight": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "unit": {
+          "enum": [
+            "stitches",
+            "tiles",
+            "repeats",
+            "rounds"
+          ]
+        },
+        "boundary": {
+          "type": "object",
+          "required": [
+            "kind",
+            "chain"
+          ],
+          "properties": {
+            "kind": {
+              "enum": [
+                "turn",
+                "join",
+                "rejoin",
+                "spiral",
+                "return"
+              ]
+            },
+            "chain": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "counts_as_stitch": {
+              "type": "boolean"
+            },
+            "color": {
+              "enum": [
+                "next",
+                "current"
+              ]
+            }
+          }
+        }
+      }
+    },
+    "finished_size": {
+      "type": "object",
+      "required": [
+        "width",
+        "height",
+        "unit"
+      ],
+      "properties": {
+        "width": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "height": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "unit": {
+          "enum": [
+            "in",
+            "cm"
+          ]
+        }
+      }
+    },
+    "palette": {
+      "type": "array",
+      "description": "In key order. `code` is the letter the pattern uses, or A, B, C... in key order when it uses none; `hex` only when the key prints or shows a colour; `key_label` is the word the written rows use for it.",
+      "items": {
+        "type": "object",
+        "required": [
+          "code"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "pattern": "^[A-Za-z]{1,3}$"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "hex": {
+            "type": "string",
+            "pattern": "^#[0-9a-fA-F]{6}$"
+          },
+          "yarn": {
+            "type": "object",
+            "properties": {
+              "brand": {
+                "type": "string",
+                "maxLength": 200
+              },
+              "line": {
+                "type": "string",
+                "maxLength": 200
+              },
+              "colorway": {
+                "type": "string",
+                "maxLength": 200
+              },
+              "weight": {
+                "type": "string",
+                "maxLength": 200
+              },
+              "lot": {
+                "type": "string",
+                "maxLength": 200
+              },
+              "note": {
+                "type": "string",
+                "maxLength": 200
+              }
+            }
+          },
+          "use": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "key_label": {
+            "type": "string",
+            "maxLength": 200
+          }
+        }
+      },
+      "maxItems": 64
+    },
+    "chart": {
+      "type": "object",
+      "properties": {
+        "pages": {
+          "type": "array",
+          "description": "Where the grid is, for a chart spread over pages: chart columns cols[0]..cols[1] and rows rows[0]..rows[1] (1-based, inclusive) are on `page`, region `region` (1-based, as `import` lists them).",
+          "items": {
+            "type": "object",
+            "required": [
+              "page"
+            ],
+            "properties": {
+              "page": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "region": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "cols": {
+                "type": "array",
+                "items": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "minItems": 2,
+                "maxItems": 2
+              },
+              "rows": {
+                "type": "array",
+                "items": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "minItems": 2,
+                "maxItems": 2
+              }
+            }
+          },
+          "maxItems": 500
+        },
+        "width": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "height": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "cell": {
+          "type": "object",
+          "required": [
+            "kind"
+          ],
+          "properties": {
+            "kind": {
+              "enum": [
+                "stitch",
+                "block",
+                "tile",
+                "motif",
+                "pair"
+              ]
+            }
+          }
+        },
+        "row1": {
+          "enum": [
+            "bottom-right",
+            "bottom-left",
+            "top-left",
+            "top-right"
+          ],
+          "description": "Where row 1, column 1 sits on the printed chart. Default bottom-right: row 1 at the bottom, odd rows read right to left."
+        },
+        "no_stitch": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}$",
+          "description": "A colour on the chart that is background, not a stitch."
+        }
+      }
+    },
+    "written_rows": {
+      "type": "array",
+      "description": "Every written row, in the order printed, runs in working order exactly as the pattern states them.",
+      "items": {
+        "type": "object",
+        "required": [
+          "row",
+          "runs"
+        ],
+        "properties": {
+          "row": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "side": {
+            "enum": [
+              "RS",
+              "WS"
+            ]
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "text": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "runs": {
+            "type": "array",
+            "items": {
+              "type": "array",
+              "prefixItems": [
+                {
+                  "type": "string",
+                  "pattern": "^[A-Za-z]{1,3}$"
+                },
+                {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              ],
+              "minItems": 2,
+              "maxItems": 2
+            },
+            "maxItems": 500
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "The stitch count the pattern prints for the row, when it prints one."
+          }
+        }
+      },
+      "maxItems": 5000
+    },
+    "notes": {
+      "type": "object",
+      "properties": {
+        "setup": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "maxItems": 100
+        },
+        "colors": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "maxItems": 100
+        }
+      }
+    },
+    "instructions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "title",
+          "text"
+        ],
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "text": {
+            "type": "string",
+            "maxLength": 20000
+          }
+        }
+      },
+      "maxItems": 100
+    },
+    "uncertain": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 1000
+      },
+      "description": "What the reader was not sure of, one line each.",
+      "maxItems": 200
+    }
+  }
+}
