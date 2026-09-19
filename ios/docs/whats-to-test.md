@@ -2,11 +2,14 @@
 
 What's new for you in this build:
 
-- Nothing should look different for this blanket. Under the hood, stitch counts, the finished size, and the Sessions numbers now follow new rules for charts where one square is not one stitch (corner-to-corner, filet). Craigh na Dun is one square, one stitch, so every number you see should match build 4 exactly.
-- If any count, size, or percentage changed between build 4 and this build, that is a bug. Please screenshot both and tell Tyler.
+- The Work screen is new. The chart itself now sits under the coloured panel, big enough to read: the row you are on is the tall one, and a purple ring marks the run you are working. Tap the chart, the panel, or the check to mark it done, same as before.
+- Long plain stretches count in tens. The button says +10 instead of a check, the panel says "40 of 117" and where the run ends against the row below, and a small tick under the chart shows where you are. Hold the button to count by 1, 5, 20, or go back to one tap for the whole run.
+- The braid border is one tap per repeat. The panel says which repeat you are on ("3 of 22") and shows the pattern of the repeat. If you would rather tap every colour change, hold the check and choose "One tap per run".
+- Turning the row is its own step: "Ch 1 in Gold, turn", then tap "Turned".
+- To see the whole blanket, tap the row number at the top or pinch the chart; tap again to come back. Hold your finger on a stitch in the chart to jump there. Drag the chart to look ahead; it comes back on your next tap.
 
-Everything from build 4 still applies: the stitch next to the number, the "ch 1 in Gold, turn" line at the end of each row, and the Lock Screen and Dynamic Island saying the same.
+Please tell Tyler: does counting by ten feel right on the long cream stretches, or would you rather it counted differently? On the border, did one tap per repeat feel right, or did you lose your place?
 
-Please tell Tyler: is the "ch 1, turn" line useful or obvious? Would you rather it were somewhere else on the screen?
+Still from the last build: is the "ch 1, turn" step useful or obvious?
 
 One more question, and it decides what we build next: when you are working a row, do you look at the big number on the coloured panel, or at the chart underneath it? Either answer is fine. If it is the chart, we will make the chart bigger and the panel smaller.
