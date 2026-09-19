@@ -25,6 +25,9 @@ final class Project {
     /// Inside a repeat segment a tap is one repetition, not one run (#81). App state, never exported;
     /// the default is what makes this a lightweight migration.
     var tapPerRepetition: Bool = true
+    /// `BandStyle.rawValue`: the band as the fabric lies, or the ribbon that reads one way (#87).
+    /// App state, never exported; the default is what makes this a lightweight migration.
+    var bandStyle: String = BandStyle.default.rawValue
     var lastWorked: Date?
     // The event log is not modelled as an array here on purpose (#79): a to-many relationship
     // made every insert maintain its inverse, so a tap cost time proportional to the project's
@@ -47,6 +50,7 @@ final class Project {
         self.cursorStitch = 0
         self.countStep = CountStep.default.rawValue
         self.tapPerRepetition = true
+        self.bandStyle = BandStyle.default.rawValue
         self.lastWorked = nil
     }
 
@@ -58,6 +62,11 @@ final class Project {
     var step: CountStep {
         get { CountStep(rawValue: countStep) ?? .default }
         set { countStep = newValue.rawValue }
+    }
+
+    var chartStyle: BandStyle {
+        get { BandStyle(rawValue: bandStyle) ?? .default }
+        set { bandStyle = newValue.rawValue }
     }
 
     var isFinished: Bool { finished != nil }

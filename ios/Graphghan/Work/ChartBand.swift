@@ -13,6 +13,8 @@ struct ChartBand: View {
     let cursor: Cursor
     let segmentLabel: String?
     let mode: Mode
+    /// Fabric-true, or the ribbon that reads one way (#87). The whole-chart view is the fabric either way.
+    var style: BandStyle = .fabric
     let onAdvance: () -> Void
     let onJump: (_ run: Int, _ stitch: Int) -> Void
     let onToggleMode: () -> Void
@@ -26,7 +28,7 @@ struct ChartBand: View {
             let pass = sequence.pass(at: cursor.row)
             let layout = pass.flatMap { p in
                 cursor.run <= p.runs.count
-                    ? BandLayout(width: geo.size.width, height: geo.size.height, chart: chart, pass: p, cursor: cursor, segmentLabel: segmentLabel)
+                    ? BandLayout(width: geo.size.width, height: geo.size.height, chart: chart, pass: p, cursor: cursor, segmentLabel: segmentLabel, style: style)
                     : nil
             }
             Canvas(rendersAsynchronously: false) { context, size in
@@ -61,6 +63,7 @@ struct ChartBand: View {
             withAnimation(reduceMotion ? nil : .spring(duration: 0.25)) { drag = 0; dragBase = 0 }
         }
         .onChange(of: mode) { _, _ in drag = 0; dragBase = 0 }
+        .onChange(of: style) { _, _ in drag = 0; dragBase = 0 }
         .accessibilityHidden(true)
     }
 
@@ -96,11 +99,11 @@ struct ChartBand: View {
 
     private func fill(_ code: Int) -> Color { ChartImage.color(chart.palette[code].hex) }
 
-    private func drawRow(gridRow: Int, top: CGFloat, height: CGFloat, opacity: Double, context: inout GraphicsContext, offset: CGFloat) {
+    private func drawRow(gridRow: Int, top: CGFloat, height: CGFloat, opacity: Double, context: inout GraphicsContext, layout: BandLayout, offset: CGFloat) {
         guard gridRow >= 0, gridRow < chart.height else { return }
         let cell = BandLayout.cell
         for run in chart.runsByRow[gridRow] {
-            let rect = CGRect(x: CGFloat(run.x0) * cell - offset, y: top, width: CGFloat(run.count) * cell, height: height)
+            let rect = layout.runRect(x0: run.x0, count: run.count, top: top, height: height).offsetBy(dx: -offset, dy: 0)
             context.fill(Path(rect), with: .color(fill(run.colorIndex).opacity(opacity)))
         }
         // cell hairlines, then the row's bottom hairline
@@ -122,14 +125,14 @@ struct ChartBand: View {
         // rows: the two above faint, the current, then the rows below
         for k in -BandLayout.rowsAbove...layout.rowsBelow {
             let gridRow = y - k * sign
-            drawRow(gridRow: gridRow, top: layout.rowTop(k), height: layout.rowHeight(k), opacity: layout.rowOpacity(k), context: &context, offset: offset)
+            drawRow(gridRow: gridRow, top: layout.rowTop(k), height: layout.rowHeight(k), opacity: layout.rowOpacity(k), context: &context, layout: layout, offset: offset)
         }
         // The current row past the run is faint: cover it with Ground at 70%. Inside the run the
         // ring says what is left (#74): the counted stitches sit outside it at full colour, and
         // nothing is overlaid on the remainder, because on Cream a 70% Ground wash is invisible.
         let top = layout.rowTop(0)
         if let ring = layout.ring, cursor.run < pass.runs.count {
-            let ltr = pass.direction != .rtl
+            let ltr = layout.flowsRight
             let restOfRow = ltr
                 ? CGRect(x: ring.maxX - offset, y: top, width: CGFloat(chart.width) * cell - ring.maxX, height: ring.height)
                 : CGRect(x: -offset, y: top, width: ring.minX, height: ring.height)
@@ -156,13 +159,14 @@ struct ChartBand: View {
             }
         } else if let bx = layout.boundaryX {
             // the whole row is worked: mark its end and point at the next row's first stitch
-            let ltr = pass.direction != .rtl
+            let ltr = layout.flowsRight
             context.fill(Path(CGRect(x: bx - offset - (ltr ? 3 : 0), y: top - 8, width: 3, height: layout.rowHeight(0) + 8)), with: .color(.heather))
             var arc = Path()
             arc.move(to: CGPoint(x: bx - offset, y: top - 8))
             arc.addQuadCurve(to: CGPoint(x: bx - offset + (ltr ? -80 : 80), y: top - 8), control: CGPoint(x: bx - offset + (ltr ? -40 : 40), y: top - 22))
             context.stroke(arc, with: .color(.heather), style: StrokeStyle(lineWidth: 2, dash: [3, 3]))
         }
+        if layout.style == .ribbon { drawFolds(context: &context, layout: layout, offset: offset, size: size) }
         // bracket above the current row
         if let b = layout.bracket {
             var path = Path()
@@ -173,6 +177,32 @@ struct ChartBand: View {
             context.stroke(path, with: .color(.heather), lineWidth: 2)
             let lx = min(max((b.x0 + b.x1) / 2 - offset, 60), size.width - 60)
             context.draw(Text(b.label).font(Font.Heather.caption).foregroundStyle(Color.heather), at: CGPoint(x: lx, y: top - 19))
+        }
+    }
+
+    /// The ribbon's folds (#87): the row reads left to right, so the turn is always at the right
+    /// end, where a dotted arc climbs to the row above, and the previous turn at the left end,
+    /// where one climbs from the row below. Faint, so they read as the ribbon's shape rather than
+    /// a marker; the boundary step still draws its own strong bar and arc at the right end.
+    private func drawFolds(context: inout GraphicsContext, layout: BandLayout, offset: CGFloat, size: CGSize) {
+        let top = layout.rowTop(0)
+        let bottom = top + layout.rowHeight(0)
+        let rightX = CGFloat(chart.width) * BandLayout.cell - offset
+        let leftX = -offset
+        let style = StrokeStyle(lineWidth: 2, dash: [3, 3])
+        if sequence.pass(at: cursor.row + 1) != nil, rightX > -40, rightX < size.width + 40 {
+            var up = Path()
+            up.move(to: CGPoint(x: rightX, y: top + 20))
+            up.addQuadCurve(to: CGPoint(x: rightX, y: top - 20), control: CGPoint(x: rightX + 22, y: top))
+            context.stroke(up, with: .color(.heather.opacity(0.55)), style: style)
+            context.draw(Text("turn").font(Font.Heather.annotation).foregroundStyle(Color.heather.opacity(0.8)),
+                         at: CGPoint(x: min(rightX - 16, size.width - 16), y: layout.rulerTop + 14), anchor: .center)
+        }
+        if cursor.row > 1, leftX > -40, leftX < size.width + 40 {
+            var from = Path()
+            from.move(to: CGPoint(x: leftX, y: layout.rowTop(1) + 20))
+            from.addQuadCurve(to: CGPoint(x: leftX, y: bottom - 20), control: CGPoint(x: leftX - 22, y: bottom + (layout.rowTop(1) - bottom) / 2))
+            context.stroke(from, with: .color(.heather.opacity(0.55)), style: style)
         }
     }
 

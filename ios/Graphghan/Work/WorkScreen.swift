@@ -17,6 +17,9 @@ struct WorkScreen: View {
     let onJumpWithinRow: (_ run: Int, _ stitch: Int) -> Void
     let onSetStep: (CountStep) -> Void
     let onSetPerRepetition: (Bool) -> Void
+    /// Fabric-true band or the ribbon that reads one way (#87); the project's setting.
+    var bandStyle: BandStyle = .default
+    var onSetBandStyle: (BandStyle) -> Void = { _ in }
 
     @State private var mode: ChartBand.Mode = .band
     @State private var showRunList = false
@@ -103,13 +106,14 @@ struct WorkScreen: View {
             .accessibilityAction(named: "Jump within row") { showRunList = true }
             .accessibilityAction(named: "Choose counting step") { onSetStep(step.next) }
             .accessibilityAction(named: perRepetition ? "Switch to one tap per run in repeats" : "Switch to one tap per repetition") { onSetPerRepetition(!perRepetition) }
+            .accessibilityAction(named: "Chart: \(bandStyle.other.title.lowercased())") { onSetBandStyle(bandStyle.other) }
     }
 
     private func band(_ c: WorkPanelContent) -> some View {
         // Finished: the whole chart solid, not the last row with a turn marker on it (spec §5.1).
         // The band is then locked to `.whole`, so its tap -- which returns from the whole chart --
         // has nowhere to go and closes, the same thing every other surface does when finished.
-        ChartBand(chart: chart, sequence: sequence, cursor: cursor, segmentLabel: c.bandLabel, mode: finished ? .whole : mode,
+        ChartBand(chart: chart, sequence: sequence, cursor: cursor, segmentLabel: c.bandLabel, mode: finished ? .whole : mode, style: bandStyle,
                   onAdvance: finished ? onClose : onDone, onJump: onJumpWithinRow,
                   onToggleMode: finished ? onClose : { withAnimation { mode = mode == .band ? .whole : .band } })
             .padding(.horizontal, 12)
@@ -169,6 +173,15 @@ struct WorkScreen: View {
                     // The same menu for the other tap unit (#81): what a tap means in a repeat.
                     Button { onSetPerRepetition(!perRepetition) } label: {
                         if perRepetition { Label("One tap per repetition", systemImage: "checkmark") } else { Text("One tap per repetition") }
+                    }
+                    // Which way the band lays the chart out (#87): the experiment's switch, so it
+                    // has to be reachable mid-row without leaving the screen.
+                    Section("Chart") {
+                        ForEach(BandStyle.allCases, id: \.rawValue) { s in
+                            Button { onSetBandStyle(s) } label: {
+                                if s == bandStyle { Label(s.title, systemImage: "checkmark") } else { Text(s.title) }
+                            }
+                        }
                     }
                 }
             }

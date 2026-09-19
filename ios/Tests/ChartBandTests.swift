@@ -9,8 +9,8 @@ import GraphghanCore
     static let seq = try! WorkSequence(chart: chart)
     static let size = CGSize(width: 366, height: 420)
 
-    private func band(_ cursor: Cursor, label: String? = nil, mode: ChartBand.Mode = .band) -> some View {
-        ChartBand(chart: Self.chart, sequence: Self.seq, cursor: cursor, segmentLabel: label, mode: mode, onAdvance: {}, onJump: { _, _ in }, onToggleMode: {})
+    private func band(_ cursor: Cursor, label: String? = nil, mode: ChartBand.Mode = .band, style: BandStyle = .fabric) -> some View {
+        ChartBand(chart: Self.chart, sequence: Self.seq, cursor: cursor, segmentLabel: label, mode: mode, style: style, onAdvance: {}, onJump: { _, _ in }, onToggleMode: {})
             .background(Color.ground)
     }
 
@@ -31,6 +31,22 @@ import GraphghanCore
     @Test func boundary() throws {
         let runs = Self.seq.pass(at: 42)!.runs.count
         #expect(try Snapshots.assert(band(Cursor(row: 42, run: runs)), named: "band-turn", size: Self.size))
+    }
+    /// #87: the ribbon on right-to-left rows reads left to right, with the fold arcs at either
+    /// end. Row 43 mirrors row 42's braid, fill and turn; row 179 is the repeat.
+    static let fill43 = seq.pass(at: 43)!.runs.firstIndex { $0.count >= 20 }!
+    @Test func ribbonBraid() throws {
+        #expect(try Snapshots.assert(band(Cursor(row: 43, run: 2), label: "border braid", style: .ribbon), named: "ribbon-braid", size: Self.size))
+    }
+    @Test func ribbonFill() throws {
+        #expect(try Snapshots.assert(band(Cursor(row: 43, run: Self.fill43, stitch: 40), style: .ribbon), named: "ribbon-fill", size: Self.size))
+    }
+    @Test func ribbonRepeat() throws {
+        #expect(try Snapshots.assert(band(Cursor(row: 179, run: 8), label: "×22 · 3 of 22", style: .ribbon), named: "ribbon-repeat", size: Self.size))
+    }
+    @Test func ribbonTurn() throws {
+        let runs = Self.seq.pass(at: 43)!.runs.count
+        #expect(try Snapshots.assert(band(Cursor(row: 43, run: runs), style: .ribbon), named: "ribbon-turn", size: Self.size))
     }
     @Test func wholeChart() throws {
         #expect(try Snapshots.assert(band(Cursor(row: 42, run: 8), mode: .whole), named: "band-whole", size: Self.size))
