@@ -149,6 +149,11 @@ final class ProjectService {
         try save()
     }
 
+    func setBandStyle(_ style: BandStyle, for project: Project) throws {
+        project.chartStyle = style
+        try save()
+    }
+
     func markFinished(_ project: Project) throws {
         project.finished = now()
         try save()

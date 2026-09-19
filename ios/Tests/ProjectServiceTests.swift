@@ -302,6 +302,17 @@ import GraphghanCore
         #expect(p.cursor == Cursor(row: 179, run: 6))
     }
 
+    @Test func bandStyleIsAProjectSetting() async throws {
+        let h = try await makeHarness()
+        let manifest = TestManifest.make(chartID: h.chartID)
+        let p = try await h.service.startProject(manifest: manifest, chart: manifest.charts[0], title: "x")
+        #expect(p.chartStyle == .fabric && p.bandStyle == "fabric")
+        try h.service.setBandStyle(.ribbon, for: p)
+        #expect(p.chartStyle == .ribbon && p.bandStyle == "ribbon")
+        p.bandStyle = "nonsense"   // an unknown stored value falls back to the default rather than crashing
+        #expect(p.chartStyle == .fabric)
+    }
+
     @Test func applyCountsAFillWithTheProjectsStepAndRecordsStitch() async throws {
         let h = try await makeHarness()
         let craigh = try TestFixtures.data("craigh-na-dun.chart.json")

@@ -70,7 +70,9 @@ struct WorkView: View {
                    onJump: { showJump = true },
                    onJumpWithinRow: { run, stitch in perform(.jump(row: cursor.row, run: run, stitch: stitch), sequence: sequence) },
                    onSetStep: { step in try? model.projects.setCountStep(step, for: project) },
-                   onSetPerRepetition: { on in try? model.projects.setTapPerRepetition(on, for: project) })
+                   onSetPerRepetition: { on in try? model.projects.setTapPerRepetition(on, for: project) },
+                   bandStyle: project.chartStyle,
+                   onSetBandStyle: { style in try? model.projects.setBandStyle(style, for: project) })
         .overlay(alignment: .top) {
             VStack(spacing: 0) {
                 if let saveError = model.projects.lastError {

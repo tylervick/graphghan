@@ -13,3 +13,5 @@ Please tell Tyler: does counting by ten feel right on the long cream stretches, 
 Still from the last build: is the "ch 1, turn" step useful or obvious?
 
 One more question, and it decides what we build next: when you are working a row, do you look at the big number on the coloured panel, or at the chart underneath it? Either answer is fine. If it is the chart, we will make the chart bigger and the panel smaller.
+
+Also new: the chart under the panel can lay the row out two ways. Long-press the big button at the bottom and look under "Chart": "Follows the fabric" is what you have had, where a right-to-left row scrolls right to left like the blanket in your lap; "Reads one way" turns every row to read left to right, with the turn always at the right end. Please work a row on each. Then, right after a turn on each, say out loud which way the next stitch goes before you look at the blanket, and tell Tyler which setting got it wrong more often, and which one you would keep.

@@ -11,9 +11,10 @@ import GraphghanCore
     static let turn = Cursor(row: 42, run: seq.pass(at: 42)!.runs.count)
     static let end = Cursor(row: seq.passes.count, run: seq.passes.last!.runs.count)
 
-    private func screen(_ cursor: Cursor, step: CountStep = .ten) -> some View {
+    private func screen(_ cursor: Cursor, step: CountStep = .ten, style: BandStyle = .fabric) -> some View {
         WorkScreen(chart: Self.chart, sequence: Self.seq, cursor: cursor, step: step, perRepetition: true,
-                   onDone: {}, onBack: {}, onClose: {}, onJump: {}, onJumpWithinRow: { _, _ in }, onSetStep: { _ in }, onSetPerRepetition: { _ in })
+                   onDone: {}, onBack: {}, onClose: {}, onJump: {}, onJumpWithinRow: { _, _ in }, onSetStep: { _ in }, onSetPerRepetition: { _ in },
+                   bandStyle: style)
     }
 
     @Test func plainRun() throws { #expect(try Snapshots.assert(screen(Cursor(row: 42, run: 8)), named: "work-run", size: Self.phone)) }
@@ -21,6 +22,8 @@ import GraphghanCore
     @Test func repeatBand() throws { #expect(try Snapshots.assert(screen(Cursor(row: 179, run: 8)), named: "work-repeat", size: Self.phone)) }
     @Test func fill() throws { #expect(try Snapshots.assert(screen(Cursor(row: 42, run: 10, stitch: 40)), named: "work-fill", size: Self.phone)) }
     @Test func turn() throws { #expect(try Snapshots.assert(screen(Self.turn), named: "work-turn", size: Self.phone)) }
+    /// #87: the same repeat row with the band reading one way; the panel and bar are untouched.
+    @Test func ribbon() throws { #expect(try Snapshots.assert(screen(Cursor(row: 179, run: 8), style: .ribbon), named: "work-ribbon", size: Self.phone)) }
     @Test func finished() throws { #expect(try Snapshots.assert(screen(Self.end), named: "work-finished", size: Self.phone)) }
 
     /// At the largest accessibility size the count may cap and the landmark pill may drop; nothing clips.
