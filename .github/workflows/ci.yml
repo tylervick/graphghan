@@ -8,8 +8,12 @@ permissions:
 # Blink is a local agent-review tool nobody runs on a runner (see mise.toml), and a
 # vendor CDN has no business standing between a push and a green build: skip its
 # download rather than have a pruned pin fail `mise install` here.
+#
+# The Revyl CLI is pinned in the same file and is a 40 MB download that only one
+# job below has any use for. Disabled here and re-enabled there, rather than the
+# other way round, so a new job never picks it up by accident.
 env:
-  MISE_DISABLE_TOOLS: http:blink
+  MISE_DISABLE_TOOLS: http:blink,github:RevylAI/revyl-cli
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -160,6 +164,163 @@ jobs:
       ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
       ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
       ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+  # Publishes a standalone simulator build to Revyl so a pull request has a real
+  # artifact to launch a cloud device against. `.revyl/config.yaml` sets
+  # pr_review.build.kind: ci_upload_to_revyl, which means Revyl expects the
+  # artifact to arrive from here rather than building the app itself -- this
+  # workflow already has a macOS runner with the right Xcode standing up for the
+  # `ios` job, so a cloud build would be the same compile a second time.
+  #
+  # A separate job rather than more steps on `ios`, for one reason: this must not
+  # be gated on the tests. A build that fails its suite is frequently the exact
+  # build you want on a device to watch it fail. `--no-set-current` below is the
+  # other half of that -- a red build gets published but never becomes the app's
+  # current version for everyone else.
+  revyl-preview:
+    needs: ios-changes
+    # Pull requests only: the whole point is an artifact bound to a review.
+    #
+    # draft, because pr_review.review_triggers.drafts is false, so Revyl would
+    # not review a draft's artifact even if one arrived.
+    #
+    # fork, because a pull request from a fork receives no secrets. This repo is
+    # public, so that is a real case and not a hypothetical; deciding it here
+    # means a fork contributor's pull request does not spend a macOS runner to
+    # reach a step that cannot run.
+    if: >-
+      github.event_name == 'pull_request'
+      && github.event.pull_request.draft == false
+      && github.event.pull_request.head.repo.full_name == github.repository
+      && needs.ios-changes.outputs.run == 'true'
+    runs-on: macos-26
+    # Headroom, not a measurement. The xcodebuild below was measured at 25s with
+    # cold DerivedData on an M-series laptop; the rest of this job is a checkout
+    # and a toolchain install. 30 minutes is here to stop a wedged runner burning
+    # an hour, not because anything approaches it.
+    timeout-minutes: 30
+    env:
+      XCODE_VERSION: "26.2"
+      # Narrower than the workflow-level value: this is the job that wants the
+      # pinned Revyl CLI. Blink stays off.
+      MISE_DISABLE_TOOLS: http:blink
+    steps:
+      # First, and before the checkout: on a run where the secret is missing
+      # every step after this one is wasted, and a macOS runner is the expensive
+      # kind to waste. `secrets` is not available in a job-level `if`, which is
+      # why this is a step rather than part of the condition above.
+      - name: Check for the Revyl API key
+        id: key
+        env:
+          REVYL_API_KEY: ${{ secrets.REVYL_API_KEY }}
+        run: |
+          if [ -z "${REVYL_API_KEY:-}" ]; then
+            echo "have=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::REVYL_API_KEY is not set; skipping the Revyl preview build."
+          else
+            echo "have=true" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.key.outputs.have == 'true'
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with: {persist-credentials: false}
+      # Same pin as the `ios` job, and for the same reason: this artifact should
+      # be built by the Xcode the app is tested and shipped with.
+      # `.revyl/config.yaml` names the matching Revyl build image, so a bump is a
+      # three-line edit across this file and that one.
+      - name: Select Xcode
+        if: steps.key.outputs.have == 'true'
+        env:
+          XCODE_VERSION: ${{ env.XCODE_VERSION }}
+        run: |
+          APP="/Applications/Xcode_${XCODE_VERSION}.app"
+          if [ ! -d "$APP" ]; then
+            echo "::error::$APP not found on this runner image. Installed:"; ls -d /Applications/Xcode*.app; exit 1
+          fi
+          sudo xcode-select -s "$APP"
+          xcodebuild -version
+      - if: steps.key.outputs.have == 'true'
+        uses: jdx/mise-action@c37c93293d6b742fc901e1406b8f764f6fb19dac # v2.4.4
+        with: {cache: true}
+      # Graphghan.xcodeproj is generated and gitignored, so it is not in the
+      # checkout; xcodegen comes from ios/mise.toml, which the action above does
+      # not reach (it has no working_directory input).
+      - name: Generate the project
+        if: steps.key.outputs.have == 'true'
+        working-directory: ios
+        run: mise install -q && mise run generate
+      # Not the `ios` job's product, and not reusable as one: that job builds
+      # with ENABLE_DEBUG_DYLIB at its default, so its bundle carries
+      # Graphghan.debug.dylib and __preview.dylib -- the Xcode debug-dylib
+      # layout, which is not a thing to install on a device under test.
+      #
+      # CODE_SIGNING_ALLOWED=NO because Debug uses automatic signing
+      # (ios/project.yml) and no runner is signed in; a simulator build needs no
+      # signature. No ARCHS override: nothing here links a prebuilt xcframework,
+      # so the generic destination builds both simulator slices and the artifact
+      # installs on either kind of simulator.
+      #
+      # Fatal rather than continue-on-error, unlike the upload below: the only
+      # thing that can fail here is the compile, and a compile that only breaks
+      # under ENABLE_DEBUG_DYLIB=NO is invisible to every other job.
+      - name: Build the app (standalone simulator bundle)
+        if: steps.key.outputs.have == 'true'
+        run: |
+          xcodebuild -project ios/Graphghan.xcodeproj -scheme Graphghan \
+            -configuration Debug -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath ios/build/RevylDerivedData \
+            ENABLE_DEBUG_DYLIB=NO CODE_SIGNING_ALLOWED=NO \
+            build | tail -n 40
+          test "${PIPESTATUS[0]}" -eq 0
+      # Paired with pr_review.strict_ci_check.build: false in
+      # .revyl/config.yaml. Neither is a permanent setting -- they both say
+      # "this path has never run on a real pull request" -- and they should be
+      # flipped together once it has. Until then a Revyl-side outage must not be
+      # able to fail this job. Both are #126.
+      - name: Publish the build to Revyl
+        if: steps.key.outputs.have == 'true'
+        continue-on-error: true
+        env:
+          REVYL_API_KEY: ${{ secrets.REVYL_API_KEY }}
+          # Interpolated into env rather than into the script below, which is
+          # what zizmor's template-injection audit asks for and what the rest of
+          # this workflow already does.
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          # The PULL REQUEST HEAD sha. github.sha on a pull_request event is the
+          # ephemeral merge commit, which exists on no branch and is not what
+          # Revyl matches a review against.
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          REPO: ${{ github.repository }}
+          # Same id as build.profiles.development.ios.app_id and
+          # pr_review.build.app_ids.ios in .revyl/config.yaml.
+          APP_ID: "967d62a9-5f96-4a09-af6e-2204601be5ac"
+        run: |
+          # The pinned CLI, not `curl https://revyl.com/install.sh | sh`: that
+          # installer resolves "latest" at run time, so an unpinned CI would
+          # change build under the job without a commit. mise.toml owns the
+          # version; `mise x --` is how this job reaches it.
+          mise x -- revyl --version
+
+          ditto -c -k --keepParent \
+            ios/build/RevylDerivedData/Build/Products/Debug-iphonesimulator/Graphghan.app \
+            ios/build/Graphghan.app.zip
+
+          # Without --version the CLI names the build after the clock
+          # ("20260919-010233"), which identifies nothing in a list; the PR
+          # number and head sha are what someone reading the dashboard wants.
+          #
+          # --no-set-current is what makes running this ungated safe -- see the
+          # note on the job above.
+          mise x -- revyl build upload \
+            --file ios/build/Graphghan.app.zip \
+            --platform ios \
+            --version "pr${PR_NUMBER}-$(printf '%s' "$HEAD_SHA" | cut -c1-7)" \
+            --app "$APP_ID" \
+            --repo "$REPO" \
+            --commit "$HEAD_SHA" \
+            --pr "$PR_NUMBER" \
+            --no-set-current \
+            --yes --json
+
   deploy:
     if: github.ref == 'refs/heads/main'
     needs: test
