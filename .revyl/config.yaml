@@ -224,8 +224,29 @@ pr_review:
     workflow_ids:
       - "d41a3775-df32-422f-aae4-03f817535b37"
     strict_ci_check:
-        # false until the upload step has proven itself on a real pull request.
-        # true makes a missing or failed upload block the merge, and that is not
-        # a promise to make on a path that has never run. Flip it together with
-        # `continue-on-error` on the upload step in ci.yml: #126.
-        build: false
+        # true since #129, the pull request that first ran this path for real.
+        # What it buys: if the artifact never arrives, the merge is blocked,
+        # rather than the review quietly running against a stale build or none
+        # at all. That silence is the reason to flip it -- a green check over a
+        # review that reviewed nothing is worse than a red one, because nothing
+        # anywhere says so.
+        #
+        # The evidence, so a later reader can judge whether it was enough:
+        # #129's revyl-preview ran all six steps, the artifact validated as an
+        # ios_simulator_app, and it registered against the right head SHA and
+        # pull request number (scm_head_sha 81b26d3, pr_number 129). Note that
+        # `revyl build list`'s COMMIT column shows the runner's merge commit
+        # instead -- that is build provenance, not the association, and it reads
+        # alarmingly if taken for one. Both tests in .revyl/tests/ then ran
+        # green against that exact artifact, 7/7 and 11/11.
+        #
+        # #126 originally asked for two or three merged pull requests and this
+        # is one. That bar was written before anything had run at all; what
+        # replaced it is a longer chain -- upload, validation, association, two
+        # passing tests consuming the artifact -- rather than a second
+        # repetition of the same single fact.
+        #
+        # Paired with the upload step in ci.yml having no `continue-on-error`.
+        # If a Revyl-side outage ever makes this intolerable, restoring both is
+        # a two-line revert.
+        build: true

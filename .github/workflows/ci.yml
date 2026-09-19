@@ -258,9 +258,9 @@ jobs:
       # so the generic destination builds both simulator slices and the artifact
       # installs on either kind of simulator.
       #
-      # Fatal rather than continue-on-error, unlike the upload below: the only
-      # thing that can fail here is the compile, and a compile that only breaks
-      # under ENABLE_DEBUG_DYLIB=NO is invisible to every other job.
+      # Fatal, as the upload below now is too: the only thing that can fail
+      # here is the compile, and a compile that breaks only under
+      # ENABLE_DEBUG_DYLIB=NO is invisible to every other job in this workflow.
       - name: Build the app (standalone simulator bundle)
         if: steps.key.outputs.have == 'true'
         run: |
@@ -271,14 +271,16 @@ jobs:
             ENABLE_DEBUG_DYLIB=NO CODE_SIGNING_ALLOWED=NO \
             build | tail -n 40
           test "${PIPESTATUS[0]}" -eq 0
-      # Paired with pr_review.strict_ci_check.build: false in
-      # .revyl/config.yaml. Neither is a permanent setting -- they both say
-      # "this path has never run on a real pull request" -- and they should be
-      # flipped together once it has. Until then a Revyl-side outage must not be
-      # able to fail this job. Both are #126.
+      # Fatal, and paired with pr_review.strict_ci_check.build: true in
+      # .revyl/config.yaml. Both were the other way round until #129 ran this
+      # path for real; that config carries the evidence and the two-line revert.
+      #
+      # The failure this now catches is a silent one. A swallowed upload error
+      # leaves the review with a stale artifact or none at all, and shows a
+      # green check over a review that reviewed nothing -- which is worse than
+      # a red one, because nothing says so.
       - name: Publish the build to Revyl
         if: steps.key.outputs.have == 'true'
-        continue-on-error: true
         env:
           REVYL_API_KEY: ${{ secrets.REVYL_API_KEY }}
           # Interpolated into env rather than into the script below, which is
