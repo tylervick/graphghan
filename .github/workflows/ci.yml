@@ -5,6 +5,11 @@ on:
   pull_request:
 permissions:
   contents: read
+# Blink is a local agent-review tool nobody runs on a runner (see mise.toml), and a
+# vendor CDN has no business standing between a push and a green build: skip its
+# download rather than have a pruned pin fail `mise install` here.
+env:
+  MISE_DISABLE_TOOLS: http:blink
 jobs:
   test:
     runs-on: ubuntu-latest

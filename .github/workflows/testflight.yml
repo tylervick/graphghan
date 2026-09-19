@@ -57,7 +57,10 @@ env:
   # contiguous, so a run that fails before its upload leaves no gap and one that fails after it
   # leaves one (docs/release.md says how to tag that by hand).
   BUILD_NUMBER_OFFSET: 0
-
+  # Blink is a local agent-review tool nobody runs on a runner (see mise.toml), and a
+  # vendor CDN has no business standing between a push and a green build: skip its
+  # download rather than have a pruned pin fail `mise install` here.
+  MISE_DISABLE_TOOLS: http:blink
 jobs:
   # Cheap and first: a tester installs the binary, so only a change to what goes into it is worth a
   # macOS runner (about five minutes end to end) and a build in their inbox. Docs, tests and the release scripts under ios/ are

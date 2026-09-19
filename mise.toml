@@ -28,6 +28,45 @@ zizmor = "1.29.0"
 # Only needed when a workflow gains or bumps an action; see `mise run pin-actions`.
 pinact = "4.1.1"
 
+# Blink (https://blink.review) reviews each Claude Code turn's diff and hands the
+# findings back to the agent. Its own install path is
+# `curl -fsSL https://blink.review/install.sh | sh`, which always takes the newest
+# build and drops it in ~/.local/bin -- unpinned, and invisible to everyone else
+# working here. This pins it the way every other tool above is pinned, through
+# mise's `http` backend.
+#
+# Why a raw URL rather than a registry name: Blink ships from the vendor's own
+# CDN. There is no GitHub repository, no release tag, and no mise registry entry,
+# so `ubi:`/`aqua:` have nothing to resolve. The CDN's download URL is
+# content-addressed by the binary's own SHA-256, which turns out to be the
+# stronger pin anyway -- the URL and the checksum are the same fact, so the two
+# cannot drift apart and a tampered or rolled build cannot answer to this name.
+#
+# Three consequences to know about:
+#   * Renovate cannot see this (nothing to query), so bumps are manual. Run
+#     `Scripts/update-blink-pin.sh`; do not hand-edit the values below.
+#   * The vendor prunes superseded content-addressed files, so an old pin
+#     eventually 404s. That failure is loud, at `mise install`, and the fix is the
+#     same bump script.
+#   * CI never runs Blink, and a review tool has no business standing between a
+#     push and a green build, so both workflows set MISE_DISABLE_TOOLS=http:blink
+#     and skip the download entirely. That is also why all four platforms are
+#     pinned rather than just macOS: `mise install` fails outright on a platform
+#     the pin has no URL for, and the Python half of this repo is developed and
+#     CI-tested on Linux.
+# blink-pin:begin -- managed by Scripts/update-blink-pin.sh, do not hand-edit
+[tools."http:blink"]
+version = "0.1.2"
+platforms.macos-arm64.url = "https://blink.review/downloads/cli/blink-darwin-arm64-2656629b96cb79471e4759c82b6b22e31167ad5239135edca5e6ff603d5cfc75.gz"
+platforms.macos-arm64.checksum = "sha256:2656629b96cb79471e4759c82b6b22e31167ad5239135edca5e6ff603d5cfc75"
+platforms.macos-x64.url = "https://blink.review/downloads/cli/blink-darwin-x64-b0d58f861a3dafed5f7d6c34acd711e19014f2ec2fba4da0434e5dff0e7efa2f.gz"
+platforms.macos-x64.checksum = "sha256:b0d58f861a3dafed5f7d6c34acd711e19014f2ec2fba4da0434e5dff0e7efa2f"
+platforms.linux-x64.url = "https://blink.review/downloads/cli/blink-linux-x64-8636962e073a50dddfbeb3498768c2ec473562c749c3f615ff516930f6ae1824.gz"
+platforms.linux-x64.checksum = "sha256:8636962e073a50dddfbeb3498768c2ec473562c749c3f615ff516930f6ae1824"
+platforms.linux-arm64.url = "https://blink.review/downloads/cli/blink-linux-arm64-5121fdbac9caa4110450a814a8e90e10516f354668721eaf0b3701dfaf0a880c.gz"
+platforms.linux-arm64.checksum = "sha256:5121fdbac9caa4110450a814a8e90e10516f354668721eaf0b3701dfaf0a880c"
+# blink-pin:end
+
 [tasks.setup]
 description = "Create .venv from uv.lock and install the git hooks"
 run = """
@@ -57,3 +96,85 @@ description = "Re-pin .github/workflows actions to commit SHAs (run after adding
 # is the fix side of that rule. It hits the GitHub API, which is why it is a
 # task you run deliberately rather than an hk step on every commit.
 run = "pinact run --verify .github/workflows/*.yml"
+
+[tasks.blink-setup]
+description = "Sign in to Blink and install its Claude Code review hooks (once per machine)"
+# Per-developer, not per-checkout: `blink setup` writes to the USER-level
+# ~/.claude/settings.json (or $CLAUDE_CONFIG_DIR), which is not something this
+# repository can carry -- `.claude/` here holds the graphghan skill and nothing
+# machine-specific, and whether to run an agent review hook at all is a choice
+# each contributor makes for themselves. What the repository DOES carry is the
+# pinned CLI above, so everyone who opts in runs the same build.
+#
+# Undo with `blink setup claude-code --remove`, or `blink uninstall` for the
+# token and config too. Neither touches the mise pin.
+run = '''
+if blink auth status >/dev/null 2>&1; then
+  echo "already signed in to Blink"
+else
+  blink auth login
+fi
+blink setup claude-code
+
+# `blink setup` writes a BARE `blink review --hook claude-code` into that
+# user-level settings file -- outside this repository, and outside mise's reach.
+# A mise-managed blink answers that bare name only through the shims directory,
+# so the hook resolves only if the shims directory is on the PATH the hook
+# inherits. mise does not arrange that: both `mise activate` and `mise run`
+# prepend the tool's own install directory instead, which is exactly why `blink`
+# works in this task whether or not the hook will.
+#
+# So the check below asks about $PATH as INHERITED rather than probing with
+# `command -v`: mise adds the install directory to this task's PATH but never the
+# shims directory, so what it describes is the shell environment Claude Code was
+# launched with.
+#
+# It asks mise rather than rebuilding the path from $MISE_DATA_DIR, because
+# MISE_SHIMS_DIR, a `shims_dir` setting and $XDG_DATA_HOME each move that
+# directory. `mise doctor` has already resolved all three, and its
+# `shims_on_path` is exactly this question, answered against the PATH it
+# inherited from this task.
+#
+# Through --json, and parsed rather than grepped: doctor's human output is a
+# report whose labels and tilde-abbreviated paths can be reworded at any
+# release, while the JSON is the interface meant to be read by a program. uv
+# supplies the parser -- it is pinned a few lines up, so it is the one
+# interpreter this task can count on, and --no-project keeps it clear of .venv
+# (which need not exist yet when setup runs).
+#
+# Nothing here inspects an exit status, and the parser catches nothing: every way
+# this can go wrong -- doctor missing, doctor erroring, output that is not JSON,
+# a doctor that no longer reports these two keys -- ends in a traceback on the
+# suppressed stderr and an empty $probe, which is the one condition the branches
+# below test. That is deliberately a wider net than `if mise doctor; then`, which
+# would still call a run that succeeded and printed nothing a success.
+probe="$(mise doctor --json 2>/dev/null | uv run --no-project python -c '
+import json, sys
+doctor = json.load(sys.stdin)
+print(doctor["dirs"]["shims"])
+print("yes" if doctor["shims_on_path"] else "no")
+' 2>/dev/null || true)"
+shims="$(printf '%s\n' "$probe" | sed -n 1p)"
+
+case "$(printf '%s\n' "$probe" | sed -n 2p)" in
+  yes)
+    echo "ok - $shims is on PATH, so the hook will resolve blink"
+    ;;
+  no)
+    echo "ERROR: $shims is not on your PATH." >&2
+    echo "The hook just installed runs a bare 'blink', so it would fail with" >&2
+    echo "'command not found' at the end of every Claude Code turn." >&2
+    echo "Add this to your shell profile, then open a new terminal:" >&2
+    echo "  export PATH=\"$shims:\$PATH\"" >&2
+    exit 1
+    ;;
+  *)
+    # Fail closed: a `mise doctor` that no longer reports this is not evidence
+    # that the hook works.
+    echo "ERROR: could not read shims_on_path out of 'mise doctor --json'." >&2
+    echo "Check by hand that mise's shims directory is on your PATH -- the hook" >&2
+    echo "just installed runs a bare 'blink' and resolves it only through there." >&2
+    exit 1
+    ;;
+esac
+'''

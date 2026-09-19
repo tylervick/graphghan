@@ -98,6 +98,35 @@ ln -sfn "$(pwd)/.claude/skills/graphghan" ~/.claude/skills/graphghan   # run fro
 Then from Claude Code, a brief like "a blanket with this quote and these motifs" drives
 `graphghan new`, `options`, and `render`/`check` to a finished pattern.
 
+## Agent code review (Blink)
+
+[Blink](https://blink.review) reviews each Claude Code turn's diff and feeds the findings back to
+the agent before you see them. It is **optional and per-developer** — nothing in CI depends on it,
+and both workflows skip the download — but the CLI is pinned in `mise.toml` so everyone who opts in
+runs the same build:
+
+```bash
+mise install            # includes the pinned blink
+mise run blink-setup    # sign in, install the hooks, check they will resolve
+```
+
+`blink setup` writes its hooks to your user-level `~/.claude/settings.json`, not into this
+repository; `blink setup claude-code --remove` takes them out again. The hooks invoke a bare
+`blink`, which for a mise-managed tool resolves only through mise's shims directory — `mise run
+blink-setup` verifies that and tells you what to add to your shell profile if it is missing.
+
+Two things to know when reading a review:
+
+- `blink review` diffs against the **local** `main` ref, not `origin/main`. In an Orca worktree
+  local `main` is never checked out and so never advances, and a review whose range is forty
+  commits wide reports real findings about other people's merged work. `git fetch origin main:main`
+  (with the colon) updates both refs; `git diff --name-only main...HEAD` should list only your own
+  files before you trust a finding.
+- Blink is not in the mise registry and has no release tags, so Renovate cannot bump it. Run
+  `Scripts/update-blink-pin.sh` (add `--write` to apply) instead of editing the URLs and checksums
+  by hand — and not `blink update`, which drops an unpinned copy in `~/.local/bin` that then
+  shadows or diverges from the pinned one depending on your `PATH` order.
+
 ## Licensing
 
 - Code (`src/`, `site/`, tooling): MIT — see `LICENSE`.
