@@ -159,6 +159,11 @@ def build(out: Path):
     (out / "schema").mkdir(parents=True, exist_ok=True)
     for s in sorted((ROOT / "schema").glob("*.json")):
         shutil.copy(s, out / "schema" / s.name)
+    # Metamorphous is the lettering face the charts themselves are set in, so the landing page is
+    # set in it too. One file, from the same fonts/ the renderer uses -- not a second copy.
+    (out / "fonts").mkdir(parents=True, exist_ok=True)
+    for name in ("Metamorphous-Regular.ttf", "OFL.txt"):
+        shutil.copy(ROOT / "fonts" / name, out / "fonts" / name)
     index = []
     for d, doc in load_patterns():
         slug = doc["pattern"]["id"]

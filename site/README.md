@@ -15,7 +15,10 @@ Output:
 - `patterns/<slug>/chart.json`, `chart.png`, `preview.png`, `written-rows.txt` — the default chart,
   with the rest under `charts/<variant>-<gauge>/`.
 - `schema/*.json` — served at the `$id` each schema claims.
-- `index.html` — a static landing page, copied from `src/` as-is.
+- `index.html` — the project page, copied from `src/` as-is: what Graphghan is, the app, the
+  featured pattern, and where the format lives. Hand-written, static, no script.
+- `fonts/` — Metamorphous and its OFL text, copied from the repo-root `fonts/` the chart renderer
+  uses, so the page is set in the same face as the charts.
 
 This is a data feed, not an application. The browser viewer that used to live here — the pattern
 pages, the service worker, the offline progress store, and `app/data.js`, a hand-written JavaScript

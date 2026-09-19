@@ -68,6 +68,23 @@ def test_build_publishes_no_application(tmp_path):
     assert not list((out / "patterns").rglob("*.html")), "patterns are JSON, not pages"
 
 
+def test_landing_page_references_resolve(tmp_path):
+    """Every local href/src/url() on the landing page must be a file the build actually wrote.
+
+    The page is hand-written and copied verbatim, so nothing else catches a link to a preview or a
+    font that moved. A broken one is invisible until someone loads the site.
+    """
+    out, _ = build(tmp_path / "dist")
+    page = (out / "index.html").read_text(encoding="utf-8")
+    refs = set(re.findall(r'(?:href|src)="([^"]+)"', page)) | set(re.findall(r"url\('([^']+)'\)", page))
+    local = sorted(r for r in refs if not r.startswith(("http://", "https://", "mailto:", "#", "data:")))
+    assert local, "the page should reference the feed it fronts"
+    missing = [r for r in local if not (out / r).exists()]
+    assert not missing, missing
+    # and the things the page is there to point at
+    assert "patterns/index.json" in local and "patterns/craigh-na-dun/preview.png" in local
+
+
 def _make_fake_pattern(tmp_path, name, doc):
     """Set up a fake patterns/<name>/dist/ directory build() can copy from."""
     pattern_dir = tmp_path / "src-patterns" / name
