@@ -37,6 +37,7 @@ class PatternMeta:
     terms_also: str
     language: str
     stitches: dict[str, dict]
+    checks: dict
     dir: Path
 
 
@@ -53,6 +54,30 @@ def pattern_dir(slug: str, root: Path | None = None) -> Path:
 
 
 GAUGE_UNITS = ("stitches", "tiles", "repeats", "rounds")
+# [checks]: the shape invariants a pattern opts into (#114). Row totals, palette codes and palette
+# closure always run; these describe a bordered, mirrored blanket and a chart made elsewhere
+# (an import) has no reason to pass them.
+CHECK_KEYS = {"solid_edge": int, "first_row_solid": bool, "mirror_lr": int, "mirror_tb": int}
+
+
+def _checks(raw: dict) -> dict:
+    unknown = sorted(set(raw) - set(CHECK_KEYS))
+    if unknown:
+        raise ValueError(f"[checks] has unknown keys {unknown}; allowed: {sorted(CHECK_KEYS)}")
+    out: dict = {}
+    for key, kind in CHECK_KEYS.items():
+        if key not in raw:
+            continue
+        value = raw[key]
+        if kind is bool:
+            if not isinstance(value, bool):
+                raise ValueError(f"[checks].{key} must be true or false")
+        elif isinstance(value, bool) or not isinstance(value, int) or value < 0:
+            raise ValueError(f"[checks].{key} {value!r} must be an integer >= 0")
+        out[key] = value
+    return out
+
+
 STITCH_KEYS = ("boundary", "chain", "counts_as_stitch", "chain_color", "first_stitch_in", "name", "unit")
 
 
@@ -118,6 +143,7 @@ def load_pattern(pattern_dir: str | Path) -> PatternMeta:
     for sec in data.get("instructions", []):
         instructions.append({"title": str(sec["title"]), "text": str(sec["text"])})
     stitches = {str(k): _stitch_entry(str(k), dict(v)) for k, v in data.get("stitch", {}).items()}
+    checks = _checks(dict(data.get("checks", {})))
     for field, allowed in (
         ("terms", ("US", "UK")),
         ("terms_also", ("US", "UK")),
@@ -148,6 +174,7 @@ def load_pattern(pattern_dir: str | Path) -> PatternMeta:
         terms_also=p.get("terms_also", ""),
         language=p.get("language", ""),
         stitches=stitches,
+        checks=checks,
         dir=d,
     )
 

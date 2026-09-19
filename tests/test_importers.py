@@ -282,3 +282,13 @@ def test_staging_writes_boxes_json_for_box_rows(tmp_path, monkeypatch):
     ]
     assert "Rows drawn as coloured boxes" in (staged / "request.md").read_text()
     assert main(["import", str(src), "--into", str(tmp_path / "p"), "--grid-only"]) == 1
+
+
+def test_an_imported_pattern_passes_graphghan_check(tmp_path):
+    """The point of opt-in shape checks (#114): `graphghan check` means the chart is sound, not
+    that it looks like a bordered blanket."""
+    doc = load("two-letter-codes")
+    src = tmp_path / "chart.oxs"
+    src.write_text(exporters.to_oxs(doc), encoding="utf-8")
+    folder = importers.write_pattern(importers.import_file(src), tmp_path / "imported", title="Imported")
+    assert main(["check", str(folder)]) == 0

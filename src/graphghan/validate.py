@@ -52,24 +52,40 @@ def min_run(a):
 
 
 def run_all(a, meta):
-    """Returns [(name, ok, detail)] for the checks every pattern must pass."""
+    """Returns [(name, ok, detail)]: the checks every chart must pass (row totals, palette codes,
+    palette closure), then the shape checks the pattern opted into in its `[checks]` table
+    (solid edge, first row solid, mirrored edges), then two lines that only report."""
     h, w = a.shape
     used = used_indices(a)
     first = meta.palette[meta.first_row_color] if meta.first_row_color in meta.palette else None
     ch = changes_per_row(a)
     codes = meta.palette.codes
+    checks = getattr(meta, "checks", {}) or {}
     results = [
         ("row totals", row_totals_match(a, codes), f"{h} rows of {w}"),
         ("palette codes", palette_codes_valid(codes), f"codes: {', '.join(codes)}"),
         ("palette closure", used <= set(range(len(meta.palette))), f"indices used: {sorted(used)}"),
-        (
-            "solid edge",
-            first is not None and solid_edge(a, first, 1, 1),
-            f"edge color {meta.first_row_color}",
-        ),
-        ("first row solid", first is not None and bool((a[-1] == first).all()), "row 1 is a single color"),
-        ("mirror left/right (outer 2 cols)", mirror_lr(a, 2), ""),
-        ("mirror top/bottom (outer 2 rows)", mirror_tb(a, 2), ""),
+    ]
+    if checks.get("solid_edge"):
+        n = checks["solid_edge"]
+        results.append(
+            (
+                "solid edge",
+                first is not None and solid_edge(a, first, n, n),
+                f"outer {n} cell(s) are {meta.first_row_color}",
+            )
+        )
+    if checks.get("first_row_solid"):
+        results.append(
+            ("first row solid", first is not None and bool((a[-1] == first).all()), "row 1 is a single color")
+        )
+    if checks.get("mirror_lr"):
+        n = checks["mirror_lr"]
+        results.append((f"mirror left/right (outer {n} cols)", mirror_lr(a, n), ""))
+    if checks.get("mirror_tb"):
+        n = checks["mirror_tb"]
+        results.append((f"mirror top/bottom (outer {n} rows)", mirror_tb(a, n), ""))
+    results += [
         ("changes per row", True, f"mean {sum(ch) / len(ch):.1f}, max {max(ch)}"),
         ("min run", True, f"{min_run(a)} stitch(es)"),
     ]

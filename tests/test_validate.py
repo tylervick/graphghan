@@ -34,3 +34,39 @@ def test_run_all_reports():
 def test_palette_codes_valid():
     assert validate.palette_codes_valid(["A", "Gd", "Kbl"])
     assert not validate.palette_codes_valid(["A", "ABCD"])
+
+
+def test_shape_checks_are_opt_in(tmp_path):
+    import shutil
+
+    d = tmp_path / "plain"
+    shutil.copytree(FIX, d)
+    toml = (d / "pattern.toml").read_text()
+    (d / "pattern.toml").write_text(toml[: toml.index("[checks]")])
+    meta = load_pattern(d)
+    assert meta.checks == {}
+    a = framed()
+    a[0, 0] = 1  # break the edge and the mirror: without [checks] nobody minds
+    names = [r[0] for r in validate.run_all(a, meta)]
+    assert "solid edge" not in names and not any(n.startswith("mirror") for n in names)
+    assert all(ok for _, ok, _ in validate.run_all(a, meta))
+    with_checks = load_pattern(FIX)
+    assert with_checks.checks == {"solid_edge": 1, "first_row_solid": True, "mirror_lr": 2, "mirror_tb": 2}
+    failed = [n for n, ok, _ in validate.run_all(a, with_checks) if not ok]
+    assert "solid edge" in failed and "mirror left/right (outer 2 cols)" in failed
+
+
+def test_checks_table_is_validated(tmp_path):
+    import shutil
+
+    import pytest
+
+    d = tmp_path / "bad"
+    shutil.copytree(FIX, d)
+    toml = (d / "pattern.toml").read_text()
+    (d / "pattern.toml").write_text(toml[: toml.index("[checks]")] + "[checks]\nsolid_edge = -1\n")
+    with pytest.raises(ValueError, match=r"\[checks\].solid_edge"):
+        load_pattern(d)
+    (d / "pattern.toml").write_text(toml[: toml.index("[checks]")] + "[checks]\nround = true\n")
+    with pytest.raises(ValueError, match="unknown keys"):
+        load_pattern(d)
