@@ -110,6 +110,22 @@ import GraphghanCore
         h.model.registerIntentHandler()  // leave the shared handler as the other cases expect it
     }
 
+    /// A cancelled intent must not sit on the main actor until the deadline: that is the actor the
+    /// registration it waits for needs.
+    @Test func aCancelledWaitGivesUpAtOnce() async throws {
+        let h = try await make()
+        WorkIntentHandler.shared.perform = nil
+        WorkIntentHandler.shared.performWorking = nil
+        let clock = ContinuousClock()
+        let started = clock.now
+        let waiting = Task { @MainActor in await WorkIntentHandler.shared.awaitRegistration(timeout: .seconds(5)) }
+        waiting.cancel()
+        let registered = await waiting.value
+        #expect(registered == false)
+        #expect(clock.now - started < .seconds(1))
+        h.model.registerIntentHandler()
+    }
+
     @Test func reconcileOnLaunch() async throws {
         let h = try await make()
         let (info, _) = try #require(await h.model.activityState(for: h.project))

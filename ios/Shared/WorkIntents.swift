@@ -40,7 +40,9 @@ final class WorkIntentHandler {
         let clock = ContinuousClock()
         let deadline = clock.now + timeout
         while !isRegistered, clock.now < deadline {
-            try? await Task.sleep(for: .milliseconds(25))
+            // A cancelled task's sleep throws at once; give up rather than spin on the main actor
+            // until the deadline, which would hold up the very registration being waited for.
+            do { try await Task.sleep(for: .milliseconds(25)) } catch { return false }
         }
         return isRegistered
     }

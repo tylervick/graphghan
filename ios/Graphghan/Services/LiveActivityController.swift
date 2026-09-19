@@ -17,9 +17,15 @@ final class LiveActivityController {
     /// One-time pointer at Settings when activities are off or cannot start.
     var settingsHint: String?
     /// The project with an activity on the lock screen right now: the one this controller runs,
-    /// or -- after a background launch, before the scene's reconcile has run -- whichever one the
-    /// system still shows. Spec §3.2 rule 1 reads this; it never starts or adopts anything.
-    var liveProjectID: UUID? { currentProjectID ?? backend.active().first?.info.projectID }
+    /// if the system still shows it (after the 8-hour end it does not, and `currentProjectID`
+    /// alone would name a project nothing is showing), or -- after a background launch, before the
+    /// scene's reconcile has run -- whichever one the system shows. App Intents spec §3.2 rule 1
+    /// reads this; it never starts or adopts anything.
+    var liveProjectID: UUID? {
+        let active = backend.active()
+        if let currentID, let current = active.first(where: { $0.id == currentID }) { return current.info.projectID }
+        return active.first?.info.projectID
+    }
 
     // Serializes every mutating entry point so concurrent calls run one at a time, in arrival
     // order. Without this, one call's `await` (e.g. inside its end-others loop) can suspend

@@ -168,8 +168,9 @@ final class AppModel {
 
     /// A Done or Back said to Siri, or from the Action Button (spec §3): the same mutation path as
     /// the Work screen and the lock-screen button, on the project `workingProjectForIntent` picks.
-    /// Voice never starts a Live Activity -- the Work screen owns that lifecycle -- but a Done said
-    /// while one is up refreshes it, the same as the button.
+    /// Voice never starts a Live Activity for a project that has none -- the Work screen owns that
+    /// lifecycle -- but a Done said while one is up refreshes it, and one said while the Work screen
+    /// is still open restarts an activity the system ended at its 8-hour limit, the same as a tap.
     func performIntent(_ action: WorkAction) async -> WorkIntentOutcome {
         guard let project = try? workingProjectForIntent() else { return .noProject }
         guard let chart = try? await projects.chart(for: project), let sequence = try? WorkSequence(chart: chart) else {

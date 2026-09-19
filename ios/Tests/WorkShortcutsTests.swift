@@ -99,6 +99,39 @@ extension WorkIntentTests {
         #expect(try kinds(h, h.project).isEmpty)
     }
 
+    // MARK: an activity the system ended
+
+    /// After the system's 8-hour end the controller still remembers its project, but that activity
+    /// is not running, so spec §3.2's rule 1 does not apply: rule 2 chooses.
+    @Test func aSystemEndedActivityIsNotRuleOne() async throws {
+        let h = try await make()
+        let other = try await startAnother(h, title: "other")
+        h.project.lastWorked = Date(timeIntervalSince1970: 1_000)
+        other.lastWorked = Date(timeIntervalSince1970: 10_000)
+        let (info, state) = try #require(await h.model.activityState(for: h.project))
+        await h.model.liveActivity.start(projectID: h.project.id, info: info, state: state)
+        h.backend.systemEnded("act1")
+        #expect(h.model.liveActivity.liveProjectID == nil)
+        _ = try await MarkDoneIntent().perform()
+        #expect(try kinds(h, other) == [.advance])
+        #expect(try kinds(h, h.project).isEmpty)
+    }
+
+    /// The Work screen restarts an activity the system ended on the next tap; a Done said while
+    /// that screen is still open does the same through the one `onApply` path. Nothing else
+    /// starts one.
+    @Test func aDoneWithTheWorkScreenOpenRestartsASystemEndedActivity() async throws {
+        let h = try await make()
+        let (info, state) = try #require(await h.model.activityState(for: h.project))
+        await h.model.liveActivity.start(projectID: h.project.id, info: info, state: state)
+        h.backend.systemEnded("act1")
+        h.backend.reset()
+        _ = try await MarkDoneIntent().perform()
+        #expect(try kinds(h, h.project) == [.advance])
+        #expect(h.backend.calls == [.start(h.project.id)])
+        #expect(h.backend.active().count == 1)
+    }
+
     // MARK: spec §3.4, nowhere to go
 
     @Test func backAtTheStartIsNowhereToGo() async throws {
