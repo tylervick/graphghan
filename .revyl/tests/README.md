@@ -58,6 +58,36 @@ A cold launch briefly shows `Loading patterns…` while it re-reads the store an
 re-fetches the feed. Transient, not a failure — `work-progress-persists` waits 3s
 after `open_app` for exactly this.
 
+## "Concurrency limit reached" is usually you
+
+The org plan allows **one** execution at a time. A device session counts, a test
+run counts, and so does the `proof_of_changes` run Revyl starts for a pull
+request. When the slot is taken, `revyl test run` fails immediately with:
+
+```
+Concurrency limit reached for org <id> (1/1)
+```
+
+Two things make that message easy to misread, and both cost real time here once:
+
+- **It does not say whose run holds the slot**, so it reads like someone else's.
+  Retrying in a loop makes it worse rather than better: each attempt that gets
+  through starts a run that holds the slot for the next two to three minutes, so
+  a loop polling every two minutes collides with itself forever while appearing
+  to be blocked from outside.
+- **`revyl test history` lags the run.** A run that has started but not finished
+  can still report "No executions found", which looks like confirmation that the
+  blocker is external. Check again after it would have finished before concluding
+  anything.
+
+So: wait rather than retry, and check `revyl test history <name>` a few minutes
+later before blaming anything. `revyl device stop --all` releases a session you
+opened yourself.
+
+This does not affect CI. Uploading a build consumes no slot, so `revyl-preview`
+never contends; only the review that follows does, and nothing gates a merge on
+it while `pr_review.strict_ci_check.build` is false.
+
 ## Working on them
 
 ```bash
