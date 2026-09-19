@@ -65,8 +65,8 @@ validated row by row, delivered as an offline viewer page and a Stitch Fiddle im
 - `[publish] charts = [["final", "sc"], ["final", "hdc"]]` in `pattern.toml` declares which
   variant/gauge combinations `graphghan render <slug>` writes to `dist/charts/<variant>-<gauge>/`;
   the first is the default and is also copied to `dist/`. `render --check` (run in CI) covers all.
-- `graphghan export <slug> --format png|oxs|csv [--chart final-hdc]` writes interchange files under
-  `patterns/<slug>/build/exports/`.
+- `graphghan export <slug> --format png|oxs|csv|pdf [--chart final-hdc]` writes interchange files under
+  `patterns/<slug>/build/exports/`; `pdf` is the printable pattern (cover, key, tiled chart, written rows).
 - The chart JSON is schema 2 (`docs/chart-format.md`): `pattern.*`, `chart.*` (with a content-hash
   id), `gauge`, `technique`, `instructions`. Stats are under `stats` as before.
 - The iOS app (`ios/`) reads the published manifest and charts; anything the site publishes is

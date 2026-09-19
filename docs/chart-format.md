@@ -277,6 +277,10 @@ references at their relative paths. Defined so tools agree; no tool in this repo
   top-left; `stitchesperinch`/`stitchesperinch_y` come from the gauge. Working order is not
   representable in OXS.
 - **CSV** (`--format csv`): `height` lines of `width` comma-separated codes, top to bottom.
+- **PDF** (`--format pdf`): a printable pattern (cover, key, the chart tiled across pages at 10 pt
+  cells with bold lines every 10, written rows). Real text throughout; the chart page headers, key
+  rows and written rows are in grammars fixed in `graphghan/pdf.py` so the importer can read them
+  back. Byte-reproducible; `fixtures/import/` commits one per published chart.
 
 ## Conformance
 
