@@ -27,15 +27,23 @@ func run() async -> Int32 {
         FileHandle.standardError.write("usage: prosereader <pdf|dir> --model ondevice|cloud [--batch row|page] [--chunk N] [--reuse-session] [--out prose.json]\n".data(using: .utf8)!)
         return 2
     }
+    // A pattern is a few pages of text; anything past these limits is not one, and the model reads
+    // at most a page per prompt anyway.
+    let maxPages = 200
+    let maxCharsPerPage = 200_000
+    let inputPath = (input as NSString).expandingTildeInPath
     let pages: [String]
     var isDir: ObjCBool = false
-    if FileManager.default.fileExists(atPath: input, isDirectory: &isDir), isDir.boolValue {
-        let files = (try? FileManager.default.contentsOfDirectory(atPath: input))?.filter { $0.hasSuffix(".txt") }.sorted() ?? []
-        pages = files.map { (try? String(contentsOfFile: input + "/" + $0, encoding: .utf8)) ?? "" }
-    } else if let pdf = PDFDocument(url: URL(fileURLWithPath: input)) {
-        pages = (0..<pdf.pageCount).map { pdf.page(at: $0)?.string ?? "" }
+    if FileManager.default.fileExists(atPath: inputPath, isDirectory: &isDir), isDir.boolValue {
+        let files = ((try? FileManager.default.contentsOfDirectory(atPath: inputPath)) ?? []).filter { $0.hasSuffix(".txt") }.sorted().prefix(maxPages)
+        pages = files.map { name in
+            let text = (try? String(contentsOfFile: inputPath + "/" + name, encoding: .utf8)) ?? ""
+            return String(text.prefix(maxCharsPerPage))
+        }
+    } else if let pdf = PDFDocument(url: URL(fileURLWithPath: inputPath)) {
+        pages = (0..<min(pdf.pageCount, maxPages)).map { String((pdf.page(at: $0)?.string ?? "").prefix(maxCharsPerPage)) }
     } else {
-        FileHandle.standardError.write("cannot read \(input)\n".data(using: .utf8)!)
+        FileHandle.standardError.write("cannot read \(inputPath)\n".data(using: .utf8)!)
         return 1
     }
     let reader = ProseReader(model: model, options: ReaderOptions(batching: batching, reuseSession: reuse, chunkRuns: chunk))
@@ -48,13 +56,19 @@ func run() async -> Int32 {
     }
     let encoder = JSONEncoder()
     encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-    let data = try! encoder.encode(doc)
-    if let out {
-        try! data.write(to: URL(fileURLWithPath: out))
-        FileHandle.standardError.write("\nwrote \(out): \(doc.written_rows?.count ?? 0) rows\n".data(using: .utf8)!)
-    } else {
-        FileHandle.standardOutput.write(data)
-        FileHandle.standardOutput.write("\n".data(using: .utf8)!)
+    do {
+        let data = try encoder.encode(doc)
+        if let out {
+            let outPath = (out as NSString).expandingTildeInPath
+            try data.write(to: URL(fileURLWithPath: outPath))
+            FileHandle.standardError.write("\nwrote \(outPath): \(doc.written_rows?.count ?? 0) rows\n".data(using: .utf8)!)
+        } else {
+            FileHandle.standardOutput.write(data)
+            FileHandle.standardOutput.write("\n".data(using: .utf8)!)
+        }
+    } catch {
+        FileHandle.standardError.write("could not write the document: \(error)\n".data(using: .utf8)!)
+        return 1
     }
     return 0
 }
