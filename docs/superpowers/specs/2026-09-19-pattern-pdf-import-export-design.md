@@ -407,6 +407,22 @@ On macOS 27, `apple_fm_sdk` can do the §6.2 extraction with a `@Generable`-styl
 is tried, it is a `--reader apple` flag that writes the same `prose.json` and is measured against
 the six real fixtures with the same manifest. It is not part of the three PRs.
 
+Outcome (2026-09-19, `graphghan/applereader.py`, the `apple` extra): the on-device model
+(about 3B parameters, 4k context, guided generation through `apple-fm-sdk` 0.2.1) reads one
+written row per prompt into the `WrittenRow` schema and the front matter page by page.
+
+| set | rows | exact | what went wrong | speed |
+|---|---|---|---|---|
+| Craigh na Dun sc, our own text layer | 184 | 150 | every miss is a braid row of 40+ runs: 15 overflowed the context outright, 19 were cut off after the eighth run | 15 s per row |
+| Orca front panel, pages 17–20 | 77 (143 blocks read, the back panel leaked in) | 45 | "1 inc" read as one stitch and the count after it dropped; colours named in parentheses before their runs are pinned to the wrong run | 2 s per row |
+
+So the model transcribes plain "8 A, 14 B" rows reliably and fast, cannot hold a long row in
+one answer, and does not understand pattern grammar (increases, colour-before-run) without help
+it cannot be given in a 4k window. Every row it gets wrong fails the row-total check, so the
+importer's loop holds: the reader is a helper for simple rows, not a replacement for the skill.
+Two lessons for #112: split long rows into chunks the model can answer, and reuse one session
+per pattern (the Neural Engine compiler spent 37 CPU-minutes on fresh sessions here).
+
 ## 10. Questions for review
 
 1. Cell size on the chart pages: 10 pt (12 pages for Craigh na Dun at sc). Yarn-company

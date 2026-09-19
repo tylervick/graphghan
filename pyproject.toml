@@ -15,6 +15,11 @@ dependencies = [
 [project.scripts]
 graphghan = "graphghan.cli:main"
 
+[project.optional-dependencies]
+apple = [
+    "apple-fm-sdk>=0.2.1 ; sys_platform == 'darwin'",
+]
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"

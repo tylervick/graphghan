@@ -84,8 +84,11 @@ samples the cells, clusters the colours, and writes a pattern folder that render
 fixture PDF round-trips with zero drift, both through the grid and through the written rows. The
 prose half (the colour key, gauge, sizes, and the written rows, which are the primary source when a
 pattern has them) is read by the Claude skill into a `prose.json` (`schema/import-prose.schema.json`)
-that the second run of `import` consumes; see `.claude/skills/graphghan/references/import.md`. A
-pattern folder made from someone else's PDF is local by design and never committed.
+that the second run of `import` consumes; see `.claude/skills/graphghan/references/import.md`. On
+macOS 27 with Apple Intelligence on, `uv sync --extra apple` and `--reader apple` let the on-device
+Foundation Models read the prose in one run instead (a spike: 150 of Craigh na Dun's 184 rows exact, every miss a
+40-run braid row; the import's row-total check catches what it gets wrong). A pattern folder made from someone
+else's PDF is local by design and never committed.
 
 ## iOS app
 
