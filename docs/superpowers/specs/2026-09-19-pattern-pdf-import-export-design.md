@@ -116,10 +116,10 @@ and the `pattern.toml` metadata already on the chart document. Reads the committ
    (`instructions[]`) follows as headed paragraphs.
 2. **Key.** One row per palette entry: a filled swatch (the hex), the code, the name, the yarn,
    the use. The key is also repeated in a strip on every chart page so a tile is readable alone.
-3. **Chart pages.** The grid tiled across letter pages, 0.5 in margins, cells 11 pt wide and
-   11 × rows/stitches tall (so an sc chart's cells are 11 × 12.6 pt, the true fabric
-   proportion): about 55 columns and 50 rows per page, so Craigh na Dun at sc is 4 × 4 = 16
-   pages. Thin grey lines every cell, black lines every 10, column and row numbers in every
+3. **Chart pages.** The grid tiled across letter pages, 0.5 in margins, cells 10 pt wide and
+   10 × stitches/rows tall (so an sc chart's cells are 10 × 8.75 pt, wider than tall, the fabric
+   proportion `preview_png` uses): up to 49 columns and 74 rows per page, balanced so no page
+   holds a sliver, so Craigh na Dun at sc is 4 × 3 = 12 pages. Thin grey lines every cell, black lines every 10, column and row numbers in every
    margin. Numbering follows the working order: **row 1 is at the bottom, odd row numbers on the
    right margin, even on the left, columns numbered 1 at the right**, which is the Stitch Fiddle
    layout, the Orca layout, and the bottom-right convention the corpus codes most often. Each
@@ -136,10 +136,11 @@ on the cover and the overview.
 
 ### 4.2 Marks the importer relies on
 
-- Document info: `Creator` = `graphghan`, `Producer` = `graphghan <version>`. The importer uses
-  `Creator` to recognise its own layout (§6.4).
-- Chart page header text, in a fixed grammar: `Chart <k> of <n>: columns <a>–<b> of <W>, rows
-  <c>–<d> of <H>`. This is how tiles are placed when the importer stitches pages back together.
+- Document info: `Creator` = `graphghan`. The importer uses it to recognise its own layout
+  (§6.4). No version string goes into the bytes: the package version moves on its own and would
+  break the byte-for-byte fixture check; the pattern version is on the cover.
+- Chart page header text, in a fixed grammar with ASCII hyphens: `Chart <k> of <n>: columns
+  <a>-<b> of <W>, rows <c>-<d> of <H>`. This is how tiles are placed when the importer stitches pages back together.
 - Key rows in a fixed grammar: `<code>  <name>  <hex>  <yarn>`.
 
 None of these are hidden markers; they are the text a maker reads.
@@ -149,7 +150,7 @@ None of these are hidden markers; they are the text a maker reads.
 `graphghan export <slug> --format pdf [--chart final-hdc] [--out path]`, default
 `patterns/<slug>/build/exports/<key>.pdf`, the same as the other formats. `--format pdf` is added
 to the existing `choices`. Output is deterministic (`invariant=1`, no timestamps) and must stay
-under the 5 MB pre-commit limit; Craigh na Dun at sc is expected around 400 KB.
+under the 5 MB pre-commit limit; Craigh na Dun at sc is about 150 KB.
 
 ## 5. The importer, grid half: `graphghan import <file> --into <slug>`
 
@@ -390,8 +391,8 @@ the six real fixtures with the same manifest. It is not part of the three PRs.
 
 ## 10. Questions for review
 
-1. Cell size on the chart pages: 11 pt (about 16 pages for Craigh na Dun at sc). Yarn-company
-   PDFs run smaller and fit more per page; makers complain about both. 11 pt is the proposal.
+1. Cell size on the chart pages: 10 pt (12 pages for Craigh na Dun at sc). Yarn-company
+   PDFs run smaller and fit more per page; makers complain about both. 10 pt is the proposal.
 2. Row-number sides: odd on the right and even on the left, columns 1 at the right (§4.1). This
    follows the working direction rather than the reading direction. Say if the reverse is what
    you want printed.
