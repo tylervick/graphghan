@@ -29,7 +29,10 @@ env:
   # A new app: no build numbers are consumed, so the first CI release is 1. Numbers have gaps whenever
   # a run fails before the upload; App Store Connect needs unique and increasing, not contiguous.
   BUILD_NUMBER_OFFSET: 0
-
+  # Blink is a local agent-review tool nobody runs on a runner (see mise.toml), and a
+  # vendor CDN has no business standing between a push and a green build: skip its
+  # download rather than have a pruned pin fail `mise install` here.
+  MISE_DISABLE_TOOLS: http:blink
 jobs:
   testflight:
     name: Archive and upload
