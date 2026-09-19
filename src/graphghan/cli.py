@@ -333,6 +333,30 @@ def cmd_import(args) -> int:
                 file=sys.stderr,
             )
             return 1
+        if needs_prose and args.reader == "apple":
+            from .applereader import available, prose_from_pdf
+
+            ok, reason = available()
+            if not ok:
+                print(f"import failed: --reader apple: {reason}", file=sys.stderr)
+                return 1
+            folder = stage_request(src, result, into, root)
+            done: list = []
+            doc = prose_from_pdf(src, progress=lambda r: done.append(r))
+            (folder / "prose.json").write_text(json.dumps(doc, indent=1), encoding="utf-8")
+            print(f"the on-device model read {len(done)} written rows into {folder / 'prose.json'}")
+            result = import_file(
+                src,
+                palette_toml=args.palette,
+                cells=cells,
+                mode=mode,
+                page=args.page,
+                region=args.region,
+                box=box,
+                prose=doc,
+                rows_source=args.rows,
+            )
+            needs_prose = False
         if needs_prose:
             folder = stage_request(src, result, into, root)
             for line in result.regions:
@@ -452,6 +476,13 @@ def build_parser():
     )
     i.add_argument(
         "--grid-only", action="store_true", help="skip the prose: write the folder with placeholders"
+    )
+    i.add_argument(
+        "--reader",
+        choices=["skill", "apple"],
+        default="skill",
+        help="who reads the prose: the graphghan skill between two runs (default), or Apple's on-device "
+        "model in one run (macOS 27, `uv sync --extra apple`)",
     )
     i.add_argument(
         "--force", action="store_true", help="write into an existing folder, and keep a failing import"
