@@ -134,15 +134,29 @@ blink setup claude-code
 # directory. `mise doctor` has already resolved all three, and its
 # `shims_on_path` is exactly this question, answered against the PATH it
 # inherited from this task.
-doctor="$(mise doctor 2>/dev/null || true)"
-shims="$(printf '%s\n' "$doctor" | awk '/^[[:space:]]*shims:/ {print $2; exit}')"
-case "$shims" in "~"*) shims="$HOME${shims#\~}" ;; esac
+#
+# Through --json, and parsed rather than grepped: doctor's human output is a
+# report whose labels and tilde-abbreviated paths can be reworded at any
+# release, while the JSON is the interface meant to be read by a program. uv
+# supplies the parser -- it is pinned a few lines up, so it is the one
+# interpreter this task can count on, and --no-project keeps it clear of .venv
+# (which need not exist yet when setup runs).
+probe="$(mise doctor --json 2>/dev/null | uv run --no-project python -c '
+import json, sys
+try:
+    d = json.load(sys.stdin)
+    print(d["dirs"]["shims"])
+    print("yes" if d["shims_on_path"] else "no")
+except Exception:
+    pass
+' 2>/dev/null || true)"
+shims="$(printf '%s\n' "$probe" | sed -n 1p)"
 
-case "$doctor" in
-  *"shims_on_path: yes"*)
+case "$(printf '%s\n' "$probe" | sed -n 2p)" in
+  yes)
     echo "ok - $shims is on PATH, so the hook will resolve blink"
     ;;
-  *"shims_on_path: no"*)
+  no)
     echo "ERROR: $shims is not on your PATH." >&2
     echo "The hook just installed runs a bare 'blink', so it would fail with" >&2
     echo "'command not found' at the end of every Claude Code turn." >&2
@@ -153,7 +167,7 @@ case "$doctor" in
   *)
     # Fail closed: a `mise doctor` that no longer reports this is not evidence
     # that the hook works.
-    echo "ERROR: could not read shims_on_path out of 'mise doctor'." >&2
+    echo "ERROR: could not read shims_on_path out of 'mise doctor --json'." >&2
     echo "Check by hand that mise's shims directory is on your PATH -- the hook" >&2
     echo "just installed runs a bare 'blink' and resolves it only through there." >&2
     exit 1
