@@ -615,7 +615,7 @@ def stage_request(source: Path, result: ImportResult, into: Path, repo_root: Pat
     hints: list[str] = []
     if source.suffix.lower() == ".pdf":
         texts = page_texts(source)
-        for i, img in enumerate(render_pages(source, scale=2), start=1):
+        for i, img in iter_pages(source, scale=2):
             img.save(folder / "pages" / f"p{i:02d}.png")
             (folder / "pages" / f"p{i:02d}.txt").write_text(texts[i - 1], encoding="utf-8")
             low = texts[i - 1].lower()

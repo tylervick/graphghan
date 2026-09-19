@@ -177,3 +177,12 @@ def test_meta_from_prose_carries_the_pattern_toml_fields():
         and meta["boundary"] == {"kind": "turn", "chain": 1}
     )
     assert meta["notes"]["setup"] == ["Start at the bottom."] and meta["uncertain"] == ["row 30 wraps"]
+
+
+def test_check_prose_bounds_the_free_text():
+    doc = {"schema": prose.SCHEMA_ID, "pattern": {"title": "x" * (prose.MAX_TEXT + 1)}}
+    assert prose.check_prose(doc) == [
+        f"pattern.title is {prose.MAX_TEXT + 1} characters; the most a field may carry is {prose.MAX_TEXT}"
+    ]
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate({"schema": prose.SCHEMA_ID, "pattern": {"title": "x" * 201}}, SCHEMA)

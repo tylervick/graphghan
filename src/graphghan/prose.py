@@ -30,6 +30,31 @@ STITCH_KEYS = {
 }
 
 
+MAX_ROWS = 5000  # written rows; a chart taller than this is not a thing anyone works
+MAX_COLOURS = 64
+MAX_TEXT = 20000  # characters in any one free-text field (instructions are the longest)
+
+
+def _texts(doc: dict):
+    """Every free-text field with a name for the problem list."""
+    for k, v in (doc.get("pattern") or {}).items():
+        yield f"pattern.{k}", v
+    for k, v in (doc.get("gauge") or {}).items():
+        yield f"gauge.{k}", v
+    for i, p in enumerate(doc.get("palette") or []):
+        if isinstance(p, dict):
+            for k in ("name", "use", "key_label"):
+                yield f"palette[{i}].{k}", p.get(k)
+    for i, r in enumerate(doc.get("written_rows") or []):
+        if isinstance(r, dict):
+            yield f"written_rows[{i}].text", r.get("text")
+    for i, sec in enumerate(doc.get("instructions") or []):
+        if isinstance(sec, dict):
+            yield f"instructions[{i}].text", sec.get("text")
+    for i, u in enumerate(doc.get("uncertain") or []):
+        yield f"uncertain[{i}]", u
+
+
 # ---------- loading and checking ----------
 
 
@@ -79,6 +104,14 @@ def check_prose(doc) -> list[str]:
     if not isinstance(rows, list):
         problems.append("written_rows is not a list")
         rows = []
+    if len(rows) > MAX_ROWS:
+        problems.append(f"written_rows has {len(rows)} entries; the most a chart can carry is {MAX_ROWS}")
+        rows = rows[:MAX_ROWS]
+    if len(palette) > MAX_COLOURS:
+        problems.append(f"palette has {len(palette)} entries; codes allow at most {MAX_COLOURS} in one chart")
+    for what, value in _texts(doc):
+        if isinstance(value, str) and len(value) > MAX_TEXT:
+            problems.append(f"{what} is {len(value)} characters; the most a field may carry is {MAX_TEXT}")
     for i, r in enumerate(rows):
         if not isinstance(r, dict):
             problems.append(f"written_rows[{i}] is not an object")
