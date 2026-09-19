@@ -66,7 +66,10 @@ gauges, palette, notes) and a `design.py` that exposes a `VARIANTS` dict and a
 chart under `dist/charts/<variant>-<gauge>/` (declared in `[publish]` in `pattern.toml`; the first
 entry is also copied to `dist/` top level); the site and CI build from those committed files, and
 `graphghan render <slug> --check` (run in CI) fails if a fresh render drifts from what's
-committed. See `docs/superpowers/specs/2026-09-09-graphghan-design.md` for the full contract.
+committed. `graphghan check <slug>` always checks row totals, palette codes and palette closure;
+the shape checks (a solid edge, a solid first row, mirrored outer columns and rows) are opted into
+per pattern in a `[checks]` table, which the scaffold includes and an imported chart leaves out.
+See `docs/superpowers/specs/2026-09-09-graphghan-design.md` for the full contract.
 
 ## Chart format
 

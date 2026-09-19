@@ -1,6 +1,6 @@
 """Checks for an imported chart: the grid is the one that was imported, its rows and palette are
-sound, and the published document validates. The bordered-blanket checks in validate.run_all
-(solid edge, mirrors) do not apply to a chart made elsewhere (#114)."""
+sound, and the published document validates. The shape checks (solid edge, mirrors) are opt-in
+through pattern.toml's [checks] table and an imported chart leaves them out."""
 
 import hashlib
 from pathlib import Path
@@ -29,11 +29,9 @@ def test_chart_is_the_imported_one(chart):
     assert hashlib.sha256("\n".join(rows).encode()).hexdigest() == ROWS_SHA256
 
 
-def test_rows_and_palette_are_sound(chart):
+def test_generic_invariants(chart):
     a, _, meta = chart
-    checks = {{name: (ok, detail) for name, ok, detail in validate.run_all(a, meta)}}
-    for name in ("row totals", "palette codes", "palette closure"):
-        assert checks[name][0], (name, checks[name][1])
+    assert [(n, d) for n, ok, d in validate.run_all(a, meta) if not ok] == []
 
 
 def test_document_validates(chart):

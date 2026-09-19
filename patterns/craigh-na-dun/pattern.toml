@@ -19,6 +19,14 @@ language = "en"
 sc = [3.5, 4.0]
 hdc = [3.25, 2.5]
 
+# The shape checks `graphghan check` runs on top of row totals, palette codes and palette
+# closure (#114). A bordered, mirrored blanket opts in here; an imported chart leaves this out.
+[checks]
+solid_edge = 1        # the outer cell all round is first_row_color
+first_row_solid = true
+mirror_lr = 2         # the outer 2 columns mirror each other
+mirror_tb = 2         # the outer 2 rows mirror each other
+
 # What happens at the end of every row, per gauge key (docs/chart-format.md §Gauge). Authored,
 # never derived: the design note's corpus found dc split 7:5 between ch 3 and ch 2, so no reader
 # guesses. hdc as ch 2 is the reviewed choice for this blanket; 3 of 4 hdc patterns in the corpus

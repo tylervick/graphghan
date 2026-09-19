@@ -49,7 +49,8 @@ validated row by row, delivered as an offline viewer page and a Stitch Fiddle im
 ## Review checklist before presenting anything
 - [ ] Both gauges rendered; stats table filled; previews at true stitch proportions.
 - [ ] `check` passes, and read its `min run` and `changes per row` lines: those two only report, they
-  never fail.
+  never fail. The edge and mirror checks come from `[checks]` in pattern.toml (the scaffold turns
+  them on for a bordered blanket); a chart that has no border leaves them out rather than failing.
 - [ ] The report dict contract is required, not taste: `report["panel"]` is `(x0, y0, x1, y1)` and
   `report["text"]` is a list of per-line `(x0, y0, x1, y1)` boxes — the scaffolded test requires both;
   other keys (scene, thistles, dragonfly) are optional, used by that pattern's own tests.
