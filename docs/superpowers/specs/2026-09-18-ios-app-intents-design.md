@@ -165,14 +165,22 @@ what is new is intent-level testing with `AppIntentsTesting`:
 - Done then Back returns to the starting cursor, and the event log shows both.
 - The cold-registration case in §3.1.
 
-## 4. Phase 2: the Siri AI layer (iOS 27, `@available`-gated)
+## 4. Phase 2: the Siri AI layer (`@available`-gated where the SDK gates it)
+
+The Siri that reads app content is iOS 27 and Apple Intelligence hardware, but the API this layer
+is built from is older, and the gates sit where the iOS 27 SDK puts them, not at 27 across the
+board: `AppEntity`, `EntityStringQuery`, `requestDisambiguation` and `ShowsSnippetView` are iOS 16,
+`IndexedEntity` and `CSSearchableIndex.indexAppEntities` are iOS 18, and the only iOS 27 symbol in
+the area (`IndexedEntityQuery`) is not needed. Swift also forbids `@available` on a stored property,
+so the optional `@Parameter var project: ProjectEntity?` on the phase 1 intents (§4.3) cannot be
+gated, which pins `ProjectEntity` itself to the app's floor. Decision 7 still holds -- nothing that
+needs iOS 27 is ungated -- and a device without Apple Intelligence keeps Spotlight (iOS 18+), the
+question and the snippet, and loses only the Siri that reads.
 
 ### 4.1 `ProjectEntity`
 
 ```swift
-@available(iOS 27, *)
-@AppEntity
-struct ProjectEntity: IndexedEntity {
+struct ProjectEntity: AppEntity {                 // no `@AppEntity` macro without an app schema
     var id: UUID
     @Property(title: "Title") var title: String
     @Property(title: "Pattern") var patternTitle: String
@@ -180,12 +188,16 @@ struct ProjectEntity: IndexedEntity {
     @Property(title: "Last worked") var lastWorked: Date?
     var displayRepresentation: DisplayRepresentation { … }
 }
+@available(iOS 18, *) extension ProjectEntity: IndexedEntity { … }
 ```
 
 Every field already exists. `Project` carries `title`, `patternID`, `cursor`, `lastWorked` and
-`finished`; `ProjectService.summary(for:sequence:)` computes `percent`, `cellsDone`, `totalCells`
-and the optional stitch figures, and `estimatedFinish` computes the date. No new storage, no
-network: the entity is a projection of the SwiftData store.
+`finished`; `percent` is computed from the cursor the way the Live Activity computes it
+(`WorkSequence.cellsBefore` over `totalCells`), not through `ProjectService.summary(for:sequence:)`,
+which walks the event log and may never run for the project being worked (#79). The pattern title
+comes from the cached manifest, else the pattern id. No new storage, no network: the entity is a
+projection of the SwiftData store (`AppModel.projectSnapshots`), reached through a third
+`WorkIntentHandler` slot after the same registration wait as the intents.
 
 No app schema fits. The domains Apple ships are messages, mail, photos, documents, media and the
 like; there is no crafts or counter domain, and Apple's guidance is explicit that a plain
@@ -198,9 +210,12 @@ no sharing for Siri to be careful about until #14 or #15 exists.
 ### 4.2 Resolution
 
 `IndexedEntity` with `CSSearchableIndex.indexAppEntities`, refreshed when a project is created,
-renamed, finished or deleted — every one of those already goes through `ProjectService`, so the
-index has exactly one place to be kept honest. A project count in the tens makes an
-`IntentValueQuery` unnecessary; #98's patterns are the larger set.
+finished or unfinished (by hand or by the last Done), switched to a new chart, or deleted — every one
+of those already goes through `ProjectService`, which fires `onProjectsChanged`, so the index has
+exactly one place to be kept honest; the app also refreshes once at launch. The app has no rename
+path today; when one exists it goes through the same hook. A project count in the tens makes an
+`IntentValueQuery` unnecessary; #98's patterns are the larger set. Resolution by name is an
+`EntityStringQuery` matching the project's own title or its pattern's.
 
 This is what makes "how far am I on the Craigh na Dun blanket?" answerable with the app closed,
 which is the single most valuable thing phase 2 adds.
@@ -217,19 +232,22 @@ Absent, §3.2 still decides. Present, it wins. When §3.2's rule 2 has to choose
 unfinished projects worked within the same hour, the intent asks rather than guessing:
 
 ```swift
-project = try await $project.requestValue("Which blanket — the Craigh na Dun or the baby one?")
+project = try await $project.requestDisambiguation(among: candidates, dialog: "Which blanket — Craigh na Dun or Baby Blanket?")
 ```
+
+`requestDisambiguation(among:)` rather than `requestValue`, because the app knows exactly which
+projects are in question and offers those, most recent first, instead of the whole list.
 
 A wrong guess writes a `ProgressEvent` into the wrong project's history, which is worse than a
 question.
 
 ### 4.4 A snippet
 
-`ShowsSnippetView` returning the existing `RunChipsView`/`RowStripView` composition, so a Done said
-to a HomePod-shaped surface answers in words and a Done said to a phone in front of you also shows
-the band. The snippet is the same view the Work screen draws; if it needs new shaping, that is a
-sign the Work screen's components are not factored the way `ios/README.md` claims and the fix
-belongs there.
+`ShowsSnippetView` returning the Work screen's own `WorkPanel` over `ChartBand` (the chip and
+strip views this section first named were replaced by those in the Work-on-the-chart plan), so a
+Done said to a HomePod-shaped surface answers in words and a Done said to a phone in front of you
+also shows the band. The snippet is the same view the Work screen draws, with the band's gestures
+inert; it needed no new shaping.
 
 ### 4.5 Tests
 
