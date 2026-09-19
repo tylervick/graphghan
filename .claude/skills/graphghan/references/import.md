@@ -83,6 +83,19 @@ pattern states one. `finished_size` likewise in the pattern's units.
   the default and the right answer unless the pattern says otherwise. If you guess wrong the
   cross-check says the grid matches when flipped, and names the corner to try.
 
+### Rows drawn as boxes, and patterns with no chart
+
+Some patterns (Threadly Attraction's tapestries) print each row as a line of coloured boxes with
+the count inside, and some have no chart grid at all. The first run handles both: when a page
+holds rows of boxes, `boxes.json` lists every band of boxes with each box's colour, in order,
+and `request.md` says so. A band with `label` true starts a row (the "Row N" text sits to its
+left); a band without one continues the row above (a wrapped row). You read the count printed
+in each box; pairing count with colour in order gives the row's runs, and the colours are the
+key's hexes. When no grid was found anywhere, give `chart.width` and `chart.height` and a hex
+for every key colour: the written rows become the chart, checked by their totals alone, and the
+report says there was no picture to check them against. A per-colour "Total" row at the end,
+if the pattern prints one, is worth checking against the import report's palette counts.
+
 ### What the report will say
 
 `import-report.md` lists every grid found, the palette with cell counts, the written-rows

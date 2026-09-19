@@ -13,9 +13,9 @@ from dataclasses import dataclass, field
 import numpy as np
 from PIL import Image
 
-EDGE_THRESHOLD = 24  # grey-level step that counts as an edge
+EDGE_THRESHOLD = 16  # channel step that counts as an edge; a faint raster line on a light cell is about 18
 BRIDGE = 3  # closing radius: gaps up to twice this (a bold crossing line) inside an edge run vanish
-MERGE_PX = 4  # candidate columns this close are one line (both edges of a bold line)
+MERGE_PX = 8  # candidate columns this close are one line (both edges of a bold line, up to 2 pt)
 MIN_LINE_PX = 40  # a line shorter than this is text, not a grid
 MIN_LINES = 5  # lines per axis for a region (four cells)
 GAP_TOLERANCE = 0.25  # consecutive line gaps within this fraction of the median are one grid
@@ -577,3 +577,61 @@ def name_colour(hex_str: str) -> str:
     table = np.array([COLOR_NAMES[n] for n in names])
     d = np.linalg.norm(_to_lab(table) - _to_lab(rgb), axis=1)
     return names[int(d.argmin())]
+
+
+# ---------- written rows drawn as boxes ----------
+
+BOX_MIN_PX = 60  # at the 4x render a box is about 96 px and a row label's glyphs about 50
+INK_GREY = 235  # lighter than this is page, not box or text
+INK_TINT = 12  # a channel spread above this is tinted decoration, not a neutral box or glyph
+
+
+def _spans(mask: np.ndarray) -> list[tuple[int, int]]:
+    """(start, end) of every run of True in a 1-D mask."""
+    padded = np.concatenate(([0], mask.astype(np.int8), [0]))
+    d = np.diff(padded)
+    starts = np.flatnonzero(d == 1)
+    ends = np.flatnonzero(d == -1) - 1
+    return list(zip(starts.tolist(), ends.tolist(), strict=True))
+
+
+def box_rows(img: Image.Image) -> list[dict]:
+    """Rows of coloured boxes on a page: a pattern's written rows drawn as one box per run, a
+    count printed in each (Threadly Attraction's layout). Code reads the boxes' colours and
+    order; the counts are text and stay for the reader. Each band is
+    {"y", "h", "label": whether a row label sits to its left, "boxes": [{"x", "w", "hex"}]};
+    a band without a label continues the row above (a wrapped row)."""
+    if img.width * img.height > MAX_PIXELS:
+        raise ValueError(f"image is {img.width}x{img.height} px, more than the reader takes")
+    rgb = np.asarray(img.convert("RGB"), dtype=np.int16)
+    gray = rgb.mean(axis=2)
+    ink = (gray < INK_GREY) & ((rgb.max(axis=2) - rgb.min(axis=2)) < INK_TINT)
+    h, w = ink.shape
+    longest = _longest_runs(ink, bridge=0)[0]
+    tall = np.flatnonzero(longest >= BOX_MIN_PX)
+    if len(tall) == 0:
+        return []
+    x0 = max(0, int(tall.min()) - 4)
+    bands = []
+    for y0, y1 in _spans(ink[:, x0:].any(axis=1)):
+        if y1 - y0 + 1 < BOX_MIN_PX or y1 - y0 + 1 > 3 * BOX_MIN_PX:
+            continue
+        boxes = []
+        for s, e in _spans(ink[y0 : y1 + 1, x0:].any(axis=0)):
+            if e - s + 1 < BOX_MIN_PX:
+                continue
+            bx0, bx1 = x0 + s, x0 + e
+            k, pw = 6, max(4, (bx1 - bx0) // 6)
+            corners = [
+                rgb[y0 + k : y0 + k + pw, bx0 + k : bx0 + k + pw],
+                rgb[y0 + k : y0 + k + pw, bx1 - k - pw : bx1 - k],
+                rgb[y1 - k - pw : y1 - k, bx0 + k : bx0 + k + pw],
+                rgb[y1 - k - pw : y1 - k, bx1 - k - pw : bx1 - k],
+            ]
+            fill = np.median(np.concatenate([c.reshape(-1, 3) for c in corners]), axis=0)
+            boxes.append({"x": int(bx0), "w": int(bx1 - bx0 + 1), "hex": _hex(fill)})
+        if not boxes:
+            continue
+        label = bool(ink[y0 : y1 + 1, max(0, x0 - 420) : max(0, x0 - 8)].any())
+        bands.append({"y": int(y0), "h": int(y1 - y0 + 1), "label": label, "boxes": boxes})
+    return bands

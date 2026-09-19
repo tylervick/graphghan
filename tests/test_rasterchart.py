@@ -147,3 +147,46 @@ def test_an_oversized_image_is_refused(monkeypatch):
     monkeypatch.setattr(rc, "MAX_PIXELS", 10_000)
     with pytest.raises(ValueError, match="more than the 0 megapixels"):
         rc.find_regions(Image.new("RGB", (200, 200)))
+
+
+def draw_box_rows(rows, cell=96, gap=12, left=560, top=300, wrap_after=15):
+    """Written rows drawn as coloured boxes with a label to the left, wrapping like the Outlander PDF."""
+    img = Image.new("RGB", (2400, 3200), (255, 255, 255))
+    d = ImageDraw.Draw(img)
+    y = top
+    for n, colours in enumerate(rows, start=1):
+        d.text((160, y + 30), f"Row {n} [RS]:", fill=(0, 0, 0))
+        x, count = left, 0
+        for hx in colours:
+            if count == wrap_after:
+                y += cell + gap
+                x, count = left, 0
+            rgb = tuple(int(hx[i : i + 2], 16) for i in (1, 3, 5))
+            d.rectangle(
+                [x, y, x + cell - 1, y + cell - 1], fill=rgb, outline=(0, 0, 0) if hx == "#ffffff" else None
+            )
+            d.text((x + 36, y + 36), "7", fill=(0, 0, 0) if sum(rgb) > 380 else (255, 255, 255))
+            x += cell + gap
+            count += 1
+        y += cell + gap * 2
+    d.ellipse([1700, 2500, 2600, 3400], fill=(190, 208, 228))  # a tinted decoration must not read as ink
+    return img
+
+
+def test_box_rows_read_colours_labels_and_wrapping():
+    greys = ["#000000", "#252121", "#464a4c", "#8e8d8d", "#cfd3d3", "#ffffff"]
+    rows = [[greys[0]], greys * 3, [greys[5], greys[1], greys[3]]]  # 1 box, 18 boxes (wraps), 3 boxes
+    bands = rc.box_rows(draw_box_rows(rows))
+    assert [b["label"] for b in bands] == [True, True, False, True]
+    assert [len(b["boxes"]) for b in bands] == [1, 15, 3, 3]
+    assert [x["hex"] for x in bands[0]["boxes"]] == [greys[0]]
+    assert [x["hex"] for x in bands[1]["boxes"]] + [x["hex"] for x in bands[2]["boxes"]] == greys * 3
+    assert [x["hex"] for x in bands[3]["boxes"]] == [greys[5], greys[1], greys[3]]
+
+
+def test_box_rows_finds_nothing_on_a_text_page():
+    img = Image.new("RGB", (1200, 1600), (255, 255, 255))
+    d = ImageDraw.Draw(img)
+    for i in range(40):
+        d.text((60, 40 + i * 36), "Row %d: ch 1, turn, 8 A, 14 B, 8 A (30 sts)" % i, fill=(0, 0, 0))
+    assert rc.box_rows(img) == []

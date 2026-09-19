@@ -103,3 +103,31 @@ height = 97
 colors = 5
 cross_check = "97 written rows, 0 disagree with the chart (the picture shows 10 of the 97 rows)"
 rows_sha256 = "5362fc2645ea22fdc836ec5fd28d0197d655c6470d97a12a727ece7fc142afa7"
+
+# ---- the stretch case: written rows drawn as coloured boxes (pages 3-10), and a chart image on page 11 ----
+# The counts were read by eye from the box pages, the box colours by code (boxes.json); every row sums to 72,
+# the seven per-colour totals match the pattern's own Total row, and the chart page agrees on all 8,496 cells.
+
+[[fixture]]
+id = "onhand-outlander-tapestry"
+source = "local"
+file = "Outlander Tapestry.pdf"
+prose = "onhand-outlander-tapestry.prose.json"
+kwargs = { page = 11 }
+width = 72
+height = 118
+colors = 7
+cross_check = "118 written rows, 0 disagree with the chart"
+rows_sha256 = "e3f11ab8ea93a93ecf175eab3c629eb82ce14df2ea968ffd4c4115092d08f868"
+
+[[fixture]]
+id = "onhand-outlander-tapestry-rows-alone"
+source = "local"
+file = "Outlander Tapestry.pdf"
+prose = "onhand-outlander-tapestry.prose.json"
+kwargs = { page = 12 }
+width = 72
+height = 118
+colors = 7
+cross_check = "118 written rows; no picture of the chart to check them against"
+rows_sha256 = "e3f11ab8ea93a93ecf175eab3c629eb82ce14df2ea968ffd4c4115092d08f868"

@@ -322,8 +322,17 @@ def cmd_import(args) -> int:
             rows_source=args.rows,
         )
         needs_prose = (
-            prose is None and not args.grid_only and args.rows != "grid" and result.kind in ("pdf", "raster")
+            prose is None
+            and not args.grid_only
+            and args.rows != "grid"
+            and result.kind in ("pdf", "raster", "no-grid")
         )
+        if result.grid is None and not needs_prose:
+            print(
+                "import failed: no grid found on any page, and no prose to take the rows from",
+                file=sys.stderr,
+            )
+            return 1
         if needs_prose:
             folder = stage_request(src, result, into, root)
             for line in result.regions:

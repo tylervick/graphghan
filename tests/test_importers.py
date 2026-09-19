@@ -225,3 +225,60 @@ def test_cli_grid_only_skips_the_prose(tmp_path, monkeypatch):
     into = tmp_path / "grid-only"
     assert main(["import", str(src), "--into", str(into), "--page", "5", "--grid-only"]) == 0
     assert (into / "chart.png").exists() and "IMPORTED: fill me" in (into / "pattern.toml").read_text()
+
+
+def test_rows_alone_when_there_is_no_picture(tmp_path):
+    """A pattern whose rows are drawn as boxes and that has no chart: the written rows are the chart
+    and every colour must come from the key (spec §6 stretch case)."""
+    import sys
+
+    sys.path.insert(0, str(ROOT / "tests"))
+    from test_rasterchart import draw_box_rows
+
+    src = tmp_path / "rows.png"
+    draw_box_rows([["#000000"], ["#ffffff", "#000000", "#ffffff"], ["#000000"]]).save(src)
+    result = importers.import_file(src)
+    assert result.kind == "no-grid" and result.grid is None and result.width == 0
+    prose = {
+        "schema": "graphghan-import/1",
+        "palette": [
+            {"code": "K", "name": "Black", "hex": "#000000"},
+            {"code": "W", "name": "White", "hex": "#ffffff"},
+        ],
+        "chart": {"width": 5, "height": 3, "row1": "bottom-right"},
+        "written_rows": [
+            {"row": 1, "runs": [["K", 5]]},
+            {"row": 2, "runs": [["W", 2], ["K", 1], ["W", 2]]},
+            {"row": 3, "runs": [["K", 5]]},
+        ],
+    }
+    with pytest.raises(ValueError, match="chart.width and chart.height"):
+        importers.import_file(src, prose={**prose, "chart": {}})
+    with pytest.raises(ValueError, match="give every key colour a hex"):
+        importers.import_file(src, prose={**prose, "palette": [{"code": "K"}, {"code": "W"}]})
+    result = importers.import_file(src, prose=prose)
+    assert result.kind == "rows" and result.rows == ["5K", "2W1K2W", "5K"]
+    assert "no picture" in result.meta["cross_check"]
+    folder = importers.write_pattern(result, tmp_path / "rows-only", title="Rows Only")
+    ok, output = importers.check_folder(folder, ROOT)
+    assert ok, output
+
+
+def test_staging_writes_boxes_json_for_box_rows(tmp_path, monkeypatch):
+    import sys
+
+    sys.path.insert(0, str(ROOT / "tests"))
+    from test_rasterchart import draw_box_rows
+
+    src = tmp_path / "rows.png"
+    draw_box_rows([["#000000"], ["#ffffff", "#000000", "#ffffff"]]).resize((1200, 1600)).save(src)
+    monkeypatch.setattr("graphghan.cli.find_repo_root", lambda *a, **k: tmp_path)
+    assert main(["import", str(src), "--into", str(tmp_path / "p")]) == 0
+    staged = tmp_path / "build" / "import" / "rows"
+    boxes = json.loads((staged / "boxes.json").read_text())
+    assert [len(b["boxes"]) for b in boxes["1"]] == [1, 3] and [b["label"] for b in boxes["1"]] == [
+        True,
+        True,
+    ]
+    assert "Rows drawn as coloured boxes" in (staged / "request.md").read_text()
+    assert main(["import", str(src), "--into", str(tmp_path / "p"), "--grid-only"]) == 1
