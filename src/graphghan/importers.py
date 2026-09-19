@@ -231,17 +231,21 @@ def stitch_own_pdf(pdf_path: str | Path) -> ImportResult:
 # ---------- any image or PDF ----------
 
 
+class NoGridFound(ValueError):
+    """No grid on any page (or the chosen one): the prose may still supply the chart."""
+
+
 def _pick(
     candidates: list[tuple[int, int, rc.Region]],
     page: int | None,
     region: int | None,
 ) -> tuple[int, int, rc.Region]:
     if not candidates:
-        raise ValueError("no grid found on any page")
+        raise NoGridFound("no grid found on any page")
     if page is not None:
         candidates = [c for c in candidates if c[0] == page]
         if not candidates:
-            raise ValueError(f"no grid found on page {page}")
+            raise NoGridFound(f"no grid found on page {page}")
     if region is not None:
         by_index = [c for c in candidates if c[1] == region]
         if not by_index:
@@ -382,9 +386,7 @@ def _read_grid(
                 region=region,
                 box=box,
             )
-        except ValueError as e:
-            if not str(e).startswith("no grid found"):
-                raise
+        except NoGridFound as e:
             return ImportResult(None, [], str(path), "no-grid", [], [str(e)])
         return ImportResult(idx, entries, str(path), "pdf", regions, warnings)
     if suffix in (".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp"):
@@ -399,9 +401,7 @@ def _read_grid(
             idx, entries, regions, warnings = read_raster(
                 [(1, img)], lambda _n: img, palette=palette, cells=cells, region=region, box=box
             )
-        except ValueError as e:
-            if not str(e).startswith("no grid found"):
-                raise
+        except NoGridFound as e:
             return ImportResult(None, [], str(path), "no-grid", [], [str(e)])
         return ImportResult(idx, entries, str(path), "raster", regions, warnings)
     raise ValueError(f"cannot import {path.name}: not a .pdf, .png/.jpg, .oxs or .csv file")
