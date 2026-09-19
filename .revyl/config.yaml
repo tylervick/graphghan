@@ -127,13 +127,31 @@ pr_review:
             # failures to watch for.
             - "On the Patterns tab the app lists at least one published pattern (currently 'Craigh na Dun Blanket') fetched from the live feed -- not the 'No patterns yet' empty state, and not a spinner reading 'Loading patterns…' that never resolves."
             # Opening a pattern downloads its manifest and chart files, which is
-            # a second, separate network path from the index above.
-            - "Tapping a pattern in the Patterns tab opens its detail screen with the chart information filled in, and the 'Start project' button is enabled rather than greyed out."
+            # a second, separate network path from the index above. The chart
+            # facts are the proof it landed: they come from the manifest, not
+            # from the index row.
+            #
+            # The clause about scrolling is not padding. Measured on a device
+            # session against build main-b6fd058: "Start project" is the last
+            # element on the screen at y=1768 on a 956pt device -- about two
+            # screens below the fold, under the Setup notes, the Colors notes
+            # and the Published charts list. It sits in the accessibility tree
+            # the whole time, so a query finds it while a screenshot does not,
+            # and an agent judging from screenshots alone will report a present
+            # button as missing.
+            - "Tapping a pattern in the Patterns tab opens its detail screen with its Chart summary filled in (189 x 184 stitches x rows, 54 x 46 in, sc). Scrolling to the very bottom, past the Setup and Colors notes and the Published charts list, reaches an enabled green 'Start project' button -- it is the last thing on a screen about two screens tall, so not seeing it without scrolling is expected."
             # The Work screen is a full-screen cover that renders the chart and
             # owns a Live Activity. It is the part of the app someone actually
             # uses, and it is behind two navigations that no test drives
             # end-to-end.
-            - "A project started from a pattern appears on the Projects tab, and its 'Work' button reaches the full-screen Work screen with the chart rendered and a row counter -- not a blank screen or an error."
+            #
+            # Two corrections from the same device session. Starting a project
+            # switches to the Projects tab BY ITSELF, so an agent that expects
+            # to navigate there will report a correct app as broken. And the
+            # advance control reads "+10" rather than "Done" -- a run is worked
+            # in tens within a row, so the row number legitimately does not
+            # move on the first taps.
+            - "Starting a project leaves the app on the Projects tab, by itself, listing the new project at 'Row 1 of 184'. Opening it and tapping 'Work' reaches the full-screen Work screen: headed 'Row 1 of 184', a large coloured card giving the current run as a count out of 189 with its colour named, and 'Back' and '+10' controls at the bottom. A blank screen or an error is a failure; the row number not moving when '+10' is tapped is not."
         system_prompt: |
             Graphghan is an iOS app for working crochet and cross-stitch charts
             ("graphghans") published as data at https://graphghan.milo.cat/. It
@@ -152,11 +170,34 @@ pr_review:
             need one.
 
             Opening a project and pressing "Work" presents a full-screen Work
-            screen: the chart drawn as bands of coloured stitches, a row counter,
-            and Back and Done controls that advance or rewind the position. This
-            screen also starts a Live Activity on the lock screen; whether the
-            lock screen is reachable on a test device is not something to judge
-            the app by.
+            screen: a header reading "Row N of 184", a large card in the current
+            yarn colour giving the run as a count out of 189, the chart drawn as
+            bands of coloured stitches, and "Back" and "+10" controls at the
+            bottom. This screen also starts a Live Activity on the lock screen;
+            whether the lock screen is reachable on a test device is not
+            something to judge the app by.
+
+            Four things here were got wrong by reading the source and corrected
+            against a real device (build main-b6fd058). They are the likeliest
+            causes of a false failure:
+
+            - The advance control READS "+10" but is LABELLED, to an element
+              query, like "0 of 189 single crochet in Gold, next ten". There is
+              no button called "Done". The large coloured card above it carries
+              the same label and does the same thing.
+            - A run is worked in tens WITHIN a row, so the first taps move the
+              run count (0 of 189, then 10, then 20) while the header stays
+              "Row 1 of 184". That is correct, not a stuck counter.
+            - "Start project", on a pattern's detail screen, is the last element
+              about two screens down. It is in the accessibility tree
+              throughout, so trust a query over a screenshot there.
+            - The Start project sheet seeds its Name field with the PATTERN's
+              name, so a project left at the default is called "Craigh na Dun
+              Blanket" and cannot be told apart from the pattern it came from.
+
+            A cold launch briefly shows "Loading patterns…" while it re-reads the
+            store and re-fetches the feed. That is a transient state to wait out,
+            not a failure to report.
 
             The chart is drawn, not laid out from views, so element queries will
             find little inside it. Judge it from the screenshots. Everything
@@ -167,10 +208,21 @@ pr_review:
             palette on a woven paper background, with serif headings. Faint is
             the intended look, not a rendering failure. Dark mode values are
             declared but not yet tuned, so dark mode is not a fair target.
-    # This field takes workflow UUIDs, not names, and a UUID exists only once the
-    # workflow does -- which is an org-side resource, not something a checkout
-    # can carry. Nothing runs here until tests are written and grouped: #127.
-    workflow_ids: []
+    # UUIDs, not names -- a name is rejected as "invalid value at
+    # pr_review.workflow_ids.0". This one is the `graphghan-pr-review` workflow,
+    # which groups the two definitions in .revyl/tests/:
+    #
+    #   pattern-feed-to-project  the network paths and the below-the-fold
+    #                            "Start project" button
+    #   work-progress-persists   the Work screen, and whether a worked row
+    #                            survives the app being killed
+    #
+    # Both were walked on a device session before being written, not inferred
+    # from the source; each file's header records what that walk corrected. If
+    # the workflow is ever recreated its UUID changes and this line has to
+    # change with it -- `revyl workflow list` prints the current one.
+    workflow_ids:
+      - "d41a3775-df32-422f-aae4-03f817535b37"
     strict_ci_check:
         # false until the upload step has proven itself on a real pull request.
         # true makes a missing or failed upload block the merge, and that is not

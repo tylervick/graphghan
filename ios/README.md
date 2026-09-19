@@ -131,6 +131,24 @@ the local setup. Local equivalent, once `mise run revyl-setup` has signed you in
     mise x -- revyl build --local     # build this recipe here and upload the artifact
     mise x -- revyl build             # or build it on a Revyl cloud runner
 
+Two test definitions live in `.revyl/tests/` and run as the `graphghan-pr-review` workflow:
+
+- `pattern-feed-to-project` — the Patterns tab reaches the live feed, a pattern's manifest loads,
+  and `Start project` creates a project. Every step crosses the network, which the unit suite
+  cannot: it runs against a stub HTTP client.
+- `work-progress-persists` — a row is worked on the Work screen, the app is killed, and the
+  position is still there on relaunch. `ios/Tests` drives `ProjectService` against an *in-memory*
+  SwiftData store, so it proves the arithmetic and nothing about durability.
+
+Both were walked on a real cloud device before being written. `.revyl/tests/README.md` records what
+that walk corrected about the app — `Start project` is two screens below the fold, the Work screen's
+advance button reads `+10` but is *labelled* `"… next ten"`, and starting a project switches tabs by
+itself — and it lives in a Markdown file rather than in the YAML headers because `revyl test push`
+round-trips those files through the backend and strips every comment out of them.
+
+Edit them as YAML and push with `mise x -- revyl test push <name>`; `mise x -- revyl test run <name>`
+runs one against the app's current build.
+
 
 A merge to `main` that changes the app ships a TestFlight build to the internal group; `docs/release.md`
 has the details, the group settings that keep external testers out of the automatic path, and the
