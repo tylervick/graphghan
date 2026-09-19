@@ -60,7 +60,7 @@ env:
 
 jobs:
   # Cheap and first: a tester installs the binary, so only a change to what goes into it is worth a
-  # 25-minute archive and a build in their inbox. Docs, tests and the release scripts under ios/ are
+  # macOS runner (about five minutes end to end) and a build in their inbox. Docs, tests and the release scripts under ios/ are
   # not the binary; a What to Test preamble merged on its own waits for the next code change. A hand
   # dispatch always ships (or validates).
   decide:
@@ -122,7 +122,7 @@ jobs:
           [ "$N" -ge 1 ] || { echo "::error::build number must be at least 1"; exit 1; }
           # App Store Connect needs a build number strictly above every number already used for this
           # version. Only an override can fail this now; catching it here costs seconds, letting it
-          # through costs a 20-minute archive and then a rejected upload.
+          # through costs the archive and then a rejected upload.
           if [ -n "$NEWEST" ] && [ "$N" -le "$NEWEST" ]; then
             echo "::error::build number $N is not above the newest shipped build $NEWEST"
             exit 1
