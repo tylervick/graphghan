@@ -28,7 +28,7 @@ struct PDFImportSheet: View {
                 case .reading:
                     VStack(spacing: 12) {
                         ProgressView()
-                        Text("Reading the pages…")
+                        Text("Reading the pages…").font(Font.Heather.body).foregroundStyle(Color.ink2)
                     }
                 case .found:
                     VStack(spacing: 16) {
@@ -37,8 +37,8 @@ struct PDFImportSheet: View {
                                 .clipShape(RoundedRectangle(cornerRadius: 8))
                         }
                         if let r = state.reading {
-                            Text(r.bundle.manifest.title).font(.headline)
-                            Text("\(r.width) × \(r.height) stitches, \(r.colours) colours").foregroundStyle(.secondary)
+                            Text(r.bundle.manifest.title).font(Font.Heather.heading).foregroundStyle(Color.ink)
+                            Text("\(r.width) × \(r.height) stitches, \(r.colours) colours").font(Font.Heather.body).foregroundStyle(Color.ink2)
                         }
                         Button("Add to library") { Task { await model.addImportedPDF() } }
                             .buttonStyle(.borderedProminent)
@@ -46,13 +46,14 @@ struct PDFImportSheet: View {
                     .padding()
                 case .failed(let sentence):
                     VStack(spacing: 12) {
-                        Image(systemName: "doc.questionmark").font(.largeTitle).foregroundStyle(.secondary)
-                        Text(sentence).multilineTextAlignment(.center)
+                        Image(systemName: "doc.questionmark").font(Font.Heather.rowNumber).foregroundStyle(Color.ink2)
+                        Text(sentence).font(Font.Heather.body).foregroundStyle(Color.ink).multilineTextAlignment(.center)
                     }
                     .padding()
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color.ground.weave().ignoresSafeArea())
             .navigationTitle(state.fileName)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
