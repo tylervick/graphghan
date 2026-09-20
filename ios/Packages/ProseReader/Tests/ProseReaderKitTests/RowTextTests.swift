@@ -84,7 +84,7 @@ import Testing
     #expect(RowText.normalized("7. 2G, 3R, 2G") == "Row 7: 2G, 3R, 2G")
     #expect(RowText.normalized("Row 1. 21sc with C1 (aqua).") == "Row 1: 21sc with A (aqua).")
     #expect(RowText.normalized("Row 3 - Sc in first 2 sts.") == "Row 3: Sc in first 2 sts.")
-    #expect(RowText.normalized("Rows 1-10: Sc in each st across, turn.") == "Row 1-10: Sc in each st across, turn.")
+    #expect(RowText.normalized("Rows 1-10: Sc in each st across, turn.") == "Row 1: Sc in each st across, turn.")
     #expect(RowText.normalized("Row 6 (>>):(green) sc 10, (white) sc 3") == "Row 6 (>>): 10 green, 3 white")
     #expect(RowText.normalized("Row 12 (WS): 4 Y, 3 G") == "Row 12 (WS): 4 Y, 3 G")
     #expect(RowText.normalized("R 57 [←]: 9 sc, (White) 15 sc, 1 dec [25]") == "R 57 [←]: 9 sc, (White) 16 sc [25]")
@@ -154,4 +154,54 @@ import Testing
     #expect(RowText.normalized("Row 15 [WS]: (lb) x 3, a, ch, a, bf, c2, (bf) x 2, c", printed: map) == "Row 15 [WS]: (A) x 3, I, C, I, G, 2 D, (G) x 2, D")
     #expect(RowText.normalized("Row 4: Join in a new colour, then c", printed: map) == "Row 4: Join in a new colour, then D")
     #expect(RowText.normalized("Row 30 [RS]: (lb) x 5, bf, c.", printed: map) == "Row 30 [RS]: (A) x 5, G, D.")
+}
+
+// #147: ranges and repeats.
+@Test func rangeHeadsListEveryRowTheyCover() {
+    #expect(RowText.rowNumbers(of: "Rows 1-10: Sc in each st across, turn.") == Array(1...10))
+    #expect(RowText.rowNumbers(of: "Rows 2 & 3: Chain1, (12sc), Turn.") == [2, 3])
+    #expect(RowText.rowNumbers(of: "Row 13-15: sc in c1.") == [13, 14, 15])
+    #expect(RowText.rowNumbers(of: "Rows 9- 10: 3 sc in c1, 11 sc in c2, 3 sc in c1") == [9, 10])
+    #expect(RowText.rowNumbers(of: "Rows 2 and 3: sc across") == [2, 3])
+    #expect(RowText.rowNumbers(of: "Row 5: 7sc in c1, 3sc in c2, 7sc in c1.") == [5])
+    #expect(RowText.rowNumbers(of: "7. 2G, 3R, 2G") == [7])
+    #expect(RowText.rowNumbers(of: "Total: 3673") == [])
+    #expect(RowText.normalized("Rows 1-10: Sc in each st across, turn.") == "Row 1: Sc in each st across, turn.")
+    #expect(RowText.normalized("Row 13-15: sc in c1.") == "Row 13: sc in A.")
+    #expect(RowText.normalized("Row1: sc in second chain, sc across in color 1") == "Row 1: sc in second chain, sc across in A")
+    #expect(RowText.plainRowColour(of: RowText.normalized("Row1: sc in second chain, sc across in color 1")) == "A")
+}
+
+@Test func aRowThatRepeatsAnotherNamesIt() {
+    #expect(RowText.repeatedRow(in: "Row 6: repeat row 5.") == 5)
+    #expect(RowText.repeatedRow(in: "Rows 9-10: Rep Row 8.") == 8)
+    #expect(RowText.repeatedRow(in: "Row 16: Repeat row 15, then fasten off.") == 15)
+    #expect(RowText.repeatedRow(in: "Row 6: 6 white, 6 pink, 6 white") == nil)
+    #expect(RowText.repeatedRow(in: "Row 20: A (4), *B (2), A (3); repeat from * across") == nil)
+}
+
+@Test func bracketedGroupsWithACountAreExpanded() {
+    #expect(RowText.normalized("Row 8: 12 MC, (14 CC, 24 MC) 3 times, 14 CC, 12 MC.") == "Row 8: 12 MC, 14 CC, 24 MC, 14 CC, 24 MC, 14 CC, 24 MC, 14 CC, 12 MC.")
+    #expect(RowText.normalized("Row 22: A 5, B 2, A 7, [B 3, A 3] 2 times, B 2, A 10, turn.") == "Row 22: A 5, B 2, A 7, B 3, A 3, B 3, A 3, B 2, A 10, turn.")
+    #expect(RowText.normalized("Row 9: (sc 2, dc 1) twice, sc 4") == "Row 9: sc 2, dc 1, sc 2, dc 1, sc 4")
+    #expect(RowText.normalized("Row 5 [WS]: (lb) x 5, (bf) x 2") == "Row 5 [WS]: (lb) x 5, (bf) x 2")
+}
+
+@Test func starredGroupsRepeatToTheRowsWidthOrACount() {
+    let row = "Row 20: Ch 1, A (4), *B (2), A (3), B (2), A (4); repeat from * across, turn."
+    #expect(RowText.normalized(row, width: 37) == "Row 20: A (4), B (2), A (3), B (2), A (4), B (2), A (3), B (2), A (4), B (2), A (3), B (2), A (4), turn.")
+    #expect(RowText.normalized(row, width: 38) == "Row 20: A (4), *B (2), A (3), B (2), A (4); repeat from * across, turn.")
+    #expect(RowText.normalized(row) == "Row 20: A (4), *B (2), A (3), B (2), A (4); repeat from * across, turn.")
+    #expect(RowText.normalized("Row 3: 2 A, *3 B, 1 A; rep from * 2 more times, 2 A", width: 100) == "Row 3: 2 A, 3 B, 1 A, 3 B, 1 A, 3 B, 1 A, 2 A")
+    #expect(RowText.normalized("Row 4: *3 B, 1 A; rep from * 3 times") == "Row 4: 3 B, 1 A, 3 B, 1 A, 3 B, 1 A")
+}
+
+// A plain row carries no count: the previous row's width in the colour it names, or none named.
+@Test func plainRowsNameAtMostOneColourAndNoCount() {
+    #expect(RowText.plainRowColour(of: "Row 1: sc in second chain, sc across in A") == "A")
+    #expect(RowText.plainRowColour(of: "Row 2: sc in each st across, ch 1, turn. (18)") == "")
+    #expect(RowText.plainRowColour(of: "Rows 24-32: With A, sc in each st across. Fasten off after Row 32.") == "A")
+    #expect(RowText.plainRowColour(of: "Row 20 (>>): 60 white") == nil)
+    #expect(RowText.plainRowColour(of: "Row 3: 8 white, 2 pink, 8 white") == nil)
+    #expect(RowText.plainRowColour(of: "Row 13: sc in A.") == "A")
 }

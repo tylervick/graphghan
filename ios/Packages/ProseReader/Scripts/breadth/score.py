@@ -13,8 +13,12 @@ for doc, p in ((got_doc, sys.argv[1]), (truth_doc, sys.argv[2])):
         sys.exit(f"{p}: written_rows must be a list of {{row: int, runs: [[code, count], ...]}}")
 
 
-def rows_of(doc):
-    return {r["row"]: [[c, n] for c, n in r["runs"]] for r in doc.get("written_rows", []) if r.get("runs")}
+def rows_of(doc):  # the first printing of a row number wins: a second panel's "Rows 2-46" is another panel
+    out = {}
+    for r in doc.get("written_rows", []):
+        if r.get("runs") and r["row"] not in out:
+            out[r["row"]] = [[c, n] for c, n in r["runs"]]
+    return out
 
 
 def canon(rows):
