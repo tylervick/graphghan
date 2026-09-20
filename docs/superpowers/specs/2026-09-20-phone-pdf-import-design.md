@@ -126,8 +126,12 @@ and the `--import` launch argument are #16's code with one branch on the file's 
 (`Services/PDFImporter.swift`), which decides the path:
 
 1. If the first page's text matches our cover grammar, §4.1: read, validate, save, done.
-2. Render each page at the importer's scale and run `GridReader`; if a region of at least 8×8
-   cells with noise under the threshold is found on any page, §4.2.
+2. Render each page and run `GridReader`; if a region of at least 8×8 cells with noise under the
+   threshold is found on any page, §4.2. The render is budgeted before it happens: the scale is
+   chosen from the page's media box so the bitmap is at most 40 million pixels (`MAX_PIXELS`, the
+   Python importer's cap), starting from the importer's usual 4× and halving until it fits, and a
+   page that would still exceed the cap at 1× is skipped with "page N is too large to read"
+   rather than rendered. Pages are rendered one at a time and released before the next.
 3. Else if any page holds row heads (`RowText.blocks` finds two or more), §4.3.
 4. Else §4.4, or "no chart or written rows were found in this PDF".
 
@@ -211,24 +215,35 @@ with the same names, the same constants (`EDGE_THRESHOLD`, `BRIDGE`, `MERGE_PX`,
 that renders a synthetic grid or reads a fixture page becomes a Swift test over the same PNG,
 and the answer (regions, cells, palette, noise) must match the Python answer recorded beside the
 image. Where Python uses numpy over the whole image, Swift uses `vImage` for the channel
-differences and the box filters and `[UInt8]` loops for the rest; the pages are at most 40
-million pixels by the importer's cap, and a page reads in under two seconds on an A-series chip
-or the reader is not fast enough.
+differences and the box filters and `[UInt8]` loops for the rest; a page is at most 40
+million pixels by the render budget in §5.1, and a page reads in under two seconds on an A-series
+chip or the reader is not fast enough.
 
 ### 6.3 What the cross-check records
 
-The row check's outcome goes into the chart document's `ext` (the format's extension slot):
-`ext.graphghan.import = { source: "pdf", grid: true|false, rows_checked: n, rows_disagree:
-[12, 40, 41], finished: true|false }` (the format's `ext.graphghan` namespace). The detail screen reads it for the sentence in §5.4; nothing
-else does, and the chart id ignores `ext`.
+The row check's outcome goes into the chart document's `ext` (the format's `ext.graphghan`
+namespace): `ext.graphghan.import = { source: "pdf", grid: true|false, check: <status>,
+rows_checked: n, rows_disagree: [12, 40, 41] }`, where `check` is one of:
+
+| `check` | meaning | detail-screen sentence |
+|---|---|---|
+| `finished` | every written row was read and compared | none, or the disagreement sentence (§5.4) |
+| `stopped` | the maker tapped Skip the check or Add to library before it ended | "Written rows checked up to row N; N–M not checked." |
+| `unavailable` | the device has no model (§7) | "Written rows not checked on this iPhone." |
+| `none` | the pages have no written rows to check | none |
+
+Skipping and adding-before-the-end are one outcome, `stopped`, because they leave the same state:
+rows up to `rows_checked` compared, the rest not. Cancel closes the sheet and writes nothing, so it
+has no persisted state. Nothing but the detail screen reads `ext.graphghan.import`, and the chart
+id ignores `ext`.
 
 ## 7. Gating
 
 - iOS 17 and up: §4.1, §4.2 without the row check, and every failure sentence.
 - iOS 26 and up with `SystemLanguageModel.default.availability == .available`: the row check in
   §4.2 and the rows-only path in §4.3. The check is offered, not forced: on a device without the
-  model the chart from the grid is saved with `rows_checked: 0` and the detail screen says
-  "written rows not checked on this iPhone".
+  model the chart from the grid is saved with `check: unavailable` (§6.3) and the detail screen
+  says "Written rows not checked on this iPhone".
 - The `#available(iOS 26, *)` guard sits in `PDFImporter`, in one place, around the reader's
   construction; `ProseReaderKit.unavailableReason()` supplies the sentence when the OS is new
   enough and the model is not there.
@@ -246,13 +261,16 @@ else does, and the chart id ignores `ext`.
    with Apple Intelligence (77 of 77, the same as the Mac tool) since the simulator has no model;
    unit tests for `RowsChart` over the real fixtures' `prose.json` files. Two days.
 3. **The grid.** `GridReader` ported with its image tests; the §4.2 path with the check and the
-   `ext` record; the detail-screen sentence. The cactus, Santa and Orca-chart fixtures under
-   `fixtures/import/real/` (gitignored, on the mini) read to the pinned hashes. A week.
+   `ext` record; the detail-screen sentence. CI proves the port on the committed images (§9); the
+   cactus, Santa and Orca-chart fixtures under `fixtures/import/real/` are gitignored (copyright),
+   so reading them to the hashes pinned in `manifest.toml` is a manual gate run on the mini and
+   recorded in this spec's §11 before the PR merges. A week.
 
 ## 9. Tests
 
 - `GraphghanCore`: `OwnPDFReaderTests` (text in, chart out, id equal to Python's),
-  `GridReaderTests` (image in, regions and cells out, against recorded Python answers),
+  `GridReaderTests` (image in, regions and cells out, against recorded Python answers, over
+  synthetic grids and the two committed own-PDF pages rendered to PNG under `fixtures/import/`),
   `RowsChartTests` (prose.json in, chart out; the cross-check over Craigh's own rows and a
   deliberately wrong row), `ChartDocumentWriterTests` (encode then `Chart.load` then the id).
 - App: `PDFImportTests` in the shape of `BundleImportTests`: the sheet's states for each path,
@@ -269,8 +287,8 @@ else does, and the chart id ignores `ext`.
 2. The rows-only path (§4.3) ships now, minutes long on-device, with the honest sentence in the
    sheet before it starts and the progress while it runs; the app is in beta and the maker can
    cancel. The cloud model shortens it if the entitlement ever lands.
-3. The origin note borrows  (§5.3) for now; #161 is the manifest field that replaces
-   the borrowing.
+3. The origin note borrows `dedication` (§5.3) for now; #161 is the manifest field that
+   replaces the borrowing.
 4. PR order stays as §8: the type and the exact reader, then the rows on the phone, then the grid.
 
 ## 11. Success criteria
@@ -279,5 +297,6 @@ else does, and the chart id ignores `ext`.
   with the same chart id the Mac computes.
 - Orca's PDF opens into a chart of 29×77 with 77 rows read and validated, on a device with Apple
   Intelligence, in under five minutes, with progress shown and cancel working.
-- The cactus blanket's PDF opens into the pinned 28×28 chart in under five seconds on iOS 17.
+- The cactus blanket's PDF opens into the pinned 28×28 chart in under five seconds on iOS 17
+  (a manual gate on the mini, §8; the fixture is not in the repository).
 - Every failure in §5.4 shows its sentence and leaves the library untouched.
