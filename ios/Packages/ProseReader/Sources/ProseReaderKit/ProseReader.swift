@@ -631,7 +631,7 @@ public enum RowText {
     /// must be a palette code, a printed code, or a token of the row's own text.
     static func cleanRuns(_ runs: [RunOut], key: [String: String], printed: Set<String> = [], spellings: inout [String: String], text: String? = nil) -> [[ProseDocument.RunValue]] {
         var out: [(String, Int)] = []
-        let palette = Set(key.values)
+        let palette = Set(key.values.map { $0.lowercased() })
         let tokens: Set<String>? = text.map { t in
             Set(t.split(whereSeparator: { !$0.isLetter }).map { $0.lowercased() })
         }
@@ -640,7 +640,7 @@ public enum RowText {
             if r.count <= 0 || (notARun.contains(code.lowercased()) && !printed.contains(code.lowercased())) { continue }
             if let tokens {
                 let lower = code.lowercased()
-                let known = palette.contains(code) || key[lower] != nil || printed.contains(lower) || tokens.contains(lower)
+                let known = palette.contains(lower) || key[lower] != nil || printed.contains(lower) || tokens.contains(lower)
                 if !known { continue }  // neither a colour of this document nor a word of this row: an invention
             }
             // The model's casing drifts ("w" once, "W" another time): one spelling per code, the first seen.
