@@ -38,7 +38,15 @@ public struct ReaderOptions: Sendable {
 public struct ReaderProgress: Sendable {
     public let page: Int
     public let rowsSoFar: Int
+    /// Every row head the pages hold, counted before any is read, so a sheet can say "row 34 of 77".
+    public let rowsTotal: Int
     public let seconds: Double
+    public init(page: Int, rowsSoFar: Int, rowsTotal: Int, seconds: Double) {
+        self.page = page
+        self.rowsSoFar = rowsSoFar
+        self.rowsTotal = rowsTotal
+        self.seconds = seconds
+    }
 }
 
 @available(macOS 26.0, iOS 26.0, *)
@@ -113,6 +121,7 @@ public struct ProseReader: Sendable {
     /// Read a pattern whose pages are already text (PDFKit, or the importer's staged pNN.txt).
     public func read(pages: [String], progress: (@Sendable (ReaderProgress) -> Void)? = nil) async -> ProseDocument {
         let started = Date()
+        let rowsTotal = RowText.rowCount(in: pages)
         var doc = await readFront(pages: pages)
         let key = Dictionary(
             (doc.palette ?? []).compactMap { p in p.key_label.map { ($0.lowercased(), p.code) } },
@@ -187,10 +196,15 @@ public struct ProseReader: Sendable {
                     }
                     session = nil
                 }
-                progress?(ReaderProgress(page: pageNo, rowsSoFar: rows.count, seconds: Date().timeIntervalSince(started)))
+                progress?(ReaderProgress(page: pageNo, rowsSoFar: rows.count, rowsTotal: rowsTotal, seconds: Date().timeIntervalSince(started)))
                 continue
             }
             for block in blocks {
+                if Task.isCancelled {  // the sheet's Cancel: what is read so far, marked, and out
+                    doc.uncertain = (doc.uncertain ?? []) + ["cancelled after \(rows.count) rows"]
+                    if !rows.isEmpty { doc.written_rows = rows }
+                    return doc
+                }
                 // One row per prompt, in parts when the row is long: each part is one answer the
                 // model can hold, and the parts join in order. The row number comes from the text's
                 // own head (the model once answered 189 for "Row 1 (RS): 189 Y"), and increases and
@@ -202,7 +216,7 @@ public struct ProseReader: Sendable {
                     for n in numbers.isEmpty ? [0] : numbers {
                         emit(ProseDocument.Row(row: n, page: pageNo, text: block, runs: src.runs, total: src.total, error: nil), derivedFrom: numbers + [0])
                     }
-                    progress?(ReaderProgress(page: pageNo, rowsSoFar: rows.count, seconds: Date().timeIntervalSince(started)))
+                    progress?(ReaderProgress(page: pageNo, rowsSoFar: rows.count, rowsTotal: rowsTotal, seconds: Date().timeIntervalSince(started)))
                     continue
                 }
                 let normalizedBlock = RowText.normalized(block, printed: printedMap, width: lastWidth)
@@ -221,7 +235,7 @@ public struct ProseReader: Sendable {
                             if numbers.count > 1 { derived[n] = rows.count - 1 } else if n > 0 { explicit.insert(n) }
                         }
                     }
-                    progress?(ReaderProgress(page: pageNo, rowsSoFar: rows.count, seconds: Date().timeIntervalSince(started)))
+                    progress?(ReaderProgress(page: pageNo, rowsSoFar: rows.count, rowsTotal: rowsTotal, seconds: Date().timeIntervalSince(started)))
                     continue
                 }
                 let parts = RowText.chunks(of: normalizedBlock, maxRuns: options.chunkRuns)
@@ -264,7 +278,7 @@ public struct ProseReader: Sendable {
                 for n in covered {
                     emit(ProseDocument.Row(row: failure == nil ? n : 0, page: pageNo, text: block, runs: failure == nil ? runs : [], total: total, error: failure), derivedFrom: numbers)
                 }
-                progress?(ReaderProgress(page: pageNo, rowsSoFar: rows.count, seconds: Date().timeIntervalSince(started)))
+                progress?(ReaderProgress(page: pageNo, rowsSoFar: rows.count, rowsTotal: rowsTotal, seconds: Date().timeIntervalSince(started)))
             }
         }
         if !pendingPlain.isEmpty, let width = widthVotes.max(by: { $0.value < $1.value || ($0.value == $1.value && $0.key > $1.key) })?.key {
@@ -394,6 +408,11 @@ public enum RowText {
 
     /// Each written row's text on a page, wrapped continuation lines rejoined (a continuation
     /// starts with a count or carries a comma-separated list; a footer does neither).
+    /// How many written rows the pages hold, by their heads: what a progress bar is out of.
+    public static func rowCount(in pages: [String]) -> Int {
+        pages.reduce(0) { $0 + blocks(in: $1).count }
+    }
+
     public static func blocks(in text: String) -> [String] {
         var blocks: [String] = []
         for raw in text.split(whereSeparator: \.isNewline) {

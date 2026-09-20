@@ -259,3 +259,9 @@ import Testing
     #expect(codes([RunOut(count: 5, code: "Gd")], key: [:], text: "Row 1: 5 Gd, 3 Y") == ["Gd"])
     #expect(codes([RunOut(count: 5, code: "Gd")], key: [:], text: "Row 1: 5 Y") == [])
 }
+
+@Test func theRowCountIsTheNumberOfBlocksAcrossPages() {
+    let pages = ["Key\nA red\nRow 1: 3 A, 4 B\nRow 2: 7 A\n", "Row 3: 7 B\nCraigh Page 2\n", "Nothing here"]
+    #expect(RowText.rowCount(in: pages) == 3)
+    #expect(RowText.rowCount(in: []) == 0)
+}
