@@ -238,11 +238,61 @@ public struct ProseReader: Sendable {
 
 /// Text handling that needs no model: finding the rows on a page, tidying what the model returns.
 public enum RowText {
-    /// A row head: "Row 12 (WS):", "R 3 [←]:", "Row 4 WS:", "Row1:". The colon within a few
-    /// characters keeps a sentence that merely starts with "Row 1" from reading as a row.
-    static let rowStart = try! NSRegularExpression(pattern: #"^\s*(?:Row|ROW|R)\s*\.?\s*\d+[^:\n]{0,12}:"#)
+    /// The head of a written row in every spelling the corpus uses (#146): "Row 12 (WS):",
+    /// "R 3 [←]:", "Row 4 WS:", "Row1:"; "Row 1." and "Row 3 -" with a period or a dash for the
+    /// colon; "Rows 1-10:" and "Row 2 & 3:", a range the model is left to read; "1st row:"; and a
+    /// bare numbered list, "7. 2G, 3R, 2G", when what follows the number looks like a run. The
+    /// punctuation that ends the head is what keeps "Row 1 starts at the bottom right" out.
+    /// Groups: 1 and 2 are the number (with any range) and the side marker of the "Row" form,
+    /// 3 and 4 the same for the ordinal form, 5 the number of a numbered list.
+    static let headPattern: String = {
+        let ending = #"(?::|\.(?=\s)|\s[-–—](?=\s))"#
+        let marker = #"([^:.\-–—\n]{0,14}?)"#
+        let range = #"(\d+(?:\s*(?:[-–]|&|and)\s*\d+)?)"#
+        let run = #"(?:\d+\s*(?!(?:sc|dc|hdc|tr|ch|sts?|sl)\b)[A-Za-z]{1,3}\b|\([A-Za-z][A-Za-z ]*\))"#
+        return "(?:(?:Rows?|ROWS?|R)\\s*\\.?\\s*" + range + marker + ending
+            + "|(\\d+)(?:st|nd|rd|th)\\s+[Rr]ow" + marker + ending
+            + "|(\\d+)\\.(?=\\s+" + run + "))"
+    }()
+    static let rowStart = try! NSRegularExpression(pattern: "^\\s*" + headPattern)
     /// The same head inside a line: PDFKit joins the last row of one column with the first of the next.
-    static let rowInside = try! NSRegularExpression(pattern: #"\s(?=(?:Row|ROW|R)\s*\.?\s*\d+[^:\n]{0,12}:)"#)
+    static let rowInside = try! NSRegularExpression(pattern: "\\s(?=" + headPattern + ")")
+
+    /// A block's head taken apart: its number (with any range, as printed), its side marker, whether
+    /// it was already the "Row N …:" form the model reads best, and where the row's text starts.
+    struct Head {
+        let number: String
+        let marker: String
+        let verbatim: Bool
+        let end: String.Index
+    }
+
+    static func head(of block: String) -> Head? {
+        let range = NSRange(block.startIndex..., in: block)
+        guard let m = rowStart.firstMatch(in: block, range: range), let end = Range(m.range, in: block)?.upperBound else { return nil }
+        func group(_ i: Int) -> String? {
+            guard let r = Range(m.range(at: i), in: block) else { return nil }
+            return String(block[r])
+        }
+        if let number = group(1) {
+            let matched = block[..<end]
+            let verbatim = matched.hasSuffix(":") && !matched.contains("Rows") && !matched.contains("ROWS")
+            return Head(number: number, marker: (group(2) ?? "").trimmingCharacters(in: .whitespaces), verbatim: verbatim, end: end)
+        }
+        if let number = group(3) { return Head(number: number, marker: (group(4) ?? "").trimmingCharacters(in: .whitespaces), verbatim: false, end: end) }
+        if let number = group(5) { return Head(number: number, marker: "", verbatim: false, end: end) }
+        return nil
+    }
+
+    /// The block with its head in the one form the model reads best, "Row N (marker): text", and
+    /// one space between head and text; a head already in that form is kept as printed.
+    static func canonicalHead(_ block: String) -> String {
+        guard let h = head(of: block) else { return block }
+        let rest = block[h.end...].trimmingCharacters(in: .whitespaces)
+        let head = h.verbatim ? String(block[..<h.end]).trimmingCharacters(in: .whitespaces)
+                              : "Row " + h.number + (h.marker.isEmpty ? "" : " " + h.marker) + ":"
+        return head + " " + rest
+    }
     static let notARun: Set<String> = ["ch", "turn", "sl", "st", "sts", "fsc", "fdc", "sc", "hdc", "dc"]
 
     /// Each written row's text on a page, wrapped continuation lines rejoined (a continuation
@@ -260,9 +310,11 @@ public enum RowText {
                 if rowStart.firstMatch(in: line, range: range) != nil {
                     blocks.append(line)
                 } else if let last = blocks.last, line.contains(where: \.isLetter),
-                          (line.first?.isNumber == true || line.contains(", ")), !last.hasSuffix("."), !last.hasSuffix(":") {
+                          (line.first?.isNumber == true || line.contains(", ")), !last.hasSuffix("."), !last.hasSuffix(":"),
+                          line.range(of: #"^\d+\.\s"#, options: .regularExpression) == nil {
                     // A wrapped row continues with a count and a colour ("4 Y (9 sts)"); a bare
-                    // number is a chart-page label and a footer has no leading count.
+                    // number is a chart-page label, a footer has no leading count, and "1. You
+                    // will use…" is a numbered instruction, not a continuation.
                     blocks[blocks.count - 1] = last + " " + line
                 }
             }
@@ -270,18 +322,19 @@ public enum RowText {
         return blocks
     }
 
-    /// A long row cut into parts of at most `maxRuns` comma-separated items after its "Row N:" head,
-    /// each part carrying the head so the model knows what it is reading. 0 means never cut.
+    /// A long row cut into parts of at most `maxRuns` comma-separated items after its head (the one
+    /// `rowStart` matched, whatever its punctuation), each part carrying the head so the model
+    /// knows what it is reading. 0 means never cut.
     public static func chunks(of block: String, maxRuns: Int) -> [String] {
-        guard maxRuns > 0, let colon = block.range(of: ": ") else { return [block] }
-        let head = String(block[..<colon.lowerBound])
-        let items = block[colon.upperBound...].components(separatedBy: ", ")
+        guard maxRuns > 0, let h = head(of: block) else { return [block] }
+        let head = String(block[..<h.end]).trimmingCharacters(in: .whitespaces)
+        let items = block[h.end...].trimmingCharacters(in: .whitespaces).components(separatedBy: ", ")
         if items.count <= maxRuns { return [block] }
         var parts: [String] = []
         var i = 0
         while i < items.count {
             let slice = items[i..<min(i + maxRuns, items.count)]
-            parts.append(head + ": " + slice.joined(separator: ", "))
+            parts.append(head + " " + slice.joined(separator: ", "))
             i += maxRuns
         }
         return parts
@@ -295,27 +348,25 @@ public enum RowText {
         return a.dropLast() + [[.code(c1), .count(n1 + n2)]] + b.dropFirst()
     }
 
-    static let rowNumberRe = try! NSRegularExpression(pattern: #"^\s*(?:Row|ROW|R)\s*\.?\s*(\d+)"#)
     static let incRe = try! NSRegularExpression(pattern: #"\b(\d+)\s*inc\b"#)
     static let decRe = try! NSRegularExpression(pattern: #"\b(\d+)\s*dec\b"#)
 
-    /// The row number printed in a block's head.
+    /// The row number printed in a block's head: the first number of a range ("Rows 1-10" is row 1).
     public static func rowNumber(of block: String) -> Int? {
-        let range = NSRange(block.startIndex..., in: block)
-        guard let m = rowNumberRe.firstMatch(in: block, range: range), let r = Range(m.range(at: 1), in: block) else { return nil }
-        return Int(block[r])
+        guard let h = head(of: block) else { return nil }
+        return Int(h.number.prefix { $0.isNumber })
     }
 
     static let foundationRe = try! NSRegularExpression(
         pattern: #"\bch\s*\d+,?\s*(?:from the \w+ (?:stitch|chain|ch) from the hook,?\s*)?(?:turn,?\s*)?"#, options: .caseInsensitive)
     static let adjacentRe = try! NSRegularExpression(pattern: #"\b(\d+) sc, (\d+) sc\b"#)
 
-    /// Increases and decreases as the stitches they make ("1 inc" is 2 stitches of the colour in
-    /// force, "2 dec" is 2 stitches), chains and turning phrases removed, and two plain counts
-    /// of one colour added together, all before the model sees the row: it keeps none of these
-    /// rules however it is told, and each is a regular expression.
+    /// The head in one form, increases and decreases as the stitches they make ("1 inc" is 2
+    /// stitches of the colour in force, "2 dec" is 2 stitches), chains and turning phrases removed,
+    /// and two plain counts of one colour added together, all before the model sees the row: it
+    /// keeps none of these rules however it is told, and each is a regular expression.
     public static func normalized(_ block: String) -> String {
-        var out = block
+        var out = canonicalHead(block)
         for (re, factor) in [(incRe, 2), (decRe, 1)] {
             for m in re.matches(in: out, range: NSRange(out.startIndex..., in: out)).reversed() {
                 guard let whole = Range(m.range, in: out), let num = Range(m.range(at: 1), in: out), let n = Int(out[num]) else { continue }
