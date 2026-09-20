@@ -215,8 +215,14 @@ public struct ProseReader: Sendable {
             doc.chart = chart
             if !got.colours.isEmpty, doc.palette == nil {
                 // Codes are A, B, C... in key order unless the key itself prints 1-3 letter codes
-                // that the rows use: the model's own choice of letter drifts from run to run.
-                let printed = got.colours.allSatisfy { RowText.isCode($0.code) && $0.code != $0.name }
+                // that the rows use: the model invents a letter per colour otherwise, and its
+                // choice drifts from run to run, so a code counts only when the pages contain it
+                // as a token beside a count.
+                let corpus = pages.joined(separator: "\n")
+                let printed = got.colours.allSatisfy { c in
+                    RowText.isCode(c.code) && c.code != c.name
+                        && corpus.range(of: "\\b\\d+ ?\(c.code)\\b", options: .regularExpression) != nil
+                }
                 doc.palette = got.colours.enumerated().map { i, c in
                     let code = printed ? c.code : String(UnicodeScalar(65 + i) ?? "A")
                     let hex = c.hex.range(of: "^#[0-9a-fA-F]{6}$", options: .regularExpression) != nil ? c.hex.lowercased() : nil
@@ -300,16 +306,27 @@ public enum RowText {
         return Int(block[r])
     }
 
-    /// Increases and decreases as the stitches they make: "1 inc" is 2 stitches of the colour in
-    /// force, "2 dec" is 2 stitches. The model never keeps that rule, so the text is rewritten.
+    static let foundationRe = try! NSRegularExpression(
+        pattern: #"\bch\s*\d+,?\s*(?:from the \w+ (?:stitch|chain|ch) from the hook,?\s*)?(?:turn,?\s*)?"#, options: .caseInsensitive)
+    static let adjacentRe = try! NSRegularExpression(pattern: #"\b(\d+) sc, (\d+) sc\b"#)
+
+    /// Increases and decreases as the stitches they make ("1 inc" is 2 stitches of the colour in
+    /// force, "2 dec" is 2 stitches), chains and turning phrases removed, and two plain counts
+    /// of one colour added together, all before the model sees the row: it keeps none of these
+    /// rules however it is told, and each is a regular expression.
     public static func normalized(_ block: String) -> String {
         var out = block
         for (re, factor) in [(incRe, 2), (decRe, 1)] {
-            let matches = re.matches(in: out, range: NSRange(out.startIndex..., in: out)).reversed()
-            for m in matches {
+            for m in re.matches(in: out, range: NSRange(out.startIndex..., in: out)).reversed() {
                 guard let whole = Range(m.range, in: out), let num = Range(m.range(at: 1), in: out), let n = Int(out[num]) else { continue }
                 out.replaceSubrange(whole, with: "\(n * factor) sc")
             }
+        }
+        out = foundationRe.stringByReplacingMatches(in: out, range: NSRange(out.startIndex..., in: out), withTemplate: "")
+        while let m = adjacentRe.firstMatch(in: out, range: NSRange(out.startIndex..., in: out)),
+              let whole = Range(m.range, in: out), let a = Range(m.range(at: 1), in: out), let b = Range(m.range(at: 2), in: out),
+              let x = Int(out[a]), let y = Int(out[b]) {
+            out.replaceSubrange(whole, with: "\(x + y) sc")
         }
         return out
     }
