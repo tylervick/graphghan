@@ -14,7 +14,8 @@ import GraphghanCore
         let patterns = PatternStore(baseURL: URL(string: "https://example.test/")!, cacheDirectory: try temporaryDirectory(), client: client)
         let charts = ChartLibrary(directory: try temporaryDirectory())
         let backend = RecordingBackend()
-        let model = AppModel(context: container.mainContext, patterns: patterns, charts: charts, activityBackend: backend,
+        let model = AppModel(context: container.mainContext, patterns: patterns, charts: charts,
+                             localPatterns: try makeLocalPatternStore(), activityBackend: backend,
                              defaults: UserDefaults(suiteName: "test-\(UUID().uuidString)")!)
         model.registerIntentHandler()
         let data = try TestFixtures.data("two-letter-codes.chart.json")

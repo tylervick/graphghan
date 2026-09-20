@@ -13,11 +13,19 @@ final class AppModel {
 
     let patterns: PatternStore
     let charts: ChartLibrary
+    /// Patterns opened from a file (#16), which the site knows nothing about.
+    let localPatterns: LocalPatternStore
     let projects: ProjectService
     let liveActivity: LiveActivityController
 
     var tab: Tab = .patterns
     var index: [IndexEntry] = []
+    /// The local patterns as last loaded, newest import first in the Patterns tab's own section.
+    var localIndex: [IndexEntry] = []
+    /// The Patterns tab's navigation stack, so an import can land on what it just opened.
+    var libraryPath: [LibraryItem] = []
+    /// Why the last bundle was refused, for the alert. Nil when nothing has gone wrong.
+    var importFailure: String?
     /// A refresh failed but cached data is shown.
     var libraryBanner: String?
     /// Nothing to show at all (offline with no cache).
@@ -51,10 +59,12 @@ final class AppModel {
     }
 
     init(context: ModelContext, patterns: PatternStore, charts: ChartLibrary,
+         localPatterns: LocalPatternStore,
          activityBackend: ActivityBackend = ActivityKitBackend(),
          defaults: UserDefaults = UserDefaults(suiteName: AppGroup.identifier) ?? .standard) {
         self.patterns = patterns
         self.charts = charts
+        self.localPatterns = localPatterns
         self.projects = ProjectService(context: context, charts: charts, patterns: patterns)
         self.liveActivity = LiveActivityController(backend: activityBackend, defaults: defaults)
         // One mutation path, one activity refresh: every step -- Work screen or lock-screen button --
@@ -86,7 +96,8 @@ final class AppModel {
     static func live(context: ModelContext) -> AppModel {
         let model = AppModel(context: context,
                              patterns: PatternStore(cacheDirectory: AppGroup.patternsCacheURL, client: URLSessionHTTPClient()),
-                             charts: ChartLibrary(directory: AppGroup.chartsURL))
+                             charts: ChartLibrary(directory: AppGroup.chartsURL),
+                             localPatterns: LocalPatternStore(directory: AppGroup.localPatternsURL))
         model.registerIntentHandler()
         model.indexesProjects = true
         return model
@@ -94,7 +105,23 @@ final class AppModel {
 
     // MARK: library
 
+    /// Both halves of the Patterns tab, in one value: the local patterns first, then the site's.
+    var libraryItems: [LibraryItem] {
+        localIndex.map { LibraryItem(entry: $0, source: .local) }
+            + index.map { LibraryItem(entry: $0, source: .site) }
+    }
+
+    func isLocal(_ slug: String) -> Bool { localIndex.contains { $0.slug == slug } }
+
+    /// The local section. Cheap (a directory of small JSON files) and load-bearing well before the
+    /// Patterns tab is opened -- a project's row needs to know its pattern is local to find its
+    /// preview -- so the app calls it at launch as well as on every library refresh.
+    func loadLocalPatterns() async {
+        localIndex = await localPatterns.manifests().map(IndexEntry.init(manifest:))
+    }
+
     func loadLibrary(force: Bool = false) async {
+        await loadLocalPatterns()
         if !force, !index.isEmpty { return }
         isLoadingLibrary = true
         defer { isLoadingLibrary = false }
@@ -118,7 +145,15 @@ final class AppModel {
     }
 
     /// The cached manifest when there is one, refreshed in the background; otherwise fetched.
+    ///
+    /// Local first, by pattern id: a pattern opened from a file has no site path to refresh
+    /// against, and a project started from one must never be told the site has a newer chart.
+    /// The cost is that a bundle whose id matches a published slug shadows it (#135).
     func manifest(for slug: String, path: String?) async throws -> PatternManifest {
+        if let local = await localPatterns.manifest(for: slug) {
+            manifests[slug] = local
+            return local
+        }
         if let m = manifests[slug] { return m }
         if let cached = await patterns.cachedManifest(for: slug) {
             manifests[slug] = cached
@@ -132,17 +167,32 @@ final class AppModel {
         return fresh
     }
 
+    /// A pattern's own preview. `sitePath` is what the site index gives; a local pattern ignores
+    /// it and answers from its own directory, so every caller that has only a pattern id -- a
+    /// project row, say -- gets the right picture without knowing where the pattern came from.
     func preview(for slug: String, sitePath: String) async -> UIImage? {
+        if isLocal(slug) {
+            let key = "local:\(slug)"
+            if let image = images[key] { return image }
+            guard let manifest = await localPatterns.manifest(for: slug),
+                  let data = await localPatterns.preview(for: slug, path: manifest.preview),
+                  let image = UIImage(data: data) else { return nil }
+            images[key] = image
+            return image
+        }
         if let image = images[sitePath] { return image }
         guard let data = await patterns.preview(for: slug, sitePath: sitePath), let image = UIImage(data: data) else { return nil }
         images[sitePath] = image
         return image
     }
 
+    /// A chart's preview by its manifest-relative path, which is the same string either way.
     func chartPreview(for slug: String, path: String) async -> UIImage? {
         let key = "\(slug)/\(path)"
         if let image = images[key] { return image }
-        guard let data = await patterns.chartPreview(for: slug, path: path), let image = UIImage(data: data) else { return nil }
+        let data = if isLocal(slug) { await localPatterns.preview(for: slug, path: path) }
+                   else { await patterns.chartPreview(for: slug, path: path) }
+        guard let data, let image = UIImage(data: data) else { return nil }
         images[key] = image
         return image
     }
@@ -156,6 +206,70 @@ final class AppModel {
     func startProject(manifest: PatternManifest, chart: ManifestChart, title: String) async throws {
         _ = try await projects.startProject(manifest: manifest, chart: chart, title: title)
         tab = .projects
+    }
+
+    // MARK: opening a bundle (#16)
+
+    /// A `.graphghan` file, however it arrived. Nothing is written unless the whole bundle
+    /// validates, so a refusal leaves the library exactly as it was and only sets the sentence
+    /// for the alert. On success the Patterns tab opens on the pattern that just arrived --
+    /// landing on what you opened is the point of the gesture.
+    @discardableResult
+    func importBundle(data: Data) async -> PatternManifest? {
+        let importer = BundleImporter(charts: charts, local: localPatterns)
+        do {
+            let manifest = try await importer.importBundle(data)
+            manifests[manifest.id] = manifest
+            images["local:\(manifest.id)"] = nil
+            await loadLocalPatterns()
+            importFailure = nil
+            tab = .patterns
+            if let item = libraryItems.first(where: { $0.source == .local && $0.slug == manifest.id }) {
+                libraryPath = [item]
+            }
+            return manifest
+        } catch let error as BundleError {
+            importFailure = error.message
+        } catch {
+            importFailure = "That pattern couldn't be opened."
+        }
+        return nil
+    }
+
+    /// The same path, from a file URL: Files, Mail and AirDrop hand over a copy in the app's
+    /// Inbox, which is deleted afterwards whether or not the import worked -- nothing else prunes
+    /// it, and opening one file three times should not leave three copies behind.
+    func importBundle(at url: URL) async {
+        let scoped = url.startAccessingSecurityScopedResource()
+        defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+        defer { removeInboxCopy(at: url) }
+        let size = (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
+        guard size <= Self.maximumBundleBytes else {
+            importFailure = "That file is too big to be a pattern."
+            return
+        }
+        guard let data = try? Data(contentsOf: url) else {
+            importFailure = "That file couldn't be read."
+            return
+        }
+        await importBundle(data: data)
+    }
+
+    /// Bigger than any pattern can plausibly be, checked before a byte is read.
+    static let maximumBundleBytes = 64 << 20
+
+    private func removeInboxCopy(at url: URL) {
+        let inbox = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)
+            .map { $0.appendingPathComponent("Inbox", isDirectory: true).standardizedFileURL.path }
+        guard inbox.contains(where: { url.standardizedFileURL.path.hasPrefix($0 + "/") }) else { return }
+        try? FileManager.default.removeItem(at: url)
+    }
+
+    /// `--import <path>` on the command line imports that file at launch: the simulator check is
+    /// a command rather than a drag, and an app test drives the identical path.
+    static func launchImportURL(_ arguments: [String]) -> URL? {
+        guard let i = arguments.firstIndex(of: "--import"), i + 1 < arguments.count else { return nil }
+        return URL(fileURLWithPath: arguments[i + 1])
     }
 
     // MARK: live activity
@@ -265,8 +379,10 @@ final class AppModel {
         if let sequence, let done = sequence.cellsBefore(project.cursor), sequence.totalCells > 0 {
             percent = (100 * Double(done) / Double(sequence.totalCells) * 10).rounded(.toNearestOrEven) / 10
         }
-        let patternTitle = await patterns.cachedManifest(for: project.patternID)?.title ?? project.patternID
-        return ProjectSnapshot(id: project.id, title: project.title, patternTitle: patternTitle, percent: percent,
+        // Local first, like every other lookup by pattern id (#135).
+        var patternTitle = await localPatterns.manifest(for: project.patternID)?.title
+        if patternTitle == nil { patternTitle = await patterns.cachedManifest(for: project.patternID)?.title }
+        return ProjectSnapshot(id: project.id, title: project.title, patternTitle: patternTitle ?? project.patternID, percent: percent,
                                lastWorked: project.lastWorked, isFinished: project.isFinished)
     }
 

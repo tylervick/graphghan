@@ -3,7 +3,8 @@ import GraphghanCore
 
 struct PatternDetailView: View {
     @Environment(AppModel.self) private var model
-    let entry: IndexEntry
+    let item: LibraryItem
+    private var entry: IndexEntry { item.entry }
     @State private var manifest: PatternManifest?
     @State private var chart: Chart?
     @State private var preview: UIImage?

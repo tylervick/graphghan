@@ -11,13 +11,19 @@ import Foundation
 /// (design spec §6.2).
 public struct PatternBundle: Sendable {
     public let manifest: PatternManifest
+    /// The manifest's bytes exactly as the bundle carried them. A local pattern's `pattern.json`
+    /// is written back from these rather than re-encoded, so the copy on the phone is the file
+    /// that arrived -- `PatternManifest` is `Decodable` only, and a hand-written encoder beside
+    /// it would be a second definition of the manifest to keep in step.
+    public let manifestData: Data
     /// In the order the manifest lists them, default first.
     public let charts: [BundleChart]
     /// Manifest-relative path to PNG bytes: the pattern preview and each chart's.
     public let previews: [String: Data]
 
-    public init(manifest: PatternManifest, charts: [BundleChart], previews: [String: Data]) {
+    public init(manifest: PatternManifest, manifestData: Data, charts: [BundleChart], previews: [String: Data]) {
         self.manifest = manifest
+        self.manifestData = manifestData
         self.charts = charts
         self.previews = previews
     }
@@ -72,7 +78,7 @@ public struct PatternBundle: Sendable {
             previews[path] = try read(path, from: archive)
         }
 
-        return PatternBundle(manifest: manifest, charts: charts, previews: previews)
+        return PatternBundle(manifest: manifest, manifestData: manifestData, charts: charts, previews: previews)
     }
 
     private static func read(_ name: String, from archive: ZipArchive) throws -> Data {

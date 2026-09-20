@@ -4,17 +4,26 @@ import GraphghanCore
 @testable import Graphghan
 
 enum TestFixtures {
-    static let directory: URL = {
+    static let root: URL = {
         var url = URL(fileURLWithPath: #filePath)
         for _ in 0..<3 { url.deleteLastPathComponent() }  // Tests, ios, <repo>
-        return url.appendingPathComponent("fixtures/chart-format", isDirectory: true)
+        return url
     }()
+    static let directory = root.appendingPathComponent("fixtures/chart-format", isDirectory: true)
     static func data(_ name: String) throws -> Data { try Data(contentsOf: directory.appendingPathComponent(name)) }
+    /// `fixtures/bundle/<slug>.graphghan`, written by `graphghan export --format graphghan`.
+    static func bundle(_ slug: String) throws -> Data {
+        try Data(contentsOf: root.appendingPathComponent("fixtures/bundle/\(slug).graphghan"))
+    }
 }
 
 @MainActor
 func makeInMemoryContainer() throws -> ModelContainer {
     try Persistence.makeContainer(inMemory: true)
+}
+
+func makeLocalPatternStore() throws -> LocalPatternStore {
+    LocalPatternStore(directory: try temporaryDirectory())
 }
 
 func temporaryDirectory() throws -> URL {
