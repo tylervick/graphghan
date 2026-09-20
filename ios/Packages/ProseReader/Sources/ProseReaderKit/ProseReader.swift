@@ -242,12 +242,15 @@ public enum RowText {
     /// "R 3 [←]:", "Row 4 WS:", "Row1:"; "Row 1." and "Row 3 -" with a period or a dash for the
     /// colon; "Rows 1-10:" and "Row 2 & 3:", a range the model is left to read; "1st row:"; and a
     /// bare numbered list, "7. 2G, 3R, 2G", when what follows the number looks like a run. The
-    /// punctuation that ends the head is what keeps "Row 1 starts at the bottom right" out.
+    /// punctuation that ends the head, right after the number or its side marker, is what keeps
+    /// "Row 1 starts at the bottom right" and "Row 1 starts here. Continue" out.
     /// Groups: 1 and 2 are the number (with any range) and the side marker of the "Row" form,
     /// 3 and 4 the same for the ordinal form, 5 the number of a numbered list.
     static let headPattern: String = {
         let ending = #"(?::|\.(?=\s)|\s[-–—](?=\s))"#
-        let marker = #"([^:.\-–—\n]{0,14}?)"#
+        // A side marker is a bracketed or parenthesised group or a bare RS/WS/LR/RL: any other text
+        // between the number and the period is a sentence ("Row 1 starts here. Continue").
+        let marker = #"((?:\s*\([^()\n]{1,24}\)|\s*\[[^\[\]\n]{1,12}\]|\s+(?:RS|WS|LR|RL))?)"#
         let range = #"(\d+(?:\s*(?:[-–]|&|and)\s*\d+)?)"#
         let run = #"(?:\d+\s*(?!(?:sc|dc|hdc|tr|ch|sts?|sl)\b)[A-Za-z]{1,3}\b|\([A-Za-z][A-Za-z ]*\))"#
         return "(?:(?:Rows?|ROWS?|R)\\s*\\.?\\s*" + range + marker + ending

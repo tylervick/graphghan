@@ -59,10 +59,10 @@ import Testing
 // #146: the corpus ends a row head with a colon, a period or a dash, writes "Rows 1-10", "1st row",
 // and bare numbered lists; a sentence that merely starts with "Row 1" is still not a row.
 @Test func headsEndInAColonAPeriodOrADash() {
-    let text = "Row 1. Ch22 with yarn C1 (aqua). Beginning in 2nd ch from hook, sc in each ch.\nRow 2-4. Ch1, 21sc. Turn.\nRow 3 - Sc in first 2 sts, (P in nxt st, Sc in nxt 3 sts) 14 times.\nRow 5 – Sc in first 29 sts, Hsc in nxt 3 sts.\nRow 1 starts at the bottom right; odd rows are RS and read right to left.\n"
+    let text = "Row 1. Ch22 with yarn C1 (aqua). Beginning in 2nd ch from hook, sc in each ch.\nRow 2-4. Ch1, 21sc. Turn.\nRow 3 - Sc in first 2 sts, (P in nxt st, Sc in nxt 3 sts) 14 times.\nRow 5 – Sc in first 29 sts, Hsc in nxt 3 sts.\nRow 1 starts at the bottom right; odd rows are RS and read right to left.\nRow 1 starts here. Continue in the same colour to the end.\nRow 1-4 (main color - ecru): 25 sc\nRow 5-10 (left): ch1, sc across, turn.\n"
     let blocks = RowText.blocks(in: text)
-    #expect(blocks.count == 4)
-    #expect(blocks.map { RowText.rowNumber(of: $0) } == [1, 2, 3, 5])
+    #expect(blocks.count == 6, "got \(blocks)")
+    #expect(blocks.map { RowText.rowNumber(of: $0) } == [1, 2, 3, 5, 1, 5])
 }
 
 @Test func pluralRangeAndOrdinalHeads() {
