@@ -227,6 +227,9 @@ import GraphghanCore
     }
 
     /// Repacks an archive's entries stored, which is how the writer packs them anyway.
+    ///
+    /// Written as appends rather than one chain of `+`: a long chain of `Data + Data` is a
+    /// type-checker timeout waiting to happen, and it timed out on CI's Xcode before this.
     static func repack(_ archive: ZipArchive, replacing: [String: Data]) throws -> Data {
         var out = Data()
         var central = Data()
@@ -234,25 +237,58 @@ import GraphghanCore
             let bytes = try replacing[name] ?? archive.data(named: name)
             let nameBytes = Data(name.utf8)
             let offset = UInt32(out.count)
-            let crc = crc32(bytes)
-            let header = le16(20) + le16(0) + le16(0) + le16(0) + le16(0x0021)
-                + le32(crc) + le32(UInt32(bytes.count)) + le32(UInt32(bytes.count))
-                + le16(UInt16(nameBytes.count)) + le16(0)
-            out += le32(0x0403_4b50) + header + nameBytes + bytes
-            central += le32(0x0201_4b50) + le16(20) + header + le16(0)
-                + le16(0) + le16(0) + le32(0o644 << 16) + le32(offset) + nameBytes
+            let size = UInt32(bytes.count)
+
+            // The fields a local and a central header share, in the same order in both.
+            var common = Data()
+            append16(&common, 20)      // version needed
+            append16(&common, 0)       // flags
+            append16(&common, 0)       // method: stored
+            append16(&common, 0)       // time
+            append16(&common, 0x0021)  // date: 1980-01-01
+            append32(&common, crc32(bytes))
+            append32(&common, size)    // compressed
+            append32(&common, size)    // uncompressed
+            append16(&common, UInt16(nameBytes.count))
+            append16(&common, 0)       // extra length
+
+            append32(&out, 0x0403_4b50)
+            out.append(common)
+            out.append(nameBytes)
+            out.append(bytes)
+
+            append32(&central, 0x0201_4b50)
+            append16(&central, 20)     // version made by
+            central.append(common)
+            append16(&central, 0)      // comment length
+            append16(&central, 0)      // disk start
+            append16(&central, 0)      // internal attributes
+            append32(&central, 0o644 << 16)
+            append32(&central, offset)
+            central.append(nameBytes)
         }
         let directoryOffset = UInt32(out.count)
         let count = UInt16(archive.names.count)
-        out += central
-        out += le32(0x0605_4b50) + le16(0) + le16(0) + le16(count) + le16(count)
-            + le32(UInt32(central.count)) + le32(directoryOffset) + le16(0)
+        out.append(central)
+        append32(&out, 0x0605_4b50)
+        append16(&out, 0)              // this disk
+        append16(&out, 0)              // disk with the directory
+        append16(&out, count)
+        append16(&out, count)
+        append32(&out, UInt32(central.count))
+        append32(&out, directoryOffset)
+        append16(&out, 0)              // comment length
         return out
     }
 
-    static func le16(_ v: UInt16) -> Data { Data([UInt8(v & 0xFF), UInt8(v >> 8 & 0xFF)]) }
-    static func le32(_ v: UInt32) -> Data {
-        Data([UInt8(v & 0xFF), UInt8(v >> 8 & 0xFF), UInt8(v >> 16 & 0xFF), UInt8(v >> 24 & 0xFF)])
+    static func append16(_ data: inout Data, _ v: UInt16) {
+        data.append(UInt8(v & 0xFF))
+        data.append(UInt8(v >> 8 & 0xFF))
+    }
+
+    static func append32(_ data: inout Data, _ v: UInt32) {
+        append16(&data, UInt16(v & 0xFFFF))
+        append16(&data, UInt16(v >> 16 & 0xFFFF))
     }
 
     static func crc32(_ data: Data) -> UInt32 {

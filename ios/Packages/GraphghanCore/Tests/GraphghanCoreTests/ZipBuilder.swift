@@ -39,6 +39,8 @@ struct ZipBuilder {
     var prefixEOCDWith: Data?
     var comment = Data()
 
+    /// Written as appends rather than one chain of `+`: a long chain of `Data + Data` is a
+    /// type-checker timeout waiting to happen, and the app tests' equivalent hit one on CI.
     func build() -> Data {
         var out = Data()
         var central = Data()
@@ -50,30 +52,47 @@ struct ZipBuilder {
             let offset = item.localOffsetOverride ?? UInt32(out.count)
             let name = Data(item.name.utf8)
 
-            out += le32(0x0403_4b50)
-            out += le16(20) + le16(item.flags) + le16(method)
-            out += le16(0) + le16(0x0021)  // 1980-01-01
-            out += le32(crc) + le32(UInt32(payload.count)) + le32(uncompressed)
-            out += le16(UInt16(name.count)) + le16(0)
-            out += name
-            out += payload
+            // The fields a local and a central header share, in the same order in both.
+            var common = Data()
+            ZipBuilder.append16(&common, 20)      // version needed
+            ZipBuilder.append16(&common, item.flags)
+            ZipBuilder.append16(&common, method)
+            ZipBuilder.append16(&common, 0)       // time
+            ZipBuilder.append16(&common, 0x0021)  // date: 1980-01-01
+            ZipBuilder.append32(&common, crc)
+            ZipBuilder.append32(&common, UInt32(payload.count))
+            ZipBuilder.append32(&common, uncompressed)
+            ZipBuilder.append16(&common, UInt16(name.count))
+            ZipBuilder.append16(&common, 0)       // extra length
 
-            central += le32(0x0201_4b50)
-            central += le16(20) + le16(20) + le16(item.flags) + le16(method)
-            central += le16(0) + le16(0x0021)
-            central += le32(crc) + le32(UInt32(payload.count)) + le32(uncompressed)
-            central += le16(UInt16(name.count)) + le16(0) + le16(0)
-            central += le16(0) + le16(0) + le32(0o644 << 16) + le32(offset)
-            central += name
+            ZipBuilder.append32(&out, 0x0403_4b50)
+            out.append(common)
+            out.append(name)
+            out.append(payload)
+
+            ZipBuilder.append32(&central, 0x0201_4b50)
+            ZipBuilder.append16(&central, 20)     // version made by
+            central.append(common)
+            ZipBuilder.append16(&central, 0)      // comment length
+            ZipBuilder.append16(&central, 0)      // disk start
+            ZipBuilder.append16(&central, 0)      // internal attributes
+            ZipBuilder.append32(&central, 0o644 << 16)
+            ZipBuilder.append32(&central, offset)
+            central.append(name)
         }
         let directoryOffset = UInt32(out.count)
-        out += central
-        if let prefix = prefixEOCDWith { out += prefix }
+        out.append(central)
+        if let prefix = prefixEOCDWith { out.append(prefix) }
         let count = entryCountOverride ?? UInt16(items.count)
-        out += le32(0x0605_4b50)
-        out += le16(diskNumber) + le16(diskNumber) + le16(count) + le16(count)
-        out += le32(UInt32(central.count)) + le32(directoryOffset)
-        out += le16(UInt16(comment.count)) + comment
+        ZipBuilder.append32(&out, 0x0605_4b50)
+        ZipBuilder.append16(&out, diskNumber)
+        ZipBuilder.append16(&out, diskNumber)
+        ZipBuilder.append16(&out, count)
+        ZipBuilder.append16(&out, count)
+        ZipBuilder.append32(&out, UInt32(central.count))
+        ZipBuilder.append32(&out, directoryOffset)
+        ZipBuilder.append16(&out, UInt16(comment.count))
+        out.append(comment)
         return out
     }
 
@@ -97,8 +116,13 @@ struct ZipBuilder {
         return out.prefix(written)
     }
 
-    private func le16(_ v: UInt16) -> Data { Data([UInt8(v & 0xFF), UInt8(v >> 8 & 0xFF)]) }
-    private func le32(_ v: UInt32) -> Data {
-        Data([UInt8(v & 0xFF), UInt8(v >> 8 & 0xFF), UInt8(v >> 16 & 0xFF), UInt8(v >> 24 & 0xFF)])
+    static func append16(_ data: inout Data, _ v: UInt16) {
+        data.append(UInt8(v & 0xFF))
+        data.append(UInt8(v >> 8 & 0xFF))
+    }
+
+    static func append32(_ data: inout Data, _ v: UInt32) {
+        append16(&data, UInt16(v & 0xFFFF))
+        append16(&data, UInt16(v >> 16 & 0xFFFF))
     }
 }
