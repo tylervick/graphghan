@@ -153,4 +153,5 @@ import Testing
     let map = ["lb": "A", "a": "I", "ch": "C", "bf": "G", "c": "D"]
     #expect(RowText.normalized("Row 15 [WS]: (lb) x 3, a, ch, a, bf, c2, (bf) x 2, c", printed: map) == "Row 15 [WS]: (A) x 3, I, C, I, G, 2 D, (G) x 2, D")
     #expect(RowText.normalized("Row 4: Join in a new colour, then c", printed: map) == "Row 4: Join in a new colour, then D")
+    #expect(RowText.normalized("Row 30 [RS]: (lb) x 5, bf, c.", printed: map) == "Row 30 [RS]: (A) x 5, G, D.")
 }

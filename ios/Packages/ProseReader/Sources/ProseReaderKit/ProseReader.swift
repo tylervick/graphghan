@@ -408,9 +408,9 @@ public enum RowText {
             out = re.stringByReplacingMatches(in: out, range: NSRange(out.startIndex..., in: out), withTemplate: template)
         }
         for (code, letter) in printed.sorted(by: { $0.key.count > $1.key.count }) where code != letter {
-            // A printed code standing as a run item: no letter on either side, and a comma, a
-            // bracket, an "x N" or the end after it, so "a" in "Join in a new colour" is left alone.
-            let pattern = "(?<![A-Za-z])" + NSRegularExpression.escapedPattern(for: code) + #"(?![A-Za-z])(?=\s*[,)]|\s+x\s*\d|\s*$)"#
+            // A printed code standing as a run item: no letter on either side, and a comma, a full
+            // stop, a bracket, an "x N" or the end after it, so "a" in "Join in a new colour" is left alone.
+            let pattern = "(?<![A-Za-z])" + NSRegularExpression.escapedPattern(for: code) + #"(?![A-Za-z])(?=\s*[,.)]|\s+x\s*\d|\s*$)"#
             guard let re = try? NSRegularExpression(pattern: pattern) else { continue }
             out = re.stringByReplacingMatches(in: out, range: NSRange(out.startIndex..., in: out), withTemplate: NSRegularExpression.escapedTemplate(for: letter))
         }
