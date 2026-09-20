@@ -36,3 +36,10 @@ import Testing
     #expect(RowText.chunks(of: "Row 1 (RS): 189 Y (189 sts)", maxRuns: 8) == ["Row 1 (RS): 189 Y (189 sts)"])
     #expect(RowText.chunks(of: row, maxRuns: 0) == [row])
 }
+
+
+@Test func aLineHoldingTwoRowHeadsIsCutAndASentenceStartingWithRowIsNot() {
+    let text = "Row 22 (WS): ch 1, turn, 2 Y, 3 G (5 sts) Row 23 (RS): ch 1, turn, 5 Y (5 sts)\nRow 1 starts at the bottom right; odd rows are RS and read right to left.\n189\n188\n"
+    #expect(RowText.blocks(in: text) == ["Row 22 (WS): ch 1, turn, 2 Y, 3 G (5 sts)", "Row 23 (RS): ch 1, turn, 5 Y (5 sts)"])
+    #expect(RowText.blocks(in: "Row 4 WS: (terra) x 18, (agave) x 86\nRow1: sc across in color 1\n").count == 2)
+}

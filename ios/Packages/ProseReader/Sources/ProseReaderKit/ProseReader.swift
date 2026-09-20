@@ -200,7 +200,11 @@ public struct ProseReader: Sendable {
 
 /// Text handling that needs no model: finding the rows on a page, tidying what the model returns.
 public enum RowText {
-    static let rowStart = try! NSRegularExpression(pattern: #"^\s*(?:Row|ROW|R)\s*\.?\s*\d+\b"#)
+    /// A row head: "Row 12 (WS):", "R 3 [←]:", "Row 4 WS:", "Row1:". The colon within a few
+    /// characters keeps a sentence that merely starts with "Row 1" from reading as a row.
+    static let rowStart = try! NSRegularExpression(pattern: #"^\s*(?:Row|ROW|R)\s*\.?\s*\d+[^:\n]{0,12}:"#)
+    /// The same head inside a line: PDFKit joins the last row of one column with the first of the next.
+    static let rowInside = try! NSRegularExpression(pattern: #"\s(?=(?:Row|ROW|R)\s*\.?\s*\d+[^:\n]{0,12}:)"#)
     static let notARun: Set<String> = ["ch", "turn", "sl", "st", "sts", "fsc", "fdc", "sc", "hdc", "dc"]
 
     /// Each written row's text on a page, wrapped continuation lines rejoined (a continuation
@@ -208,13 +212,21 @@ public enum RowText {
     public static func blocks(in text: String) -> [String] {
         var blocks: [String] = []
         for raw in text.split(whereSeparator: \.isNewline) {
-            let line = raw.trimmingCharacters(in: .whitespaces)
-            if line.isEmpty { continue }
-            let range = NSRange(line.startIndex..., in: line)
-            if rowStart.firstMatch(in: line, range: range) != nil {
-                blocks.append(line)
-            } else if let last = blocks.last, (line.first?.isNumber == true || line.contains(", ")), !last.hasSuffix("."), !last.hasSuffix(":") {
-                blocks[blocks.count - 1] = last + " " + line
+            let whole = raw.trimmingCharacters(in: .whitespaces)
+            if whole.isEmpty { continue }
+            // Cut a line wherever another row head begins inside it.
+            let pieces = rowInside.stringByReplacingMatches(in: whole, range: NSRange(whole.startIndex..., in: whole), withTemplate: "\n")
+                .split(separator: "\n").map { $0.trimmingCharacters(in: .whitespaces) }
+            for line in pieces where !line.isEmpty {
+                let range = NSRange(line.startIndex..., in: line)
+                if rowStart.firstMatch(in: line, range: range) != nil {
+                    blocks.append(line)
+                } else if let last = blocks.last, line.contains(where: \.isLetter),
+                          (line.first?.isNumber == true || line.contains(", ")), !last.hasSuffix("."), !last.hasSuffix(":") {
+                    // A wrapped row continues with a count and a colour ("4 Y (9 sts)"); a bare
+                    // number is a chart-page label and a footer has no leading count.
+                    blocks[blocks.count - 1] = last + " " + line
+                }
             }
         }
         return blocks
@@ -258,7 +270,7 @@ public enum RowText {
             if let mapped = key[code.lowercased()] { code = mapped }
             if !isCode(code) {
                 code = String(code.filter { $0.isLetter }.prefix(3))
-                if code.isEmpty { code = "X" }
+                if code.isEmpty { continue }  // a bracketed total or a stray number, not a colour
             }
             if let last = out.last, last.0 == code {
                 out[out.count - 1].1 += r.count
