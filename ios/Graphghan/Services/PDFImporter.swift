@@ -25,9 +25,9 @@ struct PDFImporter: Sendable {
         do {
             reading = try OwnPDFReader.read(pageTexts: texts, title: title.isEmpty ? Self.stem(fileName) : title)
         } catch let error as OwnPDFError {
-            throw .badRow(Self.describe(error))
+            throw .badRow(error)  // the reader's own error travels with the sentence
         } catch {
-            throw .badRow("\(error)")
+            throw .invalidChart("\(error)")
         }
         let title2 = reading.pattern.title.isEmpty ? Self.stem(fileName) : reading.pattern.title
         let slug = await Self.uniqueSlug(Self.slug(title2), in: local)
@@ -58,7 +58,9 @@ struct PDFImporter: Sendable {
 
     static func stem(_ fileName: String) -> String { (fileName as NSString).deletingPathExtension }
 
-    /// `site/build.py`'s slug rule: lowercase, runs of anything but letters and digits become one dash.
+    /// `site/build.py`'s slug rule, which `PatternBundle.slugCharacters` enforces on the phone: ASCII
+    /// lowercase letters and digits, runs of anything else one dash. Diacritics fold first ("Café" →
+    /// "cafe"); a title with no ASCII letters at all becomes "pattern", made unique by `uniqueSlug`.
     static func slug(_ title: String) -> String {
         let folded = title.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: nil).lowercased()
         var out = ""
@@ -117,7 +119,7 @@ enum PDFImportError: Error, Equatable {
     case cannotOpen
     case nothingFound
     case invalidChart(String)
-    case badRow(String)
+    case badRow(OwnPDFError)
 
     var message: String {
         switch self {
@@ -125,7 +127,7 @@ enum PDFImportError: Error, Equatable {
         case .cannotOpen: return "That PDF couldn't be opened."
         case .nothingFound: return "No chart or written rows were found in this PDF."
         case .invalidChart(let why): return "The chart in this PDF isn't one the app can work: \(why)."
-        case .badRow(let location): return "A written row in this PDF couldn't be read (\(location))."
+        case .badRow(let error): return "A written row in this PDF couldn't be read (\(PDFImporter.describe(error)))."
         }
     }
 }

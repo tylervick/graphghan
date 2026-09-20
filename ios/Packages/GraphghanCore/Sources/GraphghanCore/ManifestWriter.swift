@@ -9,6 +9,7 @@ public enum ManifestWriter {
     public static func encode(id: String, title: String, version: String, dedication: String, chart: Chart, chartID: String,
                               variant: String, gaugeKey: String, palette: [ChartDraft.Palette]) -> Data {
         let perRow = chart.runsByRow.map { max(0, $0.count - 1) }
+        // Display statistics, rounded the way `export.py`'s `stats` rounds them (`round(x, 1)`).
         let mean = perRow.isEmpty ? 0.0 : (Double(perRow.reduce(0, +)) / Double(perRow.count) * 10).rounded() / 10
         let g = chart.document.gauge
         let inches = g.over.unit == "cm" ? g.over.value / 2.54 : g.over.value
