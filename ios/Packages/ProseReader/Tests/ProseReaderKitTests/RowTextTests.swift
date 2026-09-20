@@ -43,3 +43,13 @@ import Testing
     #expect(RowText.blocks(in: text) == ["Row 22 (WS): ch 1, turn, 2 Y, 3 G (5 sts)", "Row 23 (RS): ch 1, turn, 5 Y (5 sts)"])
     #expect(RowText.blocks(in: "Row 4 WS: (terra) x 18, (agave) x 86\nRow1: sc across in color 1\n").count == 2)
 }
+
+
+@Test func rowNumbersComeFromTheHeadAndIncreasesBecomeStitches() {
+    #expect(RowText.rowNumber(of: "Row 1 (RS): 189 Y (189 sts)") == 1)
+    #expect(RowText.rowNumber(of: "R 57 [←]: (Black) ch 1, turn, 9 sc [25]") == 57)
+    #expect(RowText.rowNumber(of: "Total: 3673") == nil)
+    #expect(RowText.normalized("R 2 [→]: (Black) ch 1, turn, 1 inc, 7 sc, (White) 1 inc [11]") == "R 2 [→]: (Black) ch 1, turn, 2 sc, 7 sc, (White) 2 sc [11]")
+    #expect(RowText.normalized("R 57 [←]: 9 sc, (White) 15 sc, 1 dec [25]") == "R 57 [←]: 9 sc, (White) 15 sc, 1 sc [25]")
+    #expect(RowText.normalized("Row 3 RS: (agave) x 85, (terra) x 19") == "Row 3 RS: (agave) x 85, (terra) x 19")
+}

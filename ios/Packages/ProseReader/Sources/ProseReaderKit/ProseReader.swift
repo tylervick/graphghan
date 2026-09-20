@@ -150,9 +150,12 @@ public struct ProseReader: Sendable {
             }
             for block in blocks {
                 // One row per prompt, in parts when the row is long: each part is one answer the
-                // model can hold, and the parts join in order.
-                let parts = RowText.chunks(of: block, maxRuns: options.chunkRuns)
-                var rowNo = 0
+                // model can hold, and the parts join in order. The row number comes from the text's
+                // own head (the model once answered 189 for "Row 1 (RS): 189 Y"), and increases and
+                // decreases are rewritten into plain stitch counts first, a rule the model does not
+                // keep however it is told.
+                let parts = RowText.chunks(of: RowText.normalized(block), maxRuns: options.chunkRuns)
+                var rowNo = RowText.rowNumber(of: block) ?? 0
                 var runs: [[ProseDocument.RunValue]] = []
                 var total: Int? = nil
                 var failure: String? = nil
@@ -163,7 +166,7 @@ public struct ProseReader: Sendable {
                     let label = parts.count > 1 ? " (part \(k + 1) of \(parts.count) of one row)" : ""
                     do {
                         let got = try await session!.respond(to: "Transcribe this row\(label):\n" + part, generating: WrittenRowOut.self)
-                        if rowNo == 0 { rowNo = got.content.row }
+                        if rowNo == 0 { rowNo = got.content.row }  // only when the head carried none
                         runs = RowText.join(runs, RowText.cleanRuns(got.content.runs, key: key))
                         if got.content.total > 0 { total = got.content.total }
                     } catch {
@@ -211,10 +214,14 @@ public struct ProseReader: Sendable {
             }
             doc.chart = chart
             if !got.colours.isEmpty, doc.palette == nil {
+                // Codes are A, B, C... in key order unless the key itself prints 1-3 letter codes
+                // that the rows use: the model's own choice of letter drifts from run to run.
+                let printed = got.colours.allSatisfy { RowText.isCode($0.code) && $0.code != $0.name }
                 doc.palette = got.colours.enumerated().map { i, c in
-                    let code = RowText.isCode(c.code) ? c.code : String(UnicodeScalar(65 + i) ?? "A")
+                    let code = printed ? c.code : String(UnicodeScalar(65 + i) ?? "A")
                     let hex = c.hex.range(of: "^#[0-9a-fA-F]{6}$", options: .regularExpression) != nil ? c.hex.lowercased() : nil
-                    return ProseDocument.Palette(code: code, name: c.name.isEmpty ? c.code : c.name, hex: hex, key_label: c.name.isEmpty ? c.code : c.name)
+                    let name = c.name.isEmpty ? c.code : c.name
+                    return ProseDocument.Palette(code: code, name: name, hex: hex, key_label: name)
                 }
             }
         }
@@ -280,6 +287,31 @@ public enum RowText {
               case .count(let n1) = last[1], case .count(let n2) = first[1]
         else { return a + b }
         return a.dropLast() + [[.code(c1), .count(n1 + n2)]] + b.dropFirst()
+    }
+
+    static let rowNumberRe = try! NSRegularExpression(pattern: #"^\s*(?:Row|ROW|R)\s*\.?\s*(\d+)"#)
+    static let incRe = try! NSRegularExpression(pattern: #"\b(\d+)\s*inc\b"#)
+    static let decRe = try! NSRegularExpression(pattern: #"\b(\d+)\s*dec\b"#)
+
+    /// The row number printed in a block's head.
+    public static func rowNumber(of block: String) -> Int? {
+        let range = NSRange(block.startIndex..., in: block)
+        guard let m = rowNumberRe.firstMatch(in: block, range: range), let r = Range(m.range(at: 1), in: block) else { return nil }
+        return Int(block[r])
+    }
+
+    /// Increases and decreases as the stitches they make: "1 inc" is 2 stitches of the colour in
+    /// force, "2 dec" is 2 stitches. The model never keeps that rule, so the text is rewritten.
+    public static func normalized(_ block: String) -> String {
+        var out = block
+        for (re, factor) in [(incRe, 2), (decRe, 1)] {
+            let matches = re.matches(in: out, range: NSRange(out.startIndex..., in: out)).reversed()
+            for m in matches {
+                guard let whole = Range(m.range, in: out), let num = Range(m.range(at: 1), in: out), let n = Int(out[num]) else { continue }
+                out.replaceSubrange(whole, with: "\(n * factor) sc")
+            }
+        }
+        return out
     }
 
     public static func isCode(_ s: String) -> Bool {
