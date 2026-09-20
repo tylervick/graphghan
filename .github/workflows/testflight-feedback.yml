@@ -1,0 +1,60 @@
+name: TestFlight feedback
+
+# Every 30 minutes, TestFlight screenshot and crash submissions become GitHub issues (one each,
+# never twice) via ios/Scripts/testflight-feedback.sh. Manual dispatch exists for a dry run and
+# for "I know feedback just arrived".
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: List what would be created without opening issues or uploading screenshots
+        type: boolean
+        required: false
+        default: false
+
+# Two overlapping runs would both compute an empty seen set and open duplicates.
+concurrency:
+  group: testflight-feedback
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  import:
+    name: Import feedback as issues
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # issues: write for gh issue create and gh label create; contents: write for gh release
+    # create/upload, which is where the screenshots live.
+    permissions:
+      issues: write
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with: {persist-credentials: false}
+
+      # No set -x: a decoded .p8 is multi-line PEM and GitHub's masking needs a single-line match.
+      - name: Install the App Store Connect key
+        env:
+          ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+        run: |
+          umask 077
+          printf '%s' "$ASC_PRIVATE_KEY" | /usr/bin/base64 --decode > "$RUNNER_TEMP/AuthKey_${ASC_KEY_ID}.p8"
+
+      - name: Import feedback
+        env:
+          ASC_KEY_PATH: ${{ runner.temp }}/AuthKey_${{ secrets.ASC_KEY_ID }}.p8
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          GH_TOKEN: ${{ github.token }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          if [ "$DRY_RUN" = "true" ]; then ios/Scripts/testflight-feedback.sh --dry-run
+          else ios/Scripts/testflight-feedback.sh; fi
+
+      - name: Delete the decoded key
+        if: always()
+        run: rm -f "$RUNNER_TEMP"/AuthKey_*.p8

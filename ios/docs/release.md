@@ -67,6 +67,40 @@ but whose tag did not land.
 - The `testflight` job of a CI run was skipped: its `decide` job found nothing under `ios/` (less docs, tests, scripts) changed since the newest tag, or a test job failed. The job's log says which.
 - Distribution logs are attached as the `xcdistributionlogs` artifact on failure.
 
+## TestFlight feedback
+
+`.github/workflows/testflight-feedback.yml` runs `ios/Scripts/testflight-feedback.sh` every 30
+minutes. Each TestFlight screenshot submission or crash submission becomes one issue labelled
+`bug`, `ios`, and `testflight-feedback`, with the comment, build number, device, OS, locale, the
+screenshots, or the crash log collapsed. Screenshots are assets on the `testflight-feedback`
+pre-release (stable URLs; Apple's expire). The tester's email is never read; the repo is public.
+
+An issue is never opened twice: the script lists issues by the `testflight-feedback` label and
+reads the `<!-- testflight-feedback:<id> -->` marker each body ends with. Deleting an issue makes
+the next run recreate it; close it instead.
+
+Tell the tester: **take a screenshot inside the app and choose "Share Beta Feedback"**; after a
+crash, TestFlight asks on its own.
+
+To see what a run would do without opening anything, Actions › TestFlight feedback › Run workflow
+with `dry_run` ticked, or locally with the keychain credentials:
+
+```bash
+ios/Scripts/with-asc-credentials.sh ios/Scripts/testflight-feedback.sh --dry-run
+```
+
+The first real run imports every submission App Store Connect still holds (up to 50 of each kind),
+so run a dry run first if the app has been on TestFlight for a while.
+
+Scheduled workflows are best-effort: GitHub may delay or skip a run under load, and it disables a
+repository's schedules after 60 days with no activity, so re-enable it from the Actions tab if the
+import goes quiet. When a scheduled import fails, look at Actions › TestFlight feedback › the
+failed run's log; the next run picks up where it stopped, because created issues are already
+tracked. A large first import (dozens of submissions) may hit GitHub's secondary rate limit and end
+red part-way through; that is expected, and the next run finishes it. `gh release create` also
+creates a git tag named `testflight-feedback`; it is harmless and unrelated to the `ios-build-*`
+tags.
+
 ## Local archive
 
 `ios/Scripts/archive.sh` with no environment produces a Release archive with automatic signing (`ExportOptions.plist`) and needs a signed-in Xcode; the project's Release config uses the manual profile names, so install both profiles in Xcode first (Settings › Accounts › Download Manual Profiles). `ios/Scripts/upload.sh --validate` validates the IPA with the API key.

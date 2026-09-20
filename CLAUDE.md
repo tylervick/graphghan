@@ -24,3 +24,5 @@ without an issue behind it.
 - Picking one up: brainstorm from the issue text, move the label to `spec` when the design doc
   lands, and put `Closes #N` in the PR body so the merge closes it.
 - A spec's non-goals or follow-ons section lists issue numbers, not prose.
+- Issues labelled `testflight-feedback` were opened by the TestFlight import workflow from tester
+  submissions. Relabel or retitle freely; do not delete them (the next run would recreate them).
