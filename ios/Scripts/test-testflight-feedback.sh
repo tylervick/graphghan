@@ -144,6 +144,32 @@ pass "the tester's identity never reaches an issue"
 grep -q "betaFeedbackScreenshotSubmissions?sort=-createdDate&limit=50&include=build&fields%5Bbuilds%5D=version" "$STUB_DIR/curl.log" || fail "listing query wrong; log: $(cat "$STUB_DIR/curl.log")"
 pass "the listing asks for newest-first with the build version included"
 
+# Screenshots: downloaded, uploaded to the pre-release, embedded by stable asset URL.
+reset
+out="$(run_script)" || fail "screenshot run exited non-zero: $out"
+grep -q "^release view testflight-feedback" "$STUB_DIR/gh.log" || fail "release existence not checked"
+grep -q "^release create testflight-feedback" "$STUB_DIR/gh.log" || fail "release not created when missing"
+[ "$(grep -c "^release upload testflight-feedback" "$STUB_DIR/gh.log")" -eq 3 ] || fail "expected 3 uploads (2 + 1); log: $(cat "$STUB_DIR/gh.log")"
+grep -q "https://shots.example/one.png" "$STUB_DIR/curl.log" || fail "screenshot was not downloaded"
+grep -q '^!\[screenshot 1\](https://github.com/tylervick/graphghan/releases/download/testflight-feedback/S-NEW-1.png)$' "$STUB_DIR/created-2.md" || fail "image line missing or wrong; body: $(cat "$STUB_DIR/created-2.md")"
+grep -q '^!\[screenshot 2\](https://github.com/tylervick/graphghan/releases/download/testflight-feedback/S-OLD-2.png)$' "$STUB_DIR/created-1.md" || fail "second image line missing on the two-screenshot submission"
+! grep -q "shots.example" "$STUB_DIR"/created-*.md || fail "an expiring Apple URL reached an issue body"
+pass "screenshots are uploaded once each and embedded by asset URL"
+
+# The release is created at most once per run.
+reset
+touch "$STUB_DIR/release-exists"
+out="$(run_script)" || fail "run with existing release exited non-zero: $out"
+! grep -q "^release create" "$STUB_DIR/gh.log" || fail "release re-created although it exists"
+pass "an existing release is reused"
+
+# Dry run downloads nothing and uploads nothing.
+reset
+out="$(run_script --dry-run)" || fail "dry run exited non-zero: $out"
+! grep -q "shots.example" "$STUB_DIR/curl.log" || fail "dry run downloaded a screenshot"
+! grep -q "^release" "$STUB_DIR/gh.log" || fail "dry run touched the release"
+pass "--dry-run leaves screenshots alone"
+
 # A second run sees both markers in existing issue bodies and creates nothing.
 reset
 cat > "$STUB_DIR/bodies.txt" <<'EOF'

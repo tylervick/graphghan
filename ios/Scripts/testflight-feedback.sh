@@ -123,6 +123,29 @@ open(os.path.join(out, "body.md"), "w").write("\n".join(lines))
 EOF
 }
 
+ensure_release() {
+    [ -z "${RELEASE_READY:-}" ] || return 0
+    if ! gh release view "$RELEASE_TAG" --repo "$REPO" >/dev/null 2>&1; then
+        gh release create "$RELEASE_TAG" --repo "$REPO" --prerelease --title "TestFlight feedback screenshots" \
+            --notes "Screenshots attached to issues labelled testflight-feedback. Not a release of anything." >/dev/null \
+            || { echo "error: could not create the $RELEASE_TAG release" >&2; return 1; }
+    fi
+    RELEASE_READY=1
+}
+
+# Downloads each screenshot URL, uploads it as <id>-<N>.png, prints the asset URLs one per line.
+upload_screenshots() { # id, urls (newline-separated)
+    local id="$1" n=0 url file
+    while IFS= read -r url; do
+        [ -n "$url" ] || continue
+        n=$((n + 1)); file="$TMP/$id-$n.png"
+        curl -sS -f -L -o "$file" "$url" || { echo "error: could not download screenshot $n of $id" >&2; return 1; }
+        gh release upload "$RELEASE_TAG" "$file" --repo "$REPO" --clobber >/dev/null \
+            || { echo "error: could not upload screenshot $n of $id" >&2; return 1; }
+        echo "https://github.com/$REPO/releases/download/$RELEASE_TAG/$id-$n.png"
+    done <<< "$2"
+}
+
 TOKEN="$("$ASC_JWT")" || { echo "error: could not mint an App Store Connect token" >&2; exit 1; }
 if [ -n "${GITHUB_ACTIONS:-}" ]; then echo "::add-mask::$TOKEN"; fi
 
@@ -152,6 +175,11 @@ while IFS= read -r REC; do
     if grep -qx "$ID" "$TMP/seen"; then skipped=$((skipped + 1)); continue; fi
 
     IMAGE_URLS=""
+    SHOTS="$(printf '%s' "$REC" | python3 -c 'import json, sys; print("\n".join(json.load(sys.stdin)["screenshots"]))')"
+    if [ -n "$SHOTS" ] && [ "$DRY_RUN" -eq 0 ]; then
+        ensure_release || exit 1
+        IMAGE_URLS="$(upload_screenshots "$ID" "$SHOTS")" || exit 1
+    fi
     CRASH_LOG_FILE=""
     render
 
