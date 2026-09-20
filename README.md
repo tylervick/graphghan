@@ -90,8 +90,9 @@ prose half (the colour key, gauge, sizes, and the written rows, which are the pr
 pattern has them) is read by the Claude skill into a `prose.json` (`schema/import-prose.schema.json`)
 that the second run of `import` consumes; see `.claude/skills/graphghan/references/import.md`. On
 macOS 27 with Apple Intelligence on, `uv sync --extra apple` and `--reader apple` let the on-device
-Foundation Models read the prose in one run instead (a spike: 150 of Craigh na Dun's 184 rows exact, every miss a
-40-run braid row; the import's row-total check catches what it gets wrong). A pattern folder made from someone
+Foundation Models read the prose in one run instead (a spike: 150 of Craigh na Dun's 184 rows exact from Python, 177 from the Swift
+tool in `ios/Packages/ProseReader` that rewrites what the model cannot keep; the import's row-total
+check catches what it gets wrong). A pattern folder made from someone
 else's PDF is local by design and never committed.
 
 ## iOS app
