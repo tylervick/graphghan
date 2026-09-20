@@ -101,6 +101,7 @@ struct PDFImporter: Sendable {
         case .noChartHeader: return "no chart header"
         case .badRow(let page, let text): return "page \(page), \"\(text.prefix(40))\""
         case .rowsDoNotMatch(let why): return why
+        case .tooLarge(let w, let h): return "\(w) × \(h) is bigger than the app can work"
         }
     }
 }
@@ -127,6 +128,7 @@ enum PDFImportError: Error, Equatable {
         case .cannotOpen: return "That PDF couldn't be opened."
         case .nothingFound: return "No chart or written rows were found in this PDF."
         case .invalidChart(let why): return "The chart in this PDF isn't one the app can work: \(why)."
+        case .badRow(.tooLarge(let w, let h)): return "The chart in this PDF is too big for the app: \(w) × \(h) stitches."
         case .badRow(let error): return "A written row in this PDF couldn't be read (\(PDFImporter.describe(error)))."
         }
     }

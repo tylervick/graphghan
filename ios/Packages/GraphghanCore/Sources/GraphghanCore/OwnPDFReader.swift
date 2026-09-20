@@ -18,6 +18,8 @@ public enum OwnPDFError: Error, Equatable {
     case noChartHeader
     case badRow(page: Int, text: String)
     case rowsDoNotMatch(String)
+    /// Wider or taller than any chart the app works (`OwnPDFReader.maximumSide`).
+    case tooLarge(width: Int, height: Int)
 }
 
 public enum OwnPDFReader {
@@ -100,7 +102,15 @@ public enum OwnPDFReader {
             && pageTexts.contains { groups(headerRe, lines($0).first ?? "") != nil }
     }
 
-    public static func read(pageTexts: [String], title: String) throws -> OwnPDFReading {
+    /// The largest side of a chart the phone reads: 2,000 cells (4 million cells at most), far
+    /// beyond any blanket, and small enough that `Chart.load` and the preview stay in memory.
+    public static let maximumSide = 2000
+
+    /// `title` is the PDF's metadata title, a hint: the cover's first line is what the PDF
+    /// prints, and it is the title the footer repeats, so it wins whenever the two disagree.
+    public static func read(pageTexts: [String], title metadataTitle: String) throws -> OwnPDFReading {
+        let coverTitle = lines(pageTexts.first ?? "").first { !$0.isEmpty } ?? ""
+        let title = coverTitle.isEmpty ? metadataTitle : coverTitle
         var (pattern, gauge, size) = cover(pageTexts.first ?? "", title: title)
         let palette = key(pageTexts)
         var width: Int? = nil
@@ -112,6 +122,9 @@ public enum OwnPDFReader {
             }
         }
         guard let width, let height else { throw OwnPDFError.noChartHeader }
+        guard width >= 1, height >= 1, width <= maximumSide, height <= maximumSide else {
+            throw OwnPDFError.tooLarge(width: width, height: height)
+        }
         let (rows, chain) = try writtenRows(pageTexts, title: title)
         if let chain, gauge != nil { gauge?.chain = chain }
         if pattern.title.isEmpty { pattern.title = title }

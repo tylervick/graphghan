@@ -73,8 +73,10 @@ A pattern PDF opens the same way (#112, `docs/superpowers/specs/2026-09-20-phone
 `.pdf` to `PDFImporter` and the import sheet instead of the bundle importer. One that
 `graphghan export --format pdf` wrote is read exactly from its text layer (`OwnPDFReader` in
 GraphghanCore) and lands in the library with the same chart id the Mac computed, written by
-`ChartWriter`, `ManifestWriter` and `ChartPreview`; any other PDF gets the sentence "No chart or
-written rows were found in this PDF" until the written-row and grid readers land (spec §8). The
+`ChartWriter`, `ManifestWriter` and `ChartPreview`. A PDF that is not ours gets "No chart or
+written rows were found in this PDF" until the written-row and grid readers land (spec §8); one that
+PDFKit cannot open, or ours with a row the reader cannot parse or a chart too large to hold, gets
+its own sentence (`PDFImportError.message`, spec §5.4). The
 sheet shows the chart before "Add to library" saves it; a read writes nothing, and Cancel leaves the
 library as it was. `--import <path>.pdf` drives the identical path on the simulator.
 

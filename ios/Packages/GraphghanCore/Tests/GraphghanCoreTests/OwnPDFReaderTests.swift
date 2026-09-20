@@ -60,4 +60,18 @@ import Testing
         let stripped = texts.map { $0.hasPrefix("Chart ") ? "" : $0 }
         #expect(throws: OwnPDFError.noChartHeader) { try OwnPDFReader.read(pageTexts: stripped, title: title) }
     }
+
+    @Test func theCoverTitleBeatsTheMetadataTitle() throws {
+        let (texts, _) = try Self.texts("craigh-na-dun-final-sc")
+        let blank = try OwnPDFReader.read(pageTexts: texts, title: "")
+        let wrong = try OwnPDFReader.read(pageTexts: texts, title: "craigh-na-dun-final-sc")
+        #expect(blank.pattern.title == "Craigh na Dun Blanket" && blank.pattern.dedication == "For Meaghan")
+        #expect(wrong.pattern.title == "Craigh na Dun Blanket" && wrong.rows.count == 184)
+    }
+
+    @Test func aChartBeyondTheSizeCapIsRefusedBeforeAnythingIsBuilt() throws {
+        let (texts, title) = try Self.texts("craigh-na-dun-final-sc")
+        let huge = texts.map { $0.replacingOccurrences(of: "of 189, rows", with: "of 2189, rows") }
+        #expect(throws: OwnPDFError.tooLarge(width: 2189, height: 184)) { try OwnPDFReader.read(pageTexts: huge, title: title) }
+    }
 }

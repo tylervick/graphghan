@@ -8,6 +8,7 @@ final class PDFImportState {
     enum Stage: Equatable {
         case reading
         case found
+        case saving
         case failed(String)
     }
     var stage: Stage = .reading
@@ -40,10 +41,18 @@ struct PDFImportSheet: View {
                             Text(r.bundle.manifest.title).font(Font.Heather.heading).foregroundStyle(Color.ink)
                             Text("\(r.width) × \(r.height) stitches, \(r.colours) colours").font(Font.Heather.body).foregroundStyle(Color.ink2)
                         }
-                        Button("Add to library") { Task { await model.addImportedPDF() } }
-                            .buttonStyle(.borderedProminent)
+                        Button("Add to library") {
+                            state.stage = .saving  // set before the save runs: no second tap, no cancel underneath it
+                            Task { await model.addImportedPDF() }
+                        }
+                        .buttonStyle(.borderedProminent)
                     }
                     .padding()
+                case .saving:
+                    VStack(spacing: 12) {
+                        ProgressView()
+                        Text("Adding to library…").font(Font.Heather.body).foregroundStyle(Color.ink2)
+                    }
                 case .failed(let sentence):
                     VStack(spacing: 12) {
                         Image(systemName: "doc.questionmark").font(Font.Heather.rowNumber).foregroundStyle(Color.ink2)
@@ -58,10 +67,12 @@ struct PDFImportSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button(state.stage == .found ? "Cancel" : "Done") { model.cancelPDFImport() }
+                    if state.stage != .saving {
+                        Button(state.stage == .found ? "Cancel" : "Done") { model.cancelPDFImport() }
+                    }
                 }
             }
         }
-        .interactiveDismissDisabled(state.stage == .reading)
+        .interactiveDismissDisabled(state.stage == .reading || state.stage == .saving)
     }
 }

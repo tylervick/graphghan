@@ -54,4 +54,15 @@ import GraphghanCore
         await model.importFile(at: bundle)
         #expect(model.libraryItems.contains { $0.source == .local && $0.slug == "craigh-na-dun" })
     }
+
+    @Test func cancelIsIgnoredWhileASaveRuns() async throws {
+        let model = try await make()
+        await model.importPDF(data: try TestFixtures.importPDF("craigh-na-dun-final-sc"), fileName: "craigh.pdf")
+        let state = try #require(model.pdfImport)
+        state.stage = .saving  // what the button does before it starts the save
+        model.cancelPDFImport()
+        #expect(model.pdfImport != nil)
+        await model.addImportedPDF()
+        #expect(model.pdfImport == nil && model.libraryItems.contains { $0.slug == "craigh-na-dun-blanket" })
+    }
 }

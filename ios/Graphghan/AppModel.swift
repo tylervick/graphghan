@@ -296,7 +296,8 @@ final class AppModel {
 
     /// "Add to library": the bundle importer's order, then the same landing as an opened bundle.
     func addImportedPDF() async {
-        guard let state = pdfImport, let reading = state.reading else { return }
+        guard let state = pdfImport, let reading = state.reading, state.stage == .found || state.stage == .saving else { return }
+        state.stage = .saving
         let importer = PDFImporter(charts: charts, local: localPatterns)
         do {
             let manifest = try await importer.save(reading)
@@ -312,7 +313,12 @@ final class AppModel {
         }
     }
 
-    func cancelPDFImport() { pdfImport = nil }
+    /// Cancel and swipe-down: nothing written. Not while a save runs (the sheet hides the button
+    /// and blocks the swipe then); the save finishes and lands as usual.
+    func cancelPDFImport() {
+        guard pdfImport?.stage != .saving else { return }
+        pdfImport = nil
+    }
 
     /// Bigger than any pattern can plausibly be, checked before a byte is read.
     static let maximumBundleBytes = 64 << 20
