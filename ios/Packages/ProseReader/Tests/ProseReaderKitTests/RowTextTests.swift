@@ -254,7 +254,7 @@ import Testing
     #expect(codes([RunOut(count: 8, code: "Bla"), RunOut(count: 60, code: "aga")], key: key, text: "Row 6: repeat row 5.") == [])
     #expect(codes([RunOut(count: 3, code: "white"), RunOut(count: 2, code: "pink")], key: key, text: "Row 3: 8 white, 2 pink") == ["A", "B"])
     #expect(codes([RunOut(count: 3, code: "A")], key: key, text: "Row 3: 8 white") == ["A"])  // a palette code
-    #expect(codes([RunOut(count: 3, code: "a")], key: key, text: "Row 3: 8 white") == ["a"])  // the palette code, the model's case
+    #expect(codes([RunOut(count: 3, code: "a")], key: key, text: "Row 3: 8 white") == ["A"])  // the palette code in the model's case, spelled as first seen
     #expect(codes([RunOut(count: 2, code: "lb")], key: [:], printed: ["lb"], text: "Row 5: (lb) x 2") == ["lb"])
     #expect(codes([RunOut(count: 5, code: "Gd")], key: [:], text: "Row 1: 5 Gd, 3 Y") == ["Gd"])
     #expect(codes([RunOut(count: 5, code: "Gd")], key: [:], text: "Row 1: 5 Y") == [])
