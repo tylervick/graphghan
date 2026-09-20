@@ -80,6 +80,12 @@ targets:
             LSHandlerRank: Owner
             LSItemContentTypes:
               - com.tylervick.graphghan.pattern-bundle
+          # A pattern PDF opens the import sheet (#112): Alternate, since the app is not the app for PDFs.
+          - CFBundleTypeName: Pattern PDF
+            CFBundleTypeRole: Viewer
+            LSHandlerRank: Alternate
+            LSItemContentTypes:
+              - com.adobe.pdf
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.tylervick.graphghan

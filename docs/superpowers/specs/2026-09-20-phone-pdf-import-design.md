@@ -65,9 +65,9 @@ reader. The order below is the order the app tries them.
 `graphghan export --format pdf` writes a text layer with a fixed grammar: `KEY_ROW`
 ("{code}  {name}  {hex}  {yarn}"), `CHART_HEADER` ("Chart k of n: columns a-b of W, rows c-d of
 H"), `DIRECTION`, and every written row as "Row N (RS): 189 Y (189 sts)" (import design §5, §6.4;
-`pdf.py`, `pdfself.py`). `OwnPDFReader` in `GraphghanCore` reads that text layer through PDFKit
-and rebuilds the chart exactly: the palette from the key, the rows from the written rows, the
-dimensions from the chart headers. It is a port of `pdfself.py` (177 lines) and is deterministic:
+`pdf.py`, `pdfself.py`). `OwnPDFReader` in `GraphghanCore` takes the pages' text (PDFKit extracts
+it in the app, §6.1) and rebuilds the chart exactly: the palette from the key, the rows from the
+written rows, the dimensions from the chart headers. It is a port of `pdfself.py` (177 lines) and is deterministic:
 the same PDF gives the same chart id every time, and that id equals the one the Python side
 computed, which the round-trip test on `fixtures/import/craigh-na-dun-final-*.pdf` proves.
 
@@ -294,7 +294,8 @@ id ignores `ext`.
 ## 11. Success criteria
 
 - A `.pdf` exported by `graphghan export` opens from Files into the library in under two seconds
-  with the same chart id the Mac computes.
+  with the same chart id the Mac computes. Measured 2026-09-20 on the iPhone 17 simulator: the read and
+  save of the 184-row Craigh na Dun PDF take well under a second in `PDFImportTests` (PR 1).
 - Orca's PDF opens into a chart of 29×77 with 77 rows read and validated, on a device with Apple
   Intelligence, in under five minutes, with progress shown and cancel working.
 - The cactus blanket's PDF opens into the pinned 28×28 chart in under five seconds on iOS 17

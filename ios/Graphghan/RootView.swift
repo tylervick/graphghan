@@ -19,6 +19,9 @@ struct RootView: View {
         .fullScreenCover(item: $model.workingProject) { project in
             WorkView(project: project)
         }
+        .sheet(isPresented: Binding(get: { model.pdfImport != nil }, set: { if !$0 { model.cancelPDFImport() } })) {
+            if let state = model.pdfImport { PDFImportSheet(state: state) }
+        }
         .alert("Couldn't open that pattern",
                isPresented: Binding(get: { model.importFailure != nil },
                                     set: { if !$0 { model.importFailure = nil } })) {

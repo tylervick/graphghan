@@ -11,6 +11,11 @@ enum Fixtures {
 
     static let directory = root.appendingPathComponent("fixtures/chart-format", isDirectory: true)
 
+    /// `fixtures/import/<name>.pdf`, written by `graphghan export --format pdf` (the round-trip
+    /// fixtures of the import spec §7.1).
+    static func importPDF(_ name: String) -> URL {
+        root.appendingPathComponent("fixtures/import/\(name).pdf")
+    }
     /// `fixtures/bundle/<slug>.graphghan`, written by `graphghan export --format graphghan`.
     static func bundle(_ slug: String) throws -> Data {
         try Data(contentsOf: root.appendingPathComponent("fixtures/bundle/\(slug).graphghan"))

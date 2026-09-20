@@ -246,20 +246,78 @@ final class AppModel {
     /// The same path, from a file URL: Files, Mail and AirDrop hand over a copy in the app's
     /// Inbox, which is deleted afterwards whether or not the import worked -- nothing else prunes
     /// it, and opening one file three times should not leave three copies behind.
-    func importBundle(at url: URL) async {
+    func importBundle(at url: URL) async { await importFile(at: url) }
+
+    /// A file, however it arrived, routed by what it is: a bundle imports at once, a PDF opens
+    /// the import sheet (#112). The Inbox copy, the size cap and the scoped read are shared.
+    func importFile(at url: URL) async {
         let scoped = url.startAccessingSecurityScopedResource()
         defer { if scoped { url.stopAccessingSecurityScopedResource() } }
         defer { removeInboxCopy(at: url) }
+        let isPDF = url.pathExtension.lowercased() == "pdf"
+        let cap = isPDF ? PDFImporter.maximumBytes : Self.maximumBundleBytes
         let size = (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
-        guard size <= Self.maximumBundleBytes else {
-            importFailure = "That file is too big to be a pattern."
+        guard size <= cap else {
+            if isPDF {
+                let state = PDFImportState(fileName: url.lastPathComponent)
+                state.stage = .failed(PDFImportError.tooBig.message)
+                pdfImport = state
+            } else {
+                importFailure = "That file is too big to be a pattern."
+            }
             return
         }
         guard let data = try? Data(contentsOf: url) else {
             importFailure = "That file couldn't be read."
             return
         }
-        await importBundle(data: data)
+        if isPDF { await importPDF(data: data, fileName: url.lastPathComponent) } else { await importBundle(data: data) }
+    }
+
+    // MARK: opening a PDF (#112)
+
+    /// The import sheet while a PDF is being read or shown; nil otherwise.
+    var pdfImport: PDFImportState? = nil
+
+    /// The sheet's first two states: reading, then the chart found or the sentence for why not.
+    func importPDF(data: Data, fileName: String) async {
+        let state = PDFImportState(fileName: fileName)
+        pdfImport = state
+        let importer = PDFImporter(charts: charts, local: localPatterns)
+        do {
+            let reading = try await importer.read(data, fileName: fileName)
+            state.reading = reading
+            state.preview = UIImage(data: reading.preview)
+            state.stage = .found
+        } catch {
+            state.stage = .failed(error.message)
+        }
+    }
+
+    /// "Add to library": the bundle importer's order, then the same landing as an opened bundle.
+    func addImportedPDF() async {
+        guard let state = pdfImport, let reading = state.reading, state.stage == .found || state.stage == .saving else { return }
+        state.stage = .saving
+        let importer = PDFImporter(charts: charts, local: localPatterns)
+        do {
+            let manifest = try await importer.save(reading)
+            manifests[manifest.id] = manifest
+            for key in images.keys where key == "local:\(manifest.id)" || key.hasPrefix("\(manifest.id)/") { images[key] = nil }
+            await loadLocalPatterns()
+            scheduleReindex()
+            pdfImport = nil
+            tab = .patterns
+            if let item = libraryItems.first(where: { $0.source == .local && $0.slug == manifest.id }) { libraryPath = [item] }
+        } catch {
+            state.stage = .failed("That pattern couldn't be saved.")
+        }
+    }
+
+    /// Cancel and swipe-down: nothing written. Not while a save runs (the sheet hides the button
+    /// and blocks the swipe then); the save finishes and lands as usual.
+    func cancelPDFImport() {
+        guard pdfImport?.stage != .saving else { return }
+        pdfImport = nil
     }
 
     /// Bigger than any pattern can plausibly be, checked before a byte is read.
