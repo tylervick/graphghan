@@ -443,10 +443,71 @@ Apple's eligibility form (https://developer.apple.com/contact/request/private-cl
 Until that grant exists there is no cloud number to measure, and the on-device figures above are
 the ones the app can count on.
 
+### 9.1 Breadth: twenty-two more patterns
+
+Two patterns say little about a reader, so the same evening the Swift reader ran, unchanged,
+over every written-row pattern that could be had: the four indie tutorials the corpus already
+knew, sixteen free web patterns found for the purpose (seven c2c squares, seven tapestry pieces,
+two intarsia), and the two of fourteen free Ravelry PDFs whose rows are text. Ground truth is a
+regular-expression parser per grammar, checked by row width (every tapestry row one width, every
+c2c row one tile wider than the last); `Scripts/breadth/` in the ProseReader package holds the
+source list, the fetch, the parsers, the scorer and the table, so the run repeats from a work
+folder. A row counts as exact when its runs match with the printed codes or under one consistent
+relabelling of the key letters.
+
+| pattern | genre | rows | exact | what went wrong |
+|---|---|---|---|---|
+| Spotted Horse blanket | tapestry | 97 | 97 | |
+| Purple Poncho pillow ("W14, C8, W33") | tapestry | 40 | 40 | |
+| VETKA cat wall hanging | tapestry | 104 | 91 | 8 rows headed "1st row" / "2-104 rows"; 5 long rows drift at the tail |
+| Juniper & Oakes trowel square | c2c | 49 | 47 | |
+| HanJan rainbow square | c2c | 49 | 46 | |
+| My Hobby Is Crochet rabbit square | c2c | 49 | 45 | |
+| Truly Crochet daisy | tapestry | 52 | 39 | 13 rows of seven runs lose a count late in the row |
+| Cosy Rosie love hearts | tapestry | 46 | 35 | "Rows 2-3" ranges missing; "[B 3, A 3] 2 times" not expanded |
+| Truly Crochet little hearts | tapestry | 40 | 26 | bare "(Pale Rose)" meaning one stitch collapses the row; long rows drift |
+| My Hobby Is Crochet cheetah square | c2c | 49 | 17 | "c2" read as one stitch of c |
+| My Hobby Is Crochet elephant square | c2c | 49 | 14 | same |
+| Mini Axolotl (Ravelry PDF, "3D, 7P, 3D") | tapestry | 11 | 10 | one row gains runs copied from the examples |
+| Simply Hooked hearts pillow | tapestry | 32 | 10 | "Rows 1-10" head never reaches the model; "*…; repeat from *" not expanded |
+| Meghan Makes Do swatch | tapestry | 16 | 8 | "repeat row 5" comes back as garbage with example codes |
+| Sunflower Cottage bee pillow | tapestry | 75 | 8 | 15 to 17 runs a row: runs lost mid-row even in chunks of eight |
+| Canyon Moon Rising (Ravelry PDF) | tapestry | 6 | 1 | "(10 CC, 28 MC) 3 times" not expanded |
+| Treasurie heart ("8sc in c1, 1sc in c2") | tapestry | 15 | 0 | numbered colours folded into one run by the adjacent-count merge |
+| LillaBjörn swatch ("Row 1. Ch22") | tapestry | 13 | 0 | period after the row number: no head matches |
+| Whistle & Ivy Saturn and rocket squares ("7. 2G, 3R, 2G") | c2c | 62 | 0 | numbered list, no "Row": no head matches |
+| Peach Unicorn intarsia heart ("Row 3 - Sc in first 2 sts") | intarsia | 43 | 0 | dash after the row number: no head matches |
+| Spruce & Fjell tree ("Row 1-4 (main color - ecru): 25 sc") | intarsia | 6 | 0 | ranges and a stitch-count grammar |
+
+534 of 903 rows exact. Sorted by cause rather than pattern:
+
+- About 160 rows never reach the model: the head regular expression wants "Row N" and a colon,
+  and the corpus also writes "Row 1.", "Row 3 -", "Rows 1-10", "1st row", and bare "7." (#146).
+- About 130 rows are grammar the model mishandles and code can rewrite first: codes glued to
+  counts, numbered colours, bare names for one stitch (#148); row ranges, "repeat row N",
+  bracketed and starred repeats (#147). A row the model cannot parse comes back with runs copied
+  from the example grammars, which nothing filters (#150).
+- About 100 rows are the model itself: with a dozen or more runs in a row it drops or merges
+  runs inside a chunk, and the c2c squares' worst rows and the bee pillow's every row are of
+  this kind (#149). Chunk size is the lever where chunking applies: the daisy
+  read in chunks of four scores 48 of 52 instead of 39. The bee did not move (8 of 75 either
+  way) because its rows are written "Row 1 (<<):(green)" with no space after the colon, and
+  the chunker looks for ": " rather than the head the row regex matched.
+- What the reader never sees: six of the fourteen free Ravelry PDFs and Outlander carry their
+  written rows as pictures of text, and one carries colour only in table-cell fills; the app
+  needs OCR before the reader for these (#151). Yarnspirations' c2c graphghans and most free
+  tapestry PDFs are chart-only with a written lead-in, so the paid, indie PDF (Orca, Outlander)
+  remains the target form.
+
+Plain "N code" rows, from squares to a 104-row wall hanging, read at 91 to 100 percent. The
+grammar classes are regular expressions, the same kind of fix that took Craigh na Dun from 150
+to 177 and Orca from 45 to 77.
+
 What this means for #112: the on-device model plus these rewrites reads plain and shaped rows
-correctly; the skill (or the cloud model) is still wanted for a pattern whose grammar the
-rewrites do not cover, and the row-total check catches the rest. The LoRA adapter (#136) waits on
-the cloud number and looks unnecessary on this evidence.
+correctly, and the breadth pass says which rewrites are still missing (#146, #147, #148, #150)
+before the phone path is worth building; the row-total check catches the rest. Long rows with
+many runs (#149) are the one gap that is the model's, and the LoRA adapter (#136) is the
+fallback if the chunking experiments there do not close it.
 
 ## 10. Questions for review
 

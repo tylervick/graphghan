@@ -31,6 +31,11 @@ Measured on the mini (macOS 27, on-device model): Craigh na Dun 177 of 184 rows 
 Orca's front panel 77 of 77 with `--examples` (76 without) at 3 s a row. The Python spike before
 these rewrites read 150 and 45. Details in the import spec, §9.
 
+`Scripts/breadth/` repeats the breadth measurement (spec §9.1, twenty-two patterns, 534 of 903 rows
+exact): `fetch.sh <work>` pulls the sourced pages as text, `truth.py <work>` builds the regex ground
+truth, the tool writes `<work>/<id>.json` for each `<work>/<id>/` folder, and `table.py <work>` prints
+the table. The Ravelry PDFs are fetched by hand (a login) into `<work>/pdf/`.
+
 ## Private Cloud Compute needs a managed entitlement
 
 Unsigned, every cloud request fails at once with `FoundationModels.LanguageModelError -1` wrapping
