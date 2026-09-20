@@ -43,7 +43,7 @@ struct PatternDetailContent: View {
         return Card(padding: 14) {
             VStack(spacing: 8) {
                 specRow("Chart", d.map { "\($0.width) × \($0.height) stitches × rows" } ?? "—")
-                specRow("Finished", d.map { "\($0.size.width.formatted()) × \($0.size.height.formatted()) \($0.size.unit)" } ?? "—")
+                specRow("Finished", d?.sizeLabel ?? "—")
                 specRow("Stitch", d?.stitch ?? "—")
                 specRow("Version", manifest.version)
             }
@@ -108,7 +108,7 @@ struct PatternDetailContent: View {
                             HStack {
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text("\(chart.variant) · \(chart.gaugeKey)").font(Font.Heather.label).foregroundStyle(Color.ink)
-                                    Text("\(chart.size.width.formatted()) × \(chart.size.height.formatted()) \(chart.size.unit) · \(chart.height) rows · \(chart.stitches.formatted()) stitches")
+                                    Text("\(chart.sizeLabel.map { "\($0) · " } ?? "")\(chart.height) rows · \(chart.stitches.formatted()) stitches")
                                         .font(Font.Heather.caption).foregroundStyle(Color.ink2)
                                 }
                                 Spacer()

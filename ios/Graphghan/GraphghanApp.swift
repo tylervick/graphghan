@@ -35,9 +35,19 @@ struct GraphghanApp: App {
                 .environment(model)
                 .modelContainer(container)
                 .task {
+                    // First, and before anything slow: a project row started from a local pattern
+                    // needs to know its pattern is local to find its preview and title, and it can
+                    // render before the Patterns tab has ever been opened. One small directory read.
+                    await model.loadLocalPatterns()
                     await model.reconcileActivities()
                     model.scheduleReindex()  // Spotlight follows the store; a launch is the cheapest place to catch up
+                    if let url = AppModel.launchImportURL(ProcessInfo.processInfo.arguments) {
+                        await model.importBundle(at: url)
+                    }
                 }
+                // Files, Mail and AirDrop: with opening-in-place off, the system copies the file
+                // into Documents/Inbox and hands over that URL (#16).
+                .onOpenURL { url in Task { await model.importBundle(at: url) } }
         }
     }
 }

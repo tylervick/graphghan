@@ -19,5 +19,12 @@ struct RootView: View {
         .fullScreenCover(item: $model.workingProject) { project in
             WorkView(project: project)
         }
+        .alert("Couldn't open that pattern",
+               isPresented: Binding(get: { model.importFailure != nil },
+                                    set: { if !$0 { model.importFailure = nil } })) {
+            Button("OK", role: .cancel) { model.importFailure = nil }
+        } message: {
+            Text(model.importFailure ?? "")
+        }
     }
 }

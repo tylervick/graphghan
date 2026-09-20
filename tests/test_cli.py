@@ -3,6 +3,7 @@ import re
 import shutil
 import subprocess
 import sys
+import zipfile
 from pathlib import Path
 
 from graphghan.cli import main
@@ -181,3 +182,17 @@ def test_export_pdf_writes_a_printable_pattern(tmp_path):
     out = tmp_path / "craigh.pdf"
     assert main(["export", "craigh-na-dun", "--format", "pdf", "--out", str(out)]) == 0
     assert out.read_bytes()[:5] == b"%PDF-"
+
+
+def test_export_graphghan_writes_a_bundle_and_refuses_a_chart(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(ROOT)
+    out = tmp_path / "craigh.graphghan"
+    assert main(["export", "craigh-na-dun", "--format", "graphghan", "--out", str(out)]) == 0
+    assert zipfile.ZipFile(out).read("pattern.json")
+    # A bundle is the whole pattern: --chart is a category error, not a narrower export.
+    assert main(["export", "craigh-na-dun", "--format", "graphghan", "--chart", "final-sc"]) == 2
+    assert "whole pattern" in capsys.readouterr().err
+    assert main(["export", "craigh-na-dun", "--format", "graphghan"]) == 0
+    default = ROOT / "patterns" / "craigh-na-dun" / "build" / "exports" / "craigh-na-dun.graphghan"
+    assert default.exists()
+    default.unlink()

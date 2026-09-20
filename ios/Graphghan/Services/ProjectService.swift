@@ -55,9 +55,14 @@ final class ProjectService {
         return try context.fetch(descriptor)
     }
 
-    /// Downloads and validates the chart first; a project exists only once its chart is on disk.
+    /// Validates the chart first; a project exists only once its chart is on disk. The library's
+    /// copy wins over a download when it already holds this chart id -- which is the only way a
+    /// pattern opened from a file can start at all (there is nothing to fetch), and which also
+    /// lets a second project start from a site pattern offline.
     func startProject(manifest: PatternManifest, chart: ManifestChart, title: String) async throws -> Project {
-        let data = try await patterns.chartData(for: manifest.id, path: chart.path)
+        let stored = await charts.hasChart(id: chart.id)
+        let data = stored ? try await charts.data(id: chart.id)
+                          : try await patterns.chartData(for: manifest.id, path: chart.path)
         let decoded = try Chart.load(data)  // in memory; no file yet
         guard decoded.id == chart.id else { throw ServiceError.chartMismatch(expected: chart.id, got: decoded.id) }
         _ = try await charts.store(data)  // now safe to persist

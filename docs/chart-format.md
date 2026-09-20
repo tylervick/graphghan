@@ -266,7 +266,28 @@ not a placeholder, when the chart's gauge and cell kind do not pair.
 ## Bundle
 
 A `.graphghan` file is a zip with `pattern.json` at its root plus the chart files and previews it
-references at their relative paths. Defined so tools agree; no tool in this repo writes one yet.
+references at their relative paths -- the pattern preview, and per published chart its
+`chart.json` and `preview.png`. It carries nothing the manifest does not name; readers address
+entries by name and ignore any extras, so a bundle from another tool that also packs
+`written-rows.txt` opens fine.
+
+`graphghan export <slug> --format graphghan` writes one, and `fixtures/bundle/` commits one per
+pattern with a drift test. The output is byte-reproducible, which fixes two things a zip would
+otherwise let drift:
+
+- Entries are **stored**, not deflated, with a fixed 1980-01-01 timestamp, mode 0o644 and sorted
+  names. Stored because zlib's deflate output is deterministic for one zlib build but not across
+  builds, and the committed fixture is generated on macOS and diffed by CI on Linux. Readers still
+  accept deflate.
+- `updated` is fixed at `1980-01-01T00:00:00Z`, the same instant. The site build stamps it with
+  the build time; a bundle has no build time that is stable across clones, and nothing reads the
+  field. A bundle is content, not a build.
+
+The iOS app registers `com.tylervick.graphghan.pattern-bundle` (conforming to `public.zip-archive`,
+extension `graphghan`) and opens one from Files, Mail or AirDrop: `GraphghanCore`'s `PatternBundle`
+reads it, validates every chart the same way a downloaded one is validated, and the pattern joins
+the Patterns tab as a local pattern. See
+`docs/superpowers/specs/2026-09-19-open-graphghan-bundles-design.md`.
 
 ## Interchange
 
@@ -281,6 +302,8 @@ references at their relative paths. Defined so tools agree; no tool in this repo
   cells with bold lines every 10, written rows). Real text throughout; the chart page headers, key
   rows and written rows are in grammars fixed in `graphghan/pdf.py` so the importer can read them
   back. Byte-reproducible; `fixtures/import/` commits one per published chart.
+- **Bundle** (`--format graphghan`): the whole pattern as one file -- the manifest plus the charts
+  and previews it references -- for opening on a phone. See §Bundle above.
 - **Import** (`graphghan import <file> --into <slug>`): the reverse of all four. OXS and CSV are
   read as written; a PNG is one pixel per cell unless a grid covers it, in which case it is read
   like a PDF chart page: grid lines found by their edges, cell centres sampled, colours clustered

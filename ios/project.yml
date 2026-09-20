@@ -59,6 +59,27 @@ targets:
           - UIInterfaceOrientationPortrait
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
+        # A .graphghan bundle opened from Files, Mail or AirDrop (#16). The identifier is not the
+        # bundle id -- a UTI equal to one is a collision waiting to happen, and #112 wants a
+        # sibling for PDFs. The tag spec declares the extension and NOT a MIME type: claiming
+        # application/zip would make this app a candidate handler for every zip anyone receives.
+        # Opening in place is off: a bundle is imported once and then owned by the library, so
+        # there is nothing to write back.
+        LSSupportsOpeningDocumentsInPlace: false
+        UTExportedTypeDeclarations:
+          - UTTypeIdentifier: com.tylervick.graphghan.pattern-bundle
+            UTTypeDescription: Graphghan Pattern
+            UTTypeConformsTo:
+              - public.zip-archive
+            UTTypeTagSpecification:
+              public.filename-extension:
+                - graphghan
+        CFBundleDocumentTypes:
+          - CFBundleTypeName: Graphghan Pattern
+            CFBundleTypeRole: Viewer
+            LSHandlerRank: Owner
+            LSItemContentTypes:
+              - com.tylervick.graphghan.pattern-bundle
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.tylervick.graphghan

@@ -24,7 +24,7 @@ struct StartProjectSheet: View {
                 Section("Chart") {
                     Picker("Chart", selection: $chartID) {
                         ForEach(manifest.charts) { c in
-                            Text("\(c.variant) · \(c.gaugeKey): \(c.size.width.formatted()) × \(c.size.height.formatted()) \(c.size.unit), \(c.height) rows").tag(c.id)
+                            Text("\(c.variant) · \(c.gaugeKey): \(c.sizeLabel.map { "\($0), " } ?? "")\(c.height) rows").tag(c.id)
                         }
                     }
                     .pickerStyle(.inline)

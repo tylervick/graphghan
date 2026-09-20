@@ -31,7 +31,7 @@ import Testing
     @Test func decodesManifest() throws {
         let m = try JSONDecoder().decode(PatternManifest.self, from: Data(Self.manifest.utf8))
         #expect(m.charts.count == 2 && m.defaultChart?.gaugeKey == "sc" && m.charts[1].isDefault == false)
-        #expect(m.charts[0].key == "final-sc" && m.charts[1].size.width == 54.2 && m.charts[1].changesPerRow.max == 20)
+        #expect(m.charts[0].key == "final-sc" && m.charts[1].size?.width == 54.2 && m.charts[1].changesPerRow.max == 20)
         #expect(m.palette[0].hex == "#f2e8d5" && m.license == "CC-BY-NC-SA-4.0")
     }
 

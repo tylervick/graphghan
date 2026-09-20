@@ -12,7 +12,8 @@ import GraphghanCore
         let client = StubClient()
         let patterns = PatternStore(baseURL: URL(string: "https://example.test/")!, cacheDirectory: try temporaryDirectory(), client: client)
         let charts = ChartLibrary(directory: try temporaryDirectory())
-        return (AppModel(context: container.mainContext, patterns: patterns, charts: charts), client)
+        return (AppModel(context: container.mainContext, patterns: patterns, charts: charts,
+                         localPatterns: try makeLocalPatternStore()), client)
     }
 
     @Test func offlineWithoutCacheShowsAnError() async throws {

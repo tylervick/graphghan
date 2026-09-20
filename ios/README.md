@@ -16,10 +16,11 @@ Bundle id `com.tylervick.graphghan`, App Group `group.com.tylervick.graphghan`, 
 ## Layout
 
 - `Graphghan/` — the app
-  - `Storage/` — App Group paths, the two SwiftData models (`Project`, `ProgressEvent`) and
-    `ChartLibrary`, the downloaded chart files
+  - `Storage/` — App Group paths, the two SwiftData models (`Project`, `ProgressEvent`),
+    `ChartLibrary` (the chart files) and `LocalPatternStore` (patterns opened from a file)
   - `Network/` — HTTP client and response handling
-  - `Services/` — `ProjectService`, through which every project mutation goes
+  - `Services/` — `ProjectService`, through which every project mutation goes, and
+    `BundleImporter`, through which an opened `.graphghan` file goes
   - `Patterns/` — Patterns tab with pattern browser and chart detail
   - `Projects/` — Projects tab with project list and detail
   - `Work/` — full-screen Work screen
@@ -27,7 +28,8 @@ Bundle id `com.tylervick.graphghan`, App Group `group.com.tylervick.graphghan`, 
 - `Shared/` — compiles into the app and the widget: the color tokens (`Tokens.xcassets`, `Theme.swift`), yarn surfaces, Live Activity views and intents
 - `Fonts/` — Literata, Atkinson Hyperlegible, Nunito (all OFL), registered in `project.yml`
 - `Scripts/make_icon.py` — the app icon; `mise run icon` regenerates it
-- `Packages/GraphghanCore/` — Swift reader for the chart format (JSON decoder, engine)
+- `Packages/GraphghanCore/` — Swift reader for the chart format (JSON decoder, engine) and for
+  `.graphghan` bundles (`ZipArchive`, `PatternBundle`)
 - `Tests/` — app unit tests (Swift Testing, in-memory SwiftData, stub HTTP client)
 
 ## Data
@@ -38,6 +40,36 @@ Everything lives in the App Group container (`group.com.tylervick.graphghan`):
   `Library/Application Support/charts/<chart id>.json` (never evicted while a project uses one)
 - Pattern cache under `Library/Caches/patterns/<id>/`: the library index, manifests, previews and
   their ETags
+- Patterns opened from a file at `Library/Application Support/local-patterns/<id>/`: the manifest
+  and previews. Application Support rather than the cache beside the site's, because iOS purges
+  Caches under disk pressure — free for a site pattern, data loss for the only copy of one someone
+  sent (#16)
+
+## Opening a .graphghan bundle
+
+A `.graphghan` file (the format is `../docs/chart-format.md` §Bundle) opened from Files, Mail or
+AirDrop becomes a pattern in the Patterns tab, under **On this iPhone**, with a project startable
+from it exactly as from a site pattern. `project.yml` declares the exported type
+`com.tylervick.graphghan.pattern-bundle` and the document type that claims it;
+`LSSupportsOpeningDocumentsInPlace` is false, so the system hands over a copy in `Documents/Inbox`,
+which the importer deletes either way. `plutil -p Graphghan/Info.plist` after `mise run generate`
+is how to check the registration landed.
+
+`PatternBundle.read` decodes and validates the whole bundle in memory — every chart through
+`Chart.load`, the same as a downloaded one, plus its id against the manifest — before anything is
+written, so a broken bundle names what is wrong and leaves the library exactly as it was. Charts
+go to `ChartLibrary` by chart id like any other; the manifest and previews go to
+`LocalPatternStore`. Opening the same bundle again replaces the pattern rather than adding a
+second, and a chart the new version drops stays in the library because a project pinned its id.
+
+A pattern is resolved local-first by its id everywhere — manifest, previews, a project's pattern
+title — so a local pattern never reaches for the network and never gets a version notice from the
+site. The cost is that a bundle whose id matches a published slug shadows it: #135.
+
+Driving it without a drag: `xcrun simctl launch <device> com.tylervick.graphghan --import <path>`,
+or `xcrun simctl openurl <device> "file://<path>"`, which goes through LaunchServices the way Files
+does. AirDrop needs a real device; the type registration is what it depends on. The design is
+`../docs/superpowers/specs/2026-09-19-open-graphghan-bundles-design.md`.
 
 ## Live Activity
 

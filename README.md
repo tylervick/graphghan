@@ -49,6 +49,7 @@ uv run graphghan options <slug>                  # compare variants/gauges, writ
 uv run graphghan render <slug>                   # publish every [publish] chart to dist/
 uv run graphghan check <slug>                    # generic invariants + the pattern's own tests
 uv run graphghan export <slug> --format oxs        # also png (1 px/stitch), csv, and pdf (printable); --chart final-hdc picks a chart
+uv run graphghan export <slug> --format graphghan  # the whole pattern as one file the iOS app opens
 uv run graphghan import <file> --into <slug>       # a chart PDF, a picture of a chart, a 1-px PNG, OXS, or CSV into patterns/<slug>/
 uv run graphghan site serve                      # build and serve the pattern feed at :8765
 ```
@@ -77,8 +78,11 @@ Charts are JSON documents in the graphghan chart format (schema 2): a palette, r
 a gauge, and a `technique` that defines working order, with a content-hash id. The format is
 documented in `docs/chart-format.md`, has JSON Schemas under `schema/`, and ships conformance
 fixtures under `fixtures/chart-format/` that any reader (the iOS app, yours) can test
-against. `graphghan export` writes 1-px PNG, OXS, CSV, and a printable PDF laid out like a sold pattern
-(cover, key, tiled chart, written rows); `fixtures/import/` holds one such PDF per published chart.
+against. `graphghan export` writes 1-px PNG, OXS, CSV, a printable PDF laid out like a sold pattern
+(cover, key, tiled chart, written rows), and a `.graphghan` bundle -- the manifest plus the charts
+and previews it references, zipped, which the iOS app opens from Files, Mail or AirDrop.
+`fixtures/import/` holds one PDF per published chart and `fixtures/bundle/` one bundle per pattern,
+both byte-reproducible and drift-tested.
 `graphghan import` goes the other way: it finds the grid on a chart page or a picture of a chart,
 samples the cells, clusters the colours, and writes a pattern folder that renders and checks; every
 fixture PDF round-trips with zero drift, both through the grid and through the written rows. The

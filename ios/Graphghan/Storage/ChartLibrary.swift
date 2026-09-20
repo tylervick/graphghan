@@ -28,6 +28,14 @@ actor ChartLibrary {
         return chart
     }
 
+    /// The stored bytes, for a caller that needs the file rather than the decoded chart -- a
+    /// project starting from a chart the library already holds, which must not re-download it.
+    func data(id: String) throws -> Data {
+        let url = try fileURL(for: id)
+        guard FileManager.default.fileExists(atPath: url.path) else { throw LibraryError.missing(id) }
+        return try Data(contentsOf: url)
+    }
+
     func chart(id: String) throws -> Chart {
         if let chart = cache[id] { return chart }
         let url = try fileURL(for: id)
