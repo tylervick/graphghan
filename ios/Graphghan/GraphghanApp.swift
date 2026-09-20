@@ -42,12 +42,12 @@ struct GraphghanApp: App {
                     await model.reconcileActivities()
                     model.scheduleReindex()  // Spotlight follows the store; a launch is the cheapest place to catch up
                     if let url = AppModel.launchImportURL(ProcessInfo.processInfo.arguments) {
-                        await model.importBundle(at: url)
+                        await model.importFile(at: url)
                     }
                 }
                 // Files, Mail and AirDrop: with opening-in-place off, the system copies the file
-                // into Documents/Inbox and hands over that URL (#16).
-                .onOpenURL { url in Task { await model.importBundle(at: url) } }
+                // into Documents/Inbox and hands over that URL (#16); a PDF takes the same road (#112).
+                .onOpenURL { url in Task { await model.importFile(at: url) } }
         }
     }
 }
