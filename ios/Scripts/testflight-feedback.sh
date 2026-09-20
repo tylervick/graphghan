@@ -155,7 +155,11 @@ APP_ID="$(printf '%s' "$APPS_RESP" | python3 -c 'import json, sys; d = json.load
 
 QUERY="sort=-createdDate&limit=$LIMIT&include=build&fields%5Bbuilds%5D=version"
 api_get "/v1/apps/$APP_ID/betaFeedbackScreenshotSubmissions?$QUERY" > "$TMP/screenshots.json" || { echo "error: could not list screenshot submissions" >&2; exit 1; }
-normalize "$TMP/screenshots.json" screenshot > "$TMP/submissions.jsonl"
+api_get "/v1/apps/$APP_ID/betaFeedbackCrashSubmissions?$QUERY" > "$TMP/crashes.json" || { echo "error: could not list crash submissions" >&2; exit 1; }
+# Both kinds in one list, oldest first across kinds, so issue numbers follow arrival order.
+{ normalize "$TMP/screenshots.json" screenshot; normalize "$TMP/crashes.json" crash; } \
+    | python3 -c 'import json, sys; rows = [json.loads(l) for l in sys.stdin if l.strip()]; rows.sort(key=lambda r: r["created"]); print("\n".join(json.dumps(r) for r in rows))' \
+    > "$TMP/submissions.jsonl"
 
 if [ "$DRY_RUN" -eq 0 ]; then
     gh label create "$FEEDBACK_LABEL" --repo "$REPO" --color 0e8a16 \
@@ -181,6 +185,15 @@ while IFS= read -r REC; do
         IMAGE_URLS="$(upload_screenshots "$ID" "$SHOTS")" || exit 1
     fi
     CRASH_LOG_FILE=""
+    if [ "$(field kind)" = "crash" ]; then
+        CRASH_LOG_FILE="$TMP/$ID.crash"
+        if ! api_get "/v1/betaFeedbackCrashSubmissions/$ID/crashLog" \
+                | python3 -c 'import json, sys; print((json.load(sys.stdin).get("data") or {}).get("attributes", {}).get("logText") or "")' \
+                > "$CRASH_LOG_FILE"; then
+            echo "warning: no crash log for $ID; the issue will say so" >&2
+            printf 'The crash log could not be fetched; see App Store Connect.\n' > "$CRASH_LOG_FILE"
+        fi
+    fi
     render
 
     if [ "$DRY_RUN" -eq 1 ]; then

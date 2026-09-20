@@ -90,9 +90,17 @@ cat > "$STUB_DIR/screenshots.json" <<'EOF'
 ],"included":[{"type":"builds","id":"B12","attributes":{"version":"12"}}]}
 EOF
 
-# No crash submissions until Task 4 adds them.
+# One crash submission, newer than both screenshots, with a comment. The log contains a
+# three-backtick run to prove the fence survives it.
 cat > "$STUB_DIR/crashes.json" <<'EOF'
-{"data":[],"included":[]}
+{"data":[
+ {"type":"betaFeedbackCrashSubmissions","id":"C-1",
+  "attributes":{"createdDate":"2026-09-19T15:00:00Z","comment":"Tapped Back twice fast","email":"tester@example.com","deviceModel":"iPhone17,1","osVersion":"26.0","locale":"en-US"},
+  "relationships":{"build":{"data":{"type":"builds","id":"B12"}}}}
+],"included":[{"type":"builds","id":"B12","attributes":{"version":"12"}}]}
+EOF
+cat > "$STUB_DIR/crashlog.json" <<'EOF'
+{"data":{"type":"betaCrashLogs","id":"C-1","attributes":{"logText":"Incident Identifier: ABC\nThread 0 Crashed:\n0  Graphghan  0x1 WorkView.perform ```not a fence```"}}}
 EOF
 
 # --- helpers -----------------------------------------------------------------------------------
@@ -108,8 +116,8 @@ created_count() { ls "$STUB_DIR"/created-*.md 2>/dev/null | wc -l | tr -d ' '; }
 
 reset
 out="$(run_script)" || fail "fresh run exited non-zero: $out"
-[ "$(created_count)" -eq 2 ] || fail "expected 2 issues, created $(created_count); output: $out"
-grep -q "^2 created, 0 already tracked\.$" <<<"$out" || fail "summary line missing; got: $out"
+[ "$(created_count)" -eq 3 ] || fail "expected 3 issues, created $(created_count); output: $out"
+grep -q "^3 created, 0 already tracked\.$" <<<"$out" || fail "summary line missing; got: $out"
 pass "a fresh run opens one issue per screenshot submission"
 
 # Oldest first: S-OLD (2026-09-18) is issue 1, S-NEW is issue 2.
@@ -177,19 +185,20 @@ Some earlier body
 <!-- testflight-feedback:S-OLD -->
 Another
 <!-- testflight-feedback:S-NEW -->
+<!-- testflight-feedback:C-1 -->
 EOF
 out="$(run_script)" || fail "second run exited non-zero: $out"
 [ "$(created_count)" -eq 0 ] || fail "second run created $(created_count) issues; output: $out"
-grep -q "^0 created, 2 already tracked\.$" <<<"$out" || fail "summary wrong; got: $out"
+grep -q "^0 created, 3 already tracked\.$" <<<"$out" || fail "summary wrong; got: $out"
 ! grep -q "^issue create" "$STUB_DIR/gh.log" || fail "issue create was called on a re-run"
 pass "already-tracked submissions are skipped"
 
-# Only one tracked: the other is still created.
+# Only one tracked: the others are still created.
 reset
 printf '<!-- testflight-feedback:S-OLD -->\n' > "$STUB_DIR/bodies.txt"
 out="$(run_script)" || fail "partial run exited non-zero: $out"
-[ "$(created_count)" -eq 1 ] || fail "expected exactly 1 new issue; output: $out"
-grep -q "testflight-feedback:S-NEW" "$STUB_DIR/created-1.md" || fail "the untracked submission was not the one created"
+[ "$(created_count)" -eq 2 ] || fail "expected exactly 2 new issues; output: $out"
+grep -q "testflight-feedback:S-NEW" "$STUB_DIR/created-1.md" || fail "the untracked screenshot was not created"
 pass "the seen set is per submission, not all-or-nothing"
 
 # Dry run: reports, touches nothing.
@@ -197,7 +206,7 @@ reset
 out="$(run_script --dry-run)" || fail "dry run exited non-zero: $out"
 [ "$(created_count)" -eq 0 ] || fail "dry run created issues"
 grep -q "^would create: Done button hides behind the strip$" <<<"$out" || fail "dry run did not list the titles; got: $out"
-grep -q "^2 would be created, 0 already tracked\.$" <<<"$out" || fail "dry run summary wrong; got: $out"
+grep -q "^3 would be created, 0 already tracked\.$" <<<"$out" || fail "dry run summary wrong; got: $out"
 ! grep -qE "^(issue create|label create|release)" "$STUB_DIR/gh.log" || fail "dry run wrote to GitHub: $(cat "$STUB_DIR/gh.log")"
 pass "--dry-run lists titles and writes nothing"
 
@@ -205,5 +214,21 @@ pass "--dry-run lists titles and writes nothing"
 out="$(run_script --bogus)" && fail "unknown flag should exit non-zero"
 grep -q "^usage:" <<<"$out" || fail "usage message missing; got: $out"
 pass "an unknown flag prints usage and exits 2"
+
+# Crash submissions: fetched alongside screenshots, log embedded, ordered by date with the rest.
+reset
+out="$(run_script)" || fail "crash run exited non-zero: $out"
+[ "$(created_count)" -eq 3 ] || fail "expected 3 issues with the crash; output: $out"
+[ "$(cat "$STUB_DIR/created-3.title")" = "Crash on build 12 (iPhone17,1, 26.0): Tapped Back twice fast" ] || fail "crash title wrong; got: $(cat "$STUB_DIR/created-3.title")"
+body="$(cat "$STUB_DIR/created-3.md")"
+grep -q "^### Crash$" <<<"$body" || fail "Crash heading missing"
+grep -q "<details><summary>Crash log</summary>" <<<"$body" || fail "crash log details block missing"
+grep -q "Thread 0 Crashed:" <<<"$body" || fail "log text missing"
+grep -q '^````$' <<<"$body" || fail "four-backtick fence missing"
+grep -q "<!-- testflight-feedback:C-1 -->" <<<"$body" || fail "crash marker missing"
+grep -q "betaFeedbackCrashSubmissions/C-1/crashLog" "$STUB_DIR/curl.log" || fail "crash log not fetched"
+grep -q "betaFeedbackCrashSubmissions?sort=-createdDate&limit=50&include=build&fields%5Bbuilds%5D=version" "$STUB_DIR/curl.log" || fail "crash listing query wrong"
+! grep -q "tester@example.com" <<<"$body" || fail "email reached the crash issue"
+pass "crash submissions become issues with the log collapsed"
 
 echo "all testflight-feedback tests passed"
