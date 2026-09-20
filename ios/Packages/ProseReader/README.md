@@ -27,7 +27,8 @@ a bracketed group with a count and a starred "repeat from *" are expanded (to th
 for "across"), increases and decreases become stitch counts, foundation chains and turning phrases go,
 adjacent counts of one colour add, row numbers come from the text's head, and key codes are A, B, C in
 key order unless the rows print codes. A head that covers several rows ("Rows 2-4") yields one row per
-number, and "Row 6: repeat row 5" copies row 5 without a prompt.
+number, and "Row 6: repeat row 5" copies row 5 without a prompt. A run whose code is neither a colour of the
+document nor a word of the row is dropped, and a row left with none is reported as an error, not a guess.
 
 Scoring against ground truth: `uv run python Scripts/score.py prose.json craigh|orca` (Craigh na Dun's
 rows come from our own PDF's text layer; Orca's from the hand transcript in `fixtures/import/real/`).
