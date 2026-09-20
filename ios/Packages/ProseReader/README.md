@@ -18,8 +18,18 @@ per prompt is for the 32k cloud window), `--fresh-session` (a new session per pr
 the Python spike did it). Text comes from PDFKit for a PDF, or from the `pNN.txt` files
 `graphghan import` stages, so both sides read the same characters.
 
+`--chunk N` (default 8) reads long rows in parts; `--examples` adds the corpus's row grammars to the
+instructions. Before any prompt, code rewrites what the model cannot keep: increases and decreases
+become stitch counts, foundation chains and turning phrases go, adjacent counts of one colour add,
+row numbers come from the text's head, and key codes are A, B, C in key order unless the rows print
+codes.
+
 Scoring against ground truth: `uv run python Scripts/score.py prose.json craigh|orca` (Craigh na Dun's
 rows come from our own PDF's text layer; Orca's from the hand transcript in `fixtures/import/real/`).
+
+Measured on the mini (macOS 27, on-device model): Craigh na Dun 177 of 184 rows exact at 15 s a row;
+Orca's front panel 77 of 77 with `--examples` (76 without) at 3 s a row. The Python spike before
+these rewrites read 150 and 45. Details in the import spec, §9.
 
 ## Private Cloud Compute needs a signed, attributed process
 

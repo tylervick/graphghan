@@ -419,9 +419,31 @@ written row per prompt into the `WrittenRow` schema and the front matter page by
 So the model transcribes plain "8 A, 14 B" rows reliably and fast, cannot hold a long row in
 one answer, and does not understand pattern grammar (increases, colour-before-run) without help
 it cannot be given in a 4k window. Every row it gets wrong fails the row-total check, so the
-importer's loop holds: the reader is a helper for simple rows, not a replacement for the skill.
-Two lessons for #112: split long rows into chunks the model can answer, and reuse one session
-per pattern (the Neural Engine compiler spent 37 CPU-minutes on fresh sessions here).
+importer's loop holds.
+
+Second pass (same day, `ios/Packages/ProseReader`, Swift so both of Apple's models are
+reachable): what the model cannot keep, code does before the prompt. Rows over eight runs are
+cut into parts that keep their "Row N" head and join in order; the row number is read off the
+head, not the model; "N inc" becomes "2N sc" and "N dec" becomes "N sc"; foundation chains and
+turning phrases are removed; two plain counts of one colour are added; key codes are A, B, C in
+key order unless the rows print codes; and `--examples` adds the corpus's grammars to the
+instructions. A reused session was the wrong idea (its transcript grows with every prompt; the
+fifth row already took 25 s), so every prompt gets a fresh session.
+
+| set | rows | first pass | second pass | speed |
+|---|---|---|---|---|
+| Craigh na Dun sc, our own text layer | 184 | 150 exact | 177 exact, 0 errors; 6 rows differ at their last run, 1 row (row 1) numbered after its count, which the head now supplies | 15 s per row (46 min) |
+| Orca front panel | 77 | 45 of 143 blocks | 77 of 77 with `--examples`, 76 of 77 without | 3 s per row (3.5 min) |
+
+Private Cloud Compute is a different story: the model reports available with quota to spare, and
+every request is refused inside `ModelManagerServices` (error 1046) before any network traffic,
+because the tool is unsigned and cannot be attributed to a developer team. The README beside the
+tool says how to run it on a Mac signed into the team; that measurement is still owed.
+
+What this means for #112: the on-device model plus these rewrites reads plain and shaped rows
+correctly; the skill (or the cloud model) is still wanted for a pattern whose grammar the
+rewrites do not cover, and the row-total check catches the rest. The LoRA adapter (#136) waits on
+the cloud number and looks unnecessary on this evidence.
 
 ## 10. Questions for review
 
