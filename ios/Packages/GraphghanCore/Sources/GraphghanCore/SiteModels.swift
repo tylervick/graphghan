@@ -44,8 +44,7 @@ public struct IndexEntry: Decodable, Sendable, Identifiable, Hashable {
     public init(manifest: PatternManifest) {
         let chart = manifest.defaultChart
         // The index always quotes inches, whatever unit the gauge is stated in (#48).
-        let size = chart?.size
-        let inches: [Double] = if let size {
+        let inches: [Double] = if let size = chart?.size {
             size.unit == "cm" ? [(size.width / 2.54 * 10).rounded() / 10, (size.height / 2.54 * 10).rounded() / 10]
                               : [size.width, size.height]
         } else { [] }
@@ -82,13 +81,21 @@ public struct ManifestChart: Decodable, Sendable, Identifiable, Equatable, Hasha
     public let preview: String
     public let width: Int
     public let height: Int
-    public let size: Size
+    /// Absent, not a placeholder, when the chart's gauge and cell kind do not count the same
+    /// thing (#48) -- `manifest.py` omits the key entirely, so a reader that demands it refuses a
+    /// manifest this repo's own exporter validly produces.
+    public let size: Size?
     public let stitch: String
     public let colors: Int
     public let stitches: Int
     public let changesPerRow: Changes
     public let yardsEst: Int
     public var key: String { "\(variant)-\(gaugeKey)" }
+    /// "54 × 46 in", or nil when the chart has no stated finished size.
+    public var sizeLabel: String? {
+        guard let size else { return nil }
+        return "\(size.width.formatted()) × \(size.height.formatted()) \(size.unit)"
+    }
     enum CodingKeys: String, CodingKey {
         case id, variant, path, preview, width, height, size, stitch, colors, stitches
         case gaugeKey = "gauge_key", isDefault = "default", changesPerRow = "changes_per_row", yardsEst = "yards_est"

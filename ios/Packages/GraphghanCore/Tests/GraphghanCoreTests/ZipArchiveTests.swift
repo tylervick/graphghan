@@ -36,6 +36,16 @@ import Testing
         #expect(try zip.data(named: "a") == Data("alpha".utf8))
     }
 
+    @Test func aCommentContainingAnEOCDSignatureStillFindsTheRealRecord() throws {
+        // The comment sits after the real record, so a backward scan hits the impostor first;
+        // only the real record's comment length adds up to the end of the file.
+        var builder = ZipBuilder(items: [.init("a", "alpha")])
+        builder.comment = Data([0x50, 0x4B, 0x05, 0x06]) + Data(repeating: 0x00, count: 40)
+        let zip = try ZipArchive(builder.build())
+        #expect(zip.names == ["a"])
+        #expect(try zip.data(named: "a") == Data("alpha".utf8))
+    }
+
     @Test func anUnknownNameIsNotFound() throws {
         let zip = try ZipArchive(ZipBuilder.stored([("a", "alpha")]))
         #expect(throws: ZipArchive.ZipError.notFound("b")) { try zip.data(named: "b") }

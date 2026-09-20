@@ -226,6 +226,9 @@ final class AppModel {
                 images[key] = nil
             }
             await loadLocalPatterns()
+            // A project's Spotlight entry carries its pattern's title, which this import may have
+            // just supplied or changed; nothing else on this path tells the index that.
+            scheduleReindex()
             importFailure = nil
             tab = .patterns
             if let item = libraryItems.first(where: { $0.source == .local && $0.slug == manifest.id }) {

@@ -57,6 +57,8 @@ public struct PatternBundle: Sendable {
         for entry in manifest.charts where !seen.insert(entry.path).inserted {
             throw BundleError.duplicateChartPath(entry.path)
         }
+        try checkPaths([manifestName, manifest.preview]
+            + manifest.charts.map(\.path) + manifest.charts.map(\.preview))
 
         var charts: [BundleChart] = []
         for entry in manifest.charts {
@@ -79,6 +81,26 @@ public struct PatternBundle: Sendable {
         }
 
         return PatternBundle(manifest: manifest, manifestData: manifestData, charts: charts, previews: previews)
+    }
+
+    /// Every referenced path has to be writable as a file under one directory, because that is
+    /// what the app does with them. The zip reader has already refused traversal; what is left is
+    /// a path that cannot become a file *here*: an empty or `.` component, which a store would
+    /// silently skip, and a path nested under another referenced path, which would need
+    /// `pattern.json` to be a file and a directory at once — that one fails halfway through the
+    /// write, after the charts are already stored.
+    private static func checkPaths(_ paths: [String]) throws {
+        for path in paths {
+            let parts = path.split(separator: "/", omittingEmptySubsequences: false)
+            guard !parts.isEmpty, !parts.contains(where: { $0.isEmpty || $0 == "." }) else {
+                throw BundleError.unusablePath(path)
+            }
+        }
+        for path in paths {
+            for other in paths where other != path && other.hasPrefix(path + "/") {
+                throw BundleError.unusablePath(other)
+            }
+        }
     }
 
     private static func read(_ name: String, from archive: ZipArchive) throws -> Data {
@@ -120,6 +142,8 @@ public enum BundleError: Error, Equatable {
     case noCharts
     case duplicateChartPath(String)
     case missingFile(String)
+    /// A referenced path that cannot be written as a file under the pattern's directory.
+    case unusablePath(String)
     case invalidChart(path: String, reason: String)
     case chartIDMismatch(path: String, expected: String, found: String)
 
@@ -154,6 +178,8 @@ public enum BundleError: Error, Equatable {
             return "This pattern lists \(path) twice."
         case .missingFile(let path):
             return "This pattern is missing the file it lists as \(path)."
+        case .unusablePath(let path):
+            return "This pattern lists a file at a path that can't be saved (\(path))."
         case .invalidChart(let path, let reason):
             return "This pattern's chart \(path) isn't usable: \(reason)."
         case .chartIDMismatch(let path, _, _):

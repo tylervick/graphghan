@@ -130,7 +130,13 @@ public struct ZipArchive: Sendable {
         var found: Int?
         var i = data.count - 22
         while i >= lowest {
-            if u32(data, i) == eocdSignature { found = i; break }
+            // A zip comment may itself contain PK\u{05}\u{06}, and the comment sits *after* the
+            // real record, so a backward scan hits the impostor first. The record says how many
+            // comment bytes follow it; only the real one is telling the truth about the file's end.
+            if u32(data, i) == eocdSignature, i + 22 + Int(u16(data, i + 20)) == data.count {
+                found = i
+                break
+            }
             i -= 1
         }
         guard let eocd = found else { throw ZipError.notAZip }

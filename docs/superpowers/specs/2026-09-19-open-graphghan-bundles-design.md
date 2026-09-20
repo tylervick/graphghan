@@ -486,7 +486,9 @@ generated plist is what it depends on.
 ## 8. Non-goals and follow-ons
 
 Not in scope: #112 (a PDF as a second openable type), #134 (deleting a local pattern), #135 (a
-local pattern whose id matches a site pattern). Exporting a bundle from the app, sharing one out of
+local pattern whose id matches a site pattern), #143 (`ChartLibrary` keys on `chart.id`, so a
+second chart that hashes the same overwrites the first — pre-existing, and a SwiftData migration
+to fix). Exporting a bundle from the app, sharing one out of
 the app, and a bundle that carries progress are none of them asked for by anything yet.
 
 ## 9. Success criteria

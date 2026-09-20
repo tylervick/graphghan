@@ -61,11 +61,15 @@ actor LocalPatternStore {
             try bytes.write(to: destination, options: .atomic)
         }
 
+        // Replaced, not removed-then-moved: a move that fails after the remove would leave the
+        // maker with neither the version they had nor the one they were opening -- and the
+        // importer has already deleted the Inbox copy by the time they find out.
         let final = patternDirectory(id)
         if FileManager.default.fileExists(atPath: final.path) {
-            try FileManager.default.removeItem(at: final)
+            _ = try FileManager.default.replaceItemAt(final, withItemAt: staging)
+        } else {
+            try FileManager.default.moveItem(at: staging, to: final)
         }
-        try FileManager.default.moveItem(at: staging, to: final)
     }
 
     // MARK: paths

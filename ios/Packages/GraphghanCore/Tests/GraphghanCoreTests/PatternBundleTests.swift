@@ -177,13 +177,50 @@ import Testing
         }
     }
 
+    @Test func aPreviewNestedUnderAnotherReferencedFileIsRefused() throws {
+        // `pattern.json/preview.png` needs pattern.json to be a file and a directory at once. The
+        // zip reader is happy with it; the store would fail halfway through writing, after the
+        // charts were already in the library.
+        var object = try Self.manifestJSON()
+        object["preview"] = "pattern.json/preview.png"
+        let data = try Self.rebuilt(replacing: [PatternBundle.manifestName: try Self.encode(object)])
+        #expect(throws: BundleError.unusablePath("pattern.json/preview.png")) {
+            try PatternBundle.read(data)
+        }
+    }
+
+    @Test(arguments: ["", "a//b.png", "./preview.png", "charts/./preview.png"])
+    func aPathThatCannotBecomeAFileIsRefused(path: String) throws {
+        // Silently skipping these would lose a preview without telling anyone.
+        var object = try Self.manifestJSON()
+        object["preview"] = path
+        let data = try Self.rebuilt(replacing: [PatternBundle.manifestName: try Self.encode(object)])
+        #expect(throws: BundleError.unusablePath(path)) { try PatternBundle.read(data) }
+    }
+
+    @Test func aChartWithNoStatedSizeIsAccepted() throws {
+        // manifest.py omits `size` when the gauge and the cell kind do not count the same thing
+        // (#48). A reader that demands it refuses a bundle our own exporter validly writes.
+        var object = try Self.manifestJSON()
+        var charts = object["charts"] as! [[String: Any]]
+        for i in charts.indices { charts[i].removeValue(forKey: "size") }
+        object["charts"] = charts
+        let data = try Self.rebuilt(replacing: [PatternBundle.manifestName: try Self.encode(object)])
+        let bundle = try PatternBundle.read(data)
+        #expect(bundle.charts.count == 2)
+        #expect(bundle.manifest.charts.allSatisfy { $0.size == nil })
+        #expect(bundle.manifest.charts.allSatisfy { $0.sizeLabel == nil })
+        #expect(IndexEntry(manifest: bundle.manifest).sizeIn.isEmpty)
+    }
+
     // MARK: the sentences
 
     @Test(arguments: [
         BundleError.badArchive(.notAZip), .badArchive(.encrypted("a")), .badArchive(.zip64),
         .badArchive(.unsafeName("../x")), .badArchive(.corrupt("a")), .badArchive(.entryTooLarge("a", 1)),
+        .badArchive(.duplicateName("a")),
         .noManifest, .badManifest("x"), .unsupportedManifestSchema(2), .badPatternID("X"),
-        .noCharts, .duplicateChartPath("p"), .missingFile("p"),
+        .noCharts, .duplicateChartPath("p"), .missingFile("p"), .unusablePath("p"),
         .invalidChart(path: "p", reason: "r"), .chartIDMismatch(path: "p", expected: "a", found: "b"),
     ])
     func everyRefusalHasASentence(error: BundleError) {
@@ -205,7 +242,7 @@ import Testing
         #expect(entry.width == chart.width)
         #expect(entry.height == chart.height)
         #expect(entry.colors == chart.colors)
-        #expect(entry.sizeIn == [chart.size.width, chart.size.height])
+        #expect(entry.sizeIn == [chart.size!.width, chart.size!.height])
         #expect(entry.charts == manifest.charts.count)
         #expect(entry.preview == manifest.preview)
         #expect(entry.manifest == nil)  // nothing to fetch: a local pattern has no site path
