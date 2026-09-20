@@ -229,6 +229,7 @@ public struct ProseReader: Sendable {
                 var runs: [[ProseDocument.RunValue]] = []
                 var total: Int? = RowText.printedTotal(of: block)
                 var failure: String? = nil
+                var invented = 0  // runs the model answered with codes this row never printed
                 for (k, part) in parts.enumerated() {
                     if session == nil || !options.reuseSession {
                         session = makeSession(instructions: rowInstructionsInUse)
@@ -237,13 +238,18 @@ public struct ProseReader: Sendable {
                     do {
                         let got = try await session!.respond(to: "Transcribe this row\(label):\n" + part, generating: WrittenRowOut.self)
                         if rowNo == 0 { rowNo = got.content.row }  // only when the head carried none
-                        runs = RowText.join(runs, RowText.cleanRuns(got.content.runs, key: key, printed: printedCodes, spellings: &spellings))
+                        let cleaned = RowText.cleanRuns(got.content.runs, key: key, printed: printedCodes, spellings: &spellings, text: part)
+                        if cleaned.isEmpty, !got.content.runs.isEmpty { invented += got.content.runs.count }
+                        runs = RowText.join(runs, cleaned)
                         if total == nil, got.content.total > 0 { total = got.content.total }
                     } catch {
                         failure = String(describing: error).prefix(200).description
                         session = nil
                         break
                     }
+                }
+                if failure == nil, runs.isEmpty, invented > 0 {
+                    failure = "the model answered with \(invented) run(s) naming colours this row does not print"
                 }
                 if failure == nil, !runs.isEmpty {
                     let width = runs.reduce(0) { sum, run in
@@ -620,11 +626,23 @@ public enum RowText {
     }
 
     @available(macOS 26.0, iOS 26.0, *)
-    static func cleanRuns(_ runs: [RunOut], key: [String: String], printed: Set<String> = [], spellings: inout [String: String]) -> [[ProseDocument.RunValue]] {
+    /// With `text` (the row as prompted), a code the model made up is dropped (#150): what the
+    /// model has no answer for, it fills from the example grammars ("aga", "Bla"), so a run's code
+    /// must be a palette code, a printed code, or a token of the row's own text.
+    static func cleanRuns(_ runs: [RunOut], key: [String: String], printed: Set<String> = [], spellings: inout [String: String], text: String? = nil) -> [[ProseDocument.RunValue]] {
         var out: [(String, Int)] = []
+        let palette = Set(key.values)
+        let tokens: Set<String>? = text.map { t in
+            Set(t.split(whereSeparator: { !$0.isLetter }).map { $0.lowercased() })
+        }
         for r in runs {
             var code = r.code.trimmingCharacters(in: .whitespaces)
             if r.count <= 0 || (notARun.contains(code.lowercased()) && !printed.contains(code.lowercased())) { continue }
+            if let tokens {
+                let lower = code.lowercased()
+                let known = palette.contains(code) || key[lower] != nil || printed.contains(lower) || tokens.contains(lower)
+                if !known { continue }  // neither a colour of this document nor a word of this row: an invention
+            }
             // The model's casing drifts ("w" once, "W" another time): one spelling per code, the first seen.
             if let seen = spellings[code.lowercased()] { code = seen } else { spellings[code.lowercased()] = code }
             if code.count == 2, code.first?.lowercased() == "c", let n = Int(String(code.last!)), n > 0, let letter = UnicodeScalar(64 + n) {
