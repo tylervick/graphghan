@@ -6,6 +6,10 @@
 # `gh` authenticated for the repository (GH_TOKEN in Actions, the keyring locally), `curl`, and
 # `python3`. GITHUB_REPOSITORY (set by Actions) names the repo; locally it is read from the checkout.
 #
+# ASC_JWT: path to the script that mints the App Store Connect token; default asc-jwt.sh next to
+# this script. This is what the test stubs to stay hermetic. TESTFLIGHT_FEEDBACK_LIMIT: submissions
+# listed per kind (screenshot, crash); default 50.
+#
 # Usage: ios/Scripts/testflight-feedback.sh [--dry-run]
 #   --dry-run  print what would be created; touch nothing on GitHub.
 #
@@ -96,6 +100,11 @@ if r["kind"] == "crash":
 else:
     title = first or f"TestFlight feedback on {where}"
 
+# A tester who types the marker's spelling into a comment must not be able to mark another
+# submission as tracked: a zero-width space after the prefix renders identically on GitHub
+# but never matches the reader's pattern.
+comment = comment.replace("testflight-feedback:", "testflight-feedback​:")
+
 lines = ["### Crash" if r["kind"] == "crash" else "### Feedback", comment or "_No comment._", ""]
 for i, url in enumerate([u for u in os.environ["IMAGE_URLS"].splitlines() if u], 1):
     lines += [f"![screenshot {i}]({url})", ""]
@@ -170,13 +179,17 @@ fi
 # The seen set. A failure here must stop the run: without it every submission looks new.
 gh issue list --repo "$REPO" --label "$FEEDBACK_LABEL" --state all --limit 1000 --json body -q '.[].body' > "$TMP/bodies" \
     || { echo "error: could not list existing feedback issues; refusing to run without the seen set" >&2; exit 1; }
-{ grep -o "testflight-feedback:[A-Za-z0-9._-]*" "$TMP/bodies" || true; } | sed 's/^testflight-feedback://' | sort -u > "$TMP/seen"
+# Match the full `<!-- testflight-feedback:<id> -->` comment form on purpose, not a bare token: a
+# tester's comment is stored verbatim in the body, and a bare-token match would let text a tester
+# typed mark an unrelated submission as tracked.
+{ grep -o '<!-- testflight-feedback:[^ >]* -->' "$TMP/bodies" || true; } \
+    | sed 's/^<!-- testflight-feedback://; s/ -->$//' | sort -u > "$TMP/seen"
 
 created=0; skipped=0
 while IFS= read -r REC; do
     [ -n "$REC" ] || continue
     ID="$(field id)"
-    if grep -qx "$ID" "$TMP/seen"; then skipped=$((skipped + 1)); continue; fi
+    if grep -qxF "$ID" "$TMP/seen"; then skipped=$((skipped + 1)); continue; fi
 
     IMAGE_URLS=""
     SHOTS="$(printf '%s' "$REC" | python3 -c 'import json, sys; print("\n".join(json.load(sys.stdin)["screenshots"]))')"
@@ -184,6 +197,8 @@ while IFS= read -r REC; do
         ensure_release || exit 1
         IMAGE_URLS="$(upload_screenshots "$ID" "$SHOTS")" || exit 1
     fi
+    # --dry-run still fetches the crash log on purpose: it is a read-only App Store Connect call,
+    # and skipping it would make the dry run's report unrepresentative of a real run.
     CRASH_LOG_FILE=""
     if [ "$(field kind)" = "crash" ]; then
         CRASH_LOG_FILE="$TMP/$ID.crash"

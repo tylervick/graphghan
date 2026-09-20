@@ -810,7 +810,13 @@ EOF
 )"
 ```
 
-Then, after the PR's CI is green, dispatch the workflow on the branch with `dry_run` ticked (`gh workflow run testflight-feedback.yml --ref feat/testflight-feedback -f dry_run=true`), read the run log, and paste the "would create" lines into a PR comment. That is the only integration check available without opening real issues.
+Then run the import locally as a dry run against the real App Store Connect API and paste the output into a PR comment; this is the only pre-merge integration check, because GitHub only registers a `workflow_dispatch` trigger once the workflow file is on the default branch, so the workflow cannot be dispatched from a feature branch:
+
+```bash
+ios/Scripts/with-asc-credentials.sh ios/Scripts/testflight-feedback.sh --dry-run
+```
+
+After the merge, dispatch Actions › TestFlight feedback with `dry_run` ticked once from `main` as the second confirmation (it is also the first time `asc-jwt.sh` runs on a Linux runner).
 
 ---
 

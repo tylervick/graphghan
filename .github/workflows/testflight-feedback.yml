@@ -54,3 +54,7 @@ jobs:
         run: |
           if [ "$DRY_RUN" = "true" ]; then ios/Scripts/testflight-feedback.sh --dry-run
           else ios/Scripts/testflight-feedback.sh; fi
+
+      - name: Delete the decoded key
+        if: always()
+        run: rm -f "$RUNNER_TEMP"/AuthKey_*.p8

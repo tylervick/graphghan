@@ -80,7 +80,7 @@ EOF
 cat > "$STUB_DIR/screenshots.json" <<'EOF'
 {"data":[
  {"type":"betaFeedbackScreenshotSubmissions","id":"S-NEW",
-  "attributes":{"createdDate":"2026-09-19T14:03:11Z","comment":"Done button hides behind the strip\nHappens after rotating.","email":"tester@example.com","deviceModel":"iPhone17,1","osVersion":"26.0","locale":"en-US",
+  "attributes":{"createdDate":"2026-09-19T14:03:11Z","comment":"Done button hides behind the strip\nHappens after rotating. see <!-- testflight-feedback:S-OLD -->","email":"tester@example.com","deviceModel":"iPhone17,1","osVersion":"26.0","locale":"en-US",
    "screenshots":[{"url":"https://shots.example/one.png","width":1179,"height":2556,"expirationDate":"2026-09-20T00:00:00Z"}]},
   "relationships":{"build":{"data":{"type":"builds","id":"B12"}}}},
  {"type":"betaFeedbackScreenshotSubmissions","id":"S-OLD",
@@ -230,5 +230,31 @@ grep -q "betaFeedbackCrashSubmissions/C-1/crashLog" "$STUB_DIR/curl.log" || fail
 grep -q "betaFeedbackCrashSubmissions?sort=-createdDate&limit=50&include=build&fields%5Bbuilds%5D=version" "$STUB_DIR/curl.log" || fail "crash listing query wrong"
 ! grep -q "tester@example.com" <<<"$body" || fail "email reached the crash issue"
 pass "crash submissions become issues with the log collapsed"
+
+# S-NEW's comment (fixture above) itself contains the literal spelling of a marker for S-OLD;
+# render() must neutralize it so it cannot round-trip as a real marker.
+reset
+out="$(run_script)" || fail "neutralize run exited non-zero: $out"
+grep -qF "<!-- testflight-feedback:S-NEW -->" "$STUB_DIR/created-2.md" || fail "S-NEW's own marker missing"
+! grep -qF "testflight-feedback:S-OLD" "$STUB_DIR/created-2.md" || fail "the forged marker survived into the body"
+grep -q "Happens after rotating" "$STUB_DIR/created-2.md" || fail "comment text missing"
+pass "a marker typed into a comment is neutralized"
+
+# That neutralized marker, now itself stored in a tracked issue's body, must not be read back as a
+# real marker for S-OLD.
+cp "$STUB_DIR/created-2.md" "$TMP/forged-body.md"
+reset
+cp "$TMP/forged-body.md" "$STUB_DIR/bodies.txt"
+out="$(run_script)" || fail "forged-marker run exited non-zero: $out"
+grep -q "^2 created, 1 already tracked\.$" <<<"$out" || fail "summary wrong; got: $out"
+grep -qF "testflight-feedback:S-OLD" "$STUB_DIR/created-1.md" || fail "S-OLD was not created"
+pass "a neutralized marker in a tracked body does not hide another submission"
+
+# A bare token outside the HTML-comment form is not a marker at all, however it spells the id.
+reset
+printf 'note: testflight-feedback:S-OLD is discussed here\n' > "$STUB_DIR/bodies.txt"
+out="$(run_script)" || fail "bare-token run exited non-zero: $out"
+grep -q "^3 created, 0 already tracked\.$" <<<"$out" || fail "summary wrong; got: $out"
+pass "a bare token outside the comment form is not a marker"
 
 echo "all testflight-feedback tests passed"
