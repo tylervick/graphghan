@@ -54,3 +54,51 @@ import Testing
     #expect(RowText.normalized("R 1 [←]: (Black) ch 10, from the second stitch from the hook, 9 sc [9]") == "R 1 [←]: (Black) 9 sc [9]")
     #expect(RowText.normalized("Row 3 RS: (agave) x 85, (terra) x 19") == "Row 3 RS: (agave) x 85, (terra) x 19")
 }
+
+
+// #146: the corpus ends a row head with a colon, a period or a dash, writes "Rows 1-10", "1st row",
+// and bare numbered lists; a sentence that merely starts with "Row 1" is still not a row.
+@Test func headsEndInAColonAPeriodOrADash() {
+    let text = "Row 1. Ch22 with yarn C1 (aqua). Beginning in 2nd ch from hook, sc in each ch.\nRow 2-4. Ch1, 21sc. Turn.\nRow 3 - Sc in first 2 sts, (P in nxt st, Sc in nxt 3 sts) 14 times.\nRow 5 – Sc in first 29 sts, Hsc in nxt 3 sts.\nRow 1 starts at the bottom right; odd rows are RS and read right to left.\nRow 1 starts here. Continue in the same colour to the end.\nRow 1-4 (main color - ecru): 25 sc\nRow 5-10 (left): ch1, sc across, turn.\n"
+    let blocks = RowText.blocks(in: text)
+    #expect(blocks.count == 6, "got \(blocks)")
+    #expect(blocks.map { RowText.rowNumber(of: $0) } == [1, 2, 3, 5, 1, 5])
+}
+
+@Test func pluralRangeAndOrdinalHeads() {
+    let text = "Rows 1-10: Sc in each st across, turn.\nRows 2 & 3: Chain1, (12sc), Turn.\nRow 13-15: sc in c1.\n1st row: (RS) 1 hdc in 3rd ch from hook.\n23rd row: Beg block. (Block in next sp) 3 times with A.\n"
+    let blocks = RowText.blocks(in: text)
+    #expect(blocks.count == 5)
+    #expect(blocks.map { RowText.rowNumber(of: $0) } == [1, 2, 13, 1, 23])
+}
+
+@Test func numberedListsAreRowsOnlyWhenTheyLookLikeRuns() {
+    let text = "Increasing rows:\n1. 1G\n7. 2G, 3R, 2G\n12. (w) x 1, (DB) x 3, (gy) x 6\n1. You will use the C2C with the hdc, working the square on the diagonal.\n2. ↗ Uneven rows will be on the wrong side of work from bottom to top ↗.\n3. 4 hdc in next 4 sts, turn.\n"
+    let blocks = RowText.blocks(in: text)
+    #expect(blocks == ["1. 1G", "7. 2G, 3R, 2G", "12. (w) x 1, (DB) x 3, (gy) x 6"], "got \(blocks)")
+    #expect(blocks.map { RowText.rowNumber(of: $0) } == [1, 7, 12])
+}
+
+@Test func headsAreRewrittenToOneFormBeforeThePrompt() {
+    #expect(RowText.normalized("1st row: (RS) 1 hdc in 3rd ch from hook.") == "Row 1: (RS) 1 hdc in 3rd ch from hook.")
+    #expect(RowText.normalized("7. 2G, 3R, 2G") == "Row 7: 2G, 3R, 2G")
+    #expect(RowText.normalized("Row 1. 21sc with C1 (aqua).") == "Row 1: 21sc with C1 (aqua).")
+    #expect(RowText.normalized("Row 3 - Sc in first 2 sts.") == "Row 3: Sc in first 2 sts.")
+    #expect(RowText.normalized("Rows 1-10: Sc in each st across, turn.") == "Row 1-10: Sc in each st across, turn.")
+    #expect(RowText.normalized("Row 6 (>>):(green) sc 10, (white) sc 3") == "Row 6 (>>): (green) sc 10, (white) sc 3")
+    #expect(RowText.normalized("Row 12 (WS): 4 Y, 3 G") == "Row 12 (WS): 4 Y, 3 G")
+    #expect(RowText.normalized("R 57 [←]: 9 sc, (White) 15 sc, 1 dec [25]") == "R 57 [←]: 9 sc, (White) 16 sc [25]")
+}
+
+@Test func chunksCutAtTheHeadTheRowRegexMatched() {
+    let row = "Row 6 (>>):" + (1...17).map { "(green) sc \($0)" }.joined(separator: ", ")
+    let parts = RowText.chunks(of: RowText.normalized(row), maxRuns: 8)
+    #expect(parts.count == 3 && parts.allSatisfy { $0.hasPrefix("Row 6 (>>): ") })
+    #expect(RowText.chunks(of: "Row 7: 2G, 3R, 2G", maxRuns: 2) == ["Row 7: 2G, 3R", "Row 7: 2G"])
+}
+
+@Test func rangeHeadsReportTheirFirstRow() {
+    #expect(RowText.rowNumber(of: "Rows 2-10: Ch 1, sc in each st across, turn.") == 2)
+    #expect(RowText.rowNumber(of: "Rows 24-32: With A, sc in each st across. Fasten off after Row 32.") == 24)
+    #expect(RowText.rowNumber(of: "Rows 2-10:\u{00a0}Ch 1, sc in each st across, turn.") == 2)
+}
