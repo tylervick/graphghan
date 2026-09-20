@@ -1,4 +1,4 @@
-// prosereader <pdf|dir of pNN.txt> --model ondevice|cloud [--batch row|page] [--chunk N] [--reuse-session] [--out prose.json]
+// prosereader <pdf|dir of pNN.txt> --model ondevice|cloud [--batch row|page] [--chunk N] [--examples] [--reuse-session] [--out prose.json]
 //
 // Reads a pattern's text through Apple's Foundation Models and writes the graphghan-import/1
 // document the Python importer consumes. Text comes from PDFKit for a PDF, or from the
@@ -23,8 +23,10 @@ func run() async -> Int32 {
     let reuse = args.contains("--reuse-session")
     args.removeAll { $0 == "--reuse-session" }
     let chunk = Int(take("--chunk") ?? "8") ?? 8
+    let examples = args.contains("--examples")
+    args.removeAll { $0 == "--examples" }
     guard let input = args.first, let model = ReaderModel(rawValue: modelName), let batching = RowBatching(rawValue: batchName) else {
-        FileHandle.standardError.write("usage: prosereader <pdf|dir> --model ondevice|cloud [--batch row|page] [--chunk N] [--reuse-session] [--out prose.json]\n".data(using: .utf8)!)
+        FileHandle.standardError.write("usage: prosereader <pdf|dir> --model ondevice|cloud [--batch row|page] [--chunk N] [--examples] [--reuse-session] [--out prose.json]\n".data(using: .utf8)!)
         return 2
     }
     // A pattern is a few pages of text; anything past these limits is not one, and the model reads
@@ -46,7 +48,7 @@ func run() async -> Int32 {
         FileHandle.standardError.write("cannot read \(inputPath)\n".data(using: .utf8)!)
         return 1
     }
-    let reader = ProseReader(model: model, options: ReaderOptions(batching: batching, reuseSession: reuse, chunkRuns: chunk))
+    let reader = ProseReader(model: model, options: ReaderOptions(batching: batching, reuseSession: reuse, chunkRuns: chunk, examples: examples))
     if let why = reader.unavailableReason() {
         FileHandle.standardError.write("\(why)\n".data(using: .utf8)!)
         return 1

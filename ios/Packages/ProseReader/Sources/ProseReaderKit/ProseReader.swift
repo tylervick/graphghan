@@ -21,10 +21,15 @@ public struct ReaderOptions: Sendable {
     /// Rows longer than this many runs are read in parts (0 turns it off): the on-device model
     /// cannot hold a 40-run braid row in one answer.
     public var chunkRuns: Int
-    public init(batching: RowBatching = .row, reuseSession: Bool = false, chunkRuns: Int = 8) {
+    /// Worked examples of the grammars patterns use, added to the instructions (spec §9, step 3
+    /// of the on-device plan): what an increase is, that a colour named before its runs applies
+    /// to them, that a bracketed total is not a run.
+    public var examples: Bool
+    public init(batching: RowBatching = .row, reuseSession: Bool = false, chunkRuns: Int = 8, examples: Bool = false) {
         self.batching = batching
         self.reuseSession = reuseSession
         self.chunkRuns = chunkRuns
+        self.examples = examples
     }
 }
 
@@ -67,9 +72,29 @@ public struct ProseReader: Sendable {
         "You transcribe written crochet rows into structured data exactly as printed. "
         + "A run is a count and a colour; a turning chain (ch 1, turn) is not a run. Never correct a number."
 
+    /// The grammars the corpus found, each with the answer it should produce. Short enough to leave
+    /// the 4k window room for a chunk of eight runs and the answer.
+    public static let grammarExamples = """
+        Rules the patterns use:
+        - A colour in parentheses applies to every run after it until the next colour in parentheses: "(Black) 5 sc, 3 sc, (White) 2 sc" is Black 8, White 2.
+        - "N inc" makes 2 stitches for each of the N, in the colour in force: "1 inc" is 2 stitches; "N dec" makes 1 stitch for each of the N: "1 dec" is 1 stitch. Both are runs of the current colour, and neighbours of one colour merge.
+        - A count in square brackets at the end, like [29], is the row's total, not a run. "(29 sts)" likewise.
+        - "(agave) x 85" is 85 stitches of agave. "8sc in c1" is 8 stitches of c1. "sc across" with no count means the whole row in that colour.
+        Examples:
+        - "R 2 [→]: (Black) ch 1, turn, 1 inc, 7 sc, (White) 1 inc [11]" → row 2, runs Black 9, White 2, total 11.
+        - "R 57 [←]: (Black) ch 1, turn, 9 sc, (White) 15 sc, 1 dec [25]" → row 57, runs Black 9, White 16, total 25.
+        - "Row 3 RS: (agave) x 85, (terra) x 19" → row 3, runs agave 85, terra 19, total 0.
+        - "Row 5: 7sc in c1, 3sc in c2, 7sc in c1." → row 5, runs c1 7, c2 3, c1 7, total 0.
+        - "Row 12 (WS): ch 1, turn, 8 A, 14 B, 8 A (30 sts)" → row 12, runs A 8, B 14, A 8, total 30.
+        """
+
     private static let frontInstructions =
         "You read a crochet pattern's front matter and answer only from what the text says; "
         + "leave what it does not say empty or 0."
+
+    private var rowInstructionsInUse: String {
+        options.examples ? Self.rowInstructions + "\n" + Self.grammarExamples : Self.rowInstructions
+    }
 
     private func makeSession(instructions: String) -> LanguageModelSession {
         switch model {
@@ -98,7 +123,7 @@ public struct ProseReader: Sendable {
             if blocks.isEmpty { continue }
             if options.batching == .page {
                 if session == nil || !options.reuseSession {
-                    session = makeSession(instructions: Self.rowInstructions)
+                    session = makeSession(instructions: rowInstructionsInUse)
                 }
                 let prompt = "Transcribe every row in this text:\n" + blocks.joined(separator: "\n")
                 do {
@@ -133,7 +158,7 @@ public struct ProseReader: Sendable {
                 var failure: String? = nil
                 for (k, part) in parts.enumerated() {
                     if session == nil || !options.reuseSession {
-                        session = makeSession(instructions: Self.rowInstructions)
+                        session = makeSession(instructions: rowInstructionsInUse)
                     }
                     let label = parts.count > 1 ? " (part \(k + 1) of \(parts.count) of one row)" : ""
                     do {
@@ -153,7 +178,7 @@ public struct ProseReader: Sendable {
         }
         if !rows.isEmpty { doc.written_rows = rows }
         doc.uncertain = (doc.uncertain ?? []) + [
-            "read by Apple's \(model == .cloud ? "Private Cloud Compute" : "on-device") model (FoundationModels, \(options.batching == .page ? "a page" : "a row") per prompt); numbers were transcribed, not checked, by the model"
+            "read by Apple's \(model == .cloud ? "Private Cloud Compute" : "on-device") model (FoundationModels, \(options.batching == .page ? "a page" : "a row") per prompt\(options.examples ? ", with grammar examples" : "")); numbers were transcribed, not checked, by the model"
         ]
         return doc
     }
