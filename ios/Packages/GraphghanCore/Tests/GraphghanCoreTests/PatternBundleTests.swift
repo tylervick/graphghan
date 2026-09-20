@@ -115,7 +115,6 @@ import Testing
         let path = "charts/final-sc/chart.json"
         let broken = Data(#"{"schema":99,"pattern":{},"chart":{}}"#.utf8)
         let data = try Self.rebuilt(replacing: [path: broken])
-        #expect(throws: (any Error).self) { try PatternBundle.read(data) }
         do {
             _ = try PatternBundle.read(data)
             Issue.record("expected a refusal")

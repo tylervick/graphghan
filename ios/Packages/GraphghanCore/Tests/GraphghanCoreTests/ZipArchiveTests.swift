@@ -52,7 +52,7 @@ import Testing
         let whole = ZipBuilder.stored([("a", "alpha")])
         // Chopping the tail takes the EOCD with it; chopping the head leaves an offset past the end.
         #expect(throws: ZipArchive.ZipError.notAZip) { try ZipArchive(whole.prefix(whole.count - 8)) }
-        #expect(throws: (any Error).self) { try ZipArchive(whole.suffix(30)) }
+        #expect(throws: ZipArchive.ZipError.truncated("central directory")) { try ZipArchive(whole.suffix(30)) }
     }
 
     @Test func multipleDisksAreRefused() {
