@@ -32,7 +32,15 @@ def main() -> None:
         truth = {r["row"]: [list(x) for x in r["runs"]] for r in own["written_rows"]}
         width: int | None = 189
     else:
-        mine = json.load(open(ROOT / "fixtures" / "import" / "real" / "onhand-en-orcacrossbodybagpdfpattern-front.prose.json"))
+        mine = json.load(
+            open(
+                ROOT
+                / "fixtures"
+                / "import"
+                / "real"
+                / "onhand-en-orcacrossbodybagpdfpattern-front.prose.json"
+            )
+        )
         truth = {r["row"]: r["runs"] for r in mine["written_rows"]}
         width = None
     exact = sum(1 for n, t in truth.items() if n in got and got[n]["runs"] == t)

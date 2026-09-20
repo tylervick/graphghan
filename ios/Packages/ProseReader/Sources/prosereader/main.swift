@@ -62,7 +62,9 @@ func run() async -> Int32 {
         let data = try encoder.encode(doc)
         if let out {
             let outPath = (out as NSString).expandingTildeInPath
-            try data.write(to: URL(fileURLWithPath: outPath))
+            let outURL = URL(fileURLWithPath: outPath)
+            try FileManager.default.createDirectory(at: outURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try data.write(to: outURL)
             FileHandle.standardError.write("\nwrote \(outPath): \(doc.written_rows?.count ?? 0) rows\n".data(using: .utf8)!)
         } else {
             FileHandle.standardOutput.write(data)

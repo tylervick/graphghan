@@ -14,8 +14,8 @@ the `@Generable` shape of the document and the reading loop.
     .build/release/prosereader <build/import/<stem>/pages dir> --model cloud --batch page --out prose.json
 
 `--model ondevice|cloud`, `--batch row|page` (one row per prompt is what a 4k window holds; a page
-per prompt is for the 32k cloud window), `--fresh-session` (a new session per prompt, the slow way
-the Python spike did it). Text comes from PDFKit for a PDF, or from the `pNN.txt` files
+per prompt is for the 32k cloud window), `--reuse-session` (one session for the whole run; slower,
+since every prompt then carries the transcript). Text comes from PDFKit for a PDF, or from the `pNN.txt` files
 `graphghan import` stages, so both sides read the same characters.
 
 `--chunk N` (default 8) reads long rows in parts; `--examples` adds the corpus's row grammars to the
