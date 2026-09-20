@@ -47,6 +47,10 @@ def main() -> None:
         )
         truth = {r["row"]: r["runs"] for r in mine["written_rows"]}
         width = None
+        # The transcript codes Orca's grey as D because C is its no-stitch colour; the tool, which
+        # sees no chart, hands out A, B, C in key order, so its C is that D.
+        for r in entries:
+            r["runs"] = [["D" if c == "C" else c, n] for c, n in r["runs"]]
     exact = sum(1 for n, t in truth.items() if n in got and got[n]["runs"] == t)
     missing = sorted(n for n in truth if n not in got)
     wrong = [(n, got[n]["runs"][:6], t[:6]) for n, t in truth.items() if n in got and got[n]["runs"] != t]

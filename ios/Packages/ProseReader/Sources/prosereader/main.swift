@@ -37,7 +37,9 @@ func run() async -> Int32 {
     let pages: [String]
     var isDir: ObjCBool = false
     if FileManager.default.fileExists(atPath: inputPath, isDirectory: &isDir), isDir.boolValue {
-        let files = ((try? FileManager.default.contentsOfDirectory(atPath: inputPath)) ?? []).filter { $0.hasSuffix(".txt") }.sorted().prefix(maxPages)
+        let files = ((try? FileManager.default.contentsOfDirectory(atPath: inputPath)) ?? [])
+            .filter { $0.hasSuffix(".txt") && !$0.contains("/") && !$0.hasPrefix(".") }  // plain names only
+            .sorted().prefix(maxPages)
         pages = files.map { name in
             let text = (try? String(contentsOfFile: inputPath + "/" + name, encoding: .utf8)) ?? ""
             return String(text.prefix(maxCharsPerPage))
