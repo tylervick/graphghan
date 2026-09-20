@@ -19,13 +19,15 @@ public struct ReaderOptions: Sendable {
     public var batching: RowBatching
     public var reuseSession: Bool
     /// Rows longer than this many runs are read in parts (0 turns it off): the on-device model
-    /// cannot hold a 40-run braid row in one answer.
+    /// cannot hold a 40-run braid row in one answer, and four a part reads a 17-run pillow row
+    /// where eight lost most of them (#149: bee pillow 10 → 71 of 75, daisy 39 → 52 of 52, the
+    /// c2c squares level or better).
     public var chunkRuns: Int
     /// Worked examples of the grammars patterns use, added to the instructions (spec §9, step 3
     /// of the on-device plan): what an increase is, that a colour named before its runs applies
     /// to them, that a bracketed total is not a run.
     public var examples: Bool
-    public init(batching: RowBatching = .row, reuseSession: Bool = false, chunkRuns: Int = 8, examples: Bool = false) {
+    public init(batching: RowBatching = .row, reuseSession: Bool = false, chunkRuns: Int = 4, examples: Bool = false) {
         self.batching = batching
         self.reuseSession = reuseSession
         self.chunkRuns = chunkRuns
@@ -73,7 +75,7 @@ public struct ProseReader: Sendable {
         + "A run is a count and a colour; a turning chain (ch 1, turn) is not a run. Never correct a number."
 
     /// The grammars the corpus found, each with the answer it should produce. Short enough to leave
-    /// the 4k window room for a chunk of eight runs and the answer.
+    /// the 4k window room for a chunk of runs and the answer.
     public static let grammarExamples = """
         Rules the patterns use:
         - A colour in parentheses applies to every run after it until the next colour in parentheses: "(Black) 5 sc, 3 sc, (White) 2 sc" is Black 8, White 2.
@@ -115,7 +117,47 @@ public struct ProseReader: Sendable {
         let key = Dictionary(
             (doc.palette ?? []).compactMap { p in p.key_label.map { ($0.lowercased(), p.code) } },
             uniquingKeysWith: { a, _ in a })
+        // Codes the page prints as "bl= Black" lines become their palette letters in the row text
+        // before the prompt: the model is told a chain is not a run, so "ch = Charcoal" would
+        // vanish from every row otherwise. A printed code that names no palette entry stays as
+        // written and survives the stitch-word filter.
+        let printed = RowText.printedKey(in: pages)
+        let palette = doc.palette ?? []
+        var printedMap: [String: String] = [:]
+        for (code, name) in printed where printedMap[code] == nil {
+            printedMap[code] = palette.first { ($0.key_label ?? $0.name).lowercased().hasPrefix(name) }?.code ?? code
+        }
+        let printedCodes = Set(printed.map(\.code))
         var rows: [ProseDocument.Row] = []
+        var lastWidth: Int? = nil  // the last read row's stitch count, for "repeat from * across" and plain rows
+        var pendingPlain: [(index: Int, colour: String)] = []  // plain rows read before any width was known
+        var widthVotes: [Int: Int] = [:]  // a plain row's width is one two counted rows agree on
+        var fillCode: ProseDocument.RunValue? = nil  // the first counted row's first run, for a plain row that names no colour
+        func fillPending(width: Int) {
+            for (index, colour) in pendingPlain {
+                let code: ProseDocument.RunValue = colour.isEmpty ? (fillCode ?? .code("A")) : .code(key[colour.lowercased()] ?? colour)
+                let waiting = rows[index]
+                rows[index] = ProseDocument.Row(row: waiting.row, page: waiting.page, text: waiting.text, runs: [[code, .count(width)]], total: width, error: nil)
+            }
+            pendingPlain.removeAll()
+        }
+        // A row printed on its own beats one derived from a range head or a "repeat row N", whichever
+        // comes first: "Rows 4-25: repeat Row 3 using the chart" is a summary, and the explicit rows follow.
+        var spellings: [String: String] = [:]  // code lowercased → the spelling first seen in this document
+        var explicit = Set<Int>()
+        var derived: [Int: Int] = [:]  // row number → index in rows
+        func emit(_ row: ProseDocument.Row, derivedFrom numbers: [Int]) {
+            let isDerived = numbers.count > 1
+            if isDerived {
+                if explicit.contains(row.row) { return }
+                if let i = derived[row.row] { rows[i] = row; return }
+                derived[row.row] = rows.count
+            } else if row.row > 0 {
+                explicit.insert(row.row)
+                if let i = derived.removeValue(forKey: row.row) { rows[i] = row; return }
+            }
+            rows.append(row)
+        }
         var session: LanguageModelSession? = nil
         for (index, text) in pages.enumerated() {
             let pageNo = index + 1
@@ -133,7 +175,7 @@ public struct ProseReader: Sendable {
                         rows.append(
                             ProseDocument.Row(
                                 row: r.row, page: pageNo, text: source,
-                                runs: RowText.cleanRuns(r.runs, key: key),
+                                runs: RowText.cleanRuns(r.runs, key: key, printed: printedCodes, spellings: &spellings),
                                 total: r.total > 0 ? r.total : nil, error: nil))
                     }
                 } catch {
@@ -153,11 +195,39 @@ public struct ProseReader: Sendable {
                 // model can hold, and the parts join in order. The row number comes from the text's
                 // own head (the model once answered 189 for "Row 1 (RS): 189 Y"), and increases and
                 // decreases are rewritten into plain stitch counts first, a rule the model does not
-                // keep however it is told.
-                let parts = RowText.chunks(of: RowText.normalized(block), maxRuns: options.chunkRuns)
+                // keep however it is told. A head that covers several rows ("Rows 2-4") yields one
+                // row per number, and a row that repeats an earlier one copies it without a prompt (#147).
+                let numbers = RowText.rowNumbers(of: block)
+                if let ref = RowText.repeatedRow(in: block), let src = rows.last(where: { $0.row == ref && $0.error == nil && !$0.runs.isEmpty }) {
+                    for n in numbers.isEmpty ? [0] : numbers {
+                        emit(ProseDocument.Row(row: n, page: pageNo, text: block, runs: src.runs, total: src.total, error: nil), derivedFrom: numbers + [0])
+                    }
+                    progress?(ReaderProgress(page: pageNo, rowsSoFar: rows.count, seconds: Date().timeIntervalSince(started)))
+                    continue
+                }
+                let normalizedBlock = RowText.normalized(block, printed: printedMap, width: lastWidth)
+                if let colour = RowText.plainRowColour(of: normalizedBlock) {
+                    // A plain row, no counts, never goes to the model (with nothing to count it
+                    // generates until the context is full): it is the previous row's width in the
+                    // colour it names, or in the colour in force. Before any width is known it
+                    // waits, and the first counted row fills it in.
+                    let code: ProseDocument.RunValue? = colour.isEmpty ? rows.last(where: { $0.error == nil && !$0.runs.isEmpty })?.runs.first?.first : .code(key[colour.lowercased()] ?? colour)
+                    for n in numbers.isEmpty ? [0] : numbers {
+                        if let width = lastWidth, let code {
+                            emit(ProseDocument.Row(row: n, page: pageNo, text: block, runs: [[code, .count(width)]], total: width, error: nil), derivedFrom: numbers)
+                        } else if !explicit.contains(n) {
+                            pendingPlain.append((rows.count, colour))
+                            rows.append(ProseDocument.Row(row: n, page: pageNo, text: block, runs: [], total: nil, error: "plain row before any counted row: width unknown"))
+                            if numbers.count > 1 { derived[n] = rows.count - 1 } else if n > 0 { explicit.insert(n) }
+                        }
+                    }
+                    progress?(ReaderProgress(page: pageNo, rowsSoFar: rows.count, seconds: Date().timeIntervalSince(started)))
+                    continue
+                }
+                let parts = RowText.chunks(of: normalizedBlock, maxRuns: options.chunkRuns)
                 var rowNo = RowText.rowNumber(of: block) ?? 0
                 var runs: [[ProseDocument.RunValue]] = []
-                var total: Int? = nil
+                var total: Int? = RowText.printedTotal(of: block)
                 var failure: String? = nil
                 for (k, part) in parts.enumerated() {
                     if session == nil || !options.reuseSession {
@@ -167,17 +237,32 @@ public struct ProseReader: Sendable {
                     do {
                         let got = try await session!.respond(to: "Transcribe this row\(label):\n" + part, generating: WrittenRowOut.self)
                         if rowNo == 0 { rowNo = got.content.row }  // only when the head carried none
-                        runs = RowText.join(runs, RowText.cleanRuns(got.content.runs, key: key))
-                        if got.content.total > 0 { total = got.content.total }
+                        runs = RowText.join(runs, RowText.cleanRuns(got.content.runs, key: key, printed: printedCodes, spellings: &spellings))
+                        if total == nil, got.content.total > 0 { total = got.content.total }
                     } catch {
                         failure = String(describing: error).prefix(200).description
                         session = nil
                         break
                     }
                 }
-                rows.append(ProseDocument.Row(row: failure == nil ? rowNo : 0, page: pageNo, text: block, runs: failure == nil ? runs : [], total: total, error: failure))
+                if failure == nil, !runs.isEmpty {
+                    let width = runs.reduce(0) { sum, run in
+                        sum + run.compactMap { v -> Int? in if case .count(let n) = v { return n } else { return nil } }.reduce(0, +)
+                    }
+                    lastWidth = width
+                    widthVotes[width, default: 0] += 1
+                    if fillCode == nil { fillCode = runs[0][0] }
+                    if !pendingPlain.isEmpty, widthVotes[width] == 2 { fillPending(width: width) }  // two counted rows agree
+                }
+                let covered = numbers.count > 1 ? numbers : [failure == nil ? rowNo : 0]
+                for n in covered {
+                    emit(ProseDocument.Row(row: failure == nil ? n : 0, page: pageNo, text: block, runs: failure == nil ? runs : [], total: total, error: failure), derivedFrom: numbers)
+                }
                 progress?(ReaderProgress(page: pageNo, rowsSoFar: rows.count, seconds: Date().timeIntervalSince(started)))
             }
+        }
+        if !pendingPlain.isEmpty, let width = widthVotes.max(by: { $0.value < $1.value || ($0.value == $1.value && $0.key > $1.key) })?.key {
+            fillPending(width: width)  // no two rows agreed: the commonest width, the smaller on a tie
         }
         if !rows.isEmpty { doc.written_rows = rows }
         doc.uncertain = (doc.uncertain ?? []) + [
@@ -247,7 +332,7 @@ public enum RowText {
     /// Groups: 1 and 2 are the number (with any range) and the side marker of the "Row" form,
     /// 3 and 4 the same for the ordinal form, 5 the number of a numbered list.
     static let headPattern: String = {
-        let ending = #"(?::|\.(?=\s)|\s[-–—](?=\s))"#
+        let ending = #"(?::|\.(?=\s)|\s[-–—](?=\s(?!\d)))"#  // "Row 3 - Sc"; not "Rows 1 – 25 you will"
         // A side marker is a bracketed or parenthesised group or a bare RS/WS/LR/RL: any other text
         // between the number and the period is a sentence ("Row 1 starts here. Continue").
         let marker = #"((?:\s*\([^()\n]{1,24}\)|\s*\[[^\[\]\n]{1,12}\]|\s+(?:RS|WS|LR|RL))?)"#
@@ -279,7 +364,9 @@ public enum RowText {
         }
         if let number = group(1) {
             let matched = block[..<end]
-            let verbatim = matched.hasSuffix(":") && !matched.contains("Rows") && !matched.contains("ROWS")
+            let plain = number.allSatisfy(\.isNumber)
+            let spaced = matched.range(of: #"^\s*(?:Row|ROW|R)\s+\d"#, options: .regularExpression) != nil  // "Row1:" is rewritten
+            let verbatim = plain && spaced && matched.hasSuffix(":") && !matched.contains("Rows") && !matched.contains("ROWS")
             return Head(number: number, marker: (group(2) ?? "").trimmingCharacters(in: .whitespaces), verbatim: verbatim, end: end)
         }
         if let number = group(3) { return Head(number: number, marker: (group(4) ?? "").trimmingCharacters(in: .whitespaces), verbatim: false, end: end) }
@@ -292,8 +379,9 @@ public enum RowText {
     static func canonicalHead(_ block: String) -> String {
         guard let h = head(of: block) else { return block }
         let rest = block[h.end...].trimmingCharacters(in: .whitespaces)
+        let first = String(h.number.prefix { $0.isNumber })  // a range head prompts as its first row (#147)
         let head = h.verbatim ? String(block[..<h.end]).trimmingCharacters(in: .whitespaces)
-                              : "Row " + h.number + (h.marker.isEmpty ? "" : " " + h.marker) + ":"
+                              : "Row " + first + (h.marker.isEmpty ? "" : " " + h.marker) + ":"
         return head + " " + rest
     }
     static let notARun: Set<String> = ["ch", "turn", "sl", "st", "sts", "fsc", "fdc", "sc", "hdc", "dc"]
@@ -360,16 +448,102 @@ public enum RowText {
         return Int(h.number.prefix { $0.isNumber })
     }
 
+    /// Every row a block's head covers (#147): "Rows 1-10" is ten rows, "Rows 2 & 3" two, "Row 5"
+    /// one. A range wider than 300 rows is a misprint and counts as its first row alone.
+    public static func rowNumbers(of block: String) -> [Int] {
+        guard let h = head(of: block) else { return [] }
+        let numbers = h.number.split(whereSeparator: { !$0.isNumber }).compactMap { Int($0) }
+        guard let first = numbers.first else { return [] }
+        guard numbers.count == 2, let last = numbers.last, last >= first, last - first <= 300 else { return [first] }
+        if h.number.contains("&") || h.number.contains("and") { return [first, last] }
+        return Array(first...last)
+    }
+
+    static let repeatRowRe = try! NSRegularExpression(pattern: #"\brep(?:eat)?\.?\s+rows?\s+(\d+)\b"#, options: .caseInsensitive)
+    /// The row this block says to repeat ("Row 6: repeat row 5"), if it is written that way.
+    public static func repeatedRow(in block: String) -> Int? {
+        guard let h = head(of: block) else { return nil }
+        let rest = String(block[h.end...])
+        guard let m = repeatRowRe.firstMatch(in: rest, range: NSRange(rest.startIndex..., in: rest)), let r = Range(m.range(at: 1), in: rest) else { return nil }
+        return Int(rest[r])
+    }
+
     static let foundationRe = try! NSRegularExpression(
         pattern: #"\bch\s*\d+,?\s*(?:from the \w+ (?:stitch|chain|ch) from the hook,?\s*)?(?:turn,?\s*)?"#, options: .caseInsensitive)
     static let adjacentRe = try! NSRegularExpression(pattern: #"\b(\d+) sc, (\d+) sc\b"#)
+    /// #148, the run spellings the model mishandles. A count glued to a colour code ("c2", "gh3")
+    /// but not to a stitch word ("ch2", "dc2tog"); a colour named by its number after "in", "with",
+    /// "of" or the word colour ("in c1", "with C2", "color 2"; a bare "c2" is two stitches of c),
+    /// which is the key's first, second… code; "8sc in c1" / "9sc with C2" /
+    /// "sc 8 in white" / "(green) sc 10", all "count colour" with the stitch word in the way; and a
+    /// bare parenthesised name meaning one stitch ("(Pale Rose), (White) x 13").
+    static let gluedRe = try! NSRegularExpression(pattern: #"\b(?!(?:sc|dc|hdc|tr|ch|st|sts|sl|fsc|fdc|tog|Row|ROW|R)\d)([A-Za-z]{1,3})(\d+)\b(?!tog)"#)
+    static let numberedColourRe = try! NSRegularExpression(pattern: #"(?:(?<=\bin |\bwith |\bof )[cC]|\b[cC]olou?r\s?)([1-9])\b"#)
+    static let countStitchNameRe = try! NSRegularExpression(pattern: #"\b(\d+)\s*sc\s+(?:in|with|of)\s+((?:[A-Z]\b)|[A-Za-z][A-Za-z ]*?)(?=[,.]|\s*$)"#)
+    static let stitchCountNameRe = try! NSRegularExpression(pattern: #"\bsc\s+(\d+)\s+in\s+([A-Za-z][A-Za-z ]*?)(?=[,.]|\s*$)"#)
+    static let nameStitchCountRe = try! NSRegularExpression(pattern: #"\(([^()]+)\)\s*sc\s*(\d+)"#)
+    static let bareNameRe = try! NSRegularExpression(pattern: #"\(([A-Za-z][A-Za-z ]*)\)(?=\s*(?:,|$))"#)
+    /// A bare code standing as a run item ("c, a, (lb) x 3") is one stitch; said so, a chunk that
+    /// starts with it is not guessed at (#149).
+    static let bareCodeRe = try! NSRegularExpression(pattern: #"(?<=[,:]\s)(?!(?:sc|dc|hdc|tr|ch|st|sts|sl|RS|WS)\b)([A-Za-z]{1,3})(?=\s*(?:,|\.?\s*$))"#)
 
     /// The head in one form, increases and decreases as the stitches they make ("1 inc" is 2
     /// stitches of the colour in force, "2 dec" is 2 stitches), chains and turning phrases removed,
     /// and two plain counts of one colour added together, all before the model sees the row: it
     /// keeps none of these rules however it is told, and each is a regular expression.
-    public static func normalized(_ block: String) -> String {
+    static let groupRe = try! NSRegularExpression(pattern: #"[\(\[]([^()\[\]]+)[\)\]]\s*(?:(\d+)\s*(?:times|x)\b|(twice)\b)"#)
+    static let starRe = try! NSRegularExpression(
+        pattern: #"\*\s*(.*?)\s*;?\s*\brep(?:eat)?\.?\s+from\s+\*(?:\s+(?:(\d+)\s+(more\s+)?times|across|to\s+(?:the\s+)?end|to\s+last\b[^,.;]*))?"#, options: .caseInsensitive)
+    static let numberRe = try! NSRegularExpression(pattern: #"\d+"#)
+
+    /// The integers in a piece of row text, added up: a run count however it is spelled.
+    static func stitchSum(_ text: String) -> Int {
+        numberRe.matches(in: text, range: NSRange(text.startIndex..., in: text)).compactMap { Range($0.range, in: text) }.compactMap { Int(text[$0]) }.reduce(0, +)
+    }
+
+    /// A bracketed group with a count expanded in place ("(14 CC, 24 MC) 3 times"), and a starred
+    /// group repeated a stated number of times or, for "repeat from * across", as many times as
+    /// fill the row's width (the previous row's) exactly; otherwise it is left for the model (#147).
+    static func expandedRepeats(_ block: String, width: Int?) -> String {
+        var out = block
+        for m in groupRe.matches(in: out, range: NSRange(out.startIndex..., in: out)).reversed() {
+            guard let whole = Range(m.range, in: out), let g = Range(m.range(at: 1), in: out) else { continue }
+            let n = Range(m.range(at: 2), in: out).flatMap { Int(out[$0]) } ?? 2
+            out.replaceSubrange(whole, with: Array(repeating: String(out[g]), count: max(1, min(n, 200))).joined(separator: ", "))
+        }
+        guard let m = starRe.firstMatch(in: out, range: NSRange(out.startIndex..., in: out)),
+              let whole = Range(m.range, in: out), let g = Range(m.range(at: 1), in: out) else { return out }
+        let group = String(out[g])
+        var times: Int? = nil
+        if let n = Range(m.range(at: 2), in: out).flatMap({ Int(out[$0]) }) {
+            times = m.range(at: 3).location != NSNotFound ? n + 1 : n
+        } else if let width, let h = head(of: out) {
+            let before = String(out[h.end..<whole.lowerBound]), after = String(out[whole.upperBound...])
+            let unit = stitchSum(group), rest = width - stitchSum(before) - stitchSum(after)
+            if unit > 0, rest > 0, rest % unit == 0 { times = rest / unit }
+        }
+        guard let times, times > 0, times <= 200 else { return out }
+        out.replaceSubrange(whole, with: Array(repeating: group, count: times).joined(separator: ", "))
+        return out
+    }
+
+    /// A printed code standing as a run item (no letter on either side; a comma, a full stop, a
+    /// bracket, an "x N" or the end after it, so "a" in "Join in a new colour" is left alone)
+    /// replaced by its palette letter.
+    static func substitutePrinted(_ text: String, printed: [String: String]) -> String {
+        var out = text
+        for (code, letter) in printed.sorted(by: { $0.key.count > $1.key.count }) where code != letter {
+            let pattern = "(?<![A-Za-z])" + NSRegularExpression.escapedPattern(for: code) + #"(?![A-Za-z])(?=\s*[,.)]|\s+x\s*\d|\s*$)"#
+            guard let re = try? NSRegularExpression(pattern: pattern) else { continue }
+            out = re.stringByReplacingMatches(in: out, range: NSRange(out.startIndex..., in: out), withTemplate: NSRegularExpression.escapedTemplate(for: letter))
+        }
+        return out
+    }
+
+    public static func normalized(_ block: String, printed: [String: String] = [:], width: Int? = nil) -> String {
         var out = canonicalHead(block)
+        // The printed total is read by `printedTotal`; alone in a chunk the model reads "(14 boxes)" as runs (#149).
+        out = totalRe.stringByReplacingMatches(in: out, range: NSRange(out.startIndex..., in: out), withTemplate: "")
         for (re, factor) in [(incRe, 2), (decRe, 1)] {
             for m in re.matches(in: out, range: NSRange(out.startIndex..., in: out)).reversed() {
                 guard let whole = Range(m.range, in: out), let num = Range(m.range(at: 1), in: out), let n = Int(out[num]) else { continue }
@@ -377,6 +551,18 @@ public enum RowText {
             }
         }
         out = foundationRe.stringByReplacingMatches(in: out, range: NSRange(out.startIndex..., in: out), withTemplate: "")
+        out = expandedRepeats(out, width: width)
+        for m in numberedColourRe.matches(in: out, range: NSRange(out.startIndex..., in: out)).reversed() {
+            guard let whole = Range(m.range, in: out), let d = Range(m.range(at: 1), in: out), let n = Int(out[d]), let letter = UnicodeScalar(64 + n) else { continue }
+            out.replaceSubrange(whole, with: String(letter))  // "in c1", "color 2" → the key's first, second… code
+        }
+        // Printed codes become palette letters before the rewrites (so "ch = Charcoal" is a code, not
+        // a chain, when the bare-code rule sees it) and again after ("c2" is "2 c" only afterwards).
+        out = substitutePrinted(out, printed: printed)
+        for (re, template) in [(gluedRe, "$2 $1"), (countStitchNameRe, "$1 $2"), (stitchCountNameRe, "$1 $2"), (nameStitchCountRe, "$2 $1"), (bareNameRe, "($1) x 1"), (bareCodeRe, "1 $1")] {
+            out = re.stringByReplacingMatches(in: out, range: NSRange(out.startIndex..., in: out), withTemplate: template)
+        }
+        out = substitutePrinted(out, printed: printed)
         while let m = adjacentRe.firstMatch(in: out, range: NSRange(out.startIndex..., in: out)),
               let whole = Range(m.range, in: out), let a = Range(m.range(at: 1), in: out), let b = Range(m.range(at: 2), in: out),
               let x = Int(out[a]), let y = Int(out[b]) {
@@ -385,16 +571,65 @@ public enum RowText {
         return out
     }
 
+    /// A key the page prints one code per line, "bl= Black", "c = Carrot - this is the background",
+    /// "w= (Soft) White": the code (lowercased) and the name up to its first dash, slash or comma,
+    /// brackets removed.
+    static let keyLineRe = try! NSRegularExpression(pattern: #"^\s*([A-Za-z]{1,3})\s*=\s*(\(?[A-Za-z][A-Za-z ()]*?)\s*(?:[-/,.].*)?$"#)
+    public static func printedKey(in pages: [String]) -> [(code: String, name: String)] {
+        var out: [(code: String, name: String)] = []
+        for page in pages {
+            for line in page.split(whereSeparator: \.isNewline) {
+                let l = String(line)
+                guard let m = keyLineRe.firstMatch(in: l, range: NSRange(l.startIndex..., in: l)),
+                      let c = Range(m.range(at: 1), in: l), let n = Range(m.range(at: 2), in: l) else { continue }
+                let name = String(l[n]).lowercased().replacingOccurrences(of: #"[()]"#, with: "", options: .regularExpression)
+                out.append((String(l[c]).lowercased(), name.trimmingCharacters(in: .whitespaces)))
+            }
+        }
+        return out
+    }
+
+    static let plainRowRe = try! NSRegularExpression(
+        pattern: #"\b(?:across|each st|every st|to (?:the )?end)\b|^\s*(?:sc|dc|hdc|tr)\s+(?:in|with)\s+[A-Za-z]{1,3}\.?\s*$"#, options: .caseInsensitive)
+    /// Digits that are not counts: a bracketed total, a turning chain, a row reference.
+    static let notACountRe = try! NSRegularExpression(pattern: #"\(\d+\)|\bch\s*\d+|\bRows?\s*\d+(?:\s*-\s*\d+)?"#, options: .caseInsensitive)
+    static let codeTokenRe = try! NSRegularExpression(pattern: #"(?<![A-Za-z])([A-Z]{1,3})(?![A-Za-z])"#)
+    /// A plain row ("sc across in A", "sc in each st across", "sc in A"), after `normalized`: the
+    /// one code it names, "" when it names none, nil when the row carries counts and is not plain.
+    public static func plainRowColour(of block: String) -> String? {
+        guard let h = head(of: block) else { return nil }
+        var body = String(block[h.end...])
+        body = notACountRe.stringByReplacingMatches(in: body, range: NSRange(body.startIndex..., in: body), withTemplate: "")
+        let range = NSRange(body.startIndex..., in: body)
+        guard numberRe.firstMatch(in: body, range: range) == nil, plainRowRe.firstMatch(in: body, range: range) != nil else { return nil }
+        let codes = codeTokenRe.matches(in: body, range: range).compactMap { Range($0.range(at: 1), in: body) }.map { String(body[$0]) }
+            .filter { !notARun.contains($0.lowercased()) && $0 != "RS" && $0 != "WS" }
+        return codes.count == 1 ? codes[0] : ""
+    }
+
+    /// A total printed at the row's end: "(14 boxes)", "(189 sts)", "(52 squares)", "[25]".
+    static let totalRe = try! NSRegularExpression(pattern: #"\s*(?:\(\s*(\d+)\s*(?:boxes?|squares?|sts?|stitches|sc|dc|hdc|tiles?)?\s*\)|\[\s*(\d+)\s*\])\s*\.?\s*$"#)
+    public static func printedTotal(of block: String) -> Int? {
+        guard let m = totalRe.firstMatch(in: block, range: NSRange(block.startIndex..., in: block)) else { return nil }
+        for i in 1...2 { if let r = Range(m.range(at: i), in: block), let n = Int(block[r]) { return n } }
+        return nil
+    }
+
     public static func isCode(_ s: String) -> Bool {
         s.range(of: "^[A-Za-z]{1,3}$", options: .regularExpression) != nil
     }
 
     @available(macOS 26.0, iOS 26.0, *)
-    static func cleanRuns(_ runs: [RunOut], key: [String: String]) -> [[ProseDocument.RunValue]] {
+    static func cleanRuns(_ runs: [RunOut], key: [String: String], printed: Set<String> = [], spellings: inout [String: String]) -> [[ProseDocument.RunValue]] {
         var out: [(String, Int)] = []
         for r in runs {
             var code = r.code.trimmingCharacters(in: .whitespaces)
-            if notARun.contains(code.lowercased()) || r.count <= 0 { continue }
+            if r.count <= 0 || (notARun.contains(code.lowercased()) && !printed.contains(code.lowercased())) { continue }
+            // The model's casing drifts ("w" once, "W" another time): one spelling per code, the first seen.
+            if let seen = spellings[code.lowercased()] { code = seen } else { spellings[code.lowercased()] = code }
+            if code.count == 2, code.first?.lowercased() == "c", let n = Int(String(code.last!)), n > 0, let letter = UnicodeScalar(64 + n) {
+                code = String(letter)  // "c1", "C2": the key's first, second… colour (#148)
+            }
             if let mapped = key[code.lowercased()] { code = mapped }
             if !isCode(code) {
                 code = String(code.filter { $0.isLetter }.prefix(3))
