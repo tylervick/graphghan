@@ -220,7 +220,11 @@ final class AppModel {
         do {
             let manifest = try await importer.importBundle(data)
             manifests[manifest.id] = manifest
-            images["local:\(manifest.id)"] = nil
+            // A second version of a pattern may have redrawn its previews, and they are cached by
+            // pattern id rather than by content: drop this pattern's, keep everyone else's.
+            for key in images.keys where key == "local:\(manifest.id)" || key.hasPrefix("\(manifest.id)/") {
+                images[key] = nil
+            }
             await loadLocalPatterns()
             importFailure = nil
             tab = .patterns
