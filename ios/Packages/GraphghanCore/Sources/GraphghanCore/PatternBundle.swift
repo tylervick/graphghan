@@ -135,7 +135,7 @@ public enum BundleError: Error, Equatable {
                 return "That pattern file is password-protected, which Graphghan can't open."
             case .zip64, .multiDisk, .dataDescriptor, .unsupportedMethod:
                 return "That pattern file was packed in a way Graphghan can't read."
-            case .unsafeName(let name), .malformedName(let name):
+            case .unsafeName(let name), .malformedName(let name), .duplicateName(let name):
                 return "That pattern file contains a suspicious entry (\(name)) and wasn't opened."
             case .truncated, .corrupt, .notFound:
                 return "That pattern file is damaged."

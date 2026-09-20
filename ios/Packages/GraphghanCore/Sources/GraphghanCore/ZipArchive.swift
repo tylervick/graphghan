@@ -30,6 +30,9 @@ public struct ZipArchive: Sendable {
         /// A name that could escape the directory it is unpacked into.
         case unsafeName(String)
         case malformedName(String)
+        /// Two entries with one name: which a reader picks is a matter of taste, and a bundle
+        /// whose `pattern.json` means different things to different readers is not one to open.
+        case duplicateName(String)
         case tooManyEntries(Int)
         case entryTooLarge(String, UInt64)
         case archiveTooLarge(UInt64)
@@ -71,6 +74,7 @@ public struct ZipArchive: Sendable {
             let (entry, next) = try Self.centralDirectoryEntry(in: data, at: offset)
             total += entry.uncompressedSize
             guard total <= Limits.totalSize else { throw ZipError.archiveTooLarge(total) }
+            guard byName[entry.name] == nil else { throw ZipError.duplicateName(entry.name) }
             ordered.append(entry)
             byName[entry.name] = entry
             offset = next

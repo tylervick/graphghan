@@ -217,6 +217,7 @@ Refused, each with its own error case:
 | compression method other than 0 or 8 | not supported |
 | name is not valid UTF-8, is absolute, contains `..` as a path component, or contains `\` | path traversal |
 | name empty, or ends in `/` and has nonzero size | malformed |
+| two entries with the same name | a reader-dependent `pattern.json` |
 | more than 1,024 entries | absurd for a bundle |
 | any entry's uncompressed size above 32 MB, or the sum above 64 MB | decompression bomb |
 | inflated bytes ≠ the declared uncompressed size, or CRC-32 mismatch | corrupt |

@@ -121,6 +121,15 @@ import Testing
         #expect(throws: ZipArchive.ZipError.malformedName("<not utf-8>")) { try ZipArchive(bytes) }
     }
 
+    @Test func twoEntriesWithOneNameAreRefused() {
+        // Which one a reader picks is a matter of taste, and a bundle whose pattern.json means
+        // different things to different readers is not one to open.
+        let items = [ZipBuilder.Item("a", "alpha"), ZipBuilder.Item("a", "other")]
+        #expect(throws: ZipArchive.ZipError.duplicateName("a")) {
+            try ZipArchive(ZipBuilder(items: items).build())
+        }
+    }
+
     @Test func tooManyEntriesIsRefused() {
         let items = (0..<(ZipArchive.Limits.entries + 1)).map { ZipBuilder.Item("f\($0)", "x") }
         #expect(throws: ZipArchive.ZipError.tooManyEntries(items.count)) {
