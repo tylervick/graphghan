@@ -14,6 +14,7 @@ from pathlib import Path
 import numpy as np
 
 from . import grid as gr
+from .bundle import to_bundle
 from .chartdoc import cell_aspect, finished_size
 from .export import chart_json, preview_png, write_dist
 from .exporters import to_csv, to_oxs, to_png
@@ -245,6 +246,21 @@ def cmd_export(args) -> int:
     d = _resolve_or_die(args.pattern)
     if d is None:
         return 2
+    if args.format == "graphghan":
+        # A bundle carries the manifest, and a manifest missing one of its charts would be a
+        # manifest that lies: it is the whole pattern or nothing.
+        if args.chart is not None:
+            print("a .graphghan bundle is a whole pattern; drop --chart", file=sys.stderr)
+            return 2
+        out = Path(args.out) if args.out else d / "build" / "exports" / f"{d.name}.graphghan"
+        out.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            out.write_bytes(to_bundle(d))
+        except FileNotFoundError as exc:
+            print(exc, file=sys.stderr)
+            return 1
+        print(f"wrote {out}")
+        return 0
     if args.chart is not None and not CHART_KEY_RE.fullmatch(args.chart):
         print(
             f"invalid --chart {args.chart!r}: a chart key is a variant and gauge joined by '-', "
@@ -435,14 +451,21 @@ def build_parser():
 
     e = sub.add_parser(
         "export",
-        help="export a committed chart as a 1-px PNG, OXS (cross stitch), CSV grid, or printable PDF",
+        help="export a committed chart as a 1-px PNG, OXS (cross stitch), CSV grid, or printable PDF, or the whole pattern as a .graphghan bundle",
     )
     e.add_argument("pattern", help="pattern slug (looked up under patterns/) or a path to a pattern folder")
-    e.add_argument("--format", required=True, choices=["png", "oxs", "csv", "pdf"], help="output format")
+    e.add_argument(
+        "--format",
+        required=True,
+        choices=["png", "oxs", "csv", "pdf", "graphghan"],
+        help="output format; graphghan is the whole pattern as a bundle the iOS app can open",
+    )
     e.add_argument(
         "--chart", help="published chart key such as final-hdc (default: the pattern's default chart)"
     )
-    e.add_argument("--out", help="output file (default: <pattern>/build/exports/<key>.<format>)")
+    e.add_argument(
+        "--out", help="output file (default: <pattern>/build/exports/<key>.<format>, or <slug>.graphghan)"
+    )
     e.set_defaults(fn=cmd_export)
 
     i = sub.add_parser(
