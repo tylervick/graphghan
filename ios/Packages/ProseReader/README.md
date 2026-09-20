@@ -31,23 +31,21 @@ Measured on the mini (macOS 27, on-device model): Craigh na Dun 177 of 184 rows 
 Orca's front panel 77 of 77 with `--examples` (76 without) at 3 s a row. The Python spike before
 these rewrites read 150 and 45. Details in the import spec, §9.
 
-## Private Cloud Compute needs a signed, attributed process
+## Private Cloud Compute needs a managed entitlement
 
-On the build mini (macOS 27, Apple Intelligence on) `PrivateCloudComputeLanguageModel().availability`
-is `.available` and the quota is below its limit, yet every request fails at once with
-`FoundationModels.LanguageModelError -1` wrapping `ModelManagerServices.ModelManagerError 1046`, before
-any network traffic. The binary is an ad-hoc-signed SwiftPM executable with no entitlements and no
-team, and this account holds no signing identity (`security find-identity -v -p codesigning` finds
-none), so the request cannot be attributed to a developer account, which is what the cloud tier
-meters. Xcode 27's capability catalogue names no entitlement for the model, so team attribution
-is the whole of it as far as we can tell.
+Unsigned, every cloud request fails at once with `FoundationModels.LanguageModelError -1` wrapping
+`ModelManagerServices.ModelManagerError 1046`, before any network traffic. Signed with the team's
+development identity (`codesign --force --sign "Apple Development" --options runtime
+.build/release/prosereader`), the framework instead stops at launch:
 
-To run the cloud half: on a Mac where Xcode is signed into the team (`DEVELOPMENT_TEAM 352UZEKYPP`
-in `ios/project.yml`), sign the built tool with the development identity and run it again:
+    Fatal error: Missing entitlement: com.apple.developer.private-cloud-compute
+    To develop with PCC you must meet certain eligibility requirements. To learn more and request
+    access to the managed entitlement, sign into your Developer account and complete the
+    entitlement request form. https://developer.apple.com/contact/request/private-cloud-compute/
 
-    codesign --force --sign "Apple Development" --options runtime .build/release/prosereader
-    .build/release/prosereader <pages dir> --model cloud --batch page --out prose.json
+So the cloud model is gated by a request to Apple, not by signing. Once the entitlement is granted
+to the team, add it to a provisioning profile for a small macOS app target that wraps
+`ProseReaderKit` (a bare SwiftPM tool carries no profile) and run `--model cloud --batch page`.
 
-If that still returns 1046, the model wants an app with a bundle identifier and a provisioning
-profile rather than a bare tool, and the next step is a small macOS app target in `project.yml`
-under automatic signing that wraps `ProseReaderKit`.
+If the Mac has no development identity in its keychain, a build of any automatically signed
+target with `xcodebuild -allowProvisioningUpdates` creates one through the signed-in Xcode account.

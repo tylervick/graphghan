@@ -435,10 +435,13 @@ fifth row already took 25 s), so every prompt gets a fresh session.
 | Craigh na Dun sc, our own text layer | 184 | 150 exact | 177 exact, 0 errors; 6 rows differ at their last run, 1 row (row 1) numbered after its count, which the head now supplies | 15 s per row (46 min) |
 | Orca front panel | 77 | 45 of 143 blocks | 77 of 77 with `--examples`, 76 of 77 without | 3 s per row (3.5 min) |
 
-Private Cloud Compute is a different story: the model reports available with quota to spare, and
-every request is refused inside `ModelManagerServices` (error 1046) before any network traffic,
-because the tool is unsigned and cannot be attributed to a developer team. The README beside the
-tool says how to run it on a Mac signed into the team; that measurement is still owed.
+Private Cloud Compute is closed to us for now. Unsigned, the tool's every request is refused
+inside `ModelManagerServices` (error 1046) before any network traffic. Signed with the team's
+development identity, the framework stops at launch with `Missing entitlement:
+com.apple.developer.private-cloud-compute`, a managed entitlement granted by request through
+Apple's eligibility form (https://developer.apple.com/contact/request/private-cloud-compute/).
+Until that grant exists there is no cloud number to measure, and the on-device figures above are
+the ones the app can count on.
 
 What this means for #112: the on-device model plus these rewrites reads plain and shaped rows
 correctly; the skill (or the cloud model) is still wanted for a pattern whose grammar the
