@@ -10,9 +10,12 @@ public enum ChartPreview {
         let w = chart.width
         let h = chart.height
         guard w > 0, h > 0, chart.cells.count == w * h else { return nil }
-        let rgb: [(UInt8, UInt8, UInt8)] = chart.palette.map { entry in
-            let v = UInt32(entry.hex.dropFirst(), radix: 16) ?? 0
-            return (UInt8((v >> 16) & 0xff), UInt8((v >> 8) & 0xff), UInt8(v & 0xff))
+        // `Chart.load` has already refused a palette entry whose hex is not `#rrggbb`; a chart
+        // that still fails here is not drawn rather than drawn black.
+        var rgb: [(UInt8, UInt8, UInt8)] = []
+        for entry in chart.palette {
+            guard entry.hex.hasPrefix("#"), entry.hex.count == 7, let v = UInt32(entry.hex.dropFirst(), radix: 16) else { return nil }
+            rgb.append((UInt8((v >> 16) & 0xff), UInt8((v >> 8) & 0xff), UInt8(v & 0xff)))
         }
         var pixels = [UInt8](repeating: 0, count: w * h * 4)
         for i in 0..<(w * h) {
