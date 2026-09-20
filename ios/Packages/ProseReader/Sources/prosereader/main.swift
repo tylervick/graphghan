@@ -22,7 +22,7 @@ func run() async -> Int32 {
     let out = take("--out")
     let reuse = args.contains("--reuse-session")
     args.removeAll { $0 == "--reuse-session" }
-    let chunk = Int(take("--chunk") ?? "8") ?? 8
+    let chunk = Int(take("--chunk") ?? "4") ?? 4
     let examples = args.contains("--examples")
     args.removeAll { $0 == "--examples" }
     guard let input = args.first, let model = ReaderModel(rawValue: modelName), let batching = RowBatching(rawValue: batchName) else {

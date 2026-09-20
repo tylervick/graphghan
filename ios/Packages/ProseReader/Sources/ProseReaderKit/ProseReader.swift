@@ -19,13 +19,15 @@ public struct ReaderOptions: Sendable {
     public var batching: RowBatching
     public var reuseSession: Bool
     /// Rows longer than this many runs are read in parts (0 turns it off): the on-device model
-    /// cannot hold a 40-run braid row in one answer.
+    /// cannot hold a 40-run braid row in one answer, and four a part reads a 17-run pillow row
+    /// where eight lost most of them (#149: bee pillow 10 → 71 of 75, daisy 39 → 52 of 52, the
+    /// c2c squares level or better).
     public var chunkRuns: Int
     /// Worked examples of the grammars patterns use, added to the instructions (spec §9, step 3
     /// of the on-device plan): what an increase is, that a colour named before its runs applies
     /// to them, that a bracketed total is not a run.
     public var examples: Bool
-    public init(batching: RowBatching = .row, reuseSession: Bool = false, chunkRuns: Int = 8, examples: Bool = false) {
+    public init(batching: RowBatching = .row, reuseSession: Bool = false, chunkRuns: Int = 4, examples: Bool = false) {
         self.batching = batching
         self.reuseSession = reuseSession
         self.chunkRuns = chunkRuns
@@ -73,7 +75,7 @@ public struct ProseReader: Sendable {
         + "A run is a count and a colour; a turning chain (ch 1, turn) is not a run. Never correct a number."
 
     /// The grammars the corpus found, each with the answer it should produce. Short enough to leave
-    /// the 4k window room for a chunk of eight runs and the answer.
+    /// the 4k window room for a chunk of runs and the answer.
     public static let grammarExamples = """
         Rules the patterns use:
         - A colour in parentheses applies to every run after it until the next colour in parentheses: "(Black) 5 sc, 3 sc, (White) 2 sc" is Black 8, White 2.
@@ -129,6 +131,33 @@ public struct ProseReader: Sendable {
         var rows: [ProseDocument.Row] = []
         var lastWidth: Int? = nil  // the last read row's stitch count, for "repeat from * across" and plain rows
         var pendingPlain: [(index: Int, colour: String)] = []  // plain rows read before any width was known
+        var widthVotes: [Int: Int] = [:]  // a plain row's width is one two counted rows agree on
+        var fillCode: ProseDocument.RunValue? = nil  // the first counted row's first run, for a plain row that names no colour
+        func fillPending(width: Int) {
+            for (index, colour) in pendingPlain {
+                let code: ProseDocument.RunValue = colour.isEmpty ? (fillCode ?? .code("A")) : .code(key[colour.lowercased()] ?? colour)
+                let waiting = rows[index]
+                rows[index] = ProseDocument.Row(row: waiting.row, page: waiting.page, text: waiting.text, runs: [[code, .count(width)]], total: width, error: nil)
+            }
+            pendingPlain.removeAll()
+        }
+        // A row printed on its own beats one derived from a range head or a "repeat row N", whichever
+        // comes first: "Rows 4-25: repeat Row 3 using the chart" is a summary, and the explicit rows follow.
+        var spellings: [String: String] = [:]  // code lowercased → the spelling first seen in this document
+        var explicit = Set<Int>()
+        var derived: [Int: Int] = [:]  // row number → index in rows
+        func emit(_ row: ProseDocument.Row, derivedFrom numbers: [Int]) {
+            let isDerived = numbers.count > 1
+            if isDerived {
+                if explicit.contains(row.row) { return }
+                if let i = derived[row.row] { rows[i] = row; return }
+                derived[row.row] = rows.count
+            } else if row.row > 0 {
+                explicit.insert(row.row)
+                if let i = derived.removeValue(forKey: row.row) { rows[i] = row; return }
+            }
+            rows.append(row)
+        }
         var session: LanguageModelSession? = nil
         for (index, text) in pages.enumerated() {
             let pageNo = index + 1
@@ -146,7 +175,7 @@ public struct ProseReader: Sendable {
                         rows.append(
                             ProseDocument.Row(
                                 row: r.row, page: pageNo, text: source,
-                                runs: RowText.cleanRuns(r.runs, key: key, printed: printedCodes),
+                                runs: RowText.cleanRuns(r.runs, key: key, printed: printedCodes, spellings: &spellings),
                                 total: r.total > 0 ? r.total : nil, error: nil))
                     }
                 } catch {
@@ -171,7 +200,7 @@ public struct ProseReader: Sendable {
                 let numbers = RowText.rowNumbers(of: block)
                 if let ref = RowText.repeatedRow(in: block), let src = rows.last(where: { $0.row == ref && $0.error == nil && !$0.runs.isEmpty }) {
                     for n in numbers.isEmpty ? [0] : numbers {
-                        rows.append(ProseDocument.Row(row: n, page: pageNo, text: block, runs: src.runs, total: src.total, error: nil))
+                        emit(ProseDocument.Row(row: n, page: pageNo, text: block, runs: src.runs, total: src.total, error: nil), derivedFrom: numbers + [0])
                     }
                     progress?(ReaderProgress(page: pageNo, rowsSoFar: rows.count, seconds: Date().timeIntervalSince(started)))
                     continue
@@ -185,10 +214,11 @@ public struct ProseReader: Sendable {
                     let code: ProseDocument.RunValue? = colour.isEmpty ? rows.last(where: { $0.error == nil && !$0.runs.isEmpty })?.runs.first?.first : .code(key[colour.lowercased()] ?? colour)
                     for n in numbers.isEmpty ? [0] : numbers {
                         if let width = lastWidth, let code {
-                            rows.append(ProseDocument.Row(row: n, page: pageNo, text: block, runs: [[code, .count(width)]], total: width, error: nil))
-                        } else {
+                            emit(ProseDocument.Row(row: n, page: pageNo, text: block, runs: [[code, .count(width)]], total: width, error: nil), derivedFrom: numbers)
+                        } else if !explicit.contains(n) {
                             pendingPlain.append((rows.count, colour))
                             rows.append(ProseDocument.Row(row: n, page: pageNo, text: block, runs: [], total: nil, error: "plain row before any counted row: width unknown"))
+                            if numbers.count > 1 { derived[n] = rows.count - 1 } else if n > 0 { explicit.insert(n) }
                         }
                     }
                     progress?(ReaderProgress(page: pageNo, rowsSoFar: rows.count, seconds: Date().timeIntervalSince(started)))
@@ -197,7 +227,7 @@ public struct ProseReader: Sendable {
                 let parts = RowText.chunks(of: normalizedBlock, maxRuns: options.chunkRuns)
                 var rowNo = RowText.rowNumber(of: block) ?? 0
                 var runs: [[ProseDocument.RunValue]] = []
-                var total: Int? = nil
+                var total: Int? = RowText.printedTotal(of: block)
                 var failure: String? = nil
                 for (k, part) in parts.enumerated() {
                     if session == nil || !options.reuseSession {
@@ -207,8 +237,8 @@ public struct ProseReader: Sendable {
                     do {
                         let got = try await session!.respond(to: "Transcribe this row\(label):\n" + part, generating: WrittenRowOut.self)
                         if rowNo == 0 { rowNo = got.content.row }  // only when the head carried none
-                        runs = RowText.join(runs, RowText.cleanRuns(got.content.runs, key: key, printed: printedCodes))
-                        if got.content.total > 0 { total = got.content.total }
+                        runs = RowText.join(runs, RowText.cleanRuns(got.content.runs, key: key, printed: printedCodes, spellings: &spellings))
+                        if total == nil, got.content.total > 0 { total = got.content.total }
                     } catch {
                         failure = String(describing: error).prefix(200).description
                         session = nil
@@ -220,19 +250,19 @@ public struct ProseReader: Sendable {
                         sum + run.compactMap { v -> Int? in if case .count(let n) = v { return n } else { return nil } }.reduce(0, +)
                     }
                     lastWidth = width
-                    for (index, colour) in pendingPlain {  // the plain rows that were waiting for a width
-                        let code: ProseDocument.RunValue = colour.isEmpty ? runs[0][0] : .code(key[colour.lowercased()] ?? colour)
-                        let waiting = rows[index]
-                        rows[index] = ProseDocument.Row(row: waiting.row, page: waiting.page, text: waiting.text, runs: [[code, .count(width)]], total: width, error: nil)
-                    }
-                    pendingPlain.removeAll()
+                    widthVotes[width, default: 0] += 1
+                    if fillCode == nil { fillCode = runs[0][0] }
+                    if !pendingPlain.isEmpty, widthVotes[width] == 2 { fillPending(width: width) }  // two counted rows agree
                 }
                 let covered = numbers.count > 1 ? numbers : [failure == nil ? rowNo : 0]
                 for n in covered {
-                    rows.append(ProseDocument.Row(row: failure == nil ? n : 0, page: pageNo, text: block, runs: failure == nil ? runs : [], total: total, error: failure))
+                    emit(ProseDocument.Row(row: failure == nil ? n : 0, page: pageNo, text: block, runs: failure == nil ? runs : [], total: total, error: failure), derivedFrom: numbers)
                 }
                 progress?(ReaderProgress(page: pageNo, rowsSoFar: rows.count, seconds: Date().timeIntervalSince(started)))
             }
+        }
+        if !pendingPlain.isEmpty, let width = widthVotes.max(by: { $0.value < $1.value || ($0.value == $1.value && $0.key > $1.key) })?.key {
+            fillPending(width: width)  // no two rows agreed: the commonest width, the smaller on a tie
         }
         if !rows.isEmpty { doc.written_rows = rows }
         doc.uncertain = (doc.uncertain ?? []) + [
@@ -302,7 +332,7 @@ public enum RowText {
     /// Groups: 1 and 2 are the number (with any range) and the side marker of the "Row" form,
     /// 3 and 4 the same for the ordinal form, 5 the number of a numbered list.
     static let headPattern: String = {
-        let ending = #"(?::|\.(?=\s)|\s[-–—](?=\s))"#
+        let ending = #"(?::|\.(?=\s)|\s[-–—](?=\s(?!\d)))"#  // "Row 3 - Sc"; not "Rows 1 – 25 you will"
         // A side marker is a bracketed or parenthesised group or a bare RS/WS/LR/RL: any other text
         // between the number and the period is a sentence ("Row 1 starts here. Continue").
         let marker = #"((?:\s*\([^()\n]{1,24}\)|\s*\[[^\[\]\n]{1,12}\]|\s+(?:RS|WS|LR|RL))?)"#
@@ -453,6 +483,9 @@ public enum RowText {
     static let stitchCountNameRe = try! NSRegularExpression(pattern: #"\bsc\s+(\d+)\s+in\s+([A-Za-z][A-Za-z ]*?)(?=[,.]|\s*$)"#)
     static let nameStitchCountRe = try! NSRegularExpression(pattern: #"\(([^()]+)\)\s*sc\s*(\d+)"#)
     static let bareNameRe = try! NSRegularExpression(pattern: #"\(([A-Za-z][A-Za-z ]*)\)(?=\s*(?:,|$))"#)
+    /// A bare code standing as a run item ("c, a, (lb) x 3") is one stitch; said so, a chunk that
+    /// starts with it is not guessed at (#149).
+    static let bareCodeRe = try! NSRegularExpression(pattern: #"(?<=[,:]\s)(?!(?:sc|dc|hdc|tr|ch|st|sts|sl|RS|WS)\b)([A-Za-z]{1,3})(?=\s*(?:,|\.?\s*$))"#)
 
     /// The head in one form, increases and decreases as the stitches they make ("1 inc" is 2
     /// stitches of the colour in force, "2 dec" is 2 stitches), chains and turning phrases removed,
@@ -494,8 +527,23 @@ public enum RowText {
         return out
     }
 
+    /// A printed code standing as a run item (no letter on either side; a comma, a full stop, a
+    /// bracket, an "x N" or the end after it, so "a" in "Join in a new colour" is left alone)
+    /// replaced by its palette letter.
+    static func substitutePrinted(_ text: String, printed: [String: String]) -> String {
+        var out = text
+        for (code, letter) in printed.sorted(by: { $0.key.count > $1.key.count }) where code != letter {
+            let pattern = "(?<![A-Za-z])" + NSRegularExpression.escapedPattern(for: code) + #"(?![A-Za-z])(?=\s*[,.)]|\s+x\s*\d|\s*$)"#
+            guard let re = try? NSRegularExpression(pattern: pattern) else { continue }
+            out = re.stringByReplacingMatches(in: out, range: NSRange(out.startIndex..., in: out), withTemplate: NSRegularExpression.escapedTemplate(for: letter))
+        }
+        return out
+    }
+
     public static func normalized(_ block: String, printed: [String: String] = [:], width: Int? = nil) -> String {
         var out = canonicalHead(block)
+        // The printed total is read by `printedTotal`; alone in a chunk the model reads "(14 boxes)" as runs (#149).
+        out = totalRe.stringByReplacingMatches(in: out, range: NSRange(out.startIndex..., in: out), withTemplate: "")
         for (re, factor) in [(incRe, 2), (decRe, 1)] {
             for m in re.matches(in: out, range: NSRange(out.startIndex..., in: out)).reversed() {
                 guard let whole = Range(m.range, in: out), let num = Range(m.range(at: 1), in: out), let n = Int(out[num]) else { continue }
@@ -508,16 +556,13 @@ public enum RowText {
             guard let whole = Range(m.range, in: out), let d = Range(m.range(at: 1), in: out), let n = Int(out[d]), let letter = UnicodeScalar(64 + n) else { continue }
             out.replaceSubrange(whole, with: String(letter))  // "in c1", "color 2" → the key's first, second… code
         }
-        for (re, template) in [(gluedRe, "$2 $1"), (countStitchNameRe, "$1 $2"), (stitchCountNameRe, "$1 $2"), (nameStitchCountRe, "$2 $1"), (bareNameRe, "($1) x 1")] {
+        // Printed codes become palette letters before the rewrites (so "ch = Charcoal" is a code, not
+        // a chain, when the bare-code rule sees it) and again after ("c2" is "2 c" only afterwards).
+        out = substitutePrinted(out, printed: printed)
+        for (re, template) in [(gluedRe, "$2 $1"), (countStitchNameRe, "$1 $2"), (stitchCountNameRe, "$1 $2"), (nameStitchCountRe, "$2 $1"), (bareNameRe, "($1) x 1"), (bareCodeRe, "1 $1")] {
             out = re.stringByReplacingMatches(in: out, range: NSRange(out.startIndex..., in: out), withTemplate: template)
         }
-        for (code, letter) in printed.sorted(by: { $0.key.count > $1.key.count }) where code != letter {
-            // A printed code standing as a run item: no letter on either side, and a comma, a full
-            // stop, a bracket, an "x N" or the end after it, so "a" in "Join in a new colour" is left alone.
-            let pattern = "(?<![A-Za-z])" + NSRegularExpression.escapedPattern(for: code) + #"(?![A-Za-z])(?=\s*[,.)]|\s+x\s*\d|\s*$)"#
-            guard let re = try? NSRegularExpression(pattern: pattern) else { continue }
-            out = re.stringByReplacingMatches(in: out, range: NSRange(out.startIndex..., in: out), withTemplate: NSRegularExpression.escapedTemplate(for: letter))
-        }
+        out = substitutePrinted(out, printed: printed)
         while let m = adjacentRe.firstMatch(in: out, range: NSRange(out.startIndex..., in: out)),
               let whole = Range(m.range, in: out), let a = Range(m.range(at: 1), in: out), let b = Range(m.range(at: 2), in: out),
               let x = Int(out[a]), let y = Int(out[b]) {
@@ -526,9 +571,10 @@ public enum RowText {
         return out
     }
 
-    /// A key the page prints one code per line, "bl= Black", "c = Carrot - this is the background":
-    /// the code (lowercased) and the name up to its first dash, slash, bracket or comma.
-    static let keyLineRe = try! NSRegularExpression(pattern: #"^\s*([A-Za-z]{1,3})\s*=\s*([A-Za-z][A-Za-z ]*?)\s*(?:[-/(,.].*)?$"#)
+    /// A key the page prints one code per line, "bl= Black", "c = Carrot - this is the background",
+    /// "w= (Soft) White": the code (lowercased) and the name up to its first dash, slash or comma,
+    /// brackets removed.
+    static let keyLineRe = try! NSRegularExpression(pattern: #"^\s*([A-Za-z]{1,3})\s*=\s*(\(?[A-Za-z][A-Za-z ()]*?)\s*(?:[-/,.].*)?$"#)
     public static func printedKey(in pages: [String]) -> [(code: String, name: String)] {
         var out: [(code: String, name: String)] = []
         for page in pages {
@@ -536,7 +582,8 @@ public enum RowText {
                 let l = String(line)
                 guard let m = keyLineRe.firstMatch(in: l, range: NSRange(l.startIndex..., in: l)),
                       let c = Range(m.range(at: 1), in: l), let n = Range(m.range(at: 2), in: l) else { continue }
-                out.append((String(l[c]).lowercased(), String(l[n]).lowercased()))
+                let name = String(l[n]).lowercased().replacingOccurrences(of: #"[()]"#, with: "", options: .regularExpression)
+                out.append((String(l[c]).lowercased(), name.trimmingCharacters(in: .whitespaces)))
             }
         }
         return out
@@ -560,16 +607,26 @@ public enum RowText {
         return codes.count == 1 ? codes[0] : ""
     }
 
+    /// A total printed at the row's end: "(14 boxes)", "(189 sts)", "(52 squares)", "[25]".
+    static let totalRe = try! NSRegularExpression(pattern: #"\s*(?:\(\s*(\d+)\s*(?:boxes?|squares?|sts?|stitches|sc|dc|hdc|tiles?)?\s*\)|\[\s*(\d+)\s*\])\s*\.?\s*$"#)
+    public static func printedTotal(of block: String) -> Int? {
+        guard let m = totalRe.firstMatch(in: block, range: NSRange(block.startIndex..., in: block)) else { return nil }
+        for i in 1...2 { if let r = Range(m.range(at: i), in: block), let n = Int(block[r]) { return n } }
+        return nil
+    }
+
     public static func isCode(_ s: String) -> Bool {
         s.range(of: "^[A-Za-z]{1,3}$", options: .regularExpression) != nil
     }
 
     @available(macOS 26.0, iOS 26.0, *)
-    static func cleanRuns(_ runs: [RunOut], key: [String: String], printed: Set<String> = []) -> [[ProseDocument.RunValue]] {
+    static func cleanRuns(_ runs: [RunOut], key: [String: String], printed: Set<String> = [], spellings: inout [String: String]) -> [[ProseDocument.RunValue]] {
         var out: [(String, Int)] = []
         for r in runs {
             var code = r.code.trimmingCharacters(in: .whitespaces)
             if r.count <= 0 || (notARun.contains(code.lowercased()) && !printed.contains(code.lowercased())) { continue }
+            // The model's casing drifts ("w" once, "W" another time): one spelling per code, the first seen.
+            if let seen = spellings[code.lowercased()] { code = seen } else { spellings[code.lowercased()] = code }
             if code.count == 2, code.first?.lowercased() == "c", let n = Int(String(code.last!)), n > 0, let letter = UnicodeScalar(64 + n) {
                 code = String(letter)  // "c1", "C2": the key's first, second… colour (#148)
             }

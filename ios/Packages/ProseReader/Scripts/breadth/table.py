@@ -26,7 +26,7 @@ GENRE.update(
 )
 TRUTH = {"shd": R / "shd-tapestry-blanket-dedup.prose.json"}
 print("| pattern | genre | rows | exact | missing | wrong | errors |\n|---|---|---|---|---|---|---|")
-for id_ in ["shd"] + list(GENRE):
+for id_ in dict.fromkeys(["shd"] + list(GENRE)):  # each once, in this order
     got, truth = S / f"{id_}.json", TRUTH.get(id_, S / "truth" / f"{id_}.json")
     if not got.exists() or not truth.exists():
         print(f"| {id_} | {GENRE.get(id_, '')} | | not run | | | |")

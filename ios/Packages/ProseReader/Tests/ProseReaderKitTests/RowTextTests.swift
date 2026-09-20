@@ -19,7 +19,8 @@ import Testing
 @Test func cleanRunsDropChainsMapNamesAndMergeNeighbours() {
     let runs = [RunOut(count: 1, code: "ch"), RunOut(count: 1, code: "turn"), RunOut(count: 9, code: "Black"),
                 RunOut(count: 2, code: "White"), RunOut(count: 3, code: "White"), RunOut(count: 4, code: "Gd")]
-    let out = RowText.cleanRuns(runs, key: ["black": "A", "white": "B"])
+    var spellings: [String: String] = [:]
+    let out = RowText.cleanRuns(runs, key: ["black": "A", "white": "B"], spellings: &spellings)
     let flat = out.map { pair -> (String, Int) in
         var code = "", count = 0
         for v in pair { switch v { case .code(let s): code = s; case .count(let n): count = n } }
@@ -32,7 +33,7 @@ import Testing
 @Test func longRowsAreCutIntoPartsThatKeepTheirHead() {
     let row = "Row 41 (RS): ch 1, turn, " + (1...20).map { "\($0) Y" }.joined(separator: ", ") + " (189 sts)"
     let parts = RowText.chunks(of: row, maxRuns: 8)
-    #expect(parts.count == 3 && parts.allSatisfy { $0.hasPrefix("Row 41 (RS): ") } && parts.last!.hasSuffix("(189 sts)"))
+    #expect(parts.count == 3 && parts.allSatisfy { $0.hasPrefix("Row 41 (RS): ") } && parts.last!.hasSuffix("(189 sts)"))  // chunks alone keep the text; normalized strips it
     #expect(RowText.chunks(of: "Row 1 (RS): 189 Y (189 sts)", maxRuns: 8) == ["Row 1 (RS): 189 Y (189 sts)"])
     #expect(RowText.chunks(of: row, maxRuns: 0) == [row])
 }
@@ -49,9 +50,9 @@ import Testing
     #expect(RowText.rowNumber(of: "Row 1 (RS): 189 Y (189 sts)") == 1)
     #expect(RowText.rowNumber(of: "R 57 [←]: (Black) ch 1, turn, 9 sc [25]") == 57)
     #expect(RowText.rowNumber(of: "Total: 3673") == nil)
-    #expect(RowText.normalized("R 2 [→]: (Black) ch 1, turn, 1 inc, 7 sc, (White) 1 inc [11]") == "R 2 [→]: (Black) 9 sc, (White) 2 sc [11]")
-    #expect(RowText.normalized("R 57 [←]: 9 sc, (White) 15 sc, 1 dec [25]") == "R 57 [←]: 9 sc, (White) 16 sc [25]")
-    #expect(RowText.normalized("R 1 [←]: (Black) ch 10, from the second stitch from the hook, 9 sc [9]") == "R 1 [←]: (Black) 9 sc [9]")
+    #expect(RowText.normalized("R 2 [→]: (Black) ch 1, turn, 1 inc, 7 sc, (White) 1 inc [11]") == "R 2 [→]: (Black) 9 sc, (White) 2 sc")
+    #expect(RowText.normalized("R 57 [←]: 9 sc, (White) 15 sc, 1 dec [25]") == "R 57 [←]: 9 sc, (White) 16 sc")
+    #expect(RowText.normalized("R 1 [←]: (Black) ch 10, from the second stitch from the hook, 9 sc [9]") == "R 1 [←]: (Black) 9 sc")
     #expect(RowText.normalized("Row 3 RS: (agave) x 85, (terra) x 19") == "Row 3 RS: (agave) x 85, (terra) x 19")
 }
 
@@ -87,7 +88,7 @@ import Testing
     #expect(RowText.normalized("Rows 1-10: Sc in each st across, turn.") == "Row 1: Sc in each st across, turn.")
     #expect(RowText.normalized("Row 6 (>>):(green) sc 10, (white) sc 3") == "Row 6 (>>): 10 green, 3 white")
     #expect(RowText.normalized("Row 12 (WS): 4 Y, 3 G") == "Row 12 (WS): 4 Y, 3 G")
-    #expect(RowText.normalized("R 57 [←]: 9 sc, (White) 15 sc, 1 dec [25]") == "R 57 [←]: 9 sc, (White) 16 sc [25]")
+    #expect(RowText.normalized("R 57 [←]: 9 sc, (White) 15 sc, 1 dec [25]") == "R 57 [←]: 9 sc, (White) 16 sc")
 }
 
 @Test func chunksCutAtTheHeadTheRowRegexMatched() {
@@ -105,7 +106,7 @@ import Testing
 
 // #148: run spellings the model mishandles, rewritten to "N code" or "N name" before the prompt.
 @Test func gluedCodesNumberedColoursAndBareNamesAreRewritten() {
-    #expect(RowText.normalized("Row 15 [WS]: (dg) x 3, (gh) x 2, c2, w, c, gh, dg") == "Row 15 [WS]: (dg) x 3, (gh) x 2, 2 c, w, c, gh, dg")
+    #expect(RowText.normalized("Row 15 [WS]: (dg) x 3, (gh) x 2, c2, w, c, gh, dg") == "Row 15 [WS]: (dg) x 3, (gh) x 2, 2 c, 1 w, 1 c, 1 gh, 1 dg")
     #expect(RowText.normalized("Row 13 [WS]: (lb) x 4, c2, (lb) x 7") == "Row 13 [WS]: (lb) x 4, 2 c, (lb) x 7")
     #expect(RowText.normalized("Row 4: Join in color 2 at start of row. 8sc in c1, 1sc in c2, 8sc in c1.") == "Row 4: Join in B at start of row. 8 A, 1 B, 8 A.")
     #expect(RowText.normalized("Row 6. Ch1, 6sc with C1, 9sc with C2, 6sc with C1. Turn.") == "Row 6: 6 A, 9 B, 6 A. Turn.")
@@ -120,7 +121,8 @@ import Testing
 @available(macOS 26.0, *)
 @Test func cleanRunsMapNumberedColoursToKeyOrder() {
     let runs = [RunOut(count: 8, code: "c1"), RunOut(count: 1, code: "C2"), RunOut(count: 8, code: "c1")]
-    let out = RowText.cleanRuns(runs, key: [:])
+    var spellings: [String: String] = [:]
+    let out = RowText.cleanRuns(runs, key: [:], spellings: &spellings)
     let codes = out.map { pair -> String in
         for v in pair { if case .code(let s) = v { return s } }
         return ""
@@ -130,30 +132,31 @@ import Testing
 
 
 @Test func printedKeyLinesGiveCodesAndNames() {
-    let page = "Abbreviations\nc = Carrot - this is the background color - if you like, replace it\nbl= Black\nch = Charcoal\nbf =Buff / deconstructed RH Super Saver\nRow 1 [WS]: c\n"
+    let page = "Abbreviations\nc = Carrot - this is the background color - if you like, replace it\nbl= Black\nch = Charcoal\nbf =Buff / deconstructed RH Super Saver\nw= (Soft) White\nRow 1 [WS]: c\n"
     let key = RowText.printedKey(in: [page])
-    #expect(key.map(\.code) == ["c", "bl", "ch", "bf"] && key.map(\.name) == ["carrot", "black", "charcoal", "buff"])
+    #expect(key.map(\.code) == ["c", "bl", "ch", "bf", "w"] && key.map(\.name) == ["carrot", "black", "charcoal", "buff", "soft white"])
 }
 
 @available(macOS 26.0, *)
 @Test func aPrintedCodeThatSpellsAStitchWordIsKept() {
     let runs = [RunOut(count: 4, code: "lb"), RunOut(count: 1, code: "ch"), RunOut(count: 2, code: "ch"), RunOut(count: 1, code: "turn")]
-    let out = RowText.cleanRuns(runs, key: ["lb": "A", "ch": "E"], printed: ["lb", "ch"])
+    var spellings: [String: String] = [:]
+    let out = RowText.cleanRuns(runs, key: ["lb": "A", "ch": "E"], printed: ["lb", "ch"], spellings: &spellings)
     let flat = out.map { pair -> (String, Int) in
         var code = "", count = 0
         for v in pair { switch v { case .code(let s): code = s; case .count(let n): count = n } }
         return (code, count)
     }
     #expect(flat.map(\.0) == ["A", "E"] && flat.map(\.1) == [4, 3])
-    #expect(RowText.cleanRuns([RunOut(count: 1, code: "ch")], key: [:]).isEmpty)
+    #expect(RowText.cleanRuns([RunOut(count: 1, code: "ch")], key: [:], spellings: &spellings).isEmpty)
 }
 
 
 @Test func printedCodesBecomeTheirPaletteLettersBeforeThePrompt() {
     let map = ["lb": "A", "a": "I", "ch": "C", "bf": "G", "c": "D"]
-    #expect(RowText.normalized("Row 15 [WS]: (lb) x 3, a, ch, a, bf, c2, (bf) x 2, c", printed: map) == "Row 15 [WS]: (A) x 3, I, C, I, G, 2 D, (G) x 2, D")
-    #expect(RowText.normalized("Row 4: Join in a new colour, then c", printed: map) == "Row 4: Join in a new colour, then D")
-    #expect(RowText.normalized("Row 30 [RS]: (lb) x 5, bf, c.", printed: map) == "Row 30 [RS]: (A) x 5, G, D.")
+    #expect(RowText.normalized("Row 15 [WS]: (lb) x 3, a, ch, a, bf, c2, (bf) x 2, c", printed: map) == "Row 15 [WS]: (A) x 3, 1 I, 1 C, 1 I, 1 G, 2 D, (G) x 2, 1 D")
+    #expect(RowText.normalized("Row 4: Join in a new colour, then c", printed: map) == "Row 4: Join in a new colour, then D")  // not a run item
+    #expect(RowText.normalized("Row 30 [RS]: (lb) x 5, bf, c.", printed: map) == "Row 30 [RS]: (A) x 5, 1 G, 1 D.")
 }
 
 // #147: ranges and repeats.
@@ -166,6 +169,8 @@ import Testing
     #expect(RowText.rowNumbers(of: "Row 5: 7sc in c1, 3sc in c2, 7sc in c1.") == [5])
     #expect(RowText.rowNumbers(of: "7. 2G, 3R, 2G") == [7])
     #expect(RowText.rowNumbers(of: "Total: 3673") == [])
+    #expect(RowText.rowNumbers(of: "Rows 1 – 25 you will be increasing and rows 26 – 49 you will be decreasing.") == [])
+    #expect(RowText.blocks(in: "Rows 1 – 25 you will be increasing and rows 26 – 49 you will be decreasing.\nRow 1 [RS]: (w) x 1 (1 square)\n") == ["Row 1 [RS]: (w) x 1 (1 square)"])
     #expect(RowText.normalized("Rows 1-10: Sc in each st across, turn.") == "Row 1: Sc in each st across, turn.")
     #expect(RowText.normalized("Row 13-15: sc in c1.") == "Row 13: sc in A.")
     #expect(RowText.normalized("Row1: sc in second chain, sc across in color 1") == "Row 1: sc in second chain, sc across in A")
@@ -204,4 +209,32 @@ import Testing
     #expect(RowText.plainRowColour(of: "Row 20 (>>): 60 white") == nil)
     #expect(RowText.plainRowColour(of: "Row 3: 8 white, 2 pink, 8 white") == nil)
     #expect(RowText.plainRowColour(of: "Row 13: sc in A.") == "A")
+}
+
+// #149: a bracketed total at the row's end is read in code and removed from the prompt; alone in
+// the last chunk the model read "(14 boxes)" as runs.
+@Test func bracketedTotalsAreReadInCodeAndRemovedFromThePrompt() {
+    #expect(RowText.printedTotal(of: "Row 14: blue x 5, gray x 1, buff x 2 (14 boxes)") == 14)
+    #expect(RowText.printedTotal(of: "Row 1 (RS): 189 Y (189 sts)") == 189)
+    #expect(RowText.printedTotal(of: "R 57 [←]: 9 sc, (White) 15 sc, 1 dec [25]") == 25)
+    #expect(RowText.printedTotal(of: "Row 6 [WS]: (Duck Egg) x 24, (White) x 4 (52 squares)") == 52)
+    #expect(RowText.printedTotal(of: "Row 3: 8 white, 2 pink, 8 white") == nil)
+    #expect(RowText.normalized("Row 2: blue x 2 (2 boxes)") == "Row 2: blue x 2")
+    #expect(RowText.normalized("Row 1 (RS): 189 Y (189 sts)") == "Row 1 (RS): 189 Y")
+    #expect(RowText.normalized("R 57 [←]: 9 sc, (White) 15 sc, 1 dec [25]") == "R 57 [←]: 9 sc, (White) 16 sc")
+    let parts = RowText.chunks(of: RowText.normalized("Row 14: blue x 5, gray x 1, buff x 2, white x 4, buff x 1, blue x 1 (14 boxes)"), maxRuns: 4)
+    #expect(parts == ["Row 14: blue x 5, gray x 1, buff x 2, white x 4", "Row 14: buff x 1, blue x 1"])
+}
+
+
+@available(macOS 26.0, *)
+@Test func aCodesSpellingIsTheFirstSeen() {
+    var spellings: [String: String] = [:]
+    _ = RowText.cleanRuns([RunOut(count: 3, code: "w")], key: [:], spellings: &spellings)
+    let out = RowText.cleanRuns([RunOut(count: 2, code: "W"), RunOut(count: 1, code: "Gd")], key: [:], spellings: &spellings)
+    let codes = out.map { pair -> String in
+        for v in pair { if case .code(let s) = v { return s } }
+        return ""
+    }
+    #expect(codes == ["w", "Gd"])
 }

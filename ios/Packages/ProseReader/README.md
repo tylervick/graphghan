@@ -18,7 +18,7 @@ per prompt is for the 32k cloud window), `--reuse-session` (one session for the 
 since every prompt then carries the transcript). Text comes from PDFKit for a PDF, or from the `pNN.txt` files
 `graphghan import` stages, so both sides read the same characters.
 
-`--chunk N` (default 8) reads long rows in parts; `--examples` adds the corpus's row grammars to the
+`--chunk N` (default 4) reads long rows in parts; `--examples` adds the corpus's row grammars to the
 instructions. Before any prompt, code rewrites what the model cannot keep: the row head becomes
 "Row N:" whatever the page wrote ("Row 1.", "Row 3 -", "Rows 1-10:", "1st row:", or a bare "7." before
 something that looks like a run), run spellings become "count colour" ("c2" → "2 c", "8sc in c1" → "8 A",
@@ -33,11 +33,11 @@ Scoring against ground truth: `uv run python Scripts/score.py prose.json craigh|
 rows come from our own PDF's text layer; Orca's from the hand transcript in `fixtures/import/real/`).
 
 Measured on the mini (macOS 27, on-device model): Craigh na Dun 177 of 184 rows exact at 15 s a row;
-Orca's front panel 77 of 77 with `--examples` (76 without) at 3 s a row. The Python spike before
-these rewrites read 150 and 45. Details in the import spec, §9.
+Orca's front panel 77 of 77 with `--examples` (76 without) at 3 s a row; across the twenty-two
+breadth patterns 815 of 903 rows (spec §9.2). The Python spike before these rewrites read 150 and 45.
 
-`Scripts/breadth/` repeats the breadth measurement (spec §9.1, twenty-two patterns, 534 of 903 rows
-exact): `fetch.sh <work>` pulls the sourced pages as text, `truth.py <work>` builds the regex ground
+`Scripts/breadth/` repeats the breadth measurement (spec §9.1 and §9.2, twenty-two patterns, 534 of
+903 rows exact before the reader fixes, 815 after): `fetch.sh <work>` pulls the sourced pages as text, `truth.py <work>` builds the regex ground
 truth, the tool writes `<work>/<id>.json` for each `<work>/<id>/` folder, and `table.py <work>` prints
 the table. The Ravelry PDFs are fetched by hand (a login) into `<work>/pdf/`.
 

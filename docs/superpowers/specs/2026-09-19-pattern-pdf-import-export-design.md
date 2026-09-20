@@ -503,11 +503,58 @@ Plain "N code" rows, from squares to a 104-row wall hanging, read at 91 to 100 p
 grammar classes are regular expressions, the same kind of fix that took Craigh na Dun from 150
 to 177 and Orca from 45 to 77.
 
+### 9.2 After the fixes: 805 of 903
+
+The next day, with #146, #147, #148 and #149 in (heads in every spelling, ranges and repeats
+expanded, run spellings rewritten, printed key codes substituted, plain rows filled from the
+previous row's width, bracketed totals read in code, bare codes made explicit, and rows cut into
+parts of four runs instead of eight), the same set read again, unchanged text, one clean pass:
+
+| pattern | genre | rows | before | after |
+|---|---|---|---|---|
+| Spotted Horse blanket | tapestry | 97 | 97 | 96 |
+| Purple Poncho pillow | tapestry | 40 | 40 | 39 |
+| VETKA cat wall hanging | tapestry | 104 | 91 | 98 |
+| Juniper & Oakes trowel square | c2c | 49 | 47 | 48 |
+| HanJan rainbow square | c2c | 49 | 46 | 42 |
+| My Hobby Is Crochet rabbit square | c2c | 49 | 45 | 48 |
+| Truly Crochet daisy | tapestry | 52 | 39 | 52 |
+| Cosy Rosie love hearts | tapestry | 46 | 35 | 43 |
+| Truly Crochet little hearts | tapestry | 40 | 26 | 39 |
+| My Hobby Is Crochet cheetah square | c2c | 49 | 17 | 48 |
+| My Hobby Is Crochet elephant square | c2c | 49 | 14 | 42 |
+| Mini Axolotl (Ravelry PDF) | tapestry | 11 | 10 | 10 |
+| Simply Hooked hearts pillow | tapestry | 32 | 10 | 30 |
+| Meghan Makes Do swatch | tapestry | 16 | 8 | 16 |
+| Sunflower Cottage bee pillow | tapestry | 75 | 8 | 71 |
+| Canyon Moon Rising (Ravelry PDF) | tapestry | 6 | 1 | 6 |
+| Treasurie heart | tapestry | 15 | 0 | 15 |
+| LillaBjörn swatch | tapestry | 13 | 0 | 9 |
+| Whistle & Ivy Saturn and rocket squares | c2c | 62 | 0 | 59 |
+| Peach Unicorn intarsia heart | intarsia | 43 | 0 | 0 |
+| Spruce & Fjell tree | intarsia | 6 | 0 | 4 |
+
+815 of 903 rows exact, from 534. Orca stays 77 of 77 and Craigh na Dun 177 of 184, as at chunk eight. What is left, by cause:
+
+- Peach Unicorn's 43 rows are the intarsia stitch grammar ("Sc in first 27 sts, Hsc in nxt 7
+  sts"), where the colour is a stitch prefix; a rewrite there would be a guess, so it stays out.
+- Rows the model still misreads with every rewrite in place: about 30 across the set, mostly a
+  count late in a long row, and the one "carry B across for 10 sts" instruction read as a run.
+  Each fails the width check and is reported, not written.
+- A page with two panels (Cosy Rosie's cushion back, Simply Hooked's) yields both, and the
+  measurement scores the first printing of each row number; the importer's "printed twice" check
+  is the app's answer.
+
+Chunk size, the question #149 asked: four a part against eight is 71 against 10 on the bee
+pillow, 52 against 39 on the daisy, and level on the c2c squares once the bracketed total is
+read in code (alone in the last part, "(14 boxes)" read as runs) and a bare code is written
+"1 bf" (a part that starts with one got a guessed count). Five a part sits between (bee 41). Four
+is the default. Nothing model-side is left that an adapter would address; #136 stays closed.
+
 What this means for #112: the on-device model plus these rewrites reads plain and shaped rows
-correctly, and the breadth pass says which rewrites are still missing (#146, #147, #148, #150)
-before the phone path is worth building; the row-total check catches the rest. Long rows with
-many runs (#149) are the one gap that is the model's, and the LoRA adapter (#136) is the
-fallback if the chunking experiments there do not close it.
+at 89 percent across twenty-two patterns and 100 percent on the two paid PDFs the app is for,
+and every row it gets wrong fails the width check; the phone path is worth building on it. The
+open reader work is the example leak (#150) and OCR for image-only pages (#151).
 
 ## 10. Questions for review
 
