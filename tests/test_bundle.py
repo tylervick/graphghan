@@ -2,6 +2,7 @@
 
 import io
 import json
+import shutil
 import zipfile
 from pathlib import Path
 
@@ -74,8 +75,6 @@ def test_a_pattern_without_a_committed_dist_is_refused(tmp_path):
 
 
 def test_a_manifest_referencing_a_missing_file_is_refused(tmp_path):
-    import shutil
-
     d = tmp_path / "craigh-na-dun"
     shutil.copytree(PATTERN, d)
     (d / "dist" / "charts" / "final-hdc" / "preview.png").unlink()
