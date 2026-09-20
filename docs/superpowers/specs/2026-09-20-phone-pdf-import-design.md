@@ -1,7 +1,7 @@
 # Opening a pattern PDF on the phone
 
 Date: 2026-09-20
-Status: draft, for review
+Status: reviewed 2026-09-20 (Tyler), decisions in §10
 Builds on: `2026-09-19-open-graphghan-bundles-design.md` (the file-open path, `LocalPatternStore`,
 `ChartLibrary`, the atomic import), `2026-09-19-pattern-pdf-import-export-design.md` (the Python
 importer: grid reader, prose contract, cross-check; §9 the on-device reader and its measurements),
@@ -262,16 +262,16 @@ else does, and the chart id ignores `ext`.
 - By hand, on a device: Orca through §4.3 and the cactus blanket through §4.2, recorded in this
   spec's §11 when they run.
 
-## 10. Questions for review
+## 10. Decisions from review (2026-09-20)
 
 1. Grid first on the phone (§4.2), the reverse of the Python importer's order, for the sake of
-   time. The rule about disagreements is unchanged. Agreed?
-2. The rows-only path (§4.3) is minutes long on-device and there is no cloud model to shorten it.
-   Ship it with the honest sentence, or hold it until Apple grants the entitlement?
-3. The origin note in `dedication` (§5.3) is a borrowing; the alternative is a manifest schema
-   change for a `source` field, which touches the site build. Borrow for now?
-4. PR 3, the grid port, is the largest piece and the one most patterns need. It could go second,
-   before the model path, if chart-only PDFs matter more than rows-only ones. Which first?
+   time: agreed. The rule about disagreements is unchanged.
+2. The rows-only path (§4.3) ships now, minutes long on-device, with the honest sentence in the
+   sheet before it starts and the progress while it runs; the app is in beta and the maker can
+   cancel. The cloud model shortens it if the entitlement ever lands.
+3. The origin note borrows  (§5.3) for now; #161 is the manifest field that replaces
+   the borrowing.
+4. PR order stays as §8: the type and the exact reader, then the rows on the phone, then the grid.
 
 ## 11. Success criteria
 
