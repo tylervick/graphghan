@@ -33,7 +33,7 @@
 **Interfaces:**
 - Produces: `public struct OwnPDFReading { pattern: OwnPDFReader.PatternInfo; gauge: OwnPDFReader.Gauge?; finishedSize: OwnPDFReader.FinishedSize?; palette: [OwnPDFReader.KeyEntry]; width: Int; height: Int; rows: [OwnPDFReader.WrittenRow] }`, `public enum OwnPDFReader { static func isOwn(pageTexts: [String]) -> Bool; static func read(pageTexts: [String], title: String) throws -> OwnPDFReading }`, `public enum OwnPDFError: Error, Equatable { case noChartHeader, badRow(page: Int, text: String), rowsDoNotMatch(String) }`.
 
-- [ ] **Step 1: Add the fixture helper**
+- [x] **Step 1: Add the fixture helper**
 
 In `Fixtures.swift`, beside `bundle(_:)`:
 
@@ -45,7 +45,7 @@ In `Fixtures.swift`, beside `bundle(_:)`:
     }
 ```
 
-- [ ] **Step 2: Write the failing tests**
+- [x] **Step 2: Write the failing tests**
 
 `OwnPDFReaderTests.swift`:
 
@@ -115,12 +115,12 @@ import Testing
 }
 ```
 
-- [ ] **Step 3: Run the tests to see them fail**
+- [x] **Step 3: Run the tests to see them fail**
 
 Run: `cd ios/Packages/GraphghanCore && swift test --filter OwnPDFReaderTests 2>&1 | tail -5`
 Expected: compile errors, `OwnPDFReader` undefined.
 
-- [ ] **Step 4: Write the reader**
+- [x] **Step 4: Write the reader**
 
 `OwnPDFReader.swift`. The grammar is `graphghan/pdf.py`'s, byte for byte: `KEY_ROW` is "`{code}  {name}  {hex}  {yarn}`" (two spaces, which PDFKit gives back as one or two; the regex allows either), `CHART_HEADER` is "Chart k of n: columns a-b of W, rows c-d of H", a written row is "Row N (RS): [ch 1, turn, ]189 Y, 3 G (189 sts)". Page texts arrive with `\r\n` or `\n` line ends; both are split.
 
@@ -310,12 +310,12 @@ public enum OwnPDFReader {
 }
 ```
 
-- [ ] **Step 5: Run the tests**
+- [x] **Step 5: Run the tests**
 
 Run: `cd ios/Packages/GraphghanCore && swift test --filter OwnPDFReaderTests 2>&1 | grep -E '✘|✔ Test run|error'`
 Expected: `✔ Test run with 5 tests ... passed`. If `readsTheCoverKeyChartHeadersAndRows` fails on the palette or the quote, print the first three page texts (`print(texts[0])`) and adjust only the whitespace handling: PDFKit collapses the double spaces of `KEY_ROW` on some versions, which `keyRe`'s ` +` already allows.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add ios/Packages/GraphghanCore
@@ -334,7 +334,7 @@ git commit -m "ios: GraphghanCore reads our own PDF's text layer exactly (phone 
 - Consumes: `OwnPDFReading` (Task 1), `ChartID.compute`, `CanonicalJSON.encode`, `Chart.load`.
 - Produces: `public struct ChartDraft { pattern: ChartDraft.Pattern; palette: [ChartDraft.Palette]; rows: [String]; width: Int; height: Int; gauge: ChartDraft.Gauge; ext: JSONValue? }` and `public enum ChartWriter { static func encode(_ draft: ChartDraft) -> (data: Data, id: String); static func draft(from: OwnPDFReading, id slug: String) -> ChartDraft; static func runString(_ runs: [(code: String, count: Int)]) -> String }`. `Chart.load(data)` on the result succeeds and `chart.id == id`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```swift
 import Foundation
@@ -379,12 +379,12 @@ import Testing
 }
 ```
 
-- [ ] **Step 2: Run to see them fail**
+- [x] **Step 2: Run to see them fail**
 
 Run: `cd ios/Packages/GraphghanCore && swift test --filter ChartWriterTests 2>&1 | tail -3`
 Expected: compile error, `ChartWriter` undefined.
 
-- [ ] **Step 3: Write the writer**
+- [x] **Step 3: Write the writer**
 
 ```swift
 import Foundation
@@ -508,12 +508,12 @@ public enum ChartWriter {
 }
 ```
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 Run: `cd ios/Packages/GraphghanCore && swift test --filter ChartWriterTests 2>&1 | grep -E '✘|✔ Test run|error'`
 Expected: 3 pass. If the id differs from the fixture's, compare `draft.rows` with the fixture's `rows` (unzip `fixtures/bundle/craigh-na-dun.graphghan`, `charts/final-sc/chart.json`): the codes must be in the key's order and the rows top-to-bottom as displayed, which is row 184 first — **the written rows are numbered from the bottom** (`DIRECTION`: "Row 1 starts at the bottom right"), so `draft(from:)` must reverse: `rows: r.rows.sorted { $0.row > $1.row }.map(...)`. Apply that fix in `draft(from:)` when the test says so; it will.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add ios/Packages/GraphghanCore
@@ -532,7 +532,7 @@ git commit -m "ios: GraphghanCore writes a chart document canonically, with the 
 - Consumes: `ChartDraft`, `Chart` (for stats).
 - Produces: `public enum ManifestWriter { static func encode(id: String, title: String, version: String, dedication: String, chart: Chart, chartID: String, variant: String, gaugeKey: String, palette: [ChartDraft.Palette]) -> Data }` whose bytes `JSONDecoder().decode(PatternManifest.self, ...)` accepts, with `charts[0].path == "charts/<variant>-<gaugeKey>/chart.json"`, `preview == "charts/<variant>-<gaugeKey>/preview.png"`, and the top-level `preview == "preview.png"`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```swift
 import Foundation
@@ -563,12 +563,12 @@ import Testing
 }
 ```
 
-- [ ] **Step 2: Run to see it fail**
+- [x] **Step 2: Run to see it fail**
 
 Run: `cd ios/Packages/GraphghanCore && swift test --filter ManifestWriterTests 2>&1 | tail -3`
 Expected: compile error, `ManifestWriter` undefined.
 
-- [ ] **Step 3: Write the writer**
+- [x] **Step 3: Write the writer**
 
 The numbers follow `manifest.py` and `export.py`'s `stats`: `stitches = width × height`, `colors = palette.count`, `changes_per_row` from the runs (`runs − 1` per row, mean to one decimal, max), `yards_est = Σ cells × cell_sqin × 1.1 × 1.2` with `cell_sqin` from the gauge in inches (cm ÷ 2.54), `size` = `width × over/stitches` by `height × over/rows` in the gauge's unit.
 
@@ -611,12 +611,12 @@ public enum ManifestWriter {
 }
 ```
 
-- [ ] **Step 4: Run the test**
+- [x] **Step 4: Run the test**
 
 Run: `cd ios/Packages/GraphghanCore && swift test --filter ManifestWriterTests 2>&1 | grep -E '✘|✔ Test run|error'`
 Expected: pass. If `changesPerRow.mean` decodes as `0.7` but the expectation fails on floating error, compare with `abs(c.changesPerRow.mean - 0.7) < 0.001`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add ios/Packages/GraphghanCore
@@ -635,7 +635,7 @@ git commit -m "ios: GraphghanCore writes a local pattern's manifest (phone impor
 - Consumes: `Chart` (`cells: [UInt8]` row-major top to bottom, `palette[i].hex`).
 - Produces: `public enum ChartPreview { static func png(_ chart: Chart, maxSide: Int = 512) -> Data? }`: one pixel per cell scaled by nearest neighbour so the long side is at most `maxSide` and at least one pixel per cell, the fabric proportion of `chart.cellAspect` applied to rows (as `export.py`'s `preview_image` does).
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```swift
 import CoreGraphics
@@ -660,12 +660,12 @@ import Testing
 }
 ```
 
-- [ ] **Step 2: Run to see it fail**
+- [x] **Step 2: Run to see it fail**
 
 Run: `cd ios/Packages/GraphghanCore && swift test --filter ChartPreviewTests 2>&1 | tail -3`
 Expected: compile error, `ChartPreview` undefined.
 
-- [ ] **Step 3: Write the drawer**
+- [x] **Step 3: Write the drawer**
 
 ```swift
 import CoreGraphics
@@ -711,12 +711,12 @@ public enum ChartPreview {
 }
 ```
 
-- [ ] **Step 4: Run the test**
+- [x] **Step 4: Run the test**
 
 Run: `cd ios/Packages/GraphghanCore && swift test --filter ChartPreviewTests 2>&1 | grep -E '✘|✔ Test run|error'`
 Expected: pass. If `image.height` is off by one, the test's expected value uses the same rounding as the drawer (`Int((...).rounded())`); match the drawer's formula exactly in the test rather than loosening it.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add ios/Packages/GraphghanCore
@@ -738,7 +738,7 @@ git commit -m "ios: GraphghanCore draws a chart's preview PNG (phone import §5.
 
 Reading is split from saving because the sheet (Task 6) shows the chart before "Add to library" saves it.
 
-- [ ] **Step 1: Add the app fixture helper**
+- [x] **Step 1: Add the app fixture helper**
 
 In `ios/Tests/TestSupport.swift` inside `TestFixtures`:
 
@@ -749,7 +749,7 @@ In `ios/Tests/TestSupport.swift` inside `TestFixtures`:
     }
 ```
 
-- [ ] **Step 2: Write the failing tests**
+- [x] **Step 2: Write the failing tests**
 
 ```swift
 import Foundation
@@ -835,12 +835,12 @@ enum PDFTestDocuments {
 
 Add `import PDFKit` and `import UIKit` at the top of the test file.
 
-- [ ] **Step 3: Run to see them fail**
+- [x] **Step 3: Run to see them fail**
 
 Run: `cd ios && xcodegen generate --quiet && xcodebuild test -project Graphghan.xcodeproj -scheme Graphghan -destination 'platform=iOS Simulator,name=iPhone 17' -only-testing:GraphghanTests/PDFImportTests 2>&1 | grep -E 'error:|Test Suite|passed|failed' | head`
 Expected: compile errors, `PDFImporter` undefined.
 
-- [ ] **Step 4: Write the importer**
+- [x] **Step 4: Write the importer**
 
 ```swift
 import Foundation
@@ -957,12 +957,12 @@ enum PDFImportError: Error, Equatable {
 }
 ```
 
-- [ ] **Step 5: Run the tests**
+- [x] **Step 5: Run the tests**
 
 Run: the Step 3 command.
 Expected: 5 pass. If `theSlugComesFromTheTitle...` finds `has(id:)` missing, it exists on `LocalPatternStore` (`func has(id: String) -> Bool`); if `save` of the second reading is needed to make the third unique, it is not: the test saves the first only.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add ios/Graphghan/Services/PDFImporter.swift ios/Tests/PDFImportTests.swift ios/Tests/TestSupport.swift
@@ -986,7 +986,7 @@ git commit -m "ios: PDFImporter reads our own PDF into a pattern the library sto
 - Produces on `AppModel`: `var pdfImport: PDFImportState?` (non-nil while the sheet is up), `func importFile(at url: URL) async` (routes by extension: `.graphghan` → the bundle path, `.pdf` → `importPDF(data:fileName:)`), `func importPDF(data: Data, fileName: String) async`, `func addImportedPDF() async` (saves `pdfImport.reading`, then the same landing as a bundle), `func cancelPDFImport()`.
 - `@Observable final class PDFImportState { enum Stage: Equatable { case reading, found, failed(String) }; var stage: Stage; var fileName: String; var reading: PDFImportReading?; var preview: UIImage? }` (`@MainActor`).
 
-- [ ] **Step 1: Register the type**
+- [x] **Step 1: Register the type**
 
 In `ios/project.yml`, under the existing `CFBundleDocumentTypes:` list (the one with `LSItemContentTypes: [com.tylervick.graphghan.pattern-bundle]`), add a second entry:
 
@@ -1000,7 +1000,7 @@ In `ios/project.yml`, under the existing `CFBundleDocumentTypes:` list (the one 
 
 `Alternate`, not `Owner`: the app can open a PDF; it is not the app for PDFs.
 
-- [ ] **Step 2: Write the failing sheet-state tests**
+- [x] **Step 2: Write the failing sheet-state tests**
 
 `ios/Tests/PDFImportSheetTests.swift`:
 
@@ -1064,12 +1064,12 @@ import GraphghanCore
 }
 ```
 
-- [ ] **Step 3: Run to see them fail**
+- [x] **Step 3: Run to see them fail**
 
 Run: `cd ios && xcodegen generate --quiet && xcodebuild test -project Graphghan.xcodeproj -scheme Graphghan -destination 'platform=iOS Simulator,name=iPhone 17' -only-testing:GraphghanTests/PDFImportSheetTests 2>&1 | grep -E 'error:|Test Suite|passed|failed' | head`
 Expected: compile errors (`pdfImport`, `importPDF`, `importFile` undefined).
 
-- [ ] **Step 4: The state and the model**
+- [x] **Step 4: The state and the model**
 
 `PDFImportSheet.swift` (state at the top, view below):
 
@@ -1219,12 +1219,12 @@ In `RootView.swift`, beside the existing `.alert("Couldn't open that pattern", .
         }
 ```
 
-- [ ] **Step 5: Run the tests**
+- [x] **Step 5: Run the tests**
 
 Run: the Step 3 command, then the whole app suite: `xcodebuild test -project Graphghan.xcodeproj -scheme Graphghan -destination 'platform=iOS Simulator,name=iPhone 17' 2>&1 | grep -E '✘|Test run with|error:' | tail -5`
 Expected: the four new tests pass and the existing `BundleImportTests` still pass (their `importBundle(at:)` calls forward). `PDFImportState` must be `@MainActor`; if the compiler objects to `Stage: Equatable` with an associated `String`, it does not (synthesised).
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add ios/project.yml ios/Graphghan ios/Tests
@@ -1240,7 +1240,7 @@ git commit -m "ios: a PDF opens from Files into an import sheet and, for our own
 - Modify: `docs/superpowers/specs/2026-09-20-phone-pdf-import-design.md` §11 (tick the first criterion with the measured time)
 - Modify: this plan (tick every box)
 
-- [ ] **Step 1: README**
+- [x] **Step 1: README**
 
 After the paragraph on opening a `.graphghan` file, add:
 
@@ -1253,17 +1253,17 @@ readers land (spec §8). `--import <path>.pdf` on the simulator drives the ident
     xcrun simctl launch booted com.tylervick.graphghan --import /path/to/pattern.pdf
 ```
 
-- [ ] **Step 2: Time the own-PDF import on the simulator and record it**
+- [x] **Step 2: Time the own-PDF import on the simulator and record it**
 
 Run: `cd ios && xcodebuild test -project Graphghan.xcodeproj -scheme Graphghan -destination 'platform=iOS Simulator,name=iPhone 17' -only-testing:GraphghanTests/PDFImportTests/ourOwnPDFReadsToTheMacsChartAndSaves 2>&1 | grep -E 'passed|failed'`
 Note the test's duration from the output line and write it into spec §11's first bullet as "(measured: N s on the iPhone 17 simulator)".
 
-- [ ] **Step 3: The whole check**
+- [x] **Step 3: The whole check**
 
 Run: `mise run check` from the repo root (Python side unaffected, but the hook runs it), then `cd ios/Packages/GraphghanCore && swift test 2>&1 | grep 'Test run'`, then the full app suite from Task 6 Step 5.
 Expected: all green.
 
-- [ ] **Step 4: Commit and open the PR**
+- [x] **Step 4: Commit and open the PR**
 
 ```bash
 git add ios/README.md docs/superpowers

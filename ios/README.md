@@ -66,6 +66,18 @@ A pattern is resolved local-first by its id everywhere — manifest, previews, a
 title — so a local pattern never reaches for the network and never gets a version notice from the
 site. The cost is that a bundle whose id matches a published slug shadows it: #135.
 
+## Opening a pattern PDF
+
+A pattern PDF opens the same way (#112, `docs/superpowers/specs/2026-09-20-phone-pdf-import-design.md`):
+`project.yml` claims `com.adobe.pdf` as an Alternate handler, and `AppModel.importFile(at:)` routes a
+`.pdf` to `PDFImporter` and the import sheet instead of the bundle importer. One that
+`graphghan export --format pdf` wrote is read exactly from its text layer (`OwnPDFReader` in
+GraphghanCore) and lands in the library with the same chart id the Mac computed, written by
+`ChartWriter`, `ManifestWriter` and `ChartPreview`; any other PDF gets the sentence "No chart or
+written rows were found in this PDF" until the written-row and grid readers land (spec §8). The
+sheet shows the chart before "Add to library" saves it; a read writes nothing, and Cancel leaves the
+library as it was. `--import <path>.pdf` drives the identical path on the simulator.
+
 Driving it without a drag: `xcrun simctl launch <device> com.tylervick.graphghan --import <path>`,
 or `xcrun simctl openurl <device> "file://<path>"`, which goes through LaunchServices the way Files
 does. AirDrop needs a real device; the type registration is what it depends on. The design is

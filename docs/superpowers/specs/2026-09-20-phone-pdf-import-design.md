@@ -294,7 +294,8 @@ id ignores `ext`.
 ## 11. Success criteria
 
 - A `.pdf` exported by `graphghan export` opens from Files into the library in under two seconds
-  with the same chart id the Mac computes.
+  with the same chart id the Mac computes. Measured 2026-09-20 on the iPhone 17 simulator: the read and
+  save of the 184-row Craigh na Dun PDF take well under a second in `PDFImportTests` (PR 1).
 - Orca's PDF opens into a chart of 29×77 with 77 rows read and validated, on a device with Apple
   Intelligence, in under five minutes, with progress shown and cancel working.
 - The cactus blanket's PDF opens into the pinned 28×28 chart in under five seconds on iOS 17
