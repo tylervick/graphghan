@@ -14,11 +14,15 @@ ROOT = Path(__file__).resolve().parents[4]
 sys.path.insert(0, str(ROOT / "src"))
 
 from graphghan.pdfself import prose_from_own_pdf  # noqa: E402
+from graphghan.prose import check_prose  # noqa: E402
 
 
 def main() -> None:
     path, which = sys.argv[1], sys.argv[2]
     doc = json.load(open(path, encoding="utf-8"))
+    problems = check_prose(doc)
+    if problems:  # the tool wrote something the importer would refuse; say so rather than score it
+        sys.exit(f"{path} is not a graphghan-import/1 document: " + "; ".join(problems))
     entries = doc.get("written_rows", [])
     got: dict[int, dict] = {}
     dups = 0
