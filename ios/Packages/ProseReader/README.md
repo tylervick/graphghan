@@ -21,9 +21,11 @@ since every prompt then carries the transcript). Text comes from PDFKit for a PD
 `--chunk N` (default 8) reads long rows in parts; `--examples` adds the corpus's row grammars to the
 instructions. Before any prompt, code rewrites what the model cannot keep: the row head becomes
 "Row N:" whatever the page wrote ("Row 1.", "Row 3 -", "Rows 1-10:", "1st row:", or a bare "7." before
-something that looks like a run), increases and decreases become stitch counts, foundation chains and
-turning phrases go, adjacent counts of one colour add, row numbers come from the text's head, and key
-codes are A, B, C in key order unless the rows print codes.
+something that looks like a run), run spellings become "count colour" ("c2" → "2 c", "8sc in c1" → "8 A",
+"sc 8 in white" and "(green) sc 10" → "8 white" and "10 green", a bare "(Pale Rose)" → "(Pale Rose) x 1"),
+increases and decreases become stitch counts, foundation chains and turning phrases go, adjacent counts
+of one colour add, row numbers come from the text's head, and key codes are A, B, C in key order unless
+the rows print codes.
 
 Scoring against ground truth: `uv run python Scripts/score.py prose.json craigh|orca` (Craigh na Dun's
 rows come from our own PDF's text layer; Orca's from the hand transcript in `fixtures/import/real/`).
