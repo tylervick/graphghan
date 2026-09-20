@@ -19,6 +19,42 @@ public struct IndexEntry: Decodable, Sendable, Identifiable, Hashable {
         case slug, title, dedication, version, stitch, width, height, colors, preview, manifest, charts
         case sizeIn = "size_in"
     }
+
+    public init(slug: String, title: String, dedication: String, version: String, stitch: String,
+                width: Int, height: Int, sizeIn: [Double], colors: Int, preview: String,
+                manifest: String?, charts: Int?) {
+        self.slug = slug
+        self.title = title
+        self.dedication = dedication
+        self.version = version
+        self.stitch = stitch
+        self.width = width
+        self.height = height
+        self.sizeIn = sizeIn
+        self.colors = colors
+        self.preview = preview
+        self.manifest = manifest
+        self.charts = charts
+    }
+
+    /// The row a pattern would have in the site's `index.json`, computed from its manifest — the
+    /// same projection `site/build.py`'s `index_entry` makes, so a pattern opened from a file
+    /// reads like one from the feed. `preview` is the manifest-relative path, not a site path:
+    /// a local pattern's previews are resolved against its own directory.
+    public init(manifest: PatternManifest) {
+        let chart = manifest.defaultChart
+        // The index always quotes inches, whatever unit the gauge is stated in (#48).
+        let size = chart?.size
+        let inches: [Double] = if let size {
+            size.unit == "cm" ? [(size.width / 2.54 * 10).rounded() / 10, (size.height / 2.54 * 10).rounded() / 10]
+                              : [size.width, size.height]
+        } else { [] }
+        self.init(slug: manifest.id, title: manifest.title, dedication: manifest.dedication,
+                  version: manifest.version, stitch: chart?.stitch ?? "",
+                  width: chart?.width ?? 0, height: chart?.height ?? 0, sizeIn: inches,
+                  colors: chart.map { $0.colors } ?? manifest.palette.count,
+                  preview: manifest.preview, manifest: nil, charts: manifest.charts.count)
+    }
 }
 
 public struct Swatch: Decodable, Sendable, Equatable {

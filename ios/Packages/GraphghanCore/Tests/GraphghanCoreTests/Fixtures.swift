@@ -1,13 +1,20 @@
 import Foundation
 
-/// The shared conformance fixtures at <repo>/fixtures/chart-format, located relative to this file
-/// so `swift test` and Xcode both find them without copying.
+/// The shared fixtures under <repo>/fixtures -- the conformance charts and the bundles -- located
+/// relative to this file so `swift test` and Xcode both find them without copying.
 enum Fixtures {
-    static let directory: URL = {
+    static let root: URL = {
         var url = URL(fileURLWithPath: #filePath)
         for _ in 0..<6 { url.deleteLastPathComponent() }  // GraphghanCoreTests, Tests, GraphghanCore, Packages, ios, <repo>
-        return url.appendingPathComponent("fixtures/chart-format", isDirectory: true)
+        return url
     }()
+
+    static let directory = root.appendingPathComponent("fixtures/chart-format", isDirectory: true)
+
+    /// `fixtures/bundle/<slug>.graphghan`, written by `graphghan export --format graphghan`.
+    static func bundle(_ slug: String) throws -> Data {
+        try Data(contentsOf: root.appendingPathComponent("fixtures/bundle/\(slug).graphghan"))
+    }
 
     static var chartNames: [String] {
         let names = (try? FileManager.default.contentsOfDirectory(atPath: directory.path)) ?? []
