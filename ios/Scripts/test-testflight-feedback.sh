@@ -144,4 +144,40 @@ pass "the tester's identity never reaches an issue"
 grep -q "betaFeedbackScreenshotSubmissions?sort=-createdDate&limit=50&include=build&fields%5Bbuilds%5D=version" "$STUB_DIR/curl.log" || fail "listing query wrong; log: $(cat "$STUB_DIR/curl.log")"
 pass "the listing asks for newest-first with the build version included"
 
+# A second run sees both markers in existing issue bodies and creates nothing.
+reset
+cat > "$STUB_DIR/bodies.txt" <<'EOF'
+Some earlier body
+<!-- testflight-feedback:S-OLD -->
+Another
+<!-- testflight-feedback:S-NEW -->
+EOF
+out="$(run_script)" || fail "second run exited non-zero: $out"
+[ "$(created_count)" -eq 0 ] || fail "second run created $(created_count) issues; output: $out"
+grep -q "^0 created, 2 already tracked\.$" <<<"$out" || fail "summary wrong; got: $out"
+! grep -q "^issue create" "$STUB_DIR/gh.log" || fail "issue create was called on a re-run"
+pass "already-tracked submissions are skipped"
+
+# Only one tracked: the other is still created.
+reset
+printf '<!-- testflight-feedback:S-OLD -->\n' > "$STUB_DIR/bodies.txt"
+out="$(run_script)" || fail "partial run exited non-zero: $out"
+[ "$(created_count)" -eq 1 ] || fail "expected exactly 1 new issue; output: $out"
+grep -q "testflight-feedback:S-NEW" "$STUB_DIR/created-1.md" || fail "the untracked submission was not the one created"
+pass "the seen set is per submission, not all-or-nothing"
+
+# Dry run: reports, touches nothing.
+reset
+out="$(run_script --dry-run)" || fail "dry run exited non-zero: $out"
+[ "$(created_count)" -eq 0 ] || fail "dry run created issues"
+grep -q "^would create: Done button hides behind the strip$" <<<"$out" || fail "dry run did not list the titles; got: $out"
+grep -q "^2 would be created, 0 already tracked\.$" <<<"$out" || fail "dry run summary wrong; got: $out"
+! grep -qE "^(issue create|label create|release)" "$STUB_DIR/gh.log" || fail "dry run wrote to GitHub: $(cat "$STUB_DIR/gh.log")"
+pass "--dry-run lists titles and writes nothing"
+
+# Bad usage.
+out="$(run_script --bogus)" && fail "unknown flag should exit non-zero"
+grep -q "^usage:" <<<"$out" || fail "usage message missing; got: $out"
+pass "an unknown flag prints usage and exits 2"
+
 echo "all testflight-feedback tests passed"
