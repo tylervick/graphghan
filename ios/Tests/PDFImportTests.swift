@@ -331,6 +331,7 @@ import ProseReaderKit
         let importer = try await make().importer(rowReader: StubRowReader(document: doc, delayPerRow: .zero))
         let record = await importer.check(try await importer.read(try #require(PDFTestDocuments.chart(rows: true)), fileName: "drawn.pdf"), progress: nil)
         #expect(record.problem == ImportRecord.modelBusy && record.rowsChecked == Self.chartHeight)
+        #expect(record.sentence == "The on-device model is busy; 15 of 15 written rows were checked. Try the check again in a minute.")
         doc.written_rows?[6].runs = []
         doc.written_rows?[6].error = "no colour named"
         let mixed = try await make().importer(rowReader: StubRowReader(document: doc, delayPerRow: .zero))

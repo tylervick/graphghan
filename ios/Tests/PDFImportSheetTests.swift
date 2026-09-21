@@ -6,8 +6,10 @@ import ProseReaderKit
 
 /// The import sheet's states, driven through `AppModel` the way the app drives them (phone import
 /// spec §5.2), without a screen.
+/// Serialized: `IdleTimer` is one counter for the whole app, so two of these running at once
+/// would see each other's holds and the screen-awake tests would race.
 @MainActor
-@Suite struct PDFImportSheetTests {
+@Suite(.serialized) struct PDFImportSheetTests {
     func make(rowReader: (any RowReading)? = nil, modelUnavailable: String? = nil) async throws -> AppModel {
         let container = try makeInMemoryContainer()
         let patterns = PatternStore(baseURL: URL(string: "https://example.test/")!, cacheDirectory: try temporaryDirectory(), client: StubClient())
@@ -200,6 +202,32 @@ import ProseReaderKit
         _ = try #require(await Self.checkState(of: model) { if case .running = $0 { return true }; return false })
         #expect(IdleTimer.count > before)
         _ = try #require(await Self.checkState(of: model) { if case .done = $0 { return true }; return false })
+        #expect(IdleTimer.count == before)
+    }
+
+    /// The measurement asks the model for minutes and holds the screen awake, so neither Cancel
+    /// nor "Add to library" may leave it running behind a closed sheet (#176, CodeRabbit review).
+    @Test func cancelStopsTheLimitMeasurement() async throws {
+        let model = try await make(rowReader: PDFImportTests.StubRowReader(document: PDFImportTests.chartDocument(), delayPerRow: .zero))
+        await model.importPDF(data: try #require(PDFTestDocuments.chart(rows: true)), fileName: "drawn.pdf")
+        let state = try #require(model.pdfImport)
+        let running = Task { try? await Task.sleep(for: .seconds(60)) }
+        state.measureTask = Task { _ = await running.value }
+        model.cancelPDFImport()
+        #expect(state.measureTask?.isCancelled == true)
+        running.cancel()
+    }
+
+    /// Without a model there is nothing to measure, and the button is never offered; asking for
+    /// it anyway does nothing rather than hanging on a hold it never releases.
+    @Test func theMeasurementDoesNothingWhereThereIsNoModel() async throws {
+        let model = try await make(rowReader: nil, modelUnavailable: "needs iOS 26")
+        await model.importPDF(data: try #require(PDFTestDocuments.chart(rows: true)), fileName: "drawn.pdf")
+        // The check's own hold outlives `importPDF`, which does not await it; let it land first.
+        _ = await Self.checkState(of: model) { if case .done = $0 { return true }; return false }
+        let before = IdleTimer.count
+        await model.measureModelLimit()
+        #expect(model.pdfImport?.limits == nil && model.pdfImport?.measuring == false)
         #expect(IdleTimer.count == before)
     }
 

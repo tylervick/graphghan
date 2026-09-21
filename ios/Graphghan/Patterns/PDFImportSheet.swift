@@ -32,6 +32,14 @@ final class PDFImportState {
     /// The three probes' answers, once "Why?" has asked them, and whether they are being asked.
     var probe: ModelProbe? = nil
     var probing = false
+    /// The measurement of what the phone will take (#176 round two), which takes minutes, so it
+    /// is asked for by a second tap and reports what it is doing while it runs.
+    var limits: LimitReport? = nil
+    var measuring = false
+    var measuringStep = ""
+    /// The measurement in flight, so Cancel and "Add to library" stop it: it asks the model for
+    /// minutes and holds the screen awake, neither of which may outlive the sheet.
+    var measureTask: Task<Void, Never>? = nil
     init(fileName: String) { self.fileName = fileName }
 
     /// Cancel while the model reads or before the chart is added; Done once it failed.
@@ -138,10 +146,31 @@ struct PDFImportSheet: View {
                 .font(Font.Heather.caption).foregroundStyle(Color.ink2)
                 .multilineTextAlignment(.leading).textSelection(.enabled)
                 .frame(maxWidth: .infinity, alignment: .leading)
+            measureTheLimit
         } else if state.probing {
             ProgressView()
         } else {
             Button("Why?") { Task { await model.runModelProbe() } }.font(Font.Heather.caption)
+        }
+    }
+
+    /// When the three probes all answer, the refusal is not in any one request and the next
+    /// question is how many of them the phone will take (#176). That measurement asks the model
+    /// thirty times and waits out a refusal, so it runs on a second tap, not with the first.
+    @ViewBuilder private var measureTheLimit: some View {
+        if let limits = state.limits {
+            Text(limits.text)
+                .font(Font.Heather.caption).foregroundStyle(Color.ink2)
+                .multilineTextAlignment(.leading).textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        } else if state.measuring {
+            VStack(spacing: 6) {
+                ProgressView()
+                Text(state.measuringStep).font(Font.Heather.caption).foregroundStyle(Color.ink2)
+            }
+        } else if state.probe?.steps.allSatisfy(\.ok) == true {
+            Button("Measure the limit (a few minutes)") { model.startModelLimitMeasurement() }
+                .font(Font.Heather.caption)
         }
     }
 

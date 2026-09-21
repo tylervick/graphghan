@@ -54,3 +54,30 @@ import Testing
         #expect(cells.map { draftHex[Int($0)] } == want.map { macHex[Int($0)] })
     }
 }
+
+/// The busy sentence (#176). How far the check got before the model stopped answering is the
+/// number that tells a refusal which began at once apart from one which set in part way down, so
+/// the sentence carries it whenever there is one.
+@Suite struct ImportRecordBusyTests {
+    func record(checked: Int, total: Int) -> ImportRecord {
+        ImportRecord(grid: true, check: .finished, rowsChecked: checked, rowsTotal: total,
+                     rowsDisagree: [], gaugePrinted: false, problem: ImportRecord.modelBusy)
+    }
+
+    @Test func refusedFromTheStartSaysOnlyThatTheModelIsBusy() {
+        #expect(record(checked: 0, total: 77).sentence == "The on-device model is busy; try the check again in a minute.")
+        #expect(record(checked: 0, total: 0).sentence == ImportRecord.modelBusySentence)
+    }
+
+    @Test func refusedPartWayDownSaysHowFarItGot() {
+        #expect(record(checked: 43, total: 77).sentence
+            == "The on-device model is busy; 43 of 77 written rows were checked. Try the check again in a minute.")
+    }
+
+    /// Anything else keeps reporting itself as it stands.
+    @Test func anotherProblemIsStillReportedVerbatim() {
+        var other = record(checked: 43, total: 77)
+        other.problem = "row 5: no colour named"
+        #expect(other.sentence == "Written rows could not be compared with the chart: row 5: no colour named.")
+    }
+}

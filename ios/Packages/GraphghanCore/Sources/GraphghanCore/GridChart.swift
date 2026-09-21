@@ -56,7 +56,12 @@ public struct ImportRecord: Sendable, Equatable {
     /// The sentence the sheet and the detail screen show for this record (spec §5.4, §6.3); nil
     /// when there is nothing to say.
     public var sentence: String? {
-        if problem == Self.modelBusy { return Self.modelBusySentence }
+        if problem == Self.modelBusy {
+            // How far it got before the model stopped answering is the whole of what tells a
+            // refusal that began at once apart from one that set in part way down (#176).
+            guard rowsChecked > 0, rowsTotal > 0 else { return Self.modelBusySentence }
+            return "The on-device model is busy; \(rowsChecked) of \(rowsTotal) written rows were checked. Try the check again in a minute."
+        }
         if let problem { return "Written rows could not be compared with the chart: \(problem)." }
         switch check {
         case .noRows: return nil
