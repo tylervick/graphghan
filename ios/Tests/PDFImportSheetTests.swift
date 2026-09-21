@@ -71,11 +71,11 @@ import ProseReaderKit
     // MARK: written rows (PR 2)
 
     @Test func writtenRowsShowProgressThenTheChart() async throws {
-        let model = try await make(rowReader: PDFImportTests.StubRowReader(document: PDFImportTests.twoRowDocument(), delayPerRow: .milliseconds(50)))
+        let model = try await make(rowReader: PDFImportTests.StubRowReader(document: PDFImportTests.twoRowDocument(), delayPerRow: .milliseconds(300)))
         let pdf = try #require(PDFTestDocuments.plain(text: PDFImportTests.twoRowText))
         let task = Task { await model.importPDF(data: pdf, fileName: "two-rows.pdf") }
-        try await Task.sleep(for: .milliseconds(70))
-        if case .readingRows(_, let of, _) = model.pdfImport?.stage { #expect(of == 2) } else { Issue.record("expected readingRows, got \(String(describing: model.pdfImport?.stage))") }
+        let stage = try #require(await Self.readingRows(of: model))
+        if case .readingRows(_, let of, _) = stage { #expect(of == 2) } else { Issue.record("expected readingRows, got \(stage)") }
         await task.value
         #expect(model.pdfImport?.stage == .found && model.pdfImport?.reading?.source == .writtenRows(count: 2, gaugePrinted: false))
         #expect(PDFImportSheet.minutes(for: 77) == 4 && PDFImportSheet.minutes(for: 2) == 1)
@@ -85,11 +85,20 @@ import ProseReaderKit
         let model = try await make(rowReader: PDFImportTests.StubRowReader(document: PDFImportTests.twoRowDocument(), delayPerRow: .seconds(1)))
         let pdf = try #require(PDFTestDocuments.plain(text: PDFImportTests.twoRowText))
         let task = Task { await model.importPDF(data: pdf, fileName: "two-rows.pdf") }
-        try await Task.sleep(for: .milliseconds(100))
+        _ = try #require(await Self.readingRows(of: model))
         #expect(model.pdfImport?.isCancellable == true)
         model.cancelPDFImport()
         await task.value
         #expect(model.pdfImport == nil && model.libraryItems.isEmpty)
+    }
+
+    /// The sheet's rows state once the model has reported the row count, or nil after two seconds.
+    static func readingRows(of model: AppModel) async -> PDFImportState.Stage? {
+        for _ in 0..<200 {
+            if case .readingRows = model.pdfImport?.stage { return model.pdfImport?.stage }
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+        return nil
     }
 
     @Test func withoutAModelTheSheetSaysSo() async throws {
