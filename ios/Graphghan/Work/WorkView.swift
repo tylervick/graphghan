@@ -47,9 +47,9 @@ struct WorkView: View {
                 self.error = "This project's chart could not be read. Open the project and download it again."
             }
         }
-        .onAppear { UIApplication.shared.isIdleTimerDisabled = true }
+        .onAppear { IdleTimer.hold() }
         .onDisappear {
-            UIApplication.shared.isIdleTimerDisabled = false
+            IdleTimer.release()
             Task {
                 let final = sequence.flatMap { LiveActivityState.make(cursor: project.cursor, sequence: $0, perRepetition: project.tapPerRepetition) }
                 await model.liveActivity.end(projectID: project.id, finalState: final)

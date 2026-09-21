@@ -106,6 +106,19 @@ check every row must pass. This takes minutes: Orca's 77 rows took three and a h
 Dun's 184 would take forty-six. The sheet says so before it starts, shows the row count climbing,
 and can be cancelled at any time with nothing written.
 
+On the phone the reader also has to live within what the system will let an app ask of the model
+(#176). Three things follow, and they apply to the check in §4.2 and to the rows-only path alike:
+one session answers the whole read rather than one a row, turned over every 16 requests so the
+transcript never fills the 4k window and at once if it ever reports that it has; a request the
+model refuses as `GenerationError.rateLimited` is waited out and asked again, three attempts and
+ten seconds of waiting in all; and once three requests running have been given up on, the waiting
+stops, so a phone whose model will not answer costs a 310-row check seconds rather than an hour.
+A read lost entirely to that refusal is reported as "The on-device model is busy; try the check
+again in a minute", with `the on-device model is busy` as the record's `problem` (§6.3) — not 77
+copies of the `GenerationError` text. The screen is held awake for the length of a check or a
+rows-only read. The session reuse is new since the breadth measurement (#146–#150), which was
+taken with a session per row: #177 re-measures with it on.
+
 ### 4.4 A PDF that is pictures of text: not yet
 
 A page with no text layer where the reader expected rows (page text under 200 characters while
@@ -318,4 +331,8 @@ id ignores `ext`.
   palette fold-in distance come out of PDFKit a few Lab units farther and stay as single-cell
   colours; the phone's hash is pinned beside the Mac's in `manifest.toml` and the fold-in rule is
   #167.
+- Orca's check to completion on an iPhone with Apple Intelligence, 77 of 77 rows, is #176's
+  acceptance test: the first attempt (TestFlight, main at 829014c) was refused from the first row
+  with "Request has been rate limited", and the retry, the one reused session and the sentence in
+  §4.3 are the answer to it. Not yet run on a device with those in; the time goes here when it is.
 - Every failure in §5.4 shows its sentence and leaves the library untouched.

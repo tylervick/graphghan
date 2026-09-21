@@ -1,4 +1,5 @@
 import GraphghanCore
+import ProseReaderKit
 import SwiftUI
 
 /// What the import sheet shows (phone import spec §5.2). Driven by `AppModel`, read by the sheet
@@ -26,6 +27,11 @@ final class PDFImportState {
     /// The row check under "Chart found" (spec §5.2), and its task so Skip and Cancel can stop it.
     var check: CheckStage = .none
     var checkTask: Task<Void, Never>? = nil
+    /// What the app's scene was doing when the check started, for the probe's report (#176).
+    var appStateAtCheck: String = ""
+    /// The three probes' answers, once "Why?" has asked them, and whether they are being asked.
+    var probe: ModelProbe? = nil
+    var probing = false
     init(fileName: String) { self.fileName = fileName }
 
     /// Cancel while the model reads or before the chart is added; Done once it failed.
@@ -78,9 +84,12 @@ struct PDFImportSheet: View {
                                 Button("Skip the check") { model.skipPDFCheck() }.font(Font.Heather.caption)
                             }
                         case .done(let record):
-                            // Nothing to say for a chart with no written rows; agreement only for a finished check.
-                            if let sentence = record.sentence ?? (record.check == .finished ? "Written rows agree with the chart." : nil) {
-                                Text(sentence).font(Font.Heather.caption).foregroundStyle(Color.ink2).multilineTextAlignment(.center)
+                            VStack(spacing: 8) {
+                                // Nothing to say for a chart with no written rows; agreement only for a finished check.
+                                if let sentence = record.sentence ?? (record.check == .finished ? "Written rows agree with the chart." : nil) {
+                                    Text(sentence).font(Font.Heather.caption).foregroundStyle(Color.ink2).multilineTextAlignment(.center)
+                                }
+                                if record.problem == ImportRecord.modelBusy { whyTheModelIsBusy }
                             }
                         }
                         Button("Add to library") {
@@ -99,6 +108,7 @@ struct PDFImportSheet: View {
                     VStack(spacing: 12) {
                         Image(systemName: "doc.questionmark").font(Font.Heather.rowNumber).foregroundStyle(Color.ink2)
                         Text(sentence).font(Font.Heather.body).foregroundStyle(Color.ink).multilineTextAlignment(.center)
+                        if sentence == ImportRecord.modelBusySentence { whyTheModelIsBusy }
                     }
                     .padding()
                 }
@@ -116,6 +126,23 @@ struct PDFImportSheet: View {
             }
         }
         .interactiveDismissDisabled(state.stage == .reading || state.stage == .saving)
+    }
+
+    /// "Why?" beside a busy model (#176). The simulator has no model, so the three probes -- a
+    /// one-line prompt with no instructions, the same prompt under the row instructions, a
+    /// structured answer -- can only be asked on the phone that refused the check, and this is
+    /// where they are asked. The report says which of the three is the first to be refused.
+    @ViewBuilder private var whyTheModelIsBusy: some View {
+        if let probe = state.probe {
+            Text(probe.text)
+                .font(Font.Heather.caption).foregroundStyle(Color.ink2)
+                .multilineTextAlignment(.leading).textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        } else if state.probing {
+            ProgressView()
+        } else {
+            Button("Why?") { Task { await model.runModelProbe() } }.font(Font.Heather.caption)
+        }
     }
 
     /// The estimate the sheet prints: rows at the measured pace, rounded up, never under a minute.

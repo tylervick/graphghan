@@ -83,6 +83,9 @@ struct PDFImporter: Sendable {
             if let error = r.error { return "row \(r.row): \(error)" }
             return r.runs.isEmpty ? "row \(r.row): no runs read" : nil
         }
+        // A model that refused every row it was asked is a state that passes, not a pattern the
+        // app cannot read: it gets its own sentence rather than 77 copies of the same one (#176).
+        if Self.isModelBusy(unread) { throw .modelBusy }
         guard unread.isEmpty else { throw .rowsDoNotAssemble(unread) }
         guard !all.isEmpty else { throw .rowsDoNotAssemble(["no written rows were read"]) }
         let rows = all.map { RowsChart.Row(row: $0.row, runs: $0.runs.map(Self.run), total: $0.total) }
@@ -171,6 +174,13 @@ struct PDFImporter: Sendable {
                                   source: .grid(page: best.page + 1, rowsToCheck: RowText.rowCount(in: texts)), warnings: warnings + gridWarnings)
     }
 
+    /// Every row the reader gave up on was given up for the one reason the app words itself:
+    /// the model is being asked too often (#176). A read that lost rows to anything else keeps
+    /// reporting what it lost them to.
+    static func isModelBusy(_ unread: [String]) -> Bool {
+        !unread.isEmpty && unread.allSatisfy { $0.hasSuffix(ReaderFailure.modelBusy) }
+    }
+
     /// The written rows read and compared with the chart (spec §4.2): the outcome as the record
     /// the chart carries. Cancelling stops the reader between rows; what was read is compared.
     func check(_ reading: PDFImportReading, progress: (@Sendable (PDFImportProgress) -> Void)?) async -> ImportRecord {
@@ -193,7 +203,10 @@ struct PDFImporter: Sendable {
         let stopped = Task.isCancelled && all.count < total
         record.check = stopped ? .stopped : .finished
         record.rowsChecked = rows.map(\.row).max() ?? 0
-        guard unread.isEmpty else { record.problem = unread.joined(separator: "; "); return record }
+        guard unread.isEmpty else {
+            record.problem = Self.isModelBusy(unread) ? ImportRecord.modelBusy : unread.joined(separator: "; ")
+            return record
+        }
         let chart = reading.bundle.charts[0].chart
         if let w = doc.chart?.width, let h = doc.chart?.height, w > 0, h > 0, (w, h) != (chart.width, chart.height) {
             record.problem = "written rows give \(w)x\(h), the chart reads \(chart.width)x\(chart.height)"
@@ -350,6 +363,7 @@ enum PDFImportError: Error, Equatable {
     case nothingFound
     case rowsArePictures
     case needsAppleIntelligence
+    case modelBusy
     case rowsDoNotAssemble([String])
     case invalidChart(String)
     case badRow(OwnPDFError)
@@ -363,6 +377,7 @@ enum PDFImportError: Error, Equatable {
         case .rowsArePictures: return "This pattern's rows are printed as a picture; the app can't read that yet."
         case .needsAppleIntelligence:
             return "Reading written rows needs Apple Intelligence on this iPhone. Open the PDF on a Mac with graphghan, or send a .graphghan file instead."
+        case .modelBusy: return ImportRecord.modelBusySentence
         case .rowsDoNotAssemble(let why): return "The written rows in this PDF don't add up: \(why.joined(separator: "; "))."
         case .invalidChart(let why): return "The chart in this PDF isn't one the app can work: \(why)."
         case .badRow(.tooLarge(let w, let h)): return "The chart in this PDF is too big for the app: \(w) × \(h) stitches."

@@ -161,6 +161,48 @@ import ProseReaderKit
         #expect(model.libraryItems.contains { $0.slug == "drawn" })
     }
 
+    /// A busy model on the sheet (#176): the maker sees one sentence to act on, "Why?" is offered
+    /// so the three probes can be run on the phone that refused, and the chart still adds.
+    @Test func aBusyModelLeavesASentenceAndTheChartStillAdds() async throws {
+        let doc = PDFImportTests.refusedByABusyModel(PDFImportTests.chartDocument())
+        let model = try await make(rowReader: PDFImportTests.StubRowReader(document: doc, delayPerRow: .zero))
+        await model.importPDF(data: try #require(PDFTestDocuments.chart(rows: true)), fileName: "drawn.pdf")
+        let done = try #require(await Self.checkState(of: model) { if case .done = $0 { return true }; return false })
+        guard case .done(let record) = done else { return }
+        #expect(record.problem == ImportRecord.modelBusy)
+        #expect(record.sentence == "The on-device model is busy; try the check again in a minute.")
+        let state = try #require(model.pdfImport)
+        #expect(state.stage == .found)
+        #expect(!state.appStateAtCheck.isEmpty)  // what the scene was doing, for the probe's report
+        #expect(state.probe == nil && !state.probing)  // asked only when "Why?" is tapped
+        await model.addImportedPDF()
+        #expect(model.libraryItems.contains { $0.slug == "drawn" })
+    }
+
+    /// Without a reader to ask, "Why?" still answers rather than doing nothing.
+    @Test func theProbeSaysWhyWhenThereIsNoReaderToAsk() async throws {
+        let model = try await make(rowReader: nil, modelUnavailable: "needs iOS 26")
+        await model.importPDF(data: try #require(PDFTestDocuments.chart(rows: true)), fileName: "drawn.pdf")
+        await model.runModelProbe()
+        let probe = try #require(model.pdfImport?.probe)
+        #expect(probe.steps.count == 1 && probe.steps[0].ok == false && probe.steps[0].detail == "needs iOS 26")
+        #expect(probe.steps[0].kind == .availability)
+        #expect(probe.finding == "There is no model to ask on this iPhone, so nothing below was run.")
+        #expect(probe.text.contains("the app was"))
+    }
+
+    /// The screen is held awake while the check runs and let go when it ends, so a 77-row read
+    /// does not stop at the lock screen (#176).
+    @Test func theScreenIsHeldAwakeOnlyWhileTheCheckRuns() async throws {
+        let before = IdleTimer.count
+        let model = try await make(rowReader: PDFImportTests.StubRowReader(document: PDFImportTests.chartDocument(), delayPerRow: .milliseconds(100)))
+        await model.importPDF(data: try #require(PDFTestDocuments.chart(rows: true)), fileName: "drawn.pdf")
+        _ = try #require(await Self.checkState(of: model) { if case .running = $0 { return true }; return false })
+        #expect(IdleTimer.count > before)
+        _ = try #require(await Self.checkState(of: model) { if case .done = $0 { return true }; return false })
+        #expect(IdleTimer.count == before)
+    }
+
     @Test func cancelDuringTheCheckWritesNothing() async throws {
         let model = try await make(rowReader: PDFImportTests.StubRowReader(document: PDFImportTests.chartDocument(), delayPerRow: .milliseconds(300)))
         await model.importPDF(data: try #require(PDFTestDocuments.chart(rows: true)), fileName: "drawn.pdf")

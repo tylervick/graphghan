@@ -76,7 +76,11 @@ final class AppModel {
             self.rowReader = rowReader
             self.modelUnavailable = modelUnavailable ?? nil
         } else if #available(iOS 26, *) {
-            let reader = ProseReader(model: .onDevice, options: ReaderOptions(examples: true))
+            // One session across the whole read, not one a row: a phone counts how often an app
+            // asks its model, and a session a row is what #176 turned into "Request has been
+            // rate limited" from the first row. `ReaderSession` turns the session over before
+            // the window fills.
+            let reader = ProseReader(model: .onDevice, options: ReaderOptions(reuseSession: true, examples: true))
             let why = reader.unavailableReason()
             self.rowReader = why == nil ? reader : nil
             self.modelUnavailable = why
@@ -308,7 +312,10 @@ final class AppModel {
         let state = PDFImportState(fileName: fileName)
         pdfImport = state
         let importer = pdfImporter
+        // The rows-only path reads for minutes; the screen must not sleep part way through it (#176).
+        IdleTimer.hold()
         let task = Task { [weak self] in
+            defer { IdleTimer.release() }
             do {
                 let reading = try await importer.read(data, fileName: fileName) { p in
                     Task { @MainActor in
@@ -338,7 +345,13 @@ final class AppModel {
     private func startPDFCheck(_ state: PDFImportState, importer: PDFImporter) {
         guard let reading = state.reading else { return }
         if case .grid(_, let total) = reading.source, total > 0, rowReader != nil { state.check = .running(done: 0, of: total) }
+        // The sheet arrives through `onOpenURL` while the scene is still activating from the share
+        // sheet, and whether the system counts the app as foreground at this moment is #176's
+        // first hypothesis. The probe's report prints what the scene was doing here.
+        state.appStateAtCheck = Self.describe(UIApplication.shared.applicationState)
+        IdleTimer.hold()
         state.checkTask = Task {
+            defer { IdleTimer.release() }
             let record = await importer.check(reading) { p in
                 Task { @MainActor in
                     if case .checking(let done, let of) = p, case .running = state.check { state.check = .running(done: done, of: of) }
@@ -346,6 +359,32 @@ final class AppModel {
             }
             state.check = .done(record)
         }
+    }
+
+    static func describe(_ state: UIApplication.State) -> String {
+        switch state {
+        case .active: return "active"
+        case .inactive: return "inactive"
+        case .background: return "background"
+        @unknown default: return "unknown"
+        }
+    }
+
+    /// "Why?" under a busy check: the three probes of #176, run against the reader the app holds,
+    /// with what the app knows about the moment the check started. Answers land in `state.probe`.
+    func runModelProbe() async {
+        guard let state = pdfImport, !state.probing, state.probe == nil else { return }
+        state.probing = true
+        defer { state.probing = false }
+        var context = ["the app was \(Self.describe(UIApplication.shared.applicationState)) now"]
+        if !state.appStateAtCheck.isEmpty { context.append("the app was \(state.appStateAtCheck) when the check started") }
+        guard #available(iOS 26, *), let reader = rowReader as? ProseReader else {
+            state.probe = ModelProbe(
+                steps: [.init(kind: .availability, name: "the model is there", ok: false, detail: modelUnavailable ?? "no on-device reader", seconds: 0)],
+                context: context)
+            return
+        }
+        state.probe = await reader.probe(context: context)
     }
 
     /// "Skip the check": the reader stops between rows; what it read is compared and recorded.

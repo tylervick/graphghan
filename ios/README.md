@@ -8,6 +8,7 @@ against `../fixtures/chart-format`.
     mise install            # xcodegen
     mise run generate       # Graphghan.xcodeproj (gitignored)
     mise run core-test      # swift test, macOS host
+    mise run prose-test     # swift test for ProseReader, macOS host
     mise run test           # app unit tests on the iPhone 17 simulator
     open Graphghan.xcodeproj
 
@@ -97,6 +98,23 @@ chart too large to hold, gets its own sentence (`PDFImportError.message`, spec �
 shows the chart before "Add to library" saves it; a read writes nothing, and Cancel leaves the
 library as it was. The model never runs in a test: `PDFImportTests` stand a canned `RowReading` in
 for it. `--import <path>.pdf` drives the identical path on the simulator, which has no model.
+
+What the phone will let the app ask of the model is its own constraint (#176, spec §4.3).
+`ReaderSession` in `ProseReaderKit` keeps one `LanguageModelSession` for a whole read instead of
+one a row, makes a fresh one every 16 requests so the transcript never fills the 4k window (and
+at once if it ever says it has), and waits out a `GenerationError.rateLimited` twice before
+giving a request up — then stops waiting altogether once three requests running have been given
+up on, so a phone whose model will not answer costs seconds, not an hour. `ReaderSessionTests`
+runs that loop against a counter, with no model involved. A read the model refused throughout is
+reported to the maker as "The on-device model is busy; try the check again in a minute"
+(`ImportRecord.modelBusySentence`), with `the on-device model is busy` as the record's `problem`;
+underneath that sentence the sheet offers **Why?**, which runs `ProseReader.probe()` — a
+one-line prompt with no instructions, the same prompt under the row instructions, then a
+structured answer — and prints which of the three is the first the phone refuses, beside what
+the scene was doing when the check started. The simulator has no model, so that is the only
+place those three questions can be asked. The screen is held awake for a check or a rows-only
+read through `IdleTimer`, which counts holds so the Work screen and an import cannot cancel
+each other's.
 
 Driving it without a drag: `xcrun simctl launch <device> com.tylervick.graphghan --import <path>`,
 or `xcrun simctl openurl <device> "file://<path>"`, which goes through LaunchServices the way Files

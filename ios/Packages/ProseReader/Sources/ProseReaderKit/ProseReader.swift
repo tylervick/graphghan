@@ -106,11 +106,42 @@ public struct ProseReader: Sendable {
         "You read a crochet pattern's front matter and answer only from what the text says; "
         + "leave what it does not say empty or 0."
 
-    private var rowInstructionsInUse: String {
+    var rowInstructionsInUse: String {
         options.examples ? Self.rowInstructions + "\n" + Self.grammarExamples : Self.rowInstructions
     }
 
-    private func makeSession(instructions: String) -> LanguageModelSession {
+    /// What a row's `error` says when the model refused every attempt for being busy (#176). The
+    /// app matches this exact string to show a sentence a maker can act on instead of the raw
+    /// `GenerationError` text, so it is part of the reader's interface, not a message.
+    public static let busyMessage = ReaderFailure.modelBusy
+
+    /// The model refusing to answer because it is being asked too often. The `GenerationError`
+    /// case is the one CI's iOS 26 SDK names; an iOS 27 device may report the same refusal as
+    /// `LanguageModelError.rateLimited`, a type that SDK has no name for, and its description
+    /// carries the same sentence.
+    static func isBusy(_ error: any Error) -> Bool {
+        if let error = error as? LanguageModelSession.GenerationError, case .rateLimited = error { return true }
+        return String(describing: error).localizedCaseInsensitiveContains("rate limited")
+    }
+
+    /// The transcript filling the window, which a fresh session cures.
+    static func isContextFull(_ error: any Error) -> Bool {
+        if let error = error as? LanguageModelSession.GenerationError, case .exceededContextWindowSize = error { return true }
+        return String(describing: error).localizedCaseInsensitiveContains("context window")
+    }
+
+    /// A session with no instructions at all, which is the smallest thing the model can be
+    /// asked for (`ModelProbe`'s first step).
+    func bareSession() -> LanguageModelSession {
+        #if compiler(>=6.4)
+        if case .cloud = model, #available(macOS 27.0, iOS 27.0, *) {
+            return LanguageModelSession(model: PrivateCloudComputeLanguageModel())
+        }
+        #endif
+        return LanguageModelSession(model: .default)
+    }
+
+    func makeSession(instructions: String) -> LanguageModelSession {
         switch model {
         case .onDevice:
             return LanguageModelSession(model: .default, instructions: instructions)
@@ -173,19 +204,21 @@ public struct ProseReader: Sendable {
             }
             rows.append(row)
         }
-        var session: LanguageModelSession? = nil
+        // One session for the whole read, turned over before it fills and asked again when the
+        // model says it is busy (#176); `reuseSession` false keeps the Mac tool's session per
+        // request, which is what the breadth measurements were taken with.
+        var holder = ReaderSession<LanguageModelSession>(
+            reuse: options.reuseSession, isBusy: Self.isBusy, isContextFull: Self.isContextFull,
+            make: { makeSession(instructions: rowInstructionsInUse) })
         for (index, text) in pages.enumerated() {
             let pageNo = index + 1
             let blocks = RowText.blocks(in: text)
             if blocks.isEmpty { continue }
             if options.batching == .page {
-                if session == nil || !options.reuseSession {
-                    session = makeSession(instructions: rowInstructionsInUse)
-                }
                 let prompt = "Transcribe every row in this text:\n" + blocks.joined(separator: "\n")
                 do {
-                    let got = try await session!.respond(to: prompt, generating: RowsPageOut.self)
-                    for (i, r) in got.content.rows.enumerated() {
+                    let got = try await holder.answer { try await $0.respond(to: prompt, generating: RowsPageOut.self).content }
+                    for (i, r) in got.rows.enumerated() {
                         let source = i < blocks.count ? blocks[i] : blocks.last ?? ""
                         rows.append(
                             ProseDocument.Row(
@@ -198,9 +231,8 @@ public struct ProseReader: Sendable {
                         rows.append(
                             ProseDocument.Row(
                                 row: 0, page: pageNo, text: source, runs: [], total: nil,
-                                error: String(describing: error).prefix(200).description))
+                                error: Self.failureText(error)))
                     }
-                    session = nil
                 }
                 progress?(ReaderProgress(page: pageNo, rowsSoFar: rows.count, rowsTotal: rowsTotal, seconds: Date().timeIntervalSince(started)))
                 continue
@@ -251,20 +283,18 @@ public struct ProseReader: Sendable {
                 var failure: String? = nil
                 var invented = 0  // runs the model answered with codes this row never printed
                 for (k, part) in parts.enumerated() {
-                    if session == nil || !options.reuseSession {
-                        session = makeSession(instructions: rowInstructionsInUse)
-                    }
                     let label = parts.count > 1 ? " (part \(k + 1) of \(parts.count) of one row)" : ""
                     do {
-                        let got = try await session!.respond(to: "Transcribe this row\(label):\n" + part, generating: WrittenRowOut.self)
-                        if rowNo == 0 { rowNo = got.content.row }  // only when the head carried none
-                        let cleaned = RowText.cleanRuns(got.content.runs, key: key, printed: printedCodes, spellings: &spellings, text: part)
-                        if cleaned.isEmpty, !got.content.runs.isEmpty { invented += got.content.runs.count }
+                        let got = try await holder.answer {
+                            try await $0.respond(to: "Transcribe this row\(label):\n" + part, generating: WrittenRowOut.self).content
+                        }
+                        if rowNo == 0 { rowNo = got.row }  // only when the head carried none
+                        let cleaned = RowText.cleanRuns(got.runs, key: key, printed: printedCodes, spellings: &spellings, text: part)
+                        if cleaned.isEmpty, !got.runs.isEmpty { invented += got.runs.count }
                         runs = RowText.join(runs, cleaned)
-                        if total == nil, got.content.total > 0 { total = got.content.total }
+                        if total == nil, got.total > 0 { total = got.total }
                     } catch {
-                        failure = String(describing: error).prefix(200).description
-                        session = nil
+                        failure = Self.failureText(error)
                         break
                     }
                 }
@@ -297,12 +327,20 @@ public struct ProseReader: Sendable {
         return doc
     }
 
+    /// What a failed request leaves on the row. A busy model gets the one string the app matches
+    /// (#176); anything else keeps its own description, clipped.
+    static func failureText(_ error: any Error) -> String {
+        isBusy(error) ? busyMessage : String(describing: error).prefix(200).description
+    }
+
     private func readFront(pages: [String]) async -> ProseDocument {
         var doc = ProseDocument()
-        let session = makeSession(instructions: Self.frontInstructions)
+        var holder = ReaderSession<LanguageModelSession>(
+            reuse: true, isBusy: Self.isBusy, isContextFull: Self.isContextFull,
+            make: { makeSession(instructions: Self.frontInstructions) })
         for text in pages.prefix(3) where !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             let clipped = String(text.prefix(5000))
-            guard let got = try? await session.respond(to: "Read this page:\n" + clipped, generating: FrontOut.self).content
+            guard let got = try? await holder.answer({ try await $0.respond(to: "Read this page:\n" + clipped, generating: FrontOut.self).content })
             else { continue }
             var pattern = doc.pattern ?? [:]
             if !got.title.isEmpty, pattern["title"] == nil { pattern["title"] = got.title }
