@@ -294,10 +294,13 @@ import Testing
     }
 
     @Test func runsReportTheLongestAndEverySegmentAtLeastMinPx() {
-        let m = Self.mask(["#.", "#.", "#.", "..", "..", "..", "..", "..", "#.", "#."])
+        // A gap of seven survives the closing (radius 3 bridges up to six); a gap of five would not.
+        let m = Self.mask(["#.", "#.", "#.", "..", "..", "..", "..", "..", "..", "..", "#.", "#."])
         let (best, segments) = GridLines.runs(m, minPx: 2)
         #expect(best == [3, 0])
-        #expect(segments[0].map { [$0.0, $0.1] } == [[0, 2], [8, 9]] && segments[1].isEmpty)
+        #expect(segments[0].map { [$0.0, $0.1] } == [[0, 2], [10, 11]] && segments[1].isEmpty)
+        let bridged = GridLines.runs(Self.mask(["#", "#", "#", ".", ".", ".", ".", ".", "#", "#"]), minPx: 2)
+        #expect(bridged.best == [10] && bridged.segments[0].map { [$0.0, $0.1] } == [[0, 9]])
     }
 
     @Test func linesMergeNeighbouringColumnsWithinMergePx() {
@@ -307,7 +310,7 @@ import Testing
         let lines = GridLines.lines(Self.mask(rows), minPx: 40)
         #expect(lines.count == 2)
         #expect(abs(lines[0].centre - 2.5) < 0.01 && abs(lines[1].centre - 20) < 0.01)
-        #expect(lines[0].segments.count == 2 && lines[1].segments == [(0, 49)])
+        #expect(lines[0].segments.count == 2 && lines[1].segments.map { [$0.0, $0.1] } == [[0, 49]])
     }
 
     @Test func clustersSplitWhereTheGapJumpsAndPitchIsTheMeanUnitGap() {
@@ -322,7 +325,8 @@ import Testing
     @Test func aLineFitsAGridWhenASegmentCoversHalfOfItOrLiesHalfInside() {
         #expect(GridLines.fits((centre: 0, segments: [(0, 60)]), lo: 0, hi: 100))
         #expect(GridLines.fits((centre: 0, segments: [(90, 110)]), lo: 0, hi: 100))   // half inside
-        #expect(!GridLines.fits((centre: 0, segments: [(0, 40)]), lo: 0, hi: 100))
+        #expect(GridLines.fits((centre: 0, segments: [(0, 40)]), lo: 0, hi: 100))     // wholly inside, though short
+        #expect(!GridLines.fits((centre: 0, segments: [(90, 200)]), lo: 0, hi: 100))  // mostly outside
     }
 }
 ```
