@@ -719,7 +719,7 @@ import PDFKit
 
 /// PDFKit on macOS rendering a page for the tests, the way the app's `PageRenderer` will on iOS.
 enum PageRender {
-    struct Header { let cols: Int; let rows: Int }
+    struct Header { let cols: Int; let rows: Int; let colFrom: Int; let colTo: Int; let rowFrom: Int; let rowTo: Int }
 
     static let headerRe = try! NSRegularExpression(pattern: #"^Chart (\d+) of (\d+): columns (\d+)-(\d+) of (\d+), rows (\d+)-(\d+) of (\d+)"#)
 
@@ -730,7 +730,7 @@ enum PageRender {
             let range = NSRange(text.startIndex..., in: text)
             guard let m = headerRe.firstMatch(in: text, range: range) else { continue }
             func n(_ k: Int) -> Int { Int(text[Range(m.range(at: k), in: text)!])! }
-            return (page, Header(cols: n(4) - n(3) + 1, rows: n(7) - n(6) + 1))
+            return (page, Header(cols: n(4) - n(3) + 1, rows: n(7) - n(6) + 1, colFrom: n(3), colTo: n(4), rowFrom: n(6), rowTo: n(7)))
         }
         return nil
     }
@@ -1517,12 +1517,25 @@ Append to `RowsChartTests.swift`:
     }
 
     @Test func tooManyDisagreementsMeanTheOrientationIsWrong() {
-        // Two colours, 4×4: the written rows are the grid flipped top to bottom.
-        let grid: [UInt8] = [0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1]
-        let rows = [Row(row: 1, runs: [("A", 4)], total: nil), Row(row: 2, runs: [("A", 4)], total: nil),
-                    Row(row: 3, runs: [("B", 4)], total: nil), Row(row: 4, runs: [("B", 4)], total: nil)]
-        let outcome = RowsChart.crossCheck(rows: rows, codes: ["A", "B"], grid: grid, width: 4, height: 4)
-        #expect(outcome == .incomparable("4 of 4 rows disagree with the chart; the row-1 position or direction is probably wrong, not the rows. The grid matches when flipped top to bottom: chart.row1 probably starts at the other edge."))
+        // Two colours, 4 × 20, rows alternating AAAB / BBBA. Three wrong rows are more than a tenth
+        // and refused; two are named. (A whole-chart flip cannot be tested here: the majority
+        // vote that pairs chart colours with codes absorbs it on a two-colour chart, as the
+        // Python's does.)
+        var grid: [UInt8] = []
+        for y in 0..<20 { grid += y % 2 == 0 ? [0, 0, 0, 1] : [1, 1, 1, 0] }
+        func rows(wrong: [Int]) -> [Row] {
+            (1...20).map { r in
+                let y = 20 - r
+                var runs: [(code: String, count: Int)] = y % 2 == 0 ? [("A", 3), ("B", 1)] : [("B", 3), ("A", 1)]
+                if wrong.contains(r) { runs = y % 2 == 0 ? [("A", 1), ("B", 1), ("A", 1), ("B", 1)] : [("B", 1), ("A", 1), ("B", 1), ("A", 1)] }
+                if r % 2 == 1 { runs.reverse() }  // RS rows are written right to left
+                return Row(row: r, runs: runs, total: nil)
+            }
+        }
+        #expect(RowsChart.crossCheck(rows: rows(wrong: [5, 9, 13]), codes: ["A", "B"], grid: grid, width: 4, height: 20)
+                == .incomparable("3 of 20 rows disagree with the chart; the row-1 position or direction is probably wrong, not the rows."))
+        #expect(RowsChart.crossCheck(rows: rows(wrong: [5, 9]), codes: ["A", "B"], grid: grid, width: 4, height: 20)
+                == .compared(disagree: [5, 9], warnings: []))
     }
 
     @Test func rowsThatDoNotAssembleOrPairAreIncomparable() {
@@ -1697,7 +1710,7 @@ Append inside `RowsChart`:
         for g in 0..<clusterCount {
             var counts = [Int](repeating: 0, count: codes.count)
             var total = 0
-            for i in 0..<grid.count where Int(grid[i]) == g, let w = written[i] { counts[Int(w)] += 1; total += 1 }
+            for i in 0..<grid.count where Int(grid[i]) == g { if let w = written[i] { counts[Int(w)] += 1; total += 1 } }
             guard total > 0 else { continue }
             let k = counts.indices.max { counts[$0] != counts[$1] ? counts[$0] < counts[$1] : $0 > $1 }!  // first of the most frequent
             let share = Double(counts[k]) / Double(total)
