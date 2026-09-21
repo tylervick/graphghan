@@ -7,6 +7,8 @@ options:
 packages:
   GraphghanCore:
     path: Packages/GraphghanCore
+  ProseReader:
+    path: Packages/ProseReader
 settings:
   base:
     SWIFT_VERSION: "6.0"
@@ -35,6 +37,8 @@ targets:
       - path: Fonts
     dependencies:
       - package: GraphghanCore
+      - package: ProseReader
+        product: ProseReaderKit
       - target: GraphghanWidgets
     entitlements:
       path: Graphghan/Graphghan.entitlements

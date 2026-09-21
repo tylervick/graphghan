@@ -146,9 +146,11 @@ public struct ChartDocument: Decodable, Sendable {
     public let passes: JSONValue?
     public let instructions: [Instruction]
     public let foundation: Foundation?
+    /// `ext.graphghan.import` and the like; nil when the document has none. Never validated.
+    public let ext: JSONValue?
 
     enum CodingKeys: String, CodingKey {
-        case schema, pattern, chart, generator, palette, rows, layers, gauge, technique, passes, instructions, foundation
+        case schema, pattern, chart, generator, palette, rows, layers, gauge, technique, passes, instructions, foundation, ext
     }
 
     public init(from decoder: Decoder) throws {
@@ -166,6 +168,8 @@ public struct ChartDocument: Decodable, Sendable {
         passes = rawPasses == .null ? nil : rawPasses
         instructions = try c.decodeIfPresent([Instruction].self, forKey: .instructions) ?? []
         foundation = try c.decodeIfPresent(Foundation.self, forKey: .foundation)
+        let rawExt = try c.decodeIfPresent(JSONValue.self, forKey: .ext)
+        ext = rawExt == .null ? nil : rawExt
     }
 
     public static func decode(_ data: Data) throws -> ChartDocument {
