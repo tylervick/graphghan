@@ -69,13 +69,16 @@ but whose tag did not land.
 
 ## TestFlight feedback
 
-`.github/workflows/testflight-feedback.yml` runs `ios/Scripts/testflight-feedback.sh` every 30
-minutes. Each TestFlight screenshot submission or crash submission becomes one issue labelled
+`.github/workflows/testflight-feedback.yml` runs every 30 minutes. It only names the bundle id and
+the schedule: the importer itself lives in
+[tylervick/testflight-feedback](https://github.com/tylervick/testflight-feedback), which three apps
+share, and is pinned there by commit sha. Each TestFlight screenshot submission or crash
+submission becomes one issue labelled
 `bug`, `ios`, and `testflight-feedback`, with the comment, build number, device, OS, locale, the
 screenshots, or the crash log collapsed. Screenshots are assets on the `testflight-feedback`
 pre-release (stable URLs; Apple's expire). The tester's email is never read; the repo is public.
 
-An issue is never opened twice: the script lists issues by the `testflight-feedback` label and
+An issue is never opened twice: the importer lists issues by the `testflight-feedback` label and
 reads the `<!-- testflight-feedback:<id> -->` marker each body ends with. Deleting an issue makes
 the next run recreate it; close it instead.
 
@@ -86,11 +89,20 @@ To see what a run would do without opening anything, Actions › TestFlight feed
 with `dry_run` ticked, or locally with the keychain credentials:
 
 ```bash
-ios/Scripts/with-asc-credentials.sh ios/Scripts/testflight-feedback.sh --dry-run
+ios/Scripts/with-asc-credentials.sh \
+    ~/repos/testflight-feedback/scripts/testflight-feedback.sh \
+    --bundle-id com.tylervick.graphghan --dry-run
 ```
+
+Run it from this checkout: without `--repo`, the importer opens issues in whatever repository the
+working directory belongs to.
 
 The first real run imports every submission App Store Connect still holds (up to 50 of each kind),
 so run a dry run first if the app has been on TestFlight for a while.
+
+`asc-jwt.sh` exists in both repositories. This one is used by the release path
+(`upload.sh`, `whats-to-test.sh`); the importer carries its own copy, so a change here does not
+reach it.
 
 Scheduled workflows are best-effort: GitHub may delay or skip a run under load, and it disables a
 repository's schedules after 60 days with no activity, so re-enable it from the Actions tab if the

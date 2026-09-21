@@ -1,8 +1,9 @@
 name: TestFlight feedback
 
 # Every 30 minutes, TestFlight screenshot and crash submissions become GitHub issues (one each,
-# never twice) via ios/Scripts/testflight-feedback.sh. Manual dispatch exists for a dry run and
-# for "I know feedback just arrived".
+# never twice). The importer itself lives in tylervick/testflight-feedback, which three apps share;
+# this file only says which app and how often. Manual dispatch exists for a dry run and for "I know
+# feedback just arrived".
 on:
   schedule:
     - cron: '*/30 * * * *'
@@ -23,38 +24,20 @@ permissions: {}
 
 jobs:
   import:
-    name: Import feedback as issues
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    # issues: write for gh issue create and gh label create; contents: write for gh release
-    # create/upload, which is where the screenshots live.
+    uses: tylervick/testflight-feedback/.github/workflows/import.yml@6b611aa5cf08b392a955a1a3a208ef56b94d9c72 # v1.0.0
+    with:
+      bundle-id: com.tylervick.graphghan
+      dry-run: ${{ inputs.dry_run || false }}
+    # A called workflow cannot hold more than its caller grants, and the default is read-only, so
+    # these have to be repeated here: issues: write to open issues, contents: write for the
+    # pre-release the screenshots hang off.
     permissions:
       issues: write
       contents: write
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-        with: {persist-credentials: false}
-
-      # No set -x: a decoded .p8 is multi-line PEM and GitHub's masking needs a single-line match.
-      - name: Install the App Store Connect key
-        env:
-          ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
-          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
-        run: |
-          umask 077
-          printf '%s' "$ASC_PRIVATE_KEY" | /usr/bin/base64 --decode > "$RUNNER_TEMP/AuthKey_${ASC_KEY_ID}.p8"
-
-      - name: Import feedback
-        env:
-          ASC_KEY_PATH: ${{ runner.temp }}/AuthKey_${{ secrets.ASC_KEY_ID }}.p8
-          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
-          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
-          GH_TOKEN: ${{ github.token }}
-          DRY_RUN: ${{ inputs.dry_run }}
-        run: |
-          if [ "$DRY_RUN" = "true" ]; then ios/Scripts/testflight-feedback.sh --dry-run
-          else ios/Scripts/testflight-feedback.sh; fi
-
-      - name: Delete the decoded key
-        if: always()
-        run: rm -f "$RUNNER_TEMP"/AuthKey_*.p8
+    # Named rather than `secrets: inherit`: this repository also holds the signing certificate,
+    # the provisioning profiles and their passwords, and the importer has no business seeing any
+    # of them.
+    secrets:
+      ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
