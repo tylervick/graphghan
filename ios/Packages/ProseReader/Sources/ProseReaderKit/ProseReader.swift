@@ -116,18 +116,34 @@ public struct ProseReader: Sendable {
     public static let busyMessage = ReaderFailure.modelBusy
 
     /// The model refusing to answer because it is being asked too often. The `GenerationError`
-    /// case is the one CI's iOS 26 SDK names; an iOS 27 device may report the same refusal as
-    /// `LanguageModelError.rateLimited`, a type that SDK has no name for, and its description
-    /// carries the same sentence.
+    /// case is the one CI's iOS 26 SDK names and is how this is decided on the devices the app
+    /// ships to; the text below is a fallback for an iOS 27 device, which reports the same
+    /// refusal as `LanguageModelError.rateLimited`, a type that SDK has no name for.
     static func isBusy(_ error: any Error) -> Bool {
-        if let error = error as? LanguageModelSession.GenerationError, case .rateLimited = error { return true }
-        return String(describing: error).localizedCaseInsensitiveContains("rate limited")
+        if let error = error as? LanguageModelSession.GenerationError {
+            if case .rateLimited = error { return true }
+            return false
+        }
+        return Self.describes(error, "ratelimited")
     }
 
     /// The transcript filling the window, which a fresh session cures.
     static func isContextFull(_ error: any Error) -> Bool {
-        if let error = error as? LanguageModelSession.GenerationError, case .exceededContextWindowSize = error { return true }
-        return String(describing: error).localizedCaseInsensitiveContains("context window")
+        if let error = error as? LanguageModelSession.GenerationError {
+            if case .exceededContextWindowSize = error { return true }
+            return false
+        }
+        return Self.describes(error, "contextwindow")
+    }
+
+    /// Whether an error names itself with `word`, spaces and case ignored, so that both spellings
+    /// the framework uses are one word: the Swift case (`rateLimited`) and the bridged sentence
+    /// ("Request has been rate limited"). Reached only for an error whose type this SDK cannot
+    /// name -- an iOS 27 device's `LanguageModelError`. An error this SDK does name is decided by
+    /// its case above and never by its prose, or a `decodingFailure` whose context happens to
+    /// mention a rate limit would be waited out as one.
+    static func describes(_ error: any Error, _ word: String) -> Bool {
+        String(describing: error).lowercased().filter { !$0.isWhitespace }.contains(word)
     }
 
     /// A session with no instructions at all, which is the smallest thing the model can be

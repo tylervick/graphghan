@@ -1,4 +1,5 @@
 import Foundation
+import FoundationModels
 import Testing
 
 @testable import ProseReaderKit
@@ -163,5 +164,42 @@ import Testing
             return "read"
         }
         #expect(seen == [2])
+    }
+}
+
+/// What the reader counts as "the model is busy" and what it does not (#176). The typed case is
+/// how it is decided on the devices the app ships to; the text is a fallback for an iOS 27
+/// device, whose `LanguageModelError` CI's iOS 26 SDK cannot name.
+@Suite struct ModelErrorTests {
+    struct Spelled: Error, CustomStringConvertible {
+        let description: String
+    }
+
+    @Test func theRateLimitCaseIsBusyAndItsNeighboursAreNot() {
+        let context = LanguageModelSession.GenerationError.Context(debugDescription: "Request has been rate limited.")
+        #expect(ProseReader.isBusy(LanguageModelSession.GenerationError.rateLimited(context)))
+        // The context text says "rate limited" on both of these on purpose: a type this SDK
+        // names is decided by its case, never by its prose.
+        #expect(!ProseReader.isBusy(LanguageModelSession.GenerationError.guardrailViolation(context)))
+        #expect(!ProseReader.isBusy(LanguageModelSession.GenerationError.decodingFailure(context)))
+        #expect(ProseReader.isContextFull(LanguageModelSession.GenerationError.exceededContextWindowSize(context)))
+        #expect(!ProseReader.isContextFull(LanguageModelSession.GenerationError.rateLimited(context)))
+    }
+
+    /// Both spellings the framework uses -- the Swift case and the bridged sentence -- are the
+    /// one word once the spaces are gone, which is what the fallback looks for.
+    @Test func eitherSpellingOfARateLimitIsRecognised() {
+        #expect(ProseReader.isBusy(Spelled(description: "rateLimited(Context(debugDescription: \"…\"))")))
+        #expect(ProseReader.isBusy(Spelled(description: "Error Domain=… Request has been rate limited. Please try again later.")))
+        #expect(ProseReader.isContextFull(Spelled(description: "exceededContextWindowSize(…)")))
+        #expect(ProseReader.isContextFull(Spelled(description: "the context window is full")))
+        #expect(!ProseReader.isBusy(Spelled(description: "the network rate is limited")))
+        #expect(!ProseReader.isBusy(Spelled(description: "guardrailViolation(…)")))
+    }
+
+    @Test func aBusyRowCarriesTheWordsTheAppMatchesAndAnyOtherKeepsItsOwn() {
+        let context = LanguageModelSession.GenerationError.Context(debugDescription: "Request has been rate limited.")
+        #expect(ProseReader.failureText(LanguageModelSession.GenerationError.rateLimited(context)) == ReaderFailure.modelBusy)
+        #expect(ProseReader.failureText(Spelled(description: "no colour named")) == "no colour named")
     }
 }
