@@ -102,6 +102,10 @@ public struct ProseReader: Sendable {
         - "Row 12 (WS): ch 1, turn, 8 A, 14 B, 8 A (30 sts)" → row 12, runs A 8, B 14, A 8, total 30.
         """
 
+    /// The front-matter instructions, reachable by `LimitReport` so its large prompt is the one
+    /// `readFront` actually sends rather than something like it.
+    static var frontProbeInstructions: String { frontInstructions }
+
     private static let frontInstructions =
         "You read a crochet pattern's front matter and answer only from what the text says; "
         + "leave what it does not say empty or 0."

@@ -117,7 +117,12 @@ looks exactly like one that follows their content. It prints which question was 
 and what that licenses concluding, beside what the scene was doing when the check started. Only
 the availability step can run without a model, so on the simulator the report says just that
 there is none: the three questions need a physical iPhone with Apple Intelligence, which is the
-only place the refusal happens anyway. The screen is held awake for a check or a rows-only
+only place the refusal happens anyway. When all three answer -- which is what the first device
+run found -- the refusal is in none of them, and a second button offers
+`ProseReader.measureRequestLimit` (`LimitReport`): the same small request up to thirty times in
+a row, then one 5000-character prompt of the kind `readFront` sends followed by a small one, then
+waits of 15, 30 and 60 s to see what clears a refusal. It takes a few minutes and exists to put a
+measured number under the pacing, rather than a guess. The screen is held awake for a check or a rows-only
 read through `IdleTimer`, which counts holds so the Work screen and an import cannot cancel
 each other's.
 

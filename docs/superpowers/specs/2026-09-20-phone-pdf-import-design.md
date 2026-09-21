@@ -334,7 +334,12 @@ id ignores `ext`.
   colours; the phone's hash is pinned beside the Mac's in `manifest.toml` and the fold-in rule is
   #167.
 - Orca's check to completion on an iPhone with Apple Intelligence, 77 of 77 rows, is #176's
-  acceptance test: the first attempt (TestFlight, main at 829014c) was refused from the first row
-  with "Request has been rate limited", and the retry, the one reused session and the sentence in
-  §4.3 are the answer to it. Not yet run on a device with those in; the time goes here when it is.
+  acceptance test. Two device runs so far, neither of them a pass. The first (TestFlight, main at
+  829014c) was refused with "Request has been rate limited". The second, 2026-09-21, carried the
+  retry, the one reused session and the turnover of §4.3 and was refused again — so a session per
+  row was not the cause — while the probe on the same phone answered a bare prompt in 1.9 s, the
+  same prompt under the 1308-character instructions in 1.9 s and a structured row in 2.9 s, with
+  the app active throughout. The refusal therefore follows the volume of requests rather than any
+  one of them, and what the limit actually counts is being measured on the device
+  (`LimitReport`) before the reader is paced to it. The time goes here when a run passes.
 - Every failure in §5.4 shows its sentence and leaves the library untouched.

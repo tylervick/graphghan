@@ -387,6 +387,25 @@ final class AppModel {
         state.probe = await reader.probe(context: context)
     }
 
+    /// "Measure the limit": the three probes all answered, so the refusal is not in any single
+    /// request and the question is how many of them this phone will take (#176). Minutes long,
+    /// and the screen is held awake for it.
+    func measureModelLimit() async {
+        guard let state = pdfImport, !state.measuring, state.limits == nil else { return }
+        guard #available(iOS 26, *), let reader = rowReader as? ProseReader else { return }
+        state.measuring = true
+        state.measuringStep = "starting"
+        IdleTimer.hold()
+        defer {
+            IdleTimer.release()
+            state.measuring = false
+        }
+        let context = ["the app was \(Self.describe(UIApplication.shared.applicationState)) while measuring"]
+        state.limits = await reader.measureRequestLimit(context: context) { step in
+            Task { @MainActor in state.measuringStep = step }
+        }
+    }
+
     /// "Skip the check": the reader stops between rows; what it read is compared and recorded.
     func skipPDFCheck() {
         pdfImport?.checkTask?.cancel()

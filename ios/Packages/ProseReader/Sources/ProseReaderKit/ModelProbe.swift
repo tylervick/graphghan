@@ -23,6 +23,12 @@ public struct ModelProbe: Sendable, Equatable {
         /// The bare prompt asked again after a later one was refused: the control that tells
         /// "this request's content is refused" apart from "another request is refused".
         case control
+        /// `LimitReport`: small requests asked one after another, to find how many are allowed.
+        case burst
+        /// `LimitReport`: one prompt the size the front-matter read sends.
+        case bigPrompt
+        /// `LimitReport`: whether a refusal clears on its own, and after how long.
+        case recovery
     }
 
     public struct Step: Sendable, Equatable {
@@ -61,6 +67,8 @@ public struct ModelProbe: Sendable, Equatable {
         switch failed.kind {
         case .availability:
             return "There is no model to ask on this iPhone, so nothing below was run."
+        case .burst, .bigPrompt, .recovery:
+            return "Measured by `LimitReport`, which words its own finding."
         case .bare, .control:
             return "The first one-line request, with no instructions and no structure, was refused. Nothing smaller can be asked, so this is the app's relationship with the model rather than anything in the reader's prompts."
         case .instructed:
