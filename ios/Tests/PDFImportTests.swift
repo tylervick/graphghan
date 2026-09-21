@@ -264,6 +264,16 @@ import ProseReaderKit
         #expect(record2.check == .finished && record2.rowsDisagree == [5] && record2.problem == nil)
     }
 
+    @Test func aRowTheReaderCouldNotReadMakesTheCheckIncomparableNotSilentlyClean() async throws {
+        var doc = Self.chartDocument()
+        doc.written_rows?[4].runs = []
+        doc.written_rows?[4].error = "no colour named"
+        let importer = try await make().importer(rowReader: StubRowReader(document: doc, delayPerRow: .zero))
+        let record = await importer.check(try await importer.read(try #require(PDFTestDocuments.chart(rows: true)), fileName: "drawn.pdf"), progress: nil)
+        #expect(record.check == .finished && record.problem == "row 5: no colour named" && record.rowsDisagree.isEmpty)
+        #expect(record.sentence == "Written rows could not be compared with the chart: row 5: no colour named.")
+    }
+
     @Test func withoutAModelTheCheckIsUnavailableAndWithoutRowsThereIsNone() async throws {
         let none = try await make().importer(rowReader: nil, modelUnavailable: "needs iOS 26")
         let reading = try await none.read(try #require(PDFTestDocuments.chart(rows: true)), fileName: "drawn.pdf")

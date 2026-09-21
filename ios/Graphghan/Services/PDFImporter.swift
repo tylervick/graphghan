@@ -162,7 +162,11 @@ struct PDFImporter: Sendable {
         }
         guard let best, let page = document.page(at: best.page), let image = PageRenderer.image(page) else { return nil }
         let patternTitle = title.isEmpty ? Self.stem(fileName) : title
-        let (draft, _, gridWarnings) = GridChart.draft(image: image, region: best.region, title: patternTitle)
+        let draft: ChartDraft
+        let gridWarnings: [String]
+        do { (draft, _, gridWarnings) = try GridChart.draft(image: image, region: best.region, title: patternTitle) }
+        catch GridColoursError.tooManyColours(let n) { throw .invalidChart("the chart has \(n) colours, more than the 256 a chart can hold") }
+        catch { throw .invalidChart("\(error)") }
         return try await assemble(draft: draft, title: patternTitle, version: "0.1.0", fileName: fileName, texts: texts,
                                   source: .grid(page: best.page + 1, rowsToCheck: RowText.rowCount(in: texts)), warnings: warnings + gridWarnings)
     }
@@ -176,13 +180,20 @@ struct PDFImporter: Sendable {
         guard let rowReader else { record.check = .unavailable; return record }
         progress?(.checking(done: 0, of: total))
         let doc = await rowReader.read(pages: reading.pageTexts) { p in progress?(.checking(done: p.rowsSoFar, of: p.rowsTotal)) }
-        let stopped = Task.isCancelled
-        let all = (doc.written_rows ?? []).filter { $0.error == nil && !$0.runs.isEmpty }
+        let all = doc.written_rows ?? []
+        // A row the reader returned unread is named, never dropped, as the rows-only path does.
+        let unread = all.compactMap { r -> String? in
+            if let error = r.error { return "row \(r.row): \(error)" }
+            return r.runs.isEmpty ? "row \(r.row): no runs read" : nil
+        }
         let rows = all.map { RowsChart.Row(row: $0.row, runs: $0.runs.map(Self.run), total: $0.total) }
         var codes = (doc.palette ?? []).map(\.code)
         if codes.isEmpty { for r in rows { for run in r.runs where !codes.contains(run.code) { codes.append(run.code) } } }
+        // Cancel can land after the last row: a read that returned every row is finished.
+        let stopped = Task.isCancelled && all.count < total
         record.check = stopped ? .stopped : .finished
         record.rowsChecked = rows.map(\.row).max() ?? 0
+        guard unread.isEmpty else { record.problem = unread.joined(separator: "; "); return record }
         let chart = reading.bundle.charts[0].chart
         if let w = doc.chart?.width, let h = doc.chart?.height, w > 0, h > 0, (w, h) != (chart.width, chart.height) {
             record.problem = "written rows give \(w)x\(h), the chart reads \(chart.width)x\(chart.height)"

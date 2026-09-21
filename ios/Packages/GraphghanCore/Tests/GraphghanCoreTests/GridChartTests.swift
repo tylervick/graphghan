@@ -9,7 +9,7 @@ import Testing
     @Test func theSyntheticGridBecomesAChartWithCodesByFrequency() throws {
         let (img, answer) = try GridReaderTests.fixture("one-grid")
         let region = try #require(try GridReader.findRegions(img).first)
-        let (draft, cells, warnings) = GridChart.draft(image: img, region: region, title: "Synthetic")
+        let (draft, cells, warnings) = try GridChart.draft(image: img, region: region, title: "Synthetic")
         #expect(draft.width == 37 && draft.height == 29 && draft.rows.count == 29 && warnings.isEmpty)
         #expect(draft.palette.map(\.code) == ["A", "B", "C", "D"] && draft.palette.map(\.hex) == answer.cluster!.hexes)
         #expect(draft.palette.map(\.name) == answer.cluster!.hexes.compactMap(GridColours.nameColour))
@@ -28,6 +28,7 @@ import Testing
         #expect(rec(.finished, 77, [12, 40, 41]).sentence == "Rows 12, 40 and 41 disagree with the chart. The chart is as drawn; check those rows against the PDF.")
         #expect(rec(.finished, 77, [12]).sentence == "Row 12 disagrees with the chart. The chart is as drawn; check those rows against the PDF.")
         #expect(rec(.stopped, 34).sentence == "Written rows checked up to row 34; 35–77 not checked.")
+        #expect(rec(.stopped, 77).sentence == nil && rec(.stopped, 77, [3]).sentence == "Row 3 disagrees with the chart. The chart is as drawn; check those rows against the PDF.")  // stopped after the last row
         #expect(rec(.unavailable, 0).sentence == "Written rows not checked on this iPhone.")
         #expect(rec(.finished, 77, problem: "written rows give 30x77, the chart reads 29x77").sentence == "Written rows could not be compared with the chart: written rows give 30x77, the chart reads 29x77.")
         let json = rec(.stopped, 34, [3]).json()
@@ -39,7 +40,7 @@ import Testing
         let (page, header) = try #require(PageRender.firstChartPage(doc))
         let img = try #require(PageRender.image(page, scale: 4))
         let region = try #require(try GridReader.findRegions(img).first)
-        let (draft, cells, _) = GridChart.draft(image: img, region: region, title: "Craigh")
+        let (draft, cells, _) = try GridChart.draft(image: img, region: region, title: "Craigh")
         #expect(draft.width == header.cols && draft.height == header.rows)
         // The Mac's chart, sliced to this page: columns a-b, rows c-d, row 1 at the bottom right.
         let mac = try Chart.load(try Fixtures.data("craigh-na-dun.chart.json"))  // the final-sc chart, 189×184

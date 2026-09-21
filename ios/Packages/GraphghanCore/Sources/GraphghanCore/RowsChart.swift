@@ -121,7 +121,15 @@ public enum RowsChart {
         if !dup.isEmpty { problems.append("row " + dup.map(String.init).joined(separator: ", ") + " printed twice") }
         let beyond = counts.keys.filter { $0 > height || $0 < 1 }.sorted()
         if !beyond.isEmpty { problems.append("rows \(ranges(beyond)) are beyond the chart height \(height)") }
-        let index = Dictionary(uniqueKeysWithValues: codes.enumerated().map { ($0.element, UInt8($0.offset)) })
+        guard codes.count <= Int(UInt8.max) + 1 else {
+            problems.append("palette has \(codes.count) codes; at most \(Int(UInt8.max) + 1) are supported")
+            return .failure(Problems(sentences: problems))
+        }
+        var index: [String: UInt8] = [:]
+        for (i, code) in codes.enumerated() {
+            guard index[code] == nil else { problems.append("palette code '\(code)' appears twice"); return .failure(Problems(sentences: problems)) }
+            index[code] = UInt8(i)
+        }
         for r in rows {
             if let bad = r.runs.first(where: { index[$0.code] == nil }) {
                 problems.append("row \(r.row) uses code '\(bad.code)', not in the palette [\(codes.map { "\"\($0)\"" }.joined(separator: ", "))]")

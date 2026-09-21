@@ -1247,6 +1247,8 @@ public enum GridColoursError: Error, Equatable {
     case foreignColour(column: Int, row: Int, hex: String, nearest: String, distance: Int)
     /// A palette hex that is not `#rrggbb`, or no palette at all: nothing to snap to.
     case badPalette(String)
+    /// More distinct flat colours than a cell index holds (`cluster_palette` over a photo-like grid).
+    case tooManyColours(Int)
 }
 
 /// The colour half of `rasterchart.py`: Lab distances, snapping, greedy clustering, names.
@@ -1318,7 +1320,9 @@ public enum GridColours {
 
     /// Greedy clustering in Lab by frequency (`cluster_palette`): codes by cell count, a tiny
     /// cluster near a big one folded in with a warning, a colour on almost no cells warned about.
-    public static func clusterPalette(_ samples: [[(UInt8, UInt8, UInt8)]], radius: Double = 6) -> (cells: [[UInt8]], hexes: [String], warnings: [String]) {
+    public static let maximumColours = 256
+
+    public static func clusterPalette(_ samples: [[(UInt8, UInt8, UInt8)]], radius: Double = 6) throws -> (cells: [[UInt8]], hexes: [String], warnings: [String]) {
         // np.unique(flat, axis=0): distinct colours in lexicographic order, with counts.
         var counts: [UInt32: Int] = [:]
         for row in samples { for c in row { counts[UInt32(c.0) << 16 | UInt32(c.1) << 8 | UInt32(c.2), default: 0] += 1 } }
@@ -1366,6 +1370,7 @@ public enum GridColours {
         // Each cluster's colour is its most frequent member (the first, on a tie); every cluster
         // kept above has at least one member.
         let reps = members.map { m in m.max { count[$0] != count[$1] ? count[$0] < count[$1] : $0 > $1 } ?? 0 }
+        guard members.count <= maximumColours else { throw GridColoursError.tooManyColours(members.count) }
         let rank = members.indices.sorted { totals[$0] != totals[$1] ? totals[$0] > totals[$1] : $0 < $1 }
         var remap = [Int](repeating: 0, count: members.count)
         for (new, old) in rank.enumerated() { remap[old] = new }
@@ -1630,9 +1635,10 @@ public struct ImportRecord: Sendable, Equatable {
         switch check {
         case .noRows: return nil
         case .unavailable: return "Written rows not checked on this iPhone."
-        case .stopped:
+        case .stopped where rowsChecked < rowsTotal:
             let disagree = rowsDisagree.isEmpty ? "" : " " + Self.disagreeSentence(rowsDisagree)
             return "Written rows checked up to row \(rowsChecked); \(rowsChecked + 1)–\(rowsTotal) not checked." + disagree
+        case .stopped: return rowsDisagree.isEmpty ? nil : Self.disagreeSentence(rowsDisagree)  // stopped after the last row: nothing unchecked
         case .finished: return rowsDisagree.isEmpty ? nil : Self.disagreeSentence(rowsDisagree)
         }
     }
@@ -1653,9 +1659,10 @@ public struct ImportRecord: Sendable, Equatable {
 /// clustered by frequency and coded A, B, …, named by the nearest named colour, the format's
 /// default gauge since a picture prints none.
 public enum GridChart {
-    public static func draft(image: GridImage, region: Region, title: String) -> (draft: ChartDraft, cells: [UInt8], warnings: [String]) {
+    /// Throws `GridColoursError.tooManyColours` for a grid of more than 256 flat colours.
+    public static func draft(image: GridImage, region: Region, title: String) throws -> (draft: ChartDraft, cells: [UInt8], warnings: [String]) {
         let samples = GridReader.readRegion(image, region)
-        let (grid, hexes, warnings) = GridColours.clusterPalette(samples)
+        let (grid, hexes, warnings) = try GridColours.clusterPalette(samples)
         // The hexes are `GridColours.hex` output, so each has a name; the code is the fallback in case.
         let palette = hexes.enumerated().map { ChartDraft.Palette(code: GridColours.code($0.offset), name: GridColours.nameColour($0.element) ?? GridColours.code($0.offset), hex: $0.element) }
         let codes = palette.map(\.code)

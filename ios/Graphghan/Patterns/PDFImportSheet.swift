@@ -78,8 +78,10 @@ struct PDFImportSheet: View {
                                 Button("Skip the check") { model.skipPDFCheck() }.font(Font.Heather.caption)
                             }
                         case .done(let record):
-                            Text(record.sentence ?? "Written rows agree with the chart.")
-                                .font(Font.Heather.caption).foregroundStyle(Color.ink2).multilineTextAlignment(.center)
+                            // Nothing to say for a chart with no written rows; agreement only for a finished check.
+                            if let sentence = record.sentence ?? (record.check == .finished ? "Written rows agree with the chart." : nil) {
+                                Text(sentence).font(Font.Heather.caption).foregroundStyle(Color.ink2).multilineTextAlignment(.center)
+                            }
                         }
                         Button("Add to library") {
                             state.stage = .saving  // set before the save runs: no second tap, no cancel underneath it

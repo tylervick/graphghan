@@ -103,6 +103,15 @@ import Testing
                 == .compared(disagree: [5, 9], warnings: []))
     }
 
+    @Test func aPaletteWithADuplicateOrTooManyCodesIsIncomparableNotACrash() {
+        let grid: [UInt8] = [0, 1, 0, 1]
+        #expect(RowsChart.crossCheck(rows: [Row(row: 1, runs: [("A", 2)], total: nil)], codes: ["A", "A"], grid: grid, width: 2, height: 2)
+                == .incomparable("palette code 'A' appears twice"))
+        let many = (0..<257).map { "C\($0)" }
+        #expect(RowsChart.crossCheck(rows: [Row(row: 1, runs: [("C0", 2)], total: nil)], codes: many, grid: grid, width: 2, height: 2)
+                == .incomparable("palette has 257 codes; at most 256 are supported"))
+    }
+
     @Test func rowsThatDoNotAssembleOrPairAreIncomparable() {
         let grid: [UInt8] = [0, 1, 0, 1]
         #expect(RowsChart.crossCheck(rows: [Row(row: 1, runs: [("A", 1)], total: nil)], codes: ["A", "B"], grid: grid, width: 2, height: 2)

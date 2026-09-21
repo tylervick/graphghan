@@ -52,9 +52,10 @@ public struct ImportRecord: Sendable, Equatable {
         switch check {
         case .noRows: return nil
         case .unavailable: return "Written rows not checked on this iPhone."
-        case .stopped:
+        case .stopped where rowsChecked < rowsTotal:
             let disagree = rowsDisagree.isEmpty ? "" : " " + Self.disagreeSentence(rowsDisagree)
             return "Written rows checked up to row \(rowsChecked); \(rowsChecked + 1)–\(rowsTotal) not checked." + disagree
+        case .stopped: return rowsDisagree.isEmpty ? nil : Self.disagreeSentence(rowsDisagree)  // stopped after the last row: nothing unchecked
         case .finished: return rowsDisagree.isEmpty ? nil : Self.disagreeSentence(rowsDisagree)
         }
     }
@@ -75,9 +76,10 @@ public struct ImportRecord: Sendable, Equatable {
 /// clustered by frequency and coded A, B, …, named by the nearest named colour, the format's
 /// default gauge since a picture prints none.
 public enum GridChart {
-    public static func draft(image: GridImage, region: Region, title: String) -> (draft: ChartDraft, cells: [UInt8], warnings: [String]) {
+    /// Throws `GridColoursError.tooManyColours` for a grid of more than 256 flat colours.
+    public static func draft(image: GridImage, region: Region, title: String) throws -> (draft: ChartDraft, cells: [UInt8], warnings: [String]) {
         let samples = GridReader.readRegion(image, region)
-        let (grid, hexes, warnings) = GridColours.clusterPalette(samples)
+        let (grid, hexes, warnings) = try GridColours.clusterPalette(samples)
         // The hexes are `GridColours.hex` output, so each has a name; the code is the fallback in case.
         let palette = hexes.enumerated().map { ChartDraft.Palette(code: GridColours.code($0.offset), name: GridColours.nameColour($0.element) ?? GridColours.code($0.offset), hex: $0.element) }
         let codes = palette.map(\.code)
