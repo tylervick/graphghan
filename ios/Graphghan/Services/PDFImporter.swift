@@ -39,7 +39,7 @@ struct PDFImporter: Sendable {
         if OwnPDFReader.isOwn(pageTexts: texts) {
             return try await assembleOwn(texts: texts, title: title, fileName: fileName)
         }
-        // PR 3 of the phone import adds the grid reader here, before the rows.
+        if let grid = try await readGrid(document, texts: texts, title: title, fileName: fileName, progress: progress) { return grid }
         guard RowText.rowCount(in: texts) >= 2 else {
             // Every page nearly empty of text: the rows are printed as a picture (§4.4).
             throw thinPages == document.pageCount ? .rowsArePictures : .nothingFound
@@ -61,7 +61,7 @@ struct PDFImporter: Sendable {
         }
         let patternTitle = reading.pattern.title.isEmpty ? Self.stem(fileName) : reading.pattern.title
         let draft = ChartWriter.draft(from: reading, id: "")
-        return try await assemble(draft: draft, title: patternTitle, version: reading.pattern.version, fileName: fileName, source: .ownPDF)
+        return try await assemble(draft: draft, title: patternTitle, version: reading.pattern.version, fileName: fileName, texts: texts, source: .ownPDF, warnings: [])
     }
 
     // MARK: written rows alone (spec §4.3)
@@ -121,14 +121,11 @@ struct PDFImporter: Sendable {
         gauge.stitch = doc.gauge?.stitch.flatMap { $0.isEmpty ? nil : $0 } ?? "sc"
         gauge.hook = doc.gauge?.hook.flatMap { $0.isEmpty ? nil : $0 }
         gauge.yarnWeight = doc.gauge?.yarn_weight.flatMap { $0.isEmpty ? nil : $0 }
-        let ext: JSONValue = .object(["graphghan": .object(["import": .object([
-            "source": .string("pdf"), "grid": .bool(false), "check": .string("none"),
-            "rows_checked": .int(0), "rows_disagree": .array([]), "gauge_printed": .bool(gaugePrinted),
-        ])])])
+        let record = ImportRecord(grid: false, check: .noRows, rowsChecked: 0, rowsTotal: 0, rowsDisagree: [], gaugePrinted: gaugePrinted, problem: nil)
         let draft = ChartDraft(pattern: .init(id: "", title: patternTitle, version: "0.1.0"), palette: palette, rows: strings,
-                               width: width, height: height, gauge: gauge, ext: ext)
-        return try await assemble(draft: draft, title: patternTitle, version: "0.1.0", fileName: fileName,
-                                  source: .writtenRows(count: rows.count, gaugePrinted: gaugePrinted))
+                               width: width, height: height, gauge: gauge, ext: record.json())
+        return try await assemble(draft: draft, title: patternTitle, version: "0.1.0", fileName: fileName, texts: texts,
+                                  source: .writtenRows(count: rows.count, gaugePrinted: gaugePrinted), warnings: [])
     }
 
     /// `["A", 3]` from the reader's document as a run.
@@ -144,18 +141,82 @@ struct PDFImporter: Sendable {
         return (code, count)
     }
 
+    // MARK: a chart on a page (spec §4.2, §5.1 step 2)
+
+    /// The smallest grid that counts as a chart (spec §5.1).
+    static let minimumGridSide = 8
+
+    func readGrid(_ document: PDFDocument, texts: [String], title: String, fileName: String,
+                  progress: (@Sendable (PDFImportProgress) -> Void)?) async throws(PDFImportError) -> PDFImportReading? {
+        var best: (page: Int, region: Region)?
+        var warnings: [String] = []
+        for i in 0..<document.pageCount {
+            if Task.isCancelled { throw .cancelled }
+            guard let page = document.page(at: i) else { continue }
+            guard let image = PageRenderer.image(page) else { warnings.append("page \(i + 1) is too large to read"); continue }
+            let regions = (try? GridReader.findRegions(image)) ?? []  // tooLarge cannot happen under the budget
+            for r in regions where r.cols >= Self.minimumGridSide && r.rows >= Self.minimumGridSide {
+                if best == nil || r.cells > best!.region.cells { best = (i, r) }
+            }
+            progress?(.pages(done: i + 1, of: document.pageCount))
+        }
+        guard let best, let page = document.page(at: best.page), let image = PageRenderer.image(page) else { return nil }
+        let patternTitle = title.isEmpty ? Self.stem(fileName) : title
+        let (draft, _, gridWarnings) = GridChart.draft(image: image, region: best.region, title: patternTitle)
+        return try await assemble(draft: draft, title: patternTitle, version: "0.1.0", fileName: fileName, texts: texts,
+                                  source: .grid(page: best.page + 1, rowsToCheck: RowText.rowCount(in: texts)), warnings: warnings + gridWarnings)
+    }
+
+    /// The written rows read and compared with the chart (spec §4.2): the outcome as the record
+    /// the chart carries. Cancelling stops the reader between rows; what was read is compared.
+    func check(_ reading: PDFImportReading, progress: (@Sendable (PDFImportProgress) -> Void)?) async -> ImportRecord {
+        var record = ImportRecord(json: reading.draft.ext) ?? ImportRecord(grid: true, check: .noRows, rowsChecked: 0, rowsTotal: 0, rowsDisagree: [], gaugePrinted: false, problem: nil)
+        guard case .grid(_, let total) = reading.source, total > 0 else { record.check = .noRows; return record }
+        record.rowsTotal = total
+        guard let rowReader else { record.check = .unavailable; return record }
+        progress?(.checking(done: 0, of: total))
+        let doc = await rowReader.read(pages: reading.pageTexts) { p in progress?(.checking(done: p.rowsSoFar, of: p.rowsTotal)) }
+        let stopped = Task.isCancelled
+        let all = (doc.written_rows ?? []).filter { $0.error == nil && !$0.runs.isEmpty }
+        let rows = all.map { RowsChart.Row(row: $0.row, runs: $0.runs.map(Self.run), total: $0.total) }
+        var codes = (doc.palette ?? []).map(\.code)
+        if codes.isEmpty { for r in rows { for run in r.runs where !codes.contains(run.code) { codes.append(run.code) } } }
+        record.check = stopped ? .stopped : .finished
+        record.rowsChecked = rows.map(\.row).max() ?? 0
+        let chart = reading.bundle.charts[0].chart
+        if let w = doc.chart?.width, let h = doc.chart?.height, w > 0, h > 0, (w, h) != (chart.width, chart.height) {
+            record.problem = "written rows give \(w)x\(h), the chart reads \(chart.width)x\(chart.height)"
+            return record
+        }
+        guard !rows.isEmpty else { record.problem = "no written rows could be read"; return record }
+        switch RowsChart.crossCheck(rows: rows, codes: codes, grid: chart.cells, width: chart.width, height: chart.height, row1: doc.chart?.row1 ?? "bottom-right") {
+        case .compared(let disagree, _): record.rowsDisagree = disagree
+        case .incomparable(let why): record.problem = why
+        }
+        return record
+    }
+
     // MARK: the tail every reader shares (spec §5.3)
 
-    func assemble(draft: ChartDraft, title: String, version: String, fileName: String, source: PDFImportSource) async throws(PDFImportError) -> PDFImportReading {
+    func assemble(draft: ChartDraft, title: String, version: String, fileName: String, texts: [String],
+                  source: PDFImportSource, warnings: [String]) async throws(PDFImportError) -> PDFImportReading {
         var draft = draft
-        let slug = await Self.uniqueSlug(Self.slug(title), in: local)
-        draft.pattern.id = slug
+        draft.pattern.id = await Self.uniqueSlug(Self.slug(title), in: local)
+        let (bundle, preview, chart) = try Self.bundle(for: draft, title: title, version: version, fileName: fileName)
+        return PDFImportReading(bundle: bundle, preview: preview, width: chart.width, height: chart.height, colours: chart.palette.count,
+                                source: source, draft: draft, title: title, version: version, fileName: fileName, pageTexts: texts, warnings: warnings)
+    }
+
+    /// The chart, its preview and its manifest from a draft whose id is the slug; `save` rebuilds
+    /// them when the check's record goes into the draft.
+    static func bundle(for draft: ChartDraft, title: String, version: String, fileName: String) throws(PDFImportError) -> (PatternBundle, Data, Chart) {
+        let slug = draft.pattern.id
         let (chartData, chartID) = ChartWriter.encode(draft)
         let chart: Chart
         do { chart = try Chart.load(chartData) } catch { throw .invalidChart("\(error)") }
         guard let preview = ChartPreview.png(chart) else { throw .invalidChart("no preview") }
         let gaugeKey = draft.gauge.stitch ?? "sc"
-        let dedication = "Imported from \(fileName) on \(Self.today())"
+        let dedication = "Imported from \(fileName) on \(today())"
         let manifestData = ManifestWriter.encode(id: slug, title: title, version: version, dedication: dedication,
                                                  chart: chart, chartID: chartID, variant: "final", gaugeKey: gaugeKey, palette: draft.palette)
         let manifest: PatternManifest
@@ -164,14 +225,21 @@ struct PDFImporter: Sendable {
         let bundle = PatternBundle(manifest: manifest, manifestData: manifestData,
                                    charts: [BundleChart(entry: entry, chart: chart, data: chartData)],
                                    previews: ["preview.png": preview, entry.preview: preview])
-        return PDFImportReading(bundle: bundle, preview: preview, width: chart.width, height: chart.height, colours: chart.palette.count, source: source)
+        return (bundle, preview, chart)
     }
 
     /// The bundle importer's order (bundle design §6.2): charts, then the pattern directory whole.
-    func save(_ reading: PDFImportReading) async throws -> PatternManifest {
-        for chart in reading.bundle.charts { _ = try await charts.store(chart.data) }
-        try await local.save(reading.bundle)
-        return reading.bundle.manifest
+    /// With a record, the check's outcome goes into the chart first (spec §6.3).
+    func save(_ reading: PDFImportReading, record: ImportRecord? = nil) async throws -> PatternManifest {
+        var bundle = reading.bundle
+        if let record {
+            var draft = reading.draft
+            draft.ext = record.json()
+            bundle = try Self.bundle(for: draft, title: reading.title, version: reading.version, fileName: reading.fileName).0
+        }
+        for chart in bundle.charts { _ = try await charts.store(chart.data) }
+        try await local.save(bundle)
+        return bundle.manifest
     }
 
     static func isHex(_ s: String) -> Bool {
@@ -233,11 +301,14 @@ struct PDFImporter: Sendable {
 enum PDFImportProgress: Sendable, Equatable {
     case pages(done: Int, of: Int)
     case rows(done: Int, of: Int, secondsElapsed: Int)
+    case checking(done: Int, of: Int)
 }
 
 /// Which reader made the chart, for the sheet's and the detail screen's sentences.
 enum PDFImportSource: Sendable, Equatable {
     case ownPDF
+    /// A chart read off a page's grid (1-based page); `rowsToCheck` written rows follow, or none.
+    case grid(page: Int, rowsToCheck: Int)
     case writtenRows(count: Int, gaugePrinted: Bool)
 }
 
@@ -248,6 +319,13 @@ struct PDFImportReading: Sendable {
     let height: Int
     let colours: Int
     let source: PDFImportSource
+    /// What was assembled, so "Add to library" can write the check's record into it (§6.3).
+    let draft: ChartDraft
+    let title: String
+    let version: String
+    let fileName: String
+    let pageTexts: [String]
+    let warnings: [String]
 }
 
 /// Why a PDF was refused; `message` is the sentence the sheet shows (phone import spec §5.4).

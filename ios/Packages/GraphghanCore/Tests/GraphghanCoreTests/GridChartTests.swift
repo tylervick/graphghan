@@ -14,7 +14,7 @@ import Testing
         #expect(draft.palette.map(\.code) == ["A", "B", "C", "D"] && draft.palette.map(\.hex) == answer.cluster!.hexes)
         #expect(draft.palette.map(\.name) == answer.cluster!.hexes.map(GridColours.nameColour))
         #expect(cells.map(Int.init) == answer.cluster!.cells.flatMap { $0 })
-        #expect(ImportRecord(json: draft.ext) == ImportRecord(grid: true, check: .none, rowsChecked: 0, rowsTotal: 0, rowsDisagree: [], gaugePrinted: false, problem: nil))
+        #expect(ImportRecord(json: draft.ext) == ImportRecord(grid: true, check: .noRows, rowsChecked: 0, rowsTotal: 0, rowsDisagree: [], gaugePrinted: false, problem: nil))
         let (data, id) = ChartWriter.encode(draft)
         let chart = try Chart.load(data)
         #expect(chart.id == id && chart.cells == cells && chart.document.gauge.stitch == "sc")
@@ -24,7 +24,7 @@ import Testing
         func rec(_ check: ImportRecord.Check, _ checked: Int = 77, _ disagree: [Int] = [], problem: String? = nil) -> ImportRecord {
             ImportRecord(grid: true, check: check, rowsChecked: checked, rowsTotal: 77, rowsDisagree: disagree, gaugePrinted: false, problem: problem)
         }
-        #expect(rec(.none).sentence == nil && rec(.finished).sentence == nil)
+        #expect(rec(.noRows).sentence == nil && rec(.finished).sentence == nil)
         #expect(rec(.finished, 77, [12, 40, 41]).sentence == "Rows 12, 40 and 41 disagree with the chart. The chart is as drawn; check those rows against the PDF.")
         #expect(rec(.finished, 77, [12]).sentence == "Row 12 disagrees with the chart. The chart is as drawn; check those rows against the PDF.")
         #expect(rec(.stopped, 34).sentence == "Written rows checked up to row 34; 35–77 not checked.")

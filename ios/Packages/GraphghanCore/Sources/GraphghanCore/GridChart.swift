@@ -3,7 +3,9 @@ import Foundation
 /// `ext.graphghan.import` (phone import spec §6.3): where the chart came from and how far the
 /// written rows were checked against it. The chart id ignores it; the detail screen reads it.
 public struct ImportRecord: Sendable, Equatable {
-    public enum Check: String, Sendable { case finished, stopped, unavailable, none }
+    /// `noRows` is the spec's `none`: the pages had no written rows to check. (Not named
+    /// `none`: `record?.check == .none` would compare against nil.)
+    public enum Check: String, Sendable { case finished, stopped, unavailable, noRows = "none" }
     public var grid: Bool
     public var check: Check
     /// The highest row number compared, and how many written rows the pages hold.
@@ -48,7 +50,7 @@ public struct ImportRecord: Sendable, Equatable {
     public var sentence: String? {
         if let problem { return "Written rows could not be compared with the chart: \(problem)." }
         switch check {
-        case .none: return nil
+        case .noRows: return nil
         case .unavailable: return "Written rows not checked on this iPhone."
         case .stopped:
             let disagree = rowsDisagree.isEmpty ? "" : " " + Self.disagreeSentence(rowsDisagree)
@@ -87,7 +89,7 @@ public enum GridChart {
         }
         var gauge = ChartDraft.Gauge()
         gauge.stitch = "sc"
-        let record = ImportRecord(grid: true, check: .none, rowsChecked: 0, rowsTotal: 0, rowsDisagree: [], gaugePrinted: false, problem: nil)
+        let record = ImportRecord(grid: true, check: .noRows, rowsChecked: 0, rowsTotal: 0, rowsDisagree: [], gaugePrinted: false, problem: nil)
         let draft = ChartDraft(pattern: .init(id: "", title: title, version: "0.1.0"), palette: palette, rows: rows,
                                width: region.cols, height: region.rows, gauge: gauge, ext: record.json())
         return (draft, grid.flatMap { $0 }, region.warnings + warnings)

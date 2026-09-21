@@ -1416,8 +1416,8 @@ git commit -m "ios: GridColours snaps, clusters and names the grid's colours as 
 
 **Interfaces:**
 - Consumes: `GridReader.readRegion`, `GridColours.clusterPalette/nameColour/code`, `ChartDraft`, `ChartWriter.runString`, `RowsChart.Row`.
-- Produces: `public struct ImportRecord: Sendable, Equatable { var grid: Bool; var check: Check; var rowsChecked: Int; var rowsTotal: Int; var rowsDisagree: [Int]; var gaugePrinted: Bool; var problem: String?; enum Check: String { finished, stopped, unavailable, none }; func json() -> JSONValue; init?(json: JSONValue?); var sentence: String? }` — the `ext.graphghan.import` object, read back by the detail screen; `sentence` is the §5.4/§6.3 sentence for it (nil for `none`, and for `finished` with nothing disagreeing).
-- Produces: `public enum GridChart { public static func draft(image: GridImage, region: Region, title: String) -> (draft: ChartDraft, cells: [UInt8], warnings: [String]) }`: palette codes A, B, … by frequency, names by `nameColour`, rows top to bottom, gauge the format's default (14 × 16 over 4 in, `sc`), `ext` = `ImportRecord(grid: true, check: .none, ...)`.
+- Produces: `public struct ImportRecord: Sendable, Equatable { var grid: Bool; var check: Check; var rowsChecked: Int; var rowsTotal: Int; var rowsDisagree: [Int]; var gaugePrinted: Bool; var problem: String?; enum Check: String { finished, stopped, unavailable, noRows = "none" }; func json() -> JSONValue; init?(json: JSONValue?); var sentence: String? }` — the `ext.graphghan.import` object, read back by the detail screen; `sentence` is the §5.4/§6.3 sentence for it (nil for `none`, and for `finished` with nothing disagreeing).
+- Produces: `public enum GridChart { public static func draft(image: GridImage, region: Region, title: String) -> (draft: ChartDraft, cells: [UInt8], warnings: [String]) }`: palette codes A, B, … by frequency, names by `nameColour`, rows top to bottom, gauge the format's default (14 × 16 over 4 in, `sc`), `ext` = `ImportRecord(grid: true, check: .noRows, ...)`.
 - Produces: `public enum CheckOutcome: Sendable, Equatable { case compared(disagree: [Int], warnings: [String]); case incomparable(String) }` and `RowsChart.crossCheck(rows: [Row], codes: [String], grid: [UInt8], width: Int, height: Int, row1: String = "bottom-right") -> CheckOutcome`, where `rows` may be a prefix of the pattern (a stopped check) and `grid` is the chart's cells top row first.
 
 - [ ] **Step 1: Write the failing tests**
@@ -1441,7 +1441,7 @@ import Testing
         #expect(draft.palette.map(\.code) == ["A", "B", "C", "D"] && draft.palette.map(\.hex) == answer.cluster!.hexes)
         #expect(draft.palette.map(\.name) == answer.cluster!.hexes.map(GridColours.nameColour))
         #expect(cells.map(Int.init) == answer.cluster!.cells.flatMap { $0 })
-        #expect(ImportRecord(json: draft.ext) == ImportRecord(grid: true, check: .none, rowsChecked: 0, rowsTotal: 0, rowsDisagree: [], gaugePrinted: false, problem: nil))
+        #expect(ImportRecord(json: draft.ext) == ImportRecord(grid: true, check: .noRows, rowsChecked: 0, rowsTotal: 0, rowsDisagree: [], gaugePrinted: false, problem: nil))
         let (data, id) = ChartWriter.encode(draft)
         let chart = try Chart.load(data)
         #expect(chart.id == id && chart.cells == cells && chart.document.gauge.stitch == "sc")
@@ -1451,7 +1451,7 @@ import Testing
         func rec(_ check: ImportRecord.Check, _ checked: Int = 77, _ disagree: [Int] = [], problem: String? = nil) -> ImportRecord {
             ImportRecord(grid: true, check: check, rowsChecked: checked, rowsTotal: 77, rowsDisagree: disagree, gaugePrinted: false, problem: problem)
         }
-        #expect(rec(.none).sentence == nil && rec(.finished).sentence == nil)
+        #expect(rec(.noRows).sentence == nil && rec(.finished).sentence == nil)
         #expect(rec(.finished, 77, [12, 40, 41]).sentence == "Rows 12, 40 and 41 disagree with the chart. The chart is as drawn; check those rows against the PDF.")
         #expect(rec(.finished, 77, [12]).sentence == "Row 12 disagrees with the chart. The chart is as drawn; check those rows against the PDF.")
         #expect(rec(.stopped, 34).sentence == "Written rows checked up to row 34; 35–77 not checked.")
@@ -1563,7 +1563,9 @@ import Foundation
 /// `ext.graphghan.import` (phone import spec §6.3): where the chart came from and how far the
 /// written rows were checked against it. The chart id ignores it; the detail screen reads it.
 public struct ImportRecord: Sendable, Equatable {
-    public enum Check: String, Sendable { case finished, stopped, unavailable, none }
+    /// `noRows` is the spec's `none`: the pages had no written rows to check. (Not named
+    /// `none`: `record?.check == .none` would compare against nil.)
+    public enum Check: String, Sendable { case finished, stopped, unavailable, noRows = "none" }
     public var grid: Bool
     public var check: Check
     /// The highest row number compared, and how many written rows the pages hold.
@@ -1608,7 +1610,7 @@ public struct ImportRecord: Sendable, Equatable {
     public var sentence: String? {
         if let problem { return "Written rows could not be compared with the chart: \(problem)." }
         switch check {
-        case .none: return nil
+        case .noRows: return nil
         case .unavailable: return "Written rows not checked on this iPhone."
         case .stopped:
             let disagree = rowsDisagree.isEmpty ? "" : " " + Self.disagreeSentence(rowsDisagree)
@@ -1647,7 +1649,7 @@ public enum GridChart {
         }
         var gauge = ChartDraft.Gauge()
         gauge.stitch = "sc"
-        let record = ImportRecord(grid: true, check: .none, rowsChecked: 0, rowsTotal: 0, rowsDisagree: [], gaugePrinted: false, problem: nil)
+        let record = ImportRecord(grid: true, check: .noRows, rowsChecked: 0, rowsTotal: 0, rowsDisagree: [], gaugePrinted: false, problem: nil)
         let draft = ChartDraft(pattern: .init(id: "", title: title, version: "0.1.0"), palette: palette, rows: rows,
                                width: region.cols, height: region.rows, gauge: gauge, ext: record.json())
         return (draft, grid.flatMap { $0 }, region.warnings + warnings)
@@ -1809,9 +1811,9 @@ Append to `PDFImportTests.swift` (inside the suite), plus a chart-drawing helper
 
     /// The synthetic chart the tests draw: 20 × 15, four colours, the first three columns one
     /// colour (where lines hide) and the last two rows another, as the Python fixtures do.
-    static let chartWidth = 20, chartHeight = 15
-    static let chartHexes = ["#f2e8d5", "#2b2f33", "#1e4d3a", "#d9a21b"]
-    static func chartCell(x: Int, y: Int) -> Int {  // y from the top
+    nonisolated static let chartWidth = 20, chartHeight = 15
+    nonisolated static let chartHexes = ["#f2e8d5", "#2b2f33", "#1e4d3a", "#d9a21b"]
+    nonisolated static func chartCell(x: Int, y: Int) -> Int {  // y from the top
         if x < 3 { return 1 }
         if y >= chartHeight - 2 { return 3 }
         return (x * 7 + y * 3) % 4
@@ -1849,12 +1851,23 @@ Append to `PDFImportTests.swift` (inside the suite), plus a chart-drawing helper
         #expect(reading.width == Self.chartWidth && reading.height == Self.chartHeight && reading.colours == 4)
         #expect(reading.source == .grid(page: 1, rowsToCheck: Self.chartHeight))
         #expect(reading.bundle.manifest.id == "drawn" && reading.bundle.manifest.title == "drawn")  // no key page read yet: the file's stem
+        // The PDF's colours come back through a colour-space conversion a few steps lighter
+        // (#2b2f33 reads #393e42), so each read colour is matched to the nearest drawn one, which
+        // must pair them one to one; then every cell must be the drawn cell.
         let chart = reading.bundle.charts[0].chart
-        let hexes = chart.palette.map(\.hex)
+        func dist(_ a: String, _ b: String) -> Int {
+            let p = GridColours.rgb(a)!, q = GridColours.rgb(b)!
+            return abs(Int(p.0) - Int(q.0)) + abs(Int(p.1) - Int(q.1)) + abs(Int(p.2) - Int(q.2))
+        }
+        let nearest = chart.palette.map { entry in Self.chartHexes.indices.min { dist(entry.hex, Self.chartHexes[$0]) < dist(entry.hex, Self.chartHexes[$1]) }! }
+        #expect(Set(nearest).count == 4, "palette \(chart.palette.map(\.hex)) pairs as \(nearest)")
+        var wrong: [String] = []
         for y in 0..<Self.chartHeight { for x in 0..<Self.chartWidth {
-            #expect(hexes[Int(chart.cells[y * Self.chartWidth + x])] == Self.chartHexes[Self.chartCell(x: x, y: y)], "cell \(x),\(y)")
+            let got = nearest[Int(chart.cells[y * Self.chartWidth + x])], want = Self.chartCell(x: x, y: y)
+            if got != want { wrong.append("(\(x),\(y)) \(got) not \(want)") }
         } }
-        #expect(ImportRecord(json: chart.document.ext)?.check == .none && ImportRecord(json: chart.document.ext)?.grid == true)
+        #expect(wrong.isEmpty, "\(wrong.count) cells: \(wrong.prefix(6))")
+        #expect(ImportRecord(json: chart.document.ext)?.check == .noRows && ImportRecord(json: chart.document.ext)?.grid == true)
         #expect(((try? FileManager.default.contentsOfDirectory(atPath: base.chartsDir.path)) ?? []).isEmpty)
     }
 
@@ -1879,7 +1892,7 @@ Append to `PDFImportTests.swift` (inside the suite), plus a chart-drawing helper
         #expect(await none.check(reading, progress: nil).check == .unavailable)
         let noRows = try await none.read(try #require(PDFTestDocuments.chart(rows: false)), fileName: "drawn.pdf")
         #expect(noRows.source == .grid(page: 1, rowsToCheck: 0))
-        #expect(await none.check(noRows, progress: nil).check == .none)
+        #expect(await none.check(noRows, progress: nil).check == .noRows)
     }
 
     @Test func aCancelledCheckIsStoppedAtTheRowsRead() async throws {
@@ -1953,6 +1966,16 @@ In `PDFTestDocuments`:
 ```
 
 The row page's text only has to hold row heads (`RowText.rowCount` counts them); the stub reader supplies the runs.
+
+`StubRowReader.read` (PR 2) returned an empty document when cancelled; make it return the rows read so far, as `ProseReader` does, or the stopped check has nothing to compare:
+
+```swift
+                if Task.isCancelled {
+                    var partial = document
+                    partial.written_rows = Array((document.written_rows ?? []).prefix(i))
+                    return partial
+                }
+```
 
 - [ ] **Step 2: Run to see them fail**
 
@@ -2064,8 +2087,8 @@ and the new methods:
     /// The written rows read and compared with the chart (spec §4.2): the outcome as the record
     /// the chart carries. Cancelling stops the reader between rows; what was read is compared.
     func check(_ reading: PDFImportReading, progress: (@Sendable (PDFImportProgress) -> Void)?) async -> ImportRecord {
-        var record = ImportRecord(json: reading.draft.ext) ?? ImportRecord(grid: true, check: .none, rowsChecked: 0, rowsTotal: 0, rowsDisagree: [], gaugePrinted: false, problem: nil)
-        guard case .grid(_, let total) = reading.source, total > 0 else { record.check = .none; return record }
+        var record = ImportRecord(json: reading.draft.ext) ?? ImportRecord(grid: true, check: .noRows, rowsChecked: 0, rowsTotal: 0, rowsDisagree: [], gaugePrinted: false, problem: nil)
+        guard case .grid(_, let total) = reading.source, total > 0 else { record.check = .noRows; return record }
         record.rowsTotal = total
         guard let rowReader else { record.check = .unavailable; return record }
         progress?(.checking(done: 0, of: total))
@@ -2107,7 +2130,7 @@ and the new methods:
     }
 ```
 
-The rows path's own `ext` literal becomes `ImportRecord(grid: false, check: .none, rowsChecked: 0, rowsTotal: 0, rowsDisagree: [], gaugePrinted: gaugePrinted, problem: nil).json()`. The existing `PDFImportSheetTests` and the PR 2 tests keep passing unchanged: `save(_:)` still works with the default nil record.
+The rows path's own `ext` literal becomes `ImportRecord(grid: false, check: .noRows, rowsChecked: 0, rowsTotal: 0, rowsDisagree: [], gaugePrinted: gaugePrinted, problem: nil).json()`. The existing `PDFImportSheetTests` and the PR 2 tests keep passing unchanged: `save(_:)` still works with the default nil record.
 
 - [ ] **Step 5: Run the tests**
 
