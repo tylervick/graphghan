@@ -73,12 +73,19 @@ A pattern PDF opens the same way (#112, `docs/superpowers/specs/2026-09-20-phone
 `.pdf` to `PDFImporter` and the import sheet instead of the bundle importer. One that
 `graphghan export --format pdf` wrote is read exactly from its text layer (`OwnPDFReader` in
 GraphghanCore) and lands in the library with the same chart id the Mac computed, written by
-`ChartWriter`, `ManifestWriter` and `ChartPreview`. A PDF that is not ours gets "No chart or
-written rows were found in this PDF" until the written-row and grid readers land (spec §8); one that
-PDFKit cannot open, or ours with a row the reader cannot parse or a chart too large to hold, gets
-its own sentence (`PDFImportError.message`, spec §5.4). The
-sheet shows the chart before "Add to library" saves it; a read writes nothing, and Cancel leaves the
-library as it was. `--import <path>.pdf` drives the identical path on the simulator.
+`ChartWriter`, `ManifestWriter` and `ChartPreview`. A PDF with written rows and no chart goes
+to `ProseReaderKit` (`Packages/ProseReader`, the same reader the Mac tool runs) on a device with
+Apple Intelligence (iOS 26), row by row behind a progress sheet that names the row count, the
+estimate and has Cancel, and is assembled by `RowsChart` in GraphghanCore under the same width and
+row-number checks the Python importer applies; the chart records `ext.graphghan.import` (spec §6.3)
+and the detail screen says when the gauge was not printed. Without the model the sheet says so and
+points at the Mac. A PDF whose pages hold almost no text is named as a picture of text (#151); one
+with neither chart nor rows gets "No chart or written rows were found in this PDF" until the grid
+reader lands (spec §8); one that PDFKit cannot open, or ours with a row the reader cannot parse or
+a chart too large to hold, gets its own sentence (`PDFImportError.message`, spec §5.4). The sheet
+shows the chart before "Add to library" saves it; a read writes nothing, and Cancel leaves the
+library as it was. The model never runs in a test: `PDFImportTests` stand a canned `RowReading` in
+for it. `--import <path>.pdf` drives the identical path on the simulator, which has no model.
 
 Driving it without a drag: `xcrun simctl launch <device> com.tylervick.graphghan --import <path>`,
 or `xcrun simctl openurl <device> "file://<path>"`, which goes through LaunchServices the way Files

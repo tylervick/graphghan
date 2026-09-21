@@ -32,7 +32,7 @@
 **Interfaces:**
 - Produces: `public protocol RowReading: Sendable { func read(pages: [String], progress: (@Sendable (ReaderProgress) -> Void)?) async -> ProseDocument }` with `ProseReader: RowReading` (iOS 26 / macOS 26); `ReaderProgress` gains `public let rowsTotal: Int`; `public static func rowCount(in pages: [String]) -> Int` on `RowText`; `read` returns early with what it has when `Task.isCancelled`, marking `doc.uncertain` with "cancelled after N rows".
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `RowTextTests.swift`:
 
@@ -44,12 +44,12 @@ Append to `RowTextTests.swift`:
 }
 ```
 
-- [ ] **Step 2: Run to see it fail**
+- [x] **Step 2: Run to see it fail**
 
 Run: `cd ios/Packages/ProseReader && swift test --filter theRowCountIs 2>&1 | tail -3`
 Expected: compile error, `rowCount` undefined.
 
-- [ ] **Step 3: Platforms, protocol, progress total, cancellation**
+- [x] **Step 3: Platforms, protocol, progress total, cancellation**
 
 `Package.swift`: `platforms: [.macOS("26.0"), .iOS(.v17)]`. Everything that touches FoundationModels is already `@available(macOS 26.0, iOS 26.0, *)`; `RowText` and `ProseDocument` are not, and compile for iOS 17.
 
@@ -101,12 +101,12 @@ In `RowText`, beside `blocks(in:)`:
 
 The `prosereader` tool's progress print (`main.swift`) gains the total: `"  page \(p.page): \(p.rowsSoFar) of \(p.rowsTotal) rows, \(Int(p.seconds)) s\r"`.
 
-- [ ] **Step 4: Run the package tests and build the tool**
+- [x] **Step 4: Run the package tests and build the tool**
 
 Run: `cd ios/Packages/ProseReader && swift test 2>&1 | grep -E '✘|Test run with' && swift build -c release 2>&1 | grep -E 'error|Build complete'`
 Expected: 27 tests pass; build complete.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add ios/Packages/ProseReader
@@ -126,7 +126,7 @@ git commit -m "ios: ProseReaderKit builds for iOS, can be cancelled, and counts 
 
 The port of `written_to_grid`, `row_total_problems`, `row_number_problems`, `reads_right_to_left`, `grid_row`, `_placeholder_hex` (`prose.py`, `importers.py`), sentences word for word.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```swift
 import Foundation
@@ -187,12 +187,12 @@ import Testing
 
 `ChartWriterTests.reading` is `static func` today; make it `static func reading(_:) throws -> OwnPDFReading` internal (drop `private` if any) so this suite can call it.
 
-- [ ] **Step 2: Run to see them fail**
+- [x] **Step 2: Run to see them fail**
 
 Run: `cd ios/Packages/GraphghanCore && swift test --filter RowsChartTests 2>&1 | tail -3`
 Expected: compile error, `RowsChart` undefined.
 
-- [ ] **Step 3: Write the assembler**
+- [x] **Step 3: Write the assembler**
 
 ```swift
 import Foundation
@@ -309,12 +309,12 @@ private extension String {
 }
 ```
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 Run: `cd ios/Packages/GraphghanCore && swift test --filter RowsChartTests 2>&1 | grep -E '✘|✔ Test run|error:'`
 Expected: 7 pass. The `missing rows` computation must not range over `1...0` when `height` is 0; the `max(1, height)` guard keeps it safe.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add ios/Packages/GraphghanCore
@@ -335,11 +335,11 @@ git commit -m "ios: GraphghanCore builds a chart from written rows alone, with t
 - `PDFImportError` gains `.rowsArePictures`, `.needsAppleIntelligence`, `.rowsDoNotAssemble([String])`, `.cancelled`, with the §5.4 sentences.
 - Produces: `PDFImportReading` gains `let source: PDFImportSource` (`enum { case ownPDF, writtenRows(count: Int, gaugePrinted: Bool) }`) so the sheet and the detail screen can say what happened.
 
-- [ ] **Step 1: Link the package**
+- [x] **Step 1: Link the package**
 
 `ios/project.yml`, under `packages:` add `ProseReader:\n    path: Packages/ProseReader`, and under the `Graphghan` target's `dependencies:` add `- package: ProseReader\n        product: ProseReaderKit`.
 
-- [ ] **Step 2: Write the failing tests**
+- [x] **Step 2: Write the failing tests**
 
 Append to `PDFImportTests.swift` (the `PDFTestDocuments` helper gains an image page):
 
@@ -445,12 +445,12 @@ In `PDFTestDocuments`:
     }
 ```
 
-- [ ] **Step 3: Run to see them fail**
+- [x] **Step 3: Run to see them fail**
 
 Run: `cd ios && xcodegen generate --quiet && xcodebuild test -project Graphghan.xcodeproj -scheme Graphghan -destination 'platform=iOS Simulator,name=iPhone 17' -only-testing:GraphghanTests/PDFImportTests 2>&1 | grep -E 'error:|Test run with|TEST' | head`
 Expected: compile errors (`rowReader`, `PDFImportProgress` undefined).
 
-- [ ] **Step 4: The importer**
+- [x] **Step 4: The importer**
 
 `PDFImporter.swift` changes:
 
@@ -576,12 +576,12 @@ struct PDFImporter: Sendable {
 
 `PDFImportProgress` and `PDFImportSource` as in the Interfaces block.
 
-- [ ] **Step 5: Run the tests**
+- [x] **Step 5: Run the tests**
 
 Run: the Step 3 command.
 Expected: all `PDFImportTests` pass, PR 1's five included. If `rowsBecomeTheGrid…` in the app differs from `["3B", "1B2A"]`, the stub's `chart.row1` is `bottom-right` and row 1 is RS: reversed, drawn last; row 2 WS as written, drawn first.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add ios/project.yml ios/Graphghan/Services/PDFImporter.swift ios/Tests/PDFImportTests.swift
@@ -603,7 +603,7 @@ git commit -m "ios: PDFImporter reads written rows through the on-device model, 
 - `AppModel` gains `var rowReader: (any RowReading)?` and `var modelUnavailable: String?` resolved once at init under `#available(iOS 26, *)` (tests inject through a new `init` parameter `rowReader:` defaulting to the resolved one), and `cancelPDFImport()` cancels the task.
 - `PatternDetailContent` shows "Gauge not printed; using 14 × 16 over 4 in" under the specs when the chart's `ext.graphghan.import.gauge_printed` is `false`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Append to `PDFImportSheetTests.swift`:
 
@@ -638,12 +638,12 @@ Append to `PDFImportSheetTests.swift`:
 
 and change `make()` to `make(rowReader: (any RowReading)? = nil, modelUnavailable: String? = nil)` passing both to `AppModel`'s init. The existing four tests keep working with the defaults (PR 1's own-PDF path needs no reader).
 
-- [ ] **Step 2: Run to see them fail**
+- [x] **Step 2: Run to see them fail**
 
 Run: `cd ios && xcodebuild test ... -only-testing:GraphghanTests/PDFImportSheetTests 2>&1 | grep -E 'error:|Test run with|TEST' | head`
 Expected: compile errors.
 
-- [ ] **Step 3: The model, the state, the sheet, the detail line**
+- [x] **Step 3: The model, the state, the sheet, the detail line**
 
 `AppModel`: two stored properties and the init parameters:
 
@@ -732,12 +732,12 @@ and the toolbar button reads "Cancel" for `.found` and `.readingRows`, "Done" ot
 
 (`ChartDocument.ext` exists as `JSONValue?`; check the property name in `ChartDocument.swift` and use it.)
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 Run: `cd ios && xcodebuild test ... 2>&1 | grep -E '✘|Test run with|TEST' | tail -3` (the whole app suite).
 Expected: all green, `DesignRulesTests` included (the new texts use `Font.Heather` and `Color.*`).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add ios/Graphghan ios/Tests
@@ -753,14 +753,14 @@ git commit -m "ios: the import sheet reads written rows with progress and cancel
 - Modify: `docs/superpowers/specs/2026-09-20-phone-pdf-import-design.md` §11 (the Orca criterion: mark "manual gate pending" with the device it needs)
 - Modify: this plan (tick every box)
 
-- [ ] **Step 1: README**
+- [x] **Step 1: README**
 
 Replace the sentence about "any other PDF" with: "A PDF with written rows and no chart goes to `ProseReaderKit` on a device with Apple Intelligence (iOS 26), row by row behind a progress sheet with Cancel, and is assembled by `RowsChart` under the same width and row-number checks the Python importer applies; without the model the sheet says so. A page that is a picture of text is named as such (#151)."
 
-- [ ] **Step 2: The manual gate**
+- [x] **Step 2: The manual gate**
 
 Spec §11, the Orca bullet: append "(manual gate: needs an iPhone with Apple Intelligence; the simulator has no model. Not yet run.)" Tyler runs it; the number goes into §11 when it lands.
 
-- [ ] **Step 3: Check, Blink, push, PR**
+- [x] **Step 3: Check, Blink, push, PR**
 
 Run: `mise run check`, `cd ios/Packages/ProseReader && swift test`, `cd ios/Packages/GraphghanCore && swift test`, the app suite; then Blink on the branch, push, and open the PR against `tylervick/phone-import` (retarget to `main` when #162 merges) with the body: the four tasks, the sentences, the stub-based tests, and the manual gate.
