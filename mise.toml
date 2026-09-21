@@ -52,7 +52,7 @@ pinact = "4.1.1"
 # Renovate's mise manager reads this (github-releases on RevylAI/revyl-cli). Its
 # documented gaps there are `tag_regex` and `version_prefix`; this pin uses
 # neither, so bumps arrive as ordinary pull requests.
-"github:RevylAI/revyl-cli" = { version = "0.1.119", matching_regex = "^revyl-(darwin|linux)-(amd64|arm64)$", rename_exe = "revyl" }
+"github:RevylAI/revyl-cli" = { version = "0.1.121", matching_regex = "^revyl-(darwin|linux)-(amd64|arm64)$", rename_exe = "revyl" }
 
 # Blink (https://blink.review) reviews each Claude Code turn's diff and hands the
 # findings back to the agent. Its own install path is
