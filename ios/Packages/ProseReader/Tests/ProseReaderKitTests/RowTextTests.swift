@@ -165,6 +165,8 @@ import Testing
     #expect(RowText.rowNumbers(of: "Rows 2 & 3: Chain1, (12sc), Turn.") == [2, 3])
     #expect(RowText.rowNumbers(of: "Row 13-15: sc in c1.") == [13, 14, 15])
     #expect(RowText.rowNumbers(of: "Rows 9- 10: 3 sc in c1, 11 sc in c2, 3 sc in c1") == [9, 10])
+    // The count a progress bar is out of expands ranges the way `read` does (CodeRabbit, PR #163).
+    #expect(RowText.rowCount(in: ["Rows 1-10: sc across.\nRow 11: 3 A, 2 B.", "Rows 12 & 13: sc across."]) == 13)
     #expect(RowText.rowNumbers(of: "Rows 2 and 3: sc across") == [2, 3])
     #expect(RowText.rowNumbers(of: "Row 5: 7sc in c1, 3sc in c2, 7sc in c1.") == [5])
     #expect(RowText.rowNumbers(of: "7. 2G, 3R, 2G") == [7])

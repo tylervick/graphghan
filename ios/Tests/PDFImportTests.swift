@@ -138,6 +138,25 @@ import ProseReaderKit
         #expect(((try? FileManager.default.contentsOfDirectory(atPath: base.chartsDir.path)) ?? []).isEmpty)
     }
 
+    @Test func aRowTheReaderCouldNotReadIsNamedNotDropped() async throws {
+        // No stated height: dropping the unread last row would infer a one-row chart and pass it.
+        var doc = Self.twoRowDocument()
+        doc.chart = nil
+        doc.written_rows?[1].runs = []
+        doc.written_rows?[1].error = "no colour named"
+        let importer = try await make().importer(rowReader: StubRowReader(document: doc, delayPerRow: .zero))
+        let pdf = try #require(PDFTestDocuments.plain(text: Self.twoRowText))
+        await #expect(throws: PDFImportError.rowsDoNotAssemble(["row 2: no colour named"])) { try await importer.read(pdf, fileName: "x.pdf") }
+    }
+
+    @Test func aChartBiggerThanTheAppWorksIsRefusedBeforeAnyGridIsBuilt() async throws {
+        var doc = Self.twoRowDocument()
+        doc.chart = .init(width: 3, height: OwnPDFReader.maximumSide + 1)
+        let importer = try await make().importer(rowReader: StubRowReader(document: doc, delayPerRow: .zero))
+        let pdf = try #require(PDFTestDocuments.plain(text: Self.twoRowText))
+        await #expect(throws: PDFImportError.badRow(.tooLarge(width: 3, height: OwnPDFReader.maximumSide + 1))) { try await importer.read(pdf, fileName: "x.pdf") }
+    }
+
     @Test func aKeyColourWithNoHexGetsAPlaceholder() async throws {
         var doc = Self.twoRowDocument()
         doc.palette?[1].hex = nil

@@ -68,12 +68,16 @@ public struct ProseReader: Sendable {
             case .unavailable(let why): return "on-device model unavailable: \(why)"
             }
         case .cloud:
+            // The cloud model's type is in the macOS 27 / iOS 27 SDKs (Swift 6.4); an older
+            // toolchain, like CI's Xcode 26.2, builds the on-device path alone.
+            #if compiler(>=6.4)
             if #available(macOS 27.0, iOS 27.0, *) {
                 switch PrivateCloudComputeLanguageModel().availability {
                 case .available: return nil
                 case .unavailable(let why): return "Private Cloud Compute model unavailable: \(why)"
                 }
             }
+            #endif
             return "Private Cloud Compute needs macOS 27 or iOS 27"
         }
     }
@@ -111,9 +115,11 @@ public struct ProseReader: Sendable {
         case .onDevice:
             return LanguageModelSession(model: .default, instructions: instructions)
         case .cloud:
+            #if compiler(>=6.4)
             if #available(macOS 27.0, iOS 27.0, *) {
                 return LanguageModelSession(model: PrivateCloudComputeLanguageModel(), instructions: instructions)
             }
+            #endif
             return LanguageModelSession(model: .default, instructions: instructions)
         }
     }
@@ -408,9 +414,10 @@ public enum RowText {
 
     /// Each written row's text on a page, wrapped continuation lines rejoined (a continuation
     /// starts with a count or carries a comma-separated list; a footer does neither).
-    /// How many written rows the pages hold, by their heads: what a progress bar is out of.
+    /// How many written rows the pages hold: every row a head covers, so "Rows 1-10" is ten and
+    /// a head with no number one. What a progress bar is out of; `read` emits rows the same way.
     public static func rowCount(in pages: [String]) -> Int {
-        pages.reduce(0) { $0 + blocks(in: $1).count }
+        pages.reduce(0) { total, page in total + blocks(in: page).reduce(0) { $0 + max(1, rowNumbers(of: $1).count) } }
     }
 
     public static func blocks(in text: String) -> [String] {

@@ -77,14 +77,21 @@ struct PDFImporter: Sendable {
         }
         if Task.isCancelled { throw .cancelled }
         let all = doc.written_rows ?? []
-        let rows = all.filter { $0.error == nil && !$0.runs.isEmpty }.map { r in
-            RowsChart.Row(row: r.row, runs: r.runs.map(Self.run), total: r.total)
+        // A row the reader could not read is named, never dropped: dropping the last one would
+        // shrink the height inferred below and pass a truncated chart off as whole.
+        let unread = all.compactMap { r -> String? in
+            if let error = r.error { return "row \(r.row): \(error)" }
+            return r.runs.isEmpty ? "row \(r.row): no runs read" : nil
         }
-        let errored = all.filter { $0.error != nil }.map { "row \($0.row): \($0.error ?? "")" }
-        guard !rows.isEmpty else { throw .rowsDoNotAssemble(errored.isEmpty ? ["no written rows were read"] : errored) }
-        // Width and height are what the front matter says, else the widest row and the highest number.
+        guard unread.isEmpty else { throw .rowsDoNotAssemble(unread) }
+        guard !all.isEmpty else { throw .rowsDoNotAssemble(["no written rows were read"]) }
+        let rows = all.map { RowsChart.Row(row: $0.row, runs: $0.runs.map(Self.run), total: $0.total) }
+        // Width and height are what the front matter says, else the widest row and the highest
+        // number; either way within what the app works (§5.1) before any grid is allocated.
         let width = doc.chart?.width.flatMap { $0 > 0 ? $0 : nil } ?? rows.map { $0.runs.reduce(0) { $0 + $1.count } }.max() ?? 0
         let height = doc.chart?.height.flatMap { $0 > 0 ? $0 : nil } ?? rows.map(\.row).max() ?? 0
+        guard width >= 1, height >= 1 else { throw .rowsDoNotAssemble(["the chart would be \(width) × \(height)"]) }
+        guard width <= OwnPDFReader.maximumSide, height <= OwnPDFReader.maximumSide else { throw .badRow(.tooLarge(width: width, height: height)) }
         // Every code the rows use is in the palette; a key colour with no hex gets a placeholder.
         var palette = (doc.palette ?? []).map { ChartDraft.Palette(code: $0.code, name: $0.name.isEmpty ? $0.code : $0.name, hex: $0.hex ?? "") }
         let used = Set(rows.flatMap { $0.runs.map(\.code) })
@@ -98,7 +105,7 @@ struct PDFImporter: Sendable {
         let strings: [String]
         switch RowsChart.rowStrings(rows: rows, codes: palette.map(\.code), width: width, height: height, row1: doc.chart?.row1 ?? "bottom-right") {
         case .success(let s): strings = s
-        case .failure(let problems): throw .rowsDoNotAssemble(problems.sentences + errored)
+        case .failure(let problems): throw .rowsDoNotAssemble(problems.sentences)
         }
         let patternTitle = doc.pattern?["title"].flatMap { $0.isEmpty ? nil : $0 } ?? (title.isEmpty ? Self.stem(fileName) : title)
         var gauge = ChartDraft.Gauge()
