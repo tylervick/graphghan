@@ -16,6 +16,14 @@ public struct ImportRecord: Sendable, Equatable {
     /// Why the rows could not be compared at all (`CheckOutcome.incomparable`), when they could not.
     public var problem: String?
 
+    /// The one `problem` the app words for the maker rather than reporting as it stands: the
+    /// on-device model refused every attempt because it is being asked too often (#176). The
+    /// reader writes the same words on each row it gave up on (`ProseReader.busyMessage`), which
+    /// is where the importer gets them; keeping it a `problem` keeps the record's shape (§6.3).
+    public static let modelBusy = "the on-device model is busy"
+    /// What the sheet and the detail screen say for it: a state that passes, not a fault.
+    public static let modelBusySentence = "The on-device model is busy; try the check again in a minute."
+
     public init(grid: Bool, check: Check, rowsChecked: Int, rowsTotal: Int, rowsDisagree: [Int], gaugePrinted: Bool, problem: String?) {
         self.grid = grid
         self.check = check
@@ -48,6 +56,7 @@ public struct ImportRecord: Sendable, Equatable {
     /// The sentence the sheet and the detail screen show for this record (spec §5.4, §6.3); nil
     /// when there is nothing to say.
     public var sentence: String? {
+        if problem == Self.modelBusy { return Self.modelBusySentence }
         if let problem { return "Written rows could not be compared with the chart: \(problem)." }
         switch check {
         case .noRows: return nil

@@ -62,6 +62,17 @@ import ProseReaderKit
         return doc
     }
 
+    /// What the reader hands back when the model refused every row it was asked (#176). The row
+    /// numbers are gone because `ProseReader` records a failure as row 0, which is why the field
+    /// report on #176 reads "row 0" for all 77 of them.
+    static func refusedByABusyModel(_ doc: ProseDocument) -> ProseDocument {
+        var doc = doc
+        doc.written_rows = (doc.written_rows ?? []).map {
+            .init(row: 0, page: $0.page, text: $0.text, runs: [], total: nil, error: ReaderFailure.modelBusy)
+        }
+        return doc
+    }
+
     // MARK: our own PDF (PR 1)
 
     @Test func ourOwnPDFReadsToTheMacsChartAndSaves() async throws {
@@ -153,6 +164,27 @@ import ProseReaderKit
         let importer = try await make().importer(rowReader: StubRowReader(document: doc, delayPerRow: .zero))
         let pdf = try #require(PDFTestDocuments.plain(text: Self.twoRowText))
         await #expect(throws: PDFImportError.rowsDoNotAssemble(["row 2: no colour named"])) { try await importer.read(pdf, fileName: "x.pdf") }
+    }
+
+    /// A model that refused every row is a state that passes, not a pattern the app cannot read:
+    /// the maker gets one sentence to act on rather than the raw `GenerationError` text (#176).
+    @Test func aRowsOnlyReadTheModelRefusedForBeingBusyGetsASentenceToActOn() async throws {
+        let doc = Self.refusedByABusyModel(Self.twoRowDocument())
+        let importer = try await make().importer(rowReader: StubRowReader(document: doc, delayPerRow: .zero))
+        let pdf = try #require(PDFTestDocuments.plain(text: Self.twoRowText))
+        await #expect(throws: PDFImportError.modelBusy) { try await importer.read(pdf, fileName: "x.pdf") }
+        #expect(PDFImportError.modelBusy.message == "The on-device model is busy; try the check again in a minute.")
+        #expect(!PDFImportError.modelBusy.message.contains("row 0"))
+    }
+
+    @Test func aRowLostToSomethingOtherThanABusyModelIsStillReportedAsItStands() async throws {
+        var doc = Self.refusedByABusyModel(Self.twoRowDocument())
+        doc.written_rows?[1].error = "no colour named"
+        let importer = try await make().importer(rowReader: StubRowReader(document: doc, delayPerRow: .zero))
+        let pdf = try #require(PDFTestDocuments.plain(text: Self.twoRowText))
+        await #expect(throws: PDFImportError.rowsDoNotAssemble(["row 0: the on-device model is busy", "row 0: no colour named"])) {
+            try await importer.read(pdf, fileName: "x.pdf")
+        }
     }
 
     @Test func aChartBiggerThanTheAppWorksIsRefusedBeforeAnyGridIsBuilt() async throws {
@@ -272,6 +304,44 @@ import ProseReaderKit
         let record = await importer.check(try await importer.read(try #require(PDFTestDocuments.chart(rows: true)), fileName: "drawn.pdf"), progress: nil)
         #expect(record.check == .finished && record.problem == "row 5: no colour named" && record.rowsDisagree.isEmpty)
         #expect(record.sentence == "Written rows could not be compared with the chart: row 5: no colour named.")
+    }
+
+    /// The same on the check: the chart from the grid is still there and still saveable, and the
+    /// record carries the short reason rather than 15 copies of `GenerationError` (#176).
+    @Test func aCheckTheModelRefusedForBeingBusySaysSoAndKeepsTheChart() async throws {
+        let doc = Self.refusedByABusyModel(Self.chartDocument())
+        let importer = try await make().importer(rowReader: StubRowReader(document: doc, delayPerRow: .zero))
+        let reading = try await importer.read(try #require(PDFTestDocuments.chart(rows: true)), fileName: "drawn.pdf")
+        let record = await importer.check(reading, progress: nil)
+        #expect(record.check == .finished && record.rowsTotal == Self.chartHeight && record.rowsChecked == 0)
+        #expect(record.problem == ImportRecord.modelBusy)
+        #expect(record.sentence == "The on-device model is busy; try the check again in a minute.")
+        #expect(record.rowsDisagree.isEmpty)
+        // The chart the grid read is untouched: "Add to library" still saves it.
+        #expect(reading.width == Self.chartWidth && reading.height == Self.chartHeight)
+    }
+
+    /// One row lost to a busy model among rows that read is still "try again in a minute": that
+    /// is the whole of what a maker should do about it, and the record's `rows_checked` still
+    /// says how far the check got. A row lost to anything else keeps its own reason.
+    @Test func oneRowLostToABusyModelAmongGoodOnesStillAsksForAnotherTry() async throws {
+        var doc = Self.chartDocument()
+        doc.written_rows?[4].runs = []
+        doc.written_rows?[4].error = ReaderFailure.modelBusy
+        let importer = try await make().importer(rowReader: StubRowReader(document: doc, delayPerRow: .zero))
+        let record = await importer.check(try await importer.read(try #require(PDFTestDocuments.chart(rows: true)), fileName: "drawn.pdf"), progress: nil)
+        #expect(record.problem == ImportRecord.modelBusy && record.rowsChecked == Self.chartHeight)
+        doc.written_rows?[6].runs = []
+        doc.written_rows?[6].error = "no colour named"
+        let mixed = try await make().importer(rowReader: StubRowReader(document: doc, delayPerRow: .zero))
+        let second = await mixed.check(try await mixed.read(try #require(PDFTestDocuments.chart(rows: true)), fileName: "drawn.pdf"), progress: nil)
+        #expect(second.problem == "row 5: the on-device model is busy; row 7: no colour named")
+    }
+
+    /// The reader writes these words and the record matches them across a package boundary, so
+    /// they have to stay the same words.
+    @Test func theReadersWordsForABusyModelAreTheOnesTheRecordMatches() {
+        #expect(ImportRecord.modelBusy == ReaderFailure.modelBusy)
     }
 
     @Test func withoutAModelTheCheckIsUnavailableAndWithoutRowsThereIsNone() async throws {

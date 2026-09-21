@@ -12,6 +12,11 @@ description = "swift test for the GraphghanCore package (macOS host, no simulato
 dir = "Packages/GraphghanCore"
 run = "swift test --quiet"
 
+[tasks.prose-test]
+description = "swift test for the ProseReader package (macOS host, no simulator, no model)"
+dir = "Packages/ProseReader"
+run = "swift test --quiet"
+
 [tasks.build]
 description = "Build the app for the iPhone 17 simulator"
 depends = ["generate"]
