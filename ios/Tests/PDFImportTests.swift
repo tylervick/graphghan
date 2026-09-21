@@ -2,6 +2,7 @@ import Foundation
 import PDFKit
 import Testing
 import UIKit
+import CoreGraphics
 import GraphghanCore
 import ProseReaderKit
 @testable import Graphghan
@@ -31,10 +32,15 @@ import ProseReaderKit
     struct StubRowReader: RowReading {
         let document: ProseDocument
         let delayPerRow: Duration
+        /// Like `ProseReader`, a cancelled read returns the rows read so far.
         func read(pages: [String], progress: (@Sendable (ReaderProgress) -> Void)?) async -> ProseDocument {
             let total = RowText.rowCount(in: pages)
             for i in 0..<total {
-                if Task.isCancelled { return ProseDocument() }
+                if Task.isCancelled {
+                    var partial = document
+                    partial.written_rows = Array((document.written_rows ?? []).prefix(i))
+                    return partial
+                }
                 try? await Task.sleep(for: delayPerRow)
                 progress?(ReaderProgress(page: 1, rowsSoFar: i + 1, rowsTotal: total, seconds: Double(i)))
             }
@@ -180,6 +186,130 @@ import ProseReaderKit
         #expect(PDFImportError.rowsArePictures.message == "This pattern's rows are printed as a picture; the app can't read that yet.")
     }
 
+    // MARK: a chart in the PDF (PR 3)
+
+    /// The synthetic chart the tests draw: 20 × 15, four colours, the first three columns one
+    /// colour (where lines hide) and the last two rows another, as the Python fixtures do.
+    nonisolated static let chartWidth = 20, chartHeight = 15
+    nonisolated static let chartHexes = ["#f2e8d5", "#2b2f33", "#1e4d3a", "#d9a21b"]
+    nonisolated static func chartCell(x: Int, y: Int) -> Int {  // y from the top
+        if x < 3 { return 1 }
+        if y >= chartHeight - 2 { return 3 }
+        return (x * 7 + y * 3) % 4
+    }
+
+    /// The written rows for that chart, numbered from the bottom, odd rows written right to left.
+    static func chartDocument(wrongRow: Int? = nil) -> ProseDocument {
+        var doc = ProseDocument()
+        doc.pattern = ["title": "Drawn Chart"]
+        doc.palette = chartHexes.enumerated().map { .init(code: ["A", "B", "C", "D"][$0.offset], name: "", hex: $0.element) }
+        doc.chart = .init(width: chartWidth, height: chartHeight)
+        var rows: [ProseDocument.Row] = []
+        for r in 1...chartHeight {
+            let y = chartHeight - r
+            var cells = (0..<chartWidth).map { chartCell(x: $0, y: y) }
+            if r == wrongRow { cells[5] = (cells[5] + 1) % 4 }
+            if r % 2 == 1 { cells.reverse() }
+            var runs: [[ProseDocument.RunValue]] = []
+            for c in cells {
+                let code = ["A", "B", "C", "D"][c]
+                if let last = runs.last, case .code(let lc) = last[0], lc == code, case .count(let n) = last[1] { runs[runs.count - 1] = [.code(code), .count(n + 1)] }
+                else { runs.append([.code(code), .count(1)]) }
+            }
+            rows.append(.init(row: r, page: 2, text: "Row \(r)", runs: runs))
+        }
+        doc.written_rows = rows
+        return doc
+    }
+
+    @Test func aChartPageBecomesTheChartBeforeAnyRowIsRead() async throws {
+        let base = try await make()
+        let importer = base.importer(rowReader: StubRowReader(document: Self.chartDocument(), delayPerRow: .zero))
+        let pdf = try #require(PDFTestDocuments.chart(rows: true))
+        let reading = try await importer.read(pdf, fileName: "drawn.pdf")
+        #expect(reading.width == Self.chartWidth && reading.height == Self.chartHeight && reading.colours == 4)
+        #expect(reading.source == .grid(page: 1, rowsToCheck: Self.chartHeight))
+        #expect(reading.bundle.manifest.id == "drawn" && reading.bundle.manifest.title == "drawn")  // no key page read yet: the file's stem
+        // The PDF's colours come back through a colour-space conversion a few steps lighter
+        // (#2b2f33 reads #393e42), so each read colour is matched to the nearest drawn one, which
+        // must pair them one to one; then every cell must be the drawn cell.
+        let chart = reading.bundle.charts[0].chart
+        func dist(_ a: String, _ b: String) -> Int {
+            let p = GridColours.rgb(a)!, q = GridColours.rgb(b)!
+            return abs(Int(p.0) - Int(q.0)) + abs(Int(p.1) - Int(q.1)) + abs(Int(p.2) - Int(q.2))
+        }
+        let nearest = chart.palette.map { entry in Self.chartHexes.indices.min { dist(entry.hex, Self.chartHexes[$0]) < dist(entry.hex, Self.chartHexes[$1]) }! }
+        #expect(Set(nearest).count == 4, "palette \(chart.palette.map(\.hex)) pairs as \(nearest)")
+        var wrong: [String] = []
+        for y in 0..<Self.chartHeight { for x in 0..<Self.chartWidth {
+            let got = nearest[Int(chart.cells[y * Self.chartWidth + x])], want = Self.chartCell(x: x, y: y)
+            if got != want { wrong.append("(\(x),\(y)) \(got) not \(want)") }
+        } }
+        #expect(wrong.isEmpty, "\(wrong.count) cells: \(wrong.prefix(6))")
+        #expect(ImportRecord(json: chart.document.ext)?.check == .noRows && ImportRecord(json: chart.document.ext)?.grid == true)
+        #expect(((try? FileManager.default.contentsOfDirectory(atPath: base.chartsDir.path)) ?? []).isEmpty)
+    }
+
+    @Test func theCheckFinishesCleanOrNamesTheRow() async throws {
+        let pdf = try #require(PDFTestDocuments.chart(rows: true))
+        let clean = try await make().importer(rowReader: StubRowReader(document: Self.chartDocument(), delayPerRow: .zero))
+        let reading = try await clean.read(pdf, fileName: "drawn.pdf")
+        let seen = Progress()
+        let record = await clean.check(reading) { p in Task { await seen.add(p) } }
+        #expect(record == ImportRecord(grid: true, check: .finished, rowsChecked: 15, rowsTotal: 15, rowsDisagree: [], gaugePrinted: false, problem: nil))
+        try await Task.sleep(for: .milliseconds(50))
+        #expect(await seen.items.contains(.checking(done: 15, of: 15)))
+        let wrong = try await make().importer(rowReader: StubRowReader(document: Self.chartDocument(wrongRow: 5), delayPerRow: .zero))
+        let record2 = await wrong.check(try await wrong.read(pdf, fileName: "drawn.pdf"), progress: nil)
+        #expect(record2.check == .finished && record2.rowsDisagree == [5] && record2.problem == nil)
+    }
+
+    @Test func aRowTheReaderCouldNotReadMakesTheCheckIncomparableNotSilentlyClean() async throws {
+        var doc = Self.chartDocument()
+        doc.written_rows?[4].runs = []
+        doc.written_rows?[4].error = "no colour named"
+        let importer = try await make().importer(rowReader: StubRowReader(document: doc, delayPerRow: .zero))
+        let record = await importer.check(try await importer.read(try #require(PDFTestDocuments.chart(rows: true)), fileName: "drawn.pdf"), progress: nil)
+        #expect(record.check == .finished && record.problem == "row 5: no colour named" && record.rowsDisagree.isEmpty)
+        #expect(record.sentence == "Written rows could not be compared with the chart: row 5: no colour named.")
+    }
+
+    @Test func withoutAModelTheCheckIsUnavailableAndWithoutRowsThereIsNone() async throws {
+        let none = try await make().importer(rowReader: nil, modelUnavailable: "needs iOS 26")
+        let reading = try await none.read(try #require(PDFTestDocuments.chart(rows: true)), fileName: "drawn.pdf")
+        #expect(reading.source == .grid(page: 1, rowsToCheck: Self.chartHeight))
+        #expect(await none.check(reading, progress: nil).check == .unavailable)
+        let noRows = try await none.read(try #require(PDFTestDocuments.chart(rows: false)), fileName: "drawn.pdf")
+        #expect(noRows.source == .grid(page: 1, rowsToCheck: 0))
+        #expect(await none.check(noRows, progress: nil).check == .noRows)
+    }
+
+    @Test func aCancelledCheckIsStoppedAtTheRowsRead() async throws {
+        let importer = try await make().importer(rowReader: StubRowReader(document: Self.chartDocument(), delayPerRow: .milliseconds(200)))
+        let reading = try await importer.read(try #require(PDFTestDocuments.chart(rows: true)), fileName: "drawn.pdf")
+        let task = Task { await importer.check(reading, progress: nil) }
+        try await Task.sleep(for: .milliseconds(500))
+        task.cancel()
+        let record = await task.value
+        #expect(record.check == .stopped && record.rowsTotal == 15 && record.rowsChecked < 15 && record.problem == nil)
+    }
+
+    @Test func savingWithARecordWritesItIntoTheChart() async throws {
+        let base = try await make()
+        let importer = base.importer()
+        let reading = try await importer.read(try #require(PDFTestDocuments.chart(rows: true)), fileName: "drawn.pdf")
+        let record = ImportRecord(grid: true, check: .stopped, rowsChecked: 4, rowsTotal: 15, rowsDisagree: [2], gaugePrinted: false, problem: nil)
+        let manifest = try await importer.save(reading, record: record)
+        let stored = try await base.charts.chart(id: manifest.charts[0].id)
+        #expect(ImportRecord(json: stored.document.ext) == record && stored.id == reading.bundle.charts[0].chart.id)
+    }
+
+    @Test func theRenderScaleFitsTheBudget() {
+        #expect(PageRenderer.scale(for: CGRect(x: 0, y: 0, width: 612, height: 792)) == 4)
+        #expect(PageRenderer.scale(for: CGRect(x: 0, y: 0, width: 3000, height: 3000)) == 2)
+        #expect(PageRenderer.scale(for: CGRect(x: 0, y: 0, width: 7000, height: 7000)) == nil)
+    }
+
     @Test func cancellingTheReadThrowsCancelledAndWritesNothing() async throws {
         let base = try await make()
         let importer = base.importer(rowReader: StubRowReader(document: Self.twoRowDocument(), delayPerRow: .seconds(1)))
@@ -207,6 +337,43 @@ enum PDFTestDocuments {
         return renderer.pdfData { ctx in
             ctx.beginPage()
             (text as NSString).draw(in: bounds.insetBy(dx: 36, dy: 36), withAttributes: [.font: UIFont.systemFont(ofSize: 12)])
+        }
+    }
+
+    /// A page with the synthetic chart drawn at 12 pt cells (48 px at 4×), grid lines 0.5 pt with
+    /// every fifth bold, numbers above and beside; with `rows`, a second page of written rows.
+    static func chart(rows: Bool) -> Data? {
+        let cell: CGFloat = 12, ox: CGFloat = 60, oy: CGFloat = 80
+        let w = PDFImportTests.chartWidth, h = PDFImportTests.chartHeight
+        let renderer = UIGraphicsPDFRenderer(bounds: bounds)
+        return renderer.pdfData { ctx in
+            ctx.beginPage()
+            let cg = ctx.cgContext
+            for y in 0..<h { for x in 0..<w {
+                let rgb = GridColours.rgb(PDFImportTests.chartHexes[PDFImportTests.chartCell(x: x, y: y)])!
+                cg.setFillColor(CGColor(red: CGFloat(rgb.0) / 255, green: CGFloat(rgb.1) / 255, blue: CGFloat(rgb.2) / 255, alpha: 1))
+                cg.fill(CGRect(x: ox + CGFloat(x) * cell, y: oy + CGFloat(y) * cell, width: cell, height: cell))
+            } }
+            for x in 0...w {
+                let bold = (w - x) % 5 == 0
+                cg.setStrokeColor(bold ? CGColor(gray: 0, alpha: 1) : CGColor(gray: 0.55, alpha: 1))
+                cg.setLineWidth(bold ? 1 : 0.5)
+                cg.move(to: CGPoint(x: ox + CGFloat(x) * cell, y: oy)); cg.addLine(to: CGPoint(x: ox + CGFloat(x) * cell, y: oy + CGFloat(h) * cell)); cg.strokePath()
+            }
+            for y in 0...h {
+                let bold = (h - y) % 5 == 0
+                cg.setStrokeColor(bold ? CGColor(gray: 0, alpha: 1) : CGColor(gray: 0.55, alpha: 1))
+                cg.setLineWidth(bold ? 1 : 0.5)
+                cg.move(to: CGPoint(x: ox, y: oy + CGFloat(y) * cell)); cg.addLine(to: CGPoint(x: ox + CGFloat(w) * cell, y: oy + CGFloat(y) * cell)); cg.strokePath()
+            }
+            let attrs: [NSAttributedString.Key: Any] = [.font: UIFont.systemFont(ofSize: 6)]
+            for x in 0..<w { ("\(w - x)" as NSString).draw(at: CGPoint(x: ox + CGFloat(x) * cell + 2, y: oy - 9), withAttributes: attrs) }
+            for y in 0..<h { ("\(h - y)" as NSString).draw(at: CGPoint(x: ox - 14, y: oy + CGFloat(y) * cell + 3), withAttributes: attrs) }
+            if rows {
+                ctx.beginPage()
+                let text = (1...h).map { "Row \($0): sc across in the colours shown" }.joined(separator: "\n")
+                (text as NSString).draw(in: bounds.insetBy(dx: 36, dy: 36), withAttributes: [.font: UIFont.systemFont(ofSize: 12)])
+            }
         }
     }
 

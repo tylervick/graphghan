@@ -320,6 +320,7 @@ final class AppModel {
                 state.reading = reading
                 state.preview = UIImage(data: reading.preview)
                 state.stage = .found
+                if case .grid = reading.source { self?.startPDFCheck(state, importer: importer) }
             } catch PDFImportError.cancelled {
                 if self?.pdfImport === state { self?.pdfImport = nil }
             } catch let error as PDFImportError {
@@ -332,13 +333,37 @@ final class AppModel {
         await task.value
     }
 
+    /// The written rows against the chart, after the chart is on screen (spec §4.2). The record
+    /// lands in `state.check`; "Add to library" writes it into the chart.
+    private func startPDFCheck(_ state: PDFImportState, importer: PDFImporter) {
+        guard let reading = state.reading else { return }
+        if case .grid(_, let total) = reading.source, total > 0, rowReader != nil { state.check = .running(done: 0, of: total) }
+        state.checkTask = Task {
+            let record = await importer.check(reading) { p in
+                Task { @MainActor in
+                    if case .checking(let done, let of) = p, case .running = state.check { state.check = .running(done: done, of: of) }
+                }
+            }
+            state.check = .done(record)
+        }
+    }
+
+    /// "Skip the check": the reader stops between rows; what it read is compared and recorded.
+    func skipPDFCheck() {
+        pdfImport?.checkTask?.cancel()
+    }
+
     /// "Add to library": the bundle importer's order, then the same landing as an opened bundle.
     func addImportedPDF() async {
         guard let state = pdfImport, let reading = state.reading, state.stage == .found || state.stage == .saving else { return }
         state.stage = .saving
+        // Adding before the check ends stops it; its record (stopped at the row it reached) is saved.
+        if let task = state.checkTask { task.cancel(); await task.value }
+        var record: ImportRecord?
+        if case .done(let r) = state.check { record = r }
         let importer = pdfImporter
         do {
-            let manifest = try await importer.save(reading)
+            let manifest = try await importer.save(reading, record: record)
             manifests[manifest.id] = manifest
             for key in images.keys where key == "local:\(manifest.id)" || key.hasPrefix("\(manifest.id)/") { images[key] = nil }
             await loadLocalPatterns()
@@ -356,6 +381,7 @@ final class AppModel {
     func cancelPDFImport() {
         guard let state = pdfImport, state.stage != .saving else { return }
         state.task?.cancel()
+        state.checkTask?.cancel()
         pdfImport = nil
     }
 

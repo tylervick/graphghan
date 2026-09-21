@@ -18,6 +18,14 @@ final class PDFImportState {
     var preview: UIImage? = nil
     /// The read in flight, so Cancel can stop the model mid-row.
     var task: Task<Void, Never>? = nil
+    enum CheckStage: Equatable {
+        case none
+        case running(done: Int, of: Int)
+        case done(ImportRecord)
+    }
+    /// The row check under "Chart found" (spec §5.2), and its task so Skip and Cancel can stop it.
+    var check: CheckStage = .none
+    var checkTask: Task<Void, Never>? = nil
     init(fileName: String) { self.fileName = fileName }
 
     /// Cancel while the model reads or before the chart is added; Done once it failed.
@@ -59,6 +67,21 @@ struct PDFImportSheet: View {
                         if let r = state.reading {
                             Text(r.bundle.manifest.title).font(Font.Heather.heading).foregroundStyle(Color.ink)
                             Text("\(r.width) × \(r.height) stitches, \(r.colours) colours").font(Font.Heather.body).foregroundStyle(Color.ink2)
+                        }
+                        switch state.check {
+                        case .none:
+                            EmptyView()
+                        case .running(let done, let of):
+                            VStack(spacing: 6) {
+                                Text("Checking written row \(done) of \(of)…").font(Font.Heather.caption).foregroundStyle(Color.ink2).monospacedDigit()
+                                ProgressView(value: Double(done), total: Double(max(of, 1))).tint(Color.ink)
+                                Button("Skip the check") { model.skipPDFCheck() }.font(Font.Heather.caption)
+                            }
+                        case .done(let record):
+                            // Nothing to say for a chart with no written rows; agreement only for a finished check.
+                            if let sentence = record.sentence ?? (record.check == .finished ? "Written rows agree with the chart." : nil) {
+                                Text(sentence).font(Font.Heather.caption).foregroundStyle(Color.ink2).multilineTextAlignment(.center)
+                            }
                         }
                         Button("Add to library") {
                             state.stage = .saving  // set before the save runs: no second tap, no cancel underneath it

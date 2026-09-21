@@ -21,6 +21,11 @@ enum Fixtures {
         try Data(contentsOf: root.appendingPathComponent("fixtures/bundle/\(slug).graphghan"))
     }
 
+    /// `fixtures/import/grid/<name>.<ext>`: the synthetic chart images and the Python answers.
+    static func grid(_ name: String, ext: String) -> URL {
+        root.appendingPathComponent("fixtures/import/grid/\(name).\(ext)")
+    }
+
     static var chartNames: [String] {
         let names = (try? FileManager.default.contentsOfDirectory(atPath: directory.path)) ?? []
         return names.filter { $0.hasSuffix(".chart.json") }
