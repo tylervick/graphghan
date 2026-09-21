@@ -105,14 +105,19 @@ one a row, makes a fresh one every 16 requests so the transcript never fills the
 at once if it ever says it has), and waits out a `GenerationError.rateLimited` twice before
 giving a request up — then stops waiting altogether once three requests running have been given
 up on, so a phone whose model will not answer costs seconds, not an hour. `ReaderSessionTests`
-runs that loop against a counter, with no model involved. A read the model refused throughout is
-reported to the maker as "The on-device model is busy; try the check again in a minute"
-(`ImportRecord.modelBusySentence`), with `the on-device model is busy` as the record's `problem`;
-underneath that sentence the sheet offers **Why?**, which runs `ProseReader.probe()` — a
-one-line prompt with no instructions, the same prompt under the row instructions, then a
-structured answer — and prints which of the three is the first the phone refuses, beside what
-the scene was doing when the check started. The simulator has no model, so that is the only
-place those three questions can be asked. The screen is held awake for a check or a rows-only
+runs that loop against a counter, with no model involved. A read whose every lost row was lost
+to that refusal says so in one sentence, "The on-device model is busy; try the check again in a
+minute" (`ImportRecord.modelBusySentence`): the check records `the on-device model is busy` as
+the chart's `problem`, while the rows-only path writes no record at all and fails with the same
+sentence (`PDFImportError.modelBusy`). Underneath it the sheet offers **Why?**, which runs
+`ProseReader.probe()` — a one-line prompt with no instructions, the same prompt under the row
+instructions, then a structured answer, and, when one of the larger two is refused, the one-line
+prompt once more as a control, because a refusal that follows the number of requests otherwise
+looks exactly like one that follows their content. It prints which question was refused first
+and what that licenses concluding, beside what the scene was doing when the check started. Only
+the availability step can run without a model, so on the simulator the report says just that
+there is none: the three questions need a physical iPhone with Apple Intelligence, which is the
+only place the refusal happens anyway. The screen is held awake for a check or a rows-only
 read through `IdleTimer`, which counts holds so the Work screen and an import cannot cancel
 each other's.
 

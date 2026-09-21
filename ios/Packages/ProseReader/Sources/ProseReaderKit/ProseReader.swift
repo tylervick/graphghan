@@ -124,7 +124,7 @@ public struct ProseReader: Sendable {
             if case .rateLimited = error { return true }
             return false
         }
-        return Self.describes(error, "ratelimited")
+        return Self.describes(error, caseName: "rateLimited", words: "rate limited")
     }
 
     /// The transcript filling the window, which a fresh session cures.
@@ -133,17 +133,22 @@ public struct ProseReader: Sendable {
             if case .exceededContextWindowSize = error { return true }
             return false
         }
-        return Self.describes(error, "contextwindow")
+        return Self.describes(error, caseName: "exceededContextWindowSize", words: "context window")
     }
 
-    /// Whether an error names itself with `word`, spaces and case ignored, so that both spellings
-    /// the framework uses are one word: the Swift case (`rateLimited`) and the bridged sentence
-    /// ("Request has been rate limited"). Reached only for an error whose type this SDK cannot
-    /// name -- an iOS 27 device's `LanguageModelError`. An error this SDK does name is decided by
-    /// its case above and never by its prose, or a `decodingFailure` whose context happens to
-    /// mention a rate limit would be waited out as one.
-    static func describes(_ error: any Error, _ word: String) -> Bool {
-        String(describing: error).lowercased().filter { !$0.isWhitespace }.contains(word)
+    /// Whether an error names itself in either of the two spellings the framework uses: the
+    /// Swift case (`rateLimited`), matched as written, or the bridged sentence ("Request has been
+    /// rate limited"), matched whatever its case. Both are anchored at word boundaries, so a
+    /// `notRateLimited` from somewhere else is not swept in with them.
+    ///
+    /// Reached only for an error whose type this SDK cannot name -- an iOS 27 device's
+    /// `LanguageModelError`. An error this SDK does name is decided by its case above and never
+    /// by its prose, or a `decodingFailure` whose context happens to mention a rate limit would
+    /// be waited out as one.
+    static func describes(_ error: any Error, caseName: String, words: String) -> Bool {
+        let text = String(describing: error)
+        if text.range(of: "\\b\(caseName)\\b", options: .regularExpression) != nil { return true }
+        return text.range(of: "\\b\(words)\\b", options: [.regularExpression, .caseInsensitive]) != nil
     }
 
     /// A session with no instructions at all, which is the smallest thing the model can be

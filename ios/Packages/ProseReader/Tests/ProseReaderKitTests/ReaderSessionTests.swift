@@ -195,6 +195,10 @@ import Testing
         #expect(ProseReader.isContextFull(Spelled(description: "the context window is full")))
         #expect(!ProseReader.isBusy(Spelled(description: "the network rate is limited")))
         #expect(!ProseReader.isBusy(Spelled(description: "guardrailViolation(…)")))
+        // Anchored, so a neighbouring word that merely contains the spelling is not swept in.
+        #expect(!ProseReader.isBusy(Spelled(description: "notRateLimited(…)")))
+        #expect(!ProseReader.isBusy(Spelled(description: "the request was not rate limitedly handled")))
+        #expect(!ProseReader.isContextFull(Spelled(description: "notExceededContextWindowSize(…)")))
     }
 
     @Test func aBusyRowCarriesTheWordsTheAppMatchesAndAnyOtherKeepsItsOwn() {

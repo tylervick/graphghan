@@ -113,9 +113,11 @@ transcript never fills the 4k window and at once if it ever reports that it has;
 model refuses as `GenerationError.rateLimited` is waited out and asked again, three attempts and
 ten seconds of waiting in all; and once three requests running have been given up on, the waiting
 stops, so a phone whose model will not answer costs a 310-row check seconds rather than an hour.
-A read lost entirely to that refusal is reported as "The on-device model is busy; try the check
-again in a minute", with `the on-device model is busy` as the record's `problem` (§6.3) — not 77
-copies of the `GenerationError` text. The screen is held awake for the length of a check or a
+A read whose every lost row was lost to that refusal says so in one sentence rather than in 77
+copies of the `GenerationError` text: the check in §4.2 records `the on-device model is busy` as
+the record's `problem` (§6.3), whose sentence is "The on-device model is busy; try the check
+again in a minute", and the rows-only path in §4.3, which writes no record because it never gets
+as far as a chart, fails with that same sentence (`PDFImportError.modelBusy`). The screen is held awake for the length of a check or a
 rows-only read. The session reuse is new since the breadth measurement (#146–#150), which was
 taken with a session per row: #177 re-measures with it on.
 

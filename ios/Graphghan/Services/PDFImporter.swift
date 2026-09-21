@@ -85,7 +85,7 @@ struct PDFImporter: Sendable {
         }
         // A model that refused every row it was asked is a state that passes, not a pattern the
         // app cannot read: it gets its own sentence rather than 77 copies of the same one (#176).
-        if Self.isModelBusy(unread) { throw .modelBusy }
+        if Self.isModelBusy(all) { throw .modelBusy }
         guard unread.isEmpty else { throw .rowsDoNotAssemble(unread) }
         guard !all.isEmpty else { throw .rowsDoNotAssemble(["no written rows were read"]) }
         let rows = all.map { RowsChart.Row(row: $0.row, runs: $0.runs.map(Self.run), total: $0.total) }
@@ -177,8 +177,14 @@ struct PDFImporter: Sendable {
     /// Every row the reader gave up on was given up for the one reason the app words itself:
     /// the model is being asked too often (#176). A read that lost rows to anything else keeps
     /// reporting what it lost them to.
-    static func isModelBusy(_ unread: [String]) -> Bool {
-        !unread.isEmpty && unread.allSatisfy { $0.hasSuffix(ReaderFailure.modelBusy) }
+    ///
+    /// Judged on the rows' own `error`, not on the sentences built from them, so nothing turns
+    /// on how those are worded. Judged on the rows that failed rather than on all of them: a
+    /// read that got 76 rows and lost the 77th to a rate limit is still a read worth trying
+    /// again in a minute, and that is the only thing the sentence tells the maker to do.
+    static func isModelBusy(_ rows: [ProseDocument.Row]) -> Bool {
+        let failed = rows.filter { $0.error != nil || $0.runs.isEmpty }
+        return !failed.isEmpty && failed.allSatisfy { $0.error == ReaderFailure.modelBusy }
     }
 
     /// The written rows read and compared with the chart (spec §4.2): the outcome as the record
@@ -204,7 +210,7 @@ struct PDFImporter: Sendable {
         record.check = stopped ? .stopped : .finished
         record.rowsChecked = rows.map(\.row).max() ?? 0
         guard unread.isEmpty else {
-            record.problem = Self.isModelBusy(unread) ? ImportRecord.modelBusy : unread.joined(separator: "; ")
+            record.problem = Self.isModelBusy(all) ? ImportRecord.modelBusy : unread.joined(separator: "; ")
             return record
         }
         let chart = reading.bundle.charts[0].chart

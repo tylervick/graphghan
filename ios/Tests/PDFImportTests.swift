@@ -321,6 +321,23 @@ import ProseReaderKit
         #expect(reading.width == Self.chartWidth && reading.height == Self.chartHeight)
     }
 
+    /// One row lost to a busy model among rows that read is still "try again in a minute": that
+    /// is the whole of what a maker should do about it, and the record's `rows_checked` still
+    /// says how far the check got. A row lost to anything else keeps its own reason.
+    @Test func oneRowLostToABusyModelAmongGoodOnesStillAsksForAnotherTry() async throws {
+        var doc = Self.chartDocument()
+        doc.written_rows?[4].runs = []
+        doc.written_rows?[4].error = ReaderFailure.modelBusy
+        let importer = try await make().importer(rowReader: StubRowReader(document: doc, delayPerRow: .zero))
+        let record = await importer.check(try await importer.read(try #require(PDFTestDocuments.chart(rows: true)), fileName: "drawn.pdf"), progress: nil)
+        #expect(record.problem == ImportRecord.modelBusy && record.rowsChecked == Self.chartHeight)
+        doc.written_rows?[6].runs = []
+        doc.written_rows?[6].error = "no colour named"
+        let mixed = try await make().importer(rowReader: StubRowReader(document: doc, delayPerRow: .zero))
+        let second = await mixed.check(try await mixed.read(try #require(PDFTestDocuments.chart(rows: true)), fileName: "drawn.pdf"), progress: nil)
+        #expect(second.problem == "row 5: the on-device model is busy; row 7: no colour named")
+    }
+
     /// The reader writes these words and the record matches them across a package boundary, so
     /// they have to stay the same words.
     @Test func theReadersWordsForABusyModelAreTheOnesTheRecordMatches() {
