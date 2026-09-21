@@ -16,25 +16,37 @@ enum GridLines {
         guard bridge > 0 else { return mask }
         let n = mask.rows, m = mask.cols
         var d = mask
-        for y in 0..<n { for x in 0..<m where !mask[y, x] {
-            for s in 1...bridge where (y - s >= 0 && mask[y - s, x]) || (y + s < n && mask[y + s, x]) { d[y, x] = true; break }
-        } }
+        mask.bits.withUnsafeBufferPointer { src in
+            d.bits.withUnsafeMutableBufferPointer { dst in
+                for y in 0..<n { for x in 0..<m where !src[y * m + x] {
+                    for s in 1...bridge where (y - s >= 0 && src[(y - s) * m + x]) || (y + s < n && src[(y + s) * m + x]) { dst[y * m + x] = true; break }
+                } }
+            }
+        }
         var e = d
-        for y in 0..<n { for x in 0..<m where d[y, x] {
-            for s in 1...bridge where (y - s >= 0 && !d[y - s, x]) || (y + s < n && !d[y + s, x]) { e[y, x] = false; break }
-        } }
-        for y in 0..<n { for x in 0..<m { e[y, x] = e[y, x] && (d[y, x] || mask[y, x]) } }
+        d.bits.withUnsafeBufferPointer { dd in
+            e.bits.withUnsafeMutableBufferPointer { ee in
+                for y in 0..<n { for x in 0..<m where dd[y * m + x] {
+                    for s in 1...bridge where (y - s >= 0 && !dd[(y - s) * m + x]) || (y + s < n && !dd[(y + s) * m + x]) { ee[y * m + x] = false; break }
+                } }
+                // `e & (d | mask)`: e is a subset of d already, so nothing more to clear.
+            }
+        }
         return e
     }
 
     /// Per column: the longest run of True down it after closing (`_longest_runs`, first value).
     static func longestRuns(_ mask: Mask, bridge: Int) -> [Int] {
         let closed = close(mask, bridge: bridge)
-        var best = [Int](repeating: 0, count: mask.cols)
-        for x in 0..<mask.cols {
-            var run = 0
-            for y in 0..<mask.rows {
-                if closed[y, x] { run += 1; best[x] = max(best[x], run) } else { run = 0 }
+        let n = mask.rows, m = mask.cols
+        var best = [Int](repeating: 0, count: m)
+        closed.bits.withUnsafeBufferPointer { c in
+            for x in 0..<m {
+                var run = 0, top = 0
+                for y in 0..<n {
+                    if c[y * m + x] { run += 1; if run > top { top = run } } else { run = 0 }
+                }
+                best[x] = top
             }
         }
         return best
@@ -44,18 +56,21 @@ enum GridLines {
     /// (start, end) inclusive (`_runs`).
     static func runs(_ mask: Mask, minPx: Int) -> (best: [Int], segments: [[(Int, Int)]]) {
         let closed = close(mask, bridge: bridge)
-        var best = [Int](repeating: 0, count: mask.cols)
-        var segments = [[(Int, Int)]](repeating: [], count: mask.cols)
-        for x in 0..<mask.cols {
-            var start = -1
-            for y in 0...mask.rows {
-                let on = y < mask.rows && closed[y, x]
-                if on, start < 0 { start = y }
-                if !on, start >= 0 {
-                    let length = y - start
-                    best[x] = max(best[x], length)
-                    if length >= minPx { segments[x].append((start, y - 1)) }
-                    start = -1
+        let n = mask.rows, m = mask.cols
+        var best = [Int](repeating: 0, count: m)
+        var segments = [[(Int, Int)]](repeating: [], count: m)
+        closed.bits.withUnsafeBufferPointer { c in
+            for x in 0..<m {
+                var start = -1
+                for y in 0...n {
+                    let on = y < n && c[y * m + x]
+                    if on, start < 0 { start = y }
+                    if !on, start >= 0 {
+                        let length = y - start
+                        if length > best[x] { best[x] = length }
+                        if length >= minPx { segments[x].append((start, y - 1)) }
+                        start = -1
+                    }
                 }
             }
         }

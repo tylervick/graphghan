@@ -58,9 +58,13 @@ public struct GridImage: Sendable {
     /// Pillow's "L": `0.299 R + 0.587 G + 0.114 B`, rounded to a byte, as a Float per pixel.
     public func grey() -> [Float] {
         var out = [Float](repeating: 0, count: width * height)
-        for i in 0..<(width * height) {
-            let v = 0.299 * Double(rgb[i * 3]) + 0.587 * Double(rgb[i * 3 + 1]) + 0.114 * Double(rgb[i * 3 + 2])
-            out[i] = Float(Int(v + 0.5))
+        rgb.withUnsafeBufferPointer { p in
+            out.withUnsafeMutableBufferPointer { o in
+                for i in 0..<(width * height) {
+                    let v = 0.299 * Double(p[i * 3]) + 0.587 * Double(p[i * 3 + 1]) + 0.114 * Double(p[i * 3 + 2])
+                    o[i] = Float(Int(v + 0.5))
+                }
+            }
         }
         return out
     }

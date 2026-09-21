@@ -410,9 +410,13 @@ public struct GridImage: Sendable {
     /// Pillow's "L": `0.299 R + 0.587 G + 0.114 B`, rounded to a byte, as a Float per pixel.
     public func grey() -> [Float] {
         var out = [Float](repeating: 0, count: width * height)
-        for i in 0..<(width * height) {
-            let v = 0.299 * Double(rgb[i * 3]) + 0.587 * Double(rgb[i * 3 + 1]) + 0.114 * Double(rgb[i * 3 + 2])
-            out[i] = Float(Int(v + 0.5))
+        rgb.withUnsafeBufferPointer { p in
+            out.withUnsafeMutableBufferPointer { o in
+                for i in 0..<(width * height) {
+                    let v = 0.299 * Double(p[i * 3]) + 0.587 * Double(p[i * 3 + 1]) + 0.114 * Double(p[i * 3 + 2])
+                    o[i] = Float(Int(v + 0.5))
+                }
+            }
         }
         return out
     }
@@ -469,25 +473,37 @@ enum GridLines {
         guard bridge > 0 else { return mask }
         let n = mask.rows, m = mask.cols
         var d = mask
-        for y in 0..<n { for x in 0..<m where !mask[y, x] {
-            for s in 1...bridge where (y - s >= 0 && mask[y - s, x]) || (y + s < n && mask[y + s, x]) { d[y, x] = true; break }
-        } }
+        mask.bits.withUnsafeBufferPointer { src in
+            d.bits.withUnsafeMutableBufferPointer { dst in
+                for y in 0..<n { for x in 0..<m where !src[y * m + x] {
+                    for s in 1...bridge where (y - s >= 0 && src[(y - s) * m + x]) || (y + s < n && src[(y + s) * m + x]) { dst[y * m + x] = true; break }
+                } }
+            }
+        }
         var e = d
-        for y in 0..<n { for x in 0..<m where d[y, x] {
-            for s in 1...bridge where (y - s >= 0 && !d[y - s, x]) || (y + s < n && !d[y + s, x]) { e[y, x] = false; break }
-        } }
-        for y in 0..<n { for x in 0..<m { e[y, x] = e[y, x] && (d[y, x] || mask[y, x]) } }
+        d.bits.withUnsafeBufferPointer { dd in
+            e.bits.withUnsafeMutableBufferPointer { ee in
+                for y in 0..<n { for x in 0..<m where dd[y * m + x] {
+                    for s in 1...bridge where (y - s >= 0 && !dd[(y - s) * m + x]) || (y + s < n && !dd[(y + s) * m + x]) { ee[y * m + x] = false; break }
+                } }
+                // `e & (d | mask)`: e is a subset of d already, so nothing more to clear.
+            }
+        }
         return e
     }
 
     /// Per column: the longest run of True down it after closing (`_longest_runs`, first value).
     static func longestRuns(_ mask: Mask, bridge: Int) -> [Int] {
         let closed = close(mask, bridge: bridge)
-        var best = [Int](repeating: 0, count: mask.cols)
-        for x in 0..<mask.cols {
-            var run = 0
-            for y in 0..<mask.rows {
-                if closed[y, x] { run += 1; best[x] = max(best[x], run) } else { run = 0 }
+        let n = mask.rows, m = mask.cols
+        var best = [Int](repeating: 0, count: m)
+        closed.bits.withUnsafeBufferPointer { c in
+            for x in 0..<m {
+                var run = 0, top = 0
+                for y in 0..<n {
+                    if c[y * m + x] { run += 1; if run > top { top = run } } else { run = 0 }
+                }
+                best[x] = top
             }
         }
         return best
@@ -497,18 +513,21 @@ enum GridLines {
     /// (start, end) inclusive (`_runs`).
     static func runs(_ mask: Mask, minPx: Int) -> (best: [Int], segments: [[(Int, Int)]]) {
         let closed = close(mask, bridge: bridge)
-        var best = [Int](repeating: 0, count: mask.cols)
-        var segments = [[(Int, Int)]](repeating: [], count: mask.cols)
-        for x in 0..<mask.cols {
-            var start = -1
-            for y in 0...mask.rows {
-                let on = y < mask.rows && closed[y, x]
-                if on, start < 0 { start = y }
-                if !on, start >= 0 {
-                    let length = y - start
-                    best[x] = max(best[x], length)
-                    if length >= minPx { segments[x].append((start, y - 1)) }
-                    start = -1
+        let n = mask.rows, m = mask.cols
+        var best = [Int](repeating: 0, count: m)
+        var segments = [[(Int, Int)]](repeating: [], count: m)
+        closed.bits.withUnsafeBufferPointer { c in
+            for x in 0..<m {
+                var start = -1
+                for y in 0...n {
+                    let on = y < n && c[y * m + x]
+                    if on, start < 0 { start = y }
+                    if !on, start >= 0 {
+                        let length = y - start
+                        if length > best[x] { best[x] = length }
+                        if length >= minPx { segments[x].append((start, y - 1)) }
+                        start = -1
+                    }
                 }
             }
         }
@@ -684,7 +703,7 @@ import Testing
         let regions = try GridReader.findRegions(img)
         print("GridReader.findRegions craigh page \(img.width)x\(img.height): \(Int(Date().timeIntervalSince(started) * 1000)) ms")
         let r = try #require(regions.first)
-        #expect(r.cols == header.cols && r.rows == header.rows, r.describe())
+        #expect(r.cols == header.cols && r.rows == header.rows, "\(r.describe())")
         #expect(r.noise < GridReader.maxNoise)
     }
 }
@@ -800,20 +819,24 @@ public enum GridReader {
         var ex = Mask(rows: h, cols: w - 1)
         var eyT = Mask(rows: w, cols: h - 1)
         img.rgb.withUnsafeBufferPointer { p in
-            for y in 0..<h {
-                let row = y * w * 3
-                for x in 0..<(w - 1) {
-                    let i = row + x * 3
-                    let d = max(abs(Int(p[i]) - Int(p[i + 3])), abs(Int(p[i + 1]) - Int(p[i + 4])), abs(Int(p[i + 2]) - Int(p[i + 5])))
-                    if d > t { ex.bits[y * (w - 1) + x] = true }
+            ex.bits.withUnsafeMutableBufferPointer { exb in
+                for y in 0..<h {
+                    let row = y * w * 3
+                    for x in 0..<(w - 1) {
+                        let i = row + x * 3
+                        let d = max(abs(Int(p[i]) - Int(p[i + 3])), abs(Int(p[i + 1]) - Int(p[i + 4])), abs(Int(p[i + 2]) - Int(p[i + 5])))
+                        if d > t { exb[y * (w - 1) + x] = true }
+                    }
                 }
             }
-            for y in 0..<(h - 1) {
-                let row = y * w * 3, next = (y + 1) * w * 3
-                for x in 0..<w {
-                    let i = row + x * 3, j = next + x * 3
-                    let d = max(abs(Int(p[i]) - Int(p[j])), abs(Int(p[i + 1]) - Int(p[j + 1])), abs(Int(p[i + 2]) - Int(p[j + 2])))
-                    if d > t { eyT.bits[x * (h - 1) + y] = true }
+            eyT.bits.withUnsafeMutableBufferPointer { eyb in
+                for y in 0..<(h - 1) {
+                    let row = y * w * 3, next = (y + 1) * w * 3
+                    for x in 0..<w {
+                        let i = row + x * 3, j = next + x * 3
+                        let d = max(abs(Int(p[i]) - Int(p[j])), abs(Int(p[i + 1]) - Int(p[j + 1])), abs(Int(p[i + 2]) - Int(p[j + 2])))
+                        if d > t { eyb[x * (h - 1) + y] = true }
+                    }
                 }
             }
         }
@@ -829,10 +852,15 @@ public enum GridReader {
     /// True where any pixel within r columns is True (`_window_max`, along axis 1).
     static func windowMax(_ m: Mask, _ r: Int) -> Mask {
         var out = m
-        for y in 0..<m.rows {
-            let row = y * m.cols
-            for x in 0..<m.cols where !m.bits[row + x] {
-                for s in 1...r where (x - s >= 0 && m.bits[row + x - s]) || (x + s < m.cols && m.bits[row + x + s]) { out.bits[row + x] = true; break }
+        let rows = m.rows, cols = m.cols
+        m.bits.withUnsafeBufferPointer { src in
+            out.bits.withUnsafeMutableBufferPointer { dst in
+                for y in 0..<rows {
+                    let row = y * cols
+                    for x in 0..<cols where !src[row + x] {
+                        for s in 1...r where (x - s >= 0 && src[row + x - s]) || (x + s < cols && src[row + x + s]) { dst[row + x] = true; break }
+                    }
+                }
             }
         }
         return out
@@ -851,10 +879,14 @@ public enum GridReader {
         let wide = windowMax(edges, 2)
         var density = [Double](repeating: 0, count: n)
         var raw = [Double](repeating: 0, count: n)
-        for y in 0..<span { for x in 0..<n {
-            if wide.bits[y * n + x] { density[x] += 1 }
-            if edges.bits[y * n + x] { raw[x] += 1 }
-        } }
+        wide.bits.withUnsafeBufferPointer { wb in
+            edges.bits.withUnsafeBufferPointer { eb in
+                for y in 0..<span { for x in 0..<n {
+                    if wb[y * n + x] { density[x] += 1 }
+                    if eb[y * n + x] { raw[x] += 1 }
+                } }
+            }
+        }
         for x in 0..<n { density[x] /= Double(span); raw[x] /= Double(span) }
         let longest = GridLines.longestRuns(wide, bridge: max(1, min(GridLines.bridge, Int(pitch / 12))))
         let rSeed = max(2, Int(pitch / 4))
@@ -1092,12 +1124,30 @@ public enum GridReader {
 
 Two places to read with care against the Python before running: `colNoise` transposes the strip (`gray[y0:y1, a:b].T` has thickness across x and length down y, so `band(t, i)` reads `grey[(y0 + i) * w + a + t]`), and `rowNoise` does not (`gray[a:b, xs0:xs1]`: thickness down y, length along x). In `refineAxis` the pairs set is keyed on `[x, k]` because Swift tuples are not `Hashable`.
 
-- [ ] **Step 4: Run the tests**
+- [ ] **Step 4: Optimise the package's debug builds**
+
+At `-Onone` the Craigh page takes forty seconds (every pixel through generic array code); at `-O`
+it takes under half a second. The package is pure logic, so `Package.swift` optimises its debug
+builds too, which keeps the app's test suite quick:
+
+```swift
+        .target(
+            name: "GraphghanCore",
+            // The grid reader (GridReader.swift) walks every pixel of an 8-megapixel page; at
+            // -Onone that is forty seconds a page and half a second at -O. The package is pure
+            // logic, so its debug builds are optimised too and the app's tests stay quick.
+            swiftSettings: [.unsafeFlags(["-O"], .when(configuration: .debug))]
+        ),
+```
+
+`unsafeFlags` is allowed for a local package; confirm the app still builds (`xcodegen generate --quiet && xcodebuild build-for-testing …`) before committing.
+
+- [ ] **Step 5: Run the tests**
 
 Run: `cd ios/Packages/GraphghanCore && swift test --filter GridReaderTests 2>&1 | grep -E "error:|✘|✔ Test run|ms$" | head -20`
-Expected: `✔ Test run with 7 tests` (four fixtures, the photo, the cap, the own page). If a fixture's region count matches but a pitch or bbox is off by more than the tolerance, the difference is in `peak`'s rounding or `pitch`'s mean; compare against `uv run python -c "from graphghan import rasterchart as rc; from PIL import Image; print([r.describe() for r in rc.find_regions(Image.open('fixtures/import/grid/one-grid.png'))])"`. Note the printed times; the Craigh page (2448×3168 at 4×) should be well under two seconds in debug.
+Expected: `✔ Test run with 7 tests` (four fixtures, the photo, the cap, the own page). If a fixture's region count matches but a pitch or bbox is off by more than the tolerance, the difference is in `peak`'s rounding or `pitch`'s mean; compare against `uv run python -c "from graphghan import rasterchart as rc; from PIL import Image; print([r.describe() for r in rc.find_regions(Image.open('fixtures/import/grid/one-grid.png'))])"`. Note the printed times; the Craigh page (2448×3168 at 4×) reads in about 0.4 s on the mini once the package is optimised.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
 git add ios/Packages/GraphghanCore
@@ -1136,7 +1186,7 @@ import Testing
         let region = try #require(try GridReader.findRegions(img).first)
         let samples = GridReader.readRegion(img, region)
         let cells = try GridColours.snapToPalette(samples, hexes: try #require(answer.palette))
-        #expect(cells.map { $0.map(Int.init) } == answer.cells, name)
+        #expect(cells.map { $0.map(Int.init) } == answer.cells, "\(name)")
     }
 
     @Test(arguments: ["one-grid", "two-grids", "symbols"])
@@ -1145,15 +1195,15 @@ import Testing
         let region = try #require(try GridReader.findRegions(img).first)
         let (cells, hexes, warnings) = GridColours.clusterPalette(GridReader.readRegion(img, region))
         let want = try #require(answer.cluster)
-        #expect(hexes == want.hexes && warnings == want.warnings, name)
-        #expect(cells.map { $0.map(Int.init) } == want.cells, name)
+        #expect(hexes == want.hexes && warnings == want.warnings, "\(name)")
+        #expect(cells.map { $0.map(Int.init) } == want.cells, "\(name)")
     }
 
     @Test func snapRefusesAForeignColourByCell() {
         var samples = [[(UInt8, UInt8, UInt8)]](repeating: [(UInt8, UInt8, UInt8)](repeating: (0xf2, 0xe8, 0xd5), count: 3), count: 2)
         samples[1][2] = (255, 0, 255)
-        #expect(throws: GridColoursError.foreignColour(column: 3, row: 2, hex: "#ff00ff", nearest: "#f2e8d5", distance: 111)) {
-            try GridColours.snapToPalette(samples, hexes: Self.palette)
+        #expect(throws: GridColoursError.foreignColour(column: 3, row: 2, hex: "#ff00ff", nearest: "#2b2f33", distance: 122)) {
+            try GridColours.snapToPalette(samples, hexes: Self.palette)  // the nearest and the distance are the Python's answer
         }
     }
 
