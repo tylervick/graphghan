@@ -78,7 +78,8 @@ public enum GridChart {
     public static func draft(image: GridImage, region: Region, title: String) -> (draft: ChartDraft, cells: [UInt8], warnings: [String]) {
         let samples = GridReader.readRegion(image, region)
         let (grid, hexes, warnings) = GridColours.clusterPalette(samples)
-        let palette = hexes.enumerated().map { ChartDraft.Palette(code: GridColours.code($0.offset), name: GridColours.nameColour($0.element), hex: $0.element) }
+        // The hexes are `GridColours.hex` output, so each has a name; the code is the fallback in case.
+        let palette = hexes.enumerated().map { ChartDraft.Palette(code: GridColours.code($0.offset), name: GridColours.nameColour($0.element) ?? GridColours.code($0.offset), hex: $0.element) }
         let codes = palette.map(\.code)
         let rows = grid.map { row -> String in
             var runs: [(code: String, count: Int)] = []

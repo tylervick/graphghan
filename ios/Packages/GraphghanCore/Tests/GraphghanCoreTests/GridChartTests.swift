@@ -12,7 +12,7 @@ import Testing
         let (draft, cells, warnings) = GridChart.draft(image: img, region: region, title: "Synthetic")
         #expect(draft.width == 37 && draft.height == 29 && draft.rows.count == 29 && warnings.isEmpty)
         #expect(draft.palette.map(\.code) == ["A", "B", "C", "D"] && draft.palette.map(\.hex) == answer.cluster!.hexes)
-        #expect(draft.palette.map(\.name) == answer.cluster!.hexes.map(GridColours.nameColour))
+        #expect(draft.palette.map(\.name) == answer.cluster!.hexes.compactMap(GridColours.nameColour))
         #expect(cells.map(Int.init) == answer.cluster!.cells.flatMap { $0 })
         #expect(ImportRecord(json: draft.ext) == ImportRecord(grid: true, check: .noRows, rowsChecked: 0, rowsTotal: 0, rowsDisagree: [], gaugePrinted: false, problem: nil))
         let (data, id) = ChartWriter.encode(draft)

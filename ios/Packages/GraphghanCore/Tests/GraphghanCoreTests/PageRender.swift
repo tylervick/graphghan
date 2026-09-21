@@ -15,8 +15,9 @@ enum PageRender {
             guard let page = doc.page(at: i), let text = page.string else { continue }
             let range = NSRange(text.startIndex..., in: text)
             guard let m = headerRe.firstMatch(in: text, range: range) else { continue }
-            func n(_ k: Int) -> Int { Int(text[Range(m.range(at: k), in: text)!])! }
-            return (page, Header(cols: n(4) - n(3) + 1, rows: n(7) - n(6) + 1, colFrom: n(3), colTo: n(4), rowFrom: n(6), rowTo: n(7)))
+            func n(_ k: Int) -> Int? { Range(m.range(at: k), in: text).flatMap { Int(text[$0]) } }
+            guard let a = n(3), let b = n(4), let c = n(6), let d = n(7) else { continue }
+            return (page, Header(cols: b - a + 1, rows: d - c + 1, colFrom: a, colTo: b, rowFrom: c, rowTo: d))
         }
         return nil
     }

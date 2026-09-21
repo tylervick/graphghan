@@ -729,8 +729,9 @@ enum PageRender {
             guard let page = doc.page(at: i), let text = page.string else { continue }
             let range = NSRange(text.startIndex..., in: text)
             guard let m = headerRe.firstMatch(in: text, range: range) else { continue }
-            func n(_ k: Int) -> Int { Int(text[Range(m.range(at: k), in: text)!])! }
-            return (page, Header(cols: n(4) - n(3) + 1, rows: n(7) - n(6) + 1, colFrom: n(3), colTo: n(4), rowFrom: n(6), rowTo: n(7)))
+            func n(_ k: Int) -> Int? { Range(m.range(at: k), in: text).flatMap { Int(text[$0]) } }
+            guard let a = n(3), let b = n(4), let c = n(6), let d = n(7) else { continue }
+            return (page, Header(cols: b - a + 1, rows: d - c + 1, colFrom: a, colTo: b, rowFrom: c, rowTo: d))
         }
         return nil
     }
@@ -741,7 +742,7 @@ enum PageRender {
         let space = CGColorSpaceCreateDeviceRGB()
         let info = CGImageAlphaInfo.premultipliedLast.rawValue | CGBitmapInfo.byteOrder32Big.rawValue
         guard let ctx = CGContext(data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: 0, space: space, bitmapInfo: info) else { return nil }
-        ctx.setFillColor(gray: 1, alpha: 1)  // the page's paper, not a design colour
+        ctx.setFillColor(CGColor(red: 1, green: 1, blue: 1, alpha: 1))
         ctx.fill(CGRect(x: 0, y: 0, width: w, height: h))
         ctx.scaleBy(x: scale, y: scale)
         ctx.translateBy(x: -box.minX, y: -box.minY)
@@ -1244,6 +1245,8 @@ public enum GridColoursError: Error, Equatable {
     /// A cell farther than the allowed distance from every palette colour (`snap_to_palette`);
     /// column and row are 1-based from the top-left, distance rounded.
     case foreignColour(column: Int, row: Int, hex: String, nearest: String, distance: Int)
+    /// A palette hex that is not `#rrggbb`, or no palette at all: nothing to snap to.
+    case badPalette(String)
 }
 
 /// The colour half of `rasterchart.py`: Lab distances, snapping, greedy clustering, names.
@@ -1288,7 +1291,12 @@ public enum GridColours {
 
     /// Nearest palette entry per cell in Lab; a cell farther than `maxDelta` is refused by name.
     public static func snapToPalette(_ samples: [[(UInt8, UInt8, UInt8)]], hexes: [String], maxDelta: Double = 25) throws -> [[UInt8]] {
-        let pal = hexes.map { lab(rgb($0) ?? (0, 0, 0)) }
+        guard !hexes.isEmpty else { throw GridColoursError.badPalette("no palette colours") }
+        var pal: [Lab] = []
+        for h in hexes {
+            guard let c = rgb(h) else { throw GridColoursError.badPalette("\(h) is not #rrggbb") }
+            pal.append(lab(c))
+        }
         var out: [[UInt8]] = []
         var worst = (d: -1.0, x: 0, y: 0, hex: "", nearest: 0)
         for (y, row) in samples.enumerated() {
@@ -1340,13 +1348,11 @@ public enum GridColours {
         for j in members.indices.sorted(by: { totals[$0] < totals[$1] }) {
             if Double(totals[j]) >= threshold || members[j].isEmpty { continue }
             let others = members.indices.filter { $0 != j && !members[$0].isEmpty && Double(totals[$0]) >= threshold }
-            guard !others.isEmpty else { continue }
-            let ds = others.map { distance(centres[$0], centres[j]) }
-            let nearest = ds.indices.min { ds[$0] < ds[$1] }!
-            let k = others[nearest]
-            if ds[nearest] <= 2 * radius {
-                let rep = members[k].max { count[$0] < count[$1] }!
-                warnings.append("\(totals[j]) cell(s) of \(hex(rgbOf(colours[members[j][0]]))) folded into \(hex(rgbOf(colours[rep]))) (a watermark or symbol tinted them)")
+            // The nearest big cluster: `others` is non-empty here, so the minimum exists.
+            guard let k = others.min(by: { distance(centres[$0], centres[j]) < distance(centres[$1], centres[j]) }) else { continue }
+            if distance(centres[k], centres[j]) <= 2 * radius {
+                guard let first = members[j].first, let rep = members[k].max(by: { count[$0] < count[$1] }) else { continue }
+                warnings.append("\(totals[j]) cell(s) of \(hex(rgbOf(colours[first]))) folded into \(hex(rgbOf(colours[rep]))) (a watermark or symbol tinted them)")
                 members[k] += members[j]
                 totals[k] += totals[j]
                 members[j] = []
@@ -1357,13 +1363,21 @@ public enum GridColours {
         members = keep.map { members[$0] }
         totals = keep.map { totals[$0] }
         for (newJ, m) in members.enumerated() { for i in m { assign[i] = newJ } }
-        let reps = members.map { m in m.max { count[$0] != count[$1] ? count[$0] < count[$1] : $0 > $1 }! }  // first of the most frequent
+        // Each cluster's colour is its most frequent member (the first, on a tie); every cluster
+        // kept above has at least one member.
+        let reps = members.map { m in m.max { count[$0] != count[$1] ? count[$0] < count[$1] : $0 > $1 } ?? 0 }
         let rank = members.indices.sorted { totals[$0] != totals[$1] ? totals[$0] > totals[$1] : $0 < $1 }
         var remap = [Int](repeating: 0, count: members.count)
         for (new, old) in rank.enumerated() { remap[old] = new }
         var lookup: [UInt32: UInt8] = [:]
         for (k, c) in colours.enumerated() { lookup[c] = UInt8(remap[assign[k]]) }
-        let cells = samples.map { row in row.map { lookup[UInt32($0.0) << 16 | UInt32($0.1) << 8 | UInt32($0.2)]! } }
+        let cells = samples.map { row in
+            row.map { c -> UInt8 in
+                // `colours` holds every distinct sample, so every cell's colour is in the lookup.
+                guard let i = lookup[UInt32(c.0) << 16 | UInt32(c.1) << 8 | UInt32(c.2)] else { preconditionFailure("a sampled colour is not among the distinct colours") }
+                return i
+            }
+        }
         let hexes = rank.map { hex(rgbOf(colours[reps[$0]])) }
         for (new, old) in rank.enumerated() where Double(totals[old]) < max(2, 0.001 * Double(totalCells)) {
             warnings.append("colour \(hexes[new]) covers only \(totals[old]) cell(s); a grid line or symbol may have bled in")
@@ -1371,9 +1385,13 @@ public enum GridColours {
         return (cells, hexes, warnings)
     }
 
-    public static func nameColour(_ hexString: String) -> String {
-        let l = lab(rgb(hexString) ?? (0, 0, 0))
-        return colourNames.min { distance(lab($0.1), l) < distance(lab($1.1), l) }!.0
+    /// The nearest named colour (`name_colour`); nil for a hex that is not `#rrggbb`.
+    public static func nameColour(_ hexString: String) -> String? {
+        guard let c = rgb(hexString) else { return nil }
+        let l = lab(c)
+        var best = colourNames[0]
+        for candidate in colourNames.dropFirst() where distance(lab(candidate.1), l) < distance(lab(best.1), l) { best = candidate }
+        return best.0
     }
 
     /// A, B, ..., Z, AA, AB, ...: 1-3 letters (`importers._code`).
@@ -1638,7 +1656,8 @@ public enum GridChart {
     public static func draft(image: GridImage, region: Region, title: String) -> (draft: ChartDraft, cells: [UInt8], warnings: [String]) {
         let samples = GridReader.readRegion(image, region)
         let (grid, hexes, warnings) = GridColours.clusterPalette(samples)
-        let palette = hexes.enumerated().map { ChartDraft.Palette(code: GridColours.code($0.offset), name: GridColours.nameColour($0.element), hex: $0.element) }
+        // The hexes are `GridColours.hex` output, so each has a name; the code is the fallback in case.
+        let palette = hexes.enumerated().map { ChartDraft.Palette(code: GridColours.code($0.offset), name: GridColours.nameColour($0.element) ?? GridColours.code($0.offset), hex: $0.element) }
         let codes = palette.map(\.code)
         let rows = grid.map { row -> String in
             var runs: [(code: String, count: Int)] = []
