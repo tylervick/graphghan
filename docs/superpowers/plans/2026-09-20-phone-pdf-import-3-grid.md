@@ -58,7 +58,7 @@
 **Interfaces:**
 - Produces: for each image `<name>.json` = `{"regions": [{"cols", "rows", "pitch": [px, py], "bbox": [x0, y0, x1, y1], "noise"}], "palette": [hexes] | null, "cells": [[int]] | null, "cluster": {"hexes": [...], "warnings": [...]} | null}`. `cells` are the Python `snap_to_palette` indexes over `PALETTE` for the first region; `cluster` is `cluster_palette` over that region's samples.
 
-- [ ] **Step 1: Write the generator**
+- [x] **Step 1: Write the generator**
 
 `fixtures/import/grid/generate.py`:
 
@@ -181,7 +181,7 @@ if __name__ == "__main__":
     main()
 ```
 
-- [ ] **Step 2: Write the round-trip test**
+- [x] **Step 2: Write the round-trip test**
 
 `tests/test_grid_fixtures.py`:
 
@@ -213,12 +213,12 @@ def test_the_answers_are_what_the_unit_tests_assert():
     assert json.loads((GRID / "photo.json").read_text(encoding="utf-8"))["regions"] == []
 ```
 
-- [ ] **Step 3: Generate and run**
+- [x] **Step 3: Generate and run**
 
 Run: `uv run python fixtures/import/grid/generate.py && uv run pytest tests/test_grid_fixtures.py -q`
 Expected: four PNGs (the charts under 20 KB, the text page about 110 KB) and four JSON files; 2 passed.
 
-- [ ] **Step 4: README and commit**
+- [x] **Step 4: README and commit**
 
 `fixtures/import/grid/README.md`:
 
@@ -254,7 +254,7 @@ git commit -m "fixtures: the grid reader's synthetic images and the Python answe
 - Produces: `struct Mask { let rows: Int; let cols: Int; var bits: [Bool] }` (row-major, `bits[y * cols + x]`), `Mask.transposed()`.
 - Produces: `enum GridLines` with `static func close(_ m: Mask, bridge: Int) -> Mask` (down axis 0), `static func runs(_ m: Mask, minPx: Int) -> (best: [Int], segments: [[(Int, Int)]])`, `static func longestRuns(_ m: Mask, bridge: Int) -> [Int]`, `typealias Line = (centre: Double, segments: [(Int, Int)])`, `static func lines(_ m: Mask, minPx: Int) -> [Line]`, `static func clusters(_ lines: [Line]) -> [[Line]]`, `static func pitch(_ positions: [Double]) -> Double?`, `static func fits(_ line: Line, lo: Double, hi: Double) -> Bool`, `static func median(_ xs: [Double]) -> Double`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `GridLinesTests.swift`:
 
@@ -340,12 +340,12 @@ Add to `Fixtures.swift`:
     }
 ```
 
-- [ ] **Step 2: Run to see them fail**
+- [x] **Step 2: Run to see them fail**
 
 Run: `cd ios/Packages/GraphghanCore && swift test --filter GridLinesTests 2>&1 | grep -E "error:|✘|✔ Test run" | head`
 Expected: compile errors, `GridImage`, `Mask`, `GridLines` undefined.
 
-- [ ] **Step 3: The image and the mask**
+- [x] **Step 3: The image and the mask**
 
 `GridImage.swift`:
 
@@ -450,7 +450,7 @@ struct Mask: Sendable {
 }
 ```
 
-- [ ] **Step 4: The line finder**
+- [x] **Step 4: The line finder**
 
 `GridLines.swift`:
 
@@ -603,12 +603,12 @@ enum GridLines {
 
 Note on `close`: the Python erosion `e &= _shift(d, s) | ~_shift(ones, s)` treats a neighbour past the array edge as set; the Swift `y - s >= 0 && !d[...]` does the same (out of range never clears). Check the closing test's column 1 (a three-pixel gap survives at radius 1) before moving on: it is the case the dilation-then-erosion gets wrong when the edge rule is off.
 
-- [ ] **Step 5: Run the tests**
+- [x] **Step 5: Run the tests**
 
 Run: `cd ios/Packages/GraphghanCore && swift test --filter GridLinesTests 2>&1 | grep -E "error:|✘|✔ Test run" | head`
 Expected: `✔ Test run with 6 tests`.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add ios/Packages/GraphghanCore
@@ -630,7 +630,7 @@ git commit -m "ios: GridImage and the grid reader's line finder, ported from ras
 - Produces: `public enum GridReader` with `static let maxPixels = 40_000_000`, `static let maxNoise = 12.0`, `public static func findRegions(_ img: GridImage) throws -> [Region]` (throws `GridReaderError.tooLarge(width:height:)`), `public static func readRegion(_ img: GridImage, _ region: Region) -> [[(UInt8, UInt8, UInt8)]]` (rows × cols median RGB), `public static func cellNoise(_ img: GridImage, _ region: Region) -> Double`.
 - The Python answers: `regions[i].cols/rows` equal, `pitch` within 0.05, `bbox` within 1, `noise` within 0.05.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `GridReaderTests.swift`:
 
@@ -752,12 +752,12 @@ enum PageRender {
 }
 ```
 
-- [ ] **Step 2: Run to see them fail**
+- [x] **Step 2: Run to see them fail**
 
 Run: `cd ios/Packages/GraphghanCore && swift test --filter GridReaderTests 2>&1 | grep -E "error:|✘|✔ Test run" | head`
 Expected: compile errors, `Region`, `GridReader` undefined.
 
-- [ ] **Step 3: The port**
+- [x] **Step 3: The port**
 
 `GridReader.swift`. Every `round` below is Python's (`.toNearestOrEven`); every `Int(x)` of a non-negative Double is Python's `int()`.
 
@@ -1124,7 +1124,7 @@ public enum GridReader {
 
 Two places to read with care against the Python before running: `colNoise` transposes the strip (`gray[y0:y1, a:b].T` has thickness across x and length down y, so `band(t, i)` reads `grey[(y0 + i) * w + a + t]`), and `rowNoise` does not (`gray[a:b, xs0:xs1]`: thickness down y, length along x). In `refineAxis` the pairs set is keyed on `[x, k]` because Swift tuples are not `Hashable`.
 
-- [ ] **Step 4: Optimise the package's debug builds**
+- [x] **Step 4: Optimise the package's debug builds**
 
 At `-Onone` the Craigh page takes forty seconds (every pixel through generic array code); at `-O`
 it takes under half a second. The package is pure logic, so `Package.swift` optimises its debug
@@ -1142,12 +1142,12 @@ builds too, which keeps the app's test suite quick:
 
 `unsafeFlags` is allowed for a local package; confirm the app still builds (`xcodegen generate --quiet && xcodebuild build-for-testing …`) before committing.
 
-- [ ] **Step 5: Run the tests**
+- [x] **Step 5: Run the tests**
 
 Run: `cd ios/Packages/GraphghanCore && swift test --filter GridReaderTests 2>&1 | grep -E "error:|✘|✔ Test run|ms$" | head -20`
 Expected: `✔ Test run with 7 tests` (four fixtures, the photo, the cap, the own page). If a fixture's region count matches but a pitch or bbox is off by more than the tolerance, the difference is in `peak`'s rounding or `pitch`'s mean; compare against `uv run python -c "from graphghan import rasterchart as rc; from PIL import Image; print([r.describe() for r in rc.find_regions(Image.open('fixtures/import/grid/one-grid.png'))])"`. Note the printed times; the Craigh page (2448×3168 at 4×) reads in about 0.4 s on the mini once the package is optimised.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add ios/Packages/GraphghanCore
@@ -1166,7 +1166,7 @@ git commit -m "ios: GridReader finds the grids on a page, held to the Python ans
 - Consumes: `GridReader.readRegion` samples (rows × cols of RGB bytes), `Region` (Task 3).
 - Produces: `public enum GridColours` with `static func lab(_ rgb: (Double, Double, Double)) -> (Double, Double, Double)`, `static func hex(_: (UInt8, UInt8, UInt8)) -> String`, `static func rgb(_ hex: String) -> (UInt8, UInt8, UInt8)?`, `public static func snapToPalette(_ samples: [[(UInt8, UInt8, UInt8)]], hexes: [String], maxDelta: Double = 25) throws -> [[UInt8]]` (throws `GridColoursError.foreignColour(column:row:hex:nearest:distance:)`), `public static func clusterPalette(_ samples: [[(UInt8, UInt8, UInt8)]], radius: Double = 6) -> (cells: [[UInt8]], hexes: [String], warnings: [String])`, `public static func nameColour(_ hex: String) -> String`, `public static func code(_ i: Int) -> String` ("A".."Z", "AA"...; `importers._code`).
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `GridColoursTests.swift`:
 
@@ -1228,12 +1228,12 @@ import Testing
 }
 ```
 
-- [ ] **Step 2: Run to see them fail**
+- [x] **Step 2: Run to see them fail**
 
 Run: `cd ios/Packages/GraphghanCore && swift test --filter GridColoursTests 2>&1 | grep -E "error:|✘|✔ Test run" | head`
 Expected: compile errors, `GridColours` undefined.
 
-- [ ] **Step 3: The port**
+- [x] **Step 3: The port**
 
 `GridColours.swift`:
 
@@ -1392,12 +1392,12 @@ public enum GridColours {
 
 `max(by:)` in Swift returns the last of equal elements; Python's `max(m, key=...)` returns the first. The `reps` comparator breaks ties on index so the first most-frequent member wins, as in Python. `min(by:)` for `nearest` returns the first minimum, matching `np.argmin`.
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 Run: `cd ios/Packages/GraphghanCore && swift test --filter GridColoursTests 2>&1 | grep -E "error:|✘|✔ Test run" | head`
 Expected: `✔ Test run with 9 tests`. A cluster mismatch on `symbols` (the circles tint a few cells) is the fold-in path: check the warning text and the `2 * radius` rule before touching the port.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add ios/Packages/GraphghanCore
@@ -1420,7 +1420,7 @@ git commit -m "ios: GridColours snaps, clusters and names the grid's colours as 
 - Produces: `public enum GridChart { public static func draft(image: GridImage, region: Region, title: String) -> (draft: ChartDraft, cells: [UInt8], warnings: [String]) }`: palette codes A, B, … by frequency, names by `nameColour`, rows top to bottom, gauge the format's default (14 × 16 over 4 in, `sc`), `ext` = `ImportRecord(grid: true, check: .noRows, ...)`.
 - Produces: `public enum CheckOutcome: Sendable, Equatable { case compared(disagree: [Int], warnings: [String]); case incomparable(String) }` and `RowsChart.crossCheck(rows: [Row], codes: [String], grid: [UInt8], width: Int, height: Int, row1: String = "bottom-right") -> CheckOutcome`, where `rows` may be a prefix of the pattern (a stopped check) and `grid` is the chart's cells top row first.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `GridChartTests.swift`:
 
@@ -1548,12 +1548,12 @@ Append to `RowsChartTests.swift`:
     }
 ```
 
-- [ ] **Step 2: Run to see them fail**
+- [x] **Step 2: Run to see them fail**
 
 Run: `cd ios/Packages/GraphghanCore && swift test --filter "GridChartTests|RowsChartTests" 2>&1 | grep -E "error:|✘|✔ Test run" | head`
 Expected: compile errors, `GridChart`, `ImportRecord`, `crossCheck` undefined.
 
-- [ ] **Step 3: `ImportRecord` and `GridChart`**
+- [x] **Step 3: `ImportRecord` and `GridChart`**
 
 `GridChart.swift`:
 
@@ -1657,7 +1657,7 @@ public enum GridChart {
 }
 ```
 
-- [ ] **Step 4: `crossCheck` in `RowsChart`**
+- [x] **Step 4: `crossCheck` in `RowsChart`**
 
 Append inside `RowsChart`:
 
@@ -1775,12 +1775,12 @@ public enum CheckOutcome: Sendable, Equatable {
 
 Two notes. The Python's `cross_check` error counts against `height`; here it counts against the rows actually compared so a 10-row prefix with two wrong rows is refused the same way a whole chart would be. The flip hints test the written rows against the flipped grid over the covered rows only, which for a prefix can be a coincidence; that is the Python's rule too, over the whole chart. Keep the exact Python sentences: the app shows `incomparable`'s text on the detail screen after "Written rows could not be compared with the chart: ".
 
-- [ ] **Step 5: Run the tests**
+- [x] **Step 5: Run the tests**
 
 Run: `cd ios/Packages/GraphghanCore && swift test 2>&1 | grep -E "error:|✘|✔ Test run" | head`
 Expected: the whole core suite green, `GridChartTests` 3 and the four new `RowsChartTests` among them. The own-PDF slice test is the one that can surprise: PDFKit's antialiasing on the 0.3 pt grid lines can shift a cluster's representative hex by one step from the Mac's (`#f2e8d5` read as `#f2e8d4`). If so, compare through `GridColours.rgb` with a per-channel tolerance of 2 and say so in the test's comment; do not loosen anything else.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add ios/Packages/GraphghanCore
@@ -1802,7 +1802,7 @@ git commit -m "ios: GridChart turns a region into a chart draft, and RowsChart c
 - Produces: `PDFImportSource` gains `.grid(page: Int, rowsToCheck: Int)` (1-based page; 0 rows means no check). `PDFImportReading` gains `draft: ChartDraft` (id already the slug), `fileName`, `version`, `pageTexts: [String]`, `warnings: [String]`.
 - Produces: `PDFImporter.check(_ reading: PDFImportReading, progress: (@Sendable (PDFImportProgress) -> Void)?) async -> ImportRecord` and `save(_ reading: PDFImportReading, record: ImportRecord?) async throws -> PatternManifest` (nil keeps the draft's ext as read). `PDFImportProgress` gains `.checking(done: Int, of: Int)`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Append to `PDFImportTests.swift` (inside the suite), plus a chart-drawing helper on `PDFTestDocuments`:
 
@@ -1970,18 +1970,50 @@ The row page's text only has to hold row heads (`RowText.rowCount` counts them);
 `StubRowReader.read` (PR 2) returned an empty document when cancelled; make it return the rows read so far, as `ProseReader` does, or the stopped check has nothing to compare:
 
 ```swift
-                if Task.isCancelled {
-                    var partial = document
-                    partial.written_rows = Array((document.written_rows ?? []).prefix(i))
-                    return partial
-                }
+import CoreGraphics
+import Foundation
+import GraphghanCore
+import PDFKit
+
+/// A PDF page as the grid reader's image, under the render budget (phone import spec §5.1): the
+/// importer's 4× (288 dpi, a 10 pt cell is 40 px), halved until the bitmap is at most
+/// `GridReader.maxPixels`; a page over the budget at 1× is not rendered.
+enum PageRenderer {
+    static let renderScale: CGFloat = 4  // RENDER_SCALE
+
+    static func scale(for box: CGRect) -> CGFloat? {
+        var s = renderScale
+        while s >= 1 {
+            if Double(box.width * s) * Double(box.height * s) <= Double(GridReader.maxPixels) { return s }
+            s /= 2
+        }
+        return nil
+    }
+
+    static func image(_ page: PDFPage) -> GridImage? {
+        let box = page.bounds(for: .mediaBox)
+        guard let scale = scale(for: box) else { return nil }
+        let w = Int(box.width * scale), h = Int(box.height * scale)
+        guard w > 0, h > 0 else { return nil }
+        let space = CGColorSpaceCreateDeviceRGB()
+        let info = CGImageAlphaInfo.premultipliedLast.rawValue | CGBitmapInfo.byteOrder32Big.rawValue
+        guard let ctx = CGContext(data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: 0, space: space, bitmapInfo: info) else { return nil }
+        ctx.setFillColor(gray: 1, alpha: 1)  // the page's paper, not a design colour
+        ctx.fill(CGRect(x: 0, y: 0, width: w, height: h))
+        ctx.scaleBy(x: scale, y: scale)
+        ctx.translateBy(x: -box.minX, y: -box.minY)
+        page.draw(with: .mediaBox, to: ctx)
+        guard let image = ctx.makeImage() else { return nil }
+        return GridImage(cgImage: image)
+    }
+}
 ```
 
-- [ ] **Step 2: Run to see them fail**
+- [x] **Step 2: Run to see them fail**
 
 Run the app suite filtered to `PDFImportTests` (Global Constraints). Expected: compile errors, `PageRenderer`, `.grid`, `check`, `.checking` undefined.
 
-- [ ] **Step 3: `PageRenderer`**
+- [x] **Step 3: `PageRenderer`**
 
 `PageRenderer.swift`:
 
@@ -2025,7 +2057,7 @@ enum PageRenderer {
 }
 ```
 
-- [ ] **Step 4: The importer**
+- [x] **Step 4: The importer**
 
 In `PDFImporter.swift`:
 
@@ -2136,11 +2168,11 @@ and the new methods:
 
 The rows path's own `ext` literal becomes `ImportRecord(grid: false, check: .noRows, rowsChecked: 0, rowsTotal: 0, rowsDisagree: [], gaugePrinted: gaugePrinted, problem: nil).json()`. The existing `PDFImportSheetTests` and the PR 2 tests keep passing unchanged: `save(_:)` still works with the default nil record.
 
-- [ ] **Step 5: Run the tests**
+- [x] **Step 5: Run the tests**
 
 Run the app suite filtered to `PDFImportTests` and `PDFImportSheetTests`. Expected: all green (16 + 8). If the drawn chart reads fewer than 20 × 15, the 0.5 pt lines rendered at 4× are 2 px grey (0.55) on colour: `EDGE_THRESHOLD` 16 sees them; check `PageRenderer.image` did not flip (the numbers row must be above the grid) before touching the reader.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add ios/Graphghan/Services ios/Tests/PDFImportTests.swift
@@ -2161,7 +2193,7 @@ git commit -m "ios: PDFImporter reads a chart's grid first, checks the written r
 - Consumes: `PDFImporter.check(_:progress:)`, `save(_:record:)`, `PDFImportProgress.checking`, `PDFImportSource.grid`, `ImportRecord.sentence`.
 - Produces: `PDFImportState.CheckStage { case none; case running(done: Int, of: Int); case done(ImportRecord) }`, `PDFImportState.check: CheckStage`, `PDFImportState.checkTask: Task<Void, Never>?`; `AppModel.skipPDFCheck()`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Append to `PDFImportSheetTests.swift`:
 
@@ -2239,11 +2271,11 @@ Append to `PDFImportSheetTests.swift`:
 
 `model.manifest(for:path:)` returns the local pattern's manifest once it is loaded; `ChartLibrary` is an actor with `chart(id:)`.
 
-- [ ] **Step 2: Run to see them fail**
+- [x] **Step 2: Run to see them fail**
 
 Run the app suite filtered to `PDFImportSheetTests`. Expected: compile errors, `CheckStage`, `skipPDFCheck` undefined.
 
-- [ ] **Step 3: The state, the model, the sheet, the detail line**
+- [x] **Step 3: The state, the model, the sheet, the detail line**
 
 `PDFImportState`:
 
@@ -2336,11 +2368,11 @@ and the new methods:
 
 The gauge line's condition becomes `ImportRecord(json: chart.document.ext)?.gaugePrinted == false` in place of the raw `ext` lookup.
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 Run the whole app suite (`DesignRulesTests` included). Expected: green. The check runs in its own task, so `importPDF` returns with `.found` while the check is `.running`; the tests poll for it.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add ios/Graphghan ios/Tests
@@ -2360,7 +2392,7 @@ git commit -m "ios: the import sheet checks the written rows under the chart it 
 **Interfaces:**
 - Consumes: `PDFImporter.read`, `fixtures/import/real/manifest.toml` (read by the test as text: `id`, `file`, `width`, `height`, `rows_sha256`).
 
-- [ ] **Step 1: The skip-if-absent test**
+- [x] **Step 1: The skip-if-absent test**
 
 The Python `tests/test_import_real.py` pins `sha256("\n".join(rows))` over the grid's run strings with cluster codes A, B, … by frequency: the same strings `GridChart.draft` writes, so the phone is held to the same hashes. `PDFImportRealTests.swift`:
 
@@ -2376,17 +2408,19 @@ import GraphghanCore
 /// file that is absent skips and says so, as the Python test does.
 @MainActor
 @Suite struct PDFImportRealTests {
-    struct Entry { let id: String; let file: String; let width: Int; let height: Int; let hash: String }
+    struct Entry: Sendable { let id: String; let file: String; let width: Int; let height: Int; let hash: String; let phoneHash: String? }
 
     /// The fixtures with a pinned hash and a page-wide chart: cactus, Santa, and Orca's two.
-    static func entries() throws -> [Entry] {
+    nonisolated static func entries() throws -> [Entry] {
         let url = TestFixtures.root.appendingPathComponent("fixtures/import/real/manifest.toml")
         guard let text = try? String(contentsOf: url, encoding: .utf8) else { return [] }
         var out: [Entry] = []
         var fields: [String: String] = [:]
         func flush() {
             if let id = fields["id"], let file = fields["file"], let w = fields["width"].flatMap(Int.init), let h = fields["height"].flatMap(Int.init),
-               let hash = fields["rows_sha256"], !hash.isEmpty, fields["prose"] == nil { out.append(Entry(id: id, file: file, width: w, height: h, hash: hash)) }
+               let hash = fields["rows_sha256"], !hash.isEmpty, fields["prose"] == nil {
+                out.append(Entry(id: id, file: file, width: w, height: h, hash: hash, phoneHash: fields["phone_rows_sha256"]))
+            }
             fields = [:]
         }
         for line in text.split(separator: "\n") {
@@ -2413,11 +2447,14 @@ import GraphghanCore
         let reading = try await importer.read(data, fileName: entry.file)
         let seconds = Date().timeIntervalSince(started)
         print("real \(entry.id): \(reading.width)x\(reading.height) in \(String(format: "%.1f", seconds)) s, \(reading.source)")
-        #expect(reading.width == entry.width && reading.height == entry.height, entry.id)
+        print("real \(entry.id): palette \(reading.draft.palette.map(\.hex)); rows \(reading.draft.rows.prefix(3)) … \(reading.draft.rows.suffix(2)); warnings \(reading.warnings)")
+        #expect(reading.width == entry.width && reading.height == entry.height, "\(entry.id)")
         let hash = SHA256.hash(data: Data(reading.draft.rows.joined(separator: "\n").utf8)).map { String(format: "%02x", $0) }.joined()
         // Orca's page holds the front and the back at the same size; the phone takes the first
-        // largest region, so either of the two pinned hashes is right.
-        let sibling = try Self.entries().filter { $0.file == entry.file && $0.width == entry.width && $0.height == entry.height }.map(\.hash)
+        // largest region, so either of the two pinned hashes is right. A fixture may pin the
+        // phone's own hash where PDFKit's render differs from pdfium's (the manifest says why).
+        let sibling = try Self.entries().filter { $0.file == entry.file && $0.width == entry.width && $0.height == entry.height }
+            .flatMap { [$0.hash] + ($0.phoneHash.map { [$0] } ?? []) }
         #expect(sibling.contains(hash), "\(entry.id): \(hash)")
     }
 }
@@ -2425,11 +2462,11 @@ import GraphghanCore
 
 `@Test(arguments: try entries())` needs `entries()` to be usable at argument time; if Swift Testing rejects the `try`, make `entries()` non-throwing (return `[]` on any error). The Orca manifest entries carry `kwargs = { page = 9, region = 1 }`; the phone has no such knobs, so the test accepts either Orca hash for either entry.
 
-- [ ] **Step 2: Run it on the mini**
+- [x] **Step 2: Run it on the mini**
 
-The real PDFs live in `~/repos/graphghan/fixtures/import/real/` (gitignored; copy them into this worktree's `fixtures/import/real/` first, never `git add` them: `git status` must not list them). Run the app suite filtered to `PDFImportRealTests` and note each printed line: size, seconds, and pass/fail. Expected: cactus 28×28, Santa 56×56, Orca 29×77 twice, all to their hashes, each in a few seconds on the simulator. A hash mismatch with the right size is a cluster-order or a cell-colour difference between PDFKit's and pdfium's rendering: compare `reading.draft.palette` hexes with the Python's (`uv run graphghan import <pdf> --dry-run` or the staged report) before deciding whether the port or the renderer is at fault, and record the finding in §11 either way.
+The real PDFs live in `~/repos/graphghan/fixtures/import/real/` (gitignored; copy them into this worktree's `fixtures/import/real/` first, never `git add` them: `git status` must not list them). Run `xcodegen generate --quiet` first (a new test file is not in the project until then), then the app suite filtered to `PDFImportRealTests` with `-collect-test-diagnostics never`, and note each printed line: size, seconds, and pass/fail. Expected: cactus 28×28, Santa 56×56, Orca 29×77 twice, all to their hashes, each in a few seconds on the simulator. A hash mismatch with the right size is a cluster-order or a cell-colour difference between PDFKit's and pdfium's rendering: compare `reading.draft.palette` hexes with the Python's (`uv run graphghan import <pdf> --dry-run` or the staged report) before deciding whether the port or the renderer is at fault, and record the finding in §11 either way.
 
-- [ ] **Step 3: Docs**
+- [x] **Step 3: Docs**
 
 `ios/README.md`, replace "one with neither chart nor rows gets "No chart or written rows were found in this PDF" until the grid reader lands (spec §8);" with:
 
@@ -2439,7 +2476,7 @@ Spec §6.3: add after the table: "PR 3 (2026-09-20) added two fields: `rows_tota
 
 Spec §11: under the cactus bullet, record the mini's numbers from Step 2 (size, seconds, hash matched) for cactus, Santa and Orca, dated; under the Orca bullet, note the grid half is measured and the rows half still waits for a device.
 
-- [ ] **Step 4: Check, Blink, push, PR**
+- [x] **Step 4: Check, Blink, push, PR**
 
 Run in order, all green before the push: `mise run check`; `cd ios/Packages/GraphghanCore && swift test`; `cd ios/Packages/ProseReader && swift test`; the whole app suite. `git status` must show no file under `fixtures/import/real/`. Then `PATH="$HOME/.local/share/mise/shims:$PATH" blink review` (this branch's diff holds the five fixture PNGs, which Blink refuses as binary: if it does, cut a scratch branch from `main`, `git diff main...HEAD -- . ':(exclude)*.png' | git apply`, `git add -A -- . ':(exclude)fixtures/import/real' ':(exclude)build'`, commit there and review that; delete the scratch branch after). Take every finding or answer it in the PR. Push `tylervick/phone-import-3` and open the PR against `main`: "Closes #112" in the body; the eight tasks; the deviation from §6.2 (loops, not vImage) with the measured page times; the amendments to §6.3; the real-fixture results from §11; what stays out (#151's box rows, #166's key names). Address CI and CodeRabbit until green; CodeRabbit's re-review is rate limited to one an hour, so a stale "changes requested" is dismissed once its findings are confirmed addressed.
 

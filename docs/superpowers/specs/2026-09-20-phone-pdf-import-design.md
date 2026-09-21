@@ -232,6 +232,14 @@ rows_checked: n, rows_disagree: [12, 40, 41] }`, where `check` is one of:
 | `unavailable` | the device has no model (§7) | "Written rows not checked on this iPhone." |
 | `none` | the pages have no written rows to check | none |
 
+PR 3 (2026-09-20) added two fields: `rows_total`, the written rows the pages hold, so the stopped
+sentence can say "N+1–M not checked"; and `problem`, present only when the rows could not be
+compared at all (they do not assemble, the key pairs two chart colours with one code, or more than
+a tenth of the rows disagree so the orientation is wrong), holding the Python importer's sentence;
+the detail screen then says "Written rows could not be compared with the chart: <problem>". The
+grid path's palette is the grid's own (codes by frequency, names by the nearest named colour); taking
+the key's names once the check pairs them is #166.
+
 Skipping and adding-before-the-end are one outcome, `stopped`, because they leave the same state:
 rows up to `rows_checked` compared, the rest not. Cancel closes the sheet and writes nothing, so it
 has no persisted state. Nothing but the detail screen reads `ext.graphghan.import`, and the chart
@@ -297,9 +305,17 @@ id ignores `ext`.
   with the same chart id the Mac computes. Measured 2026-09-20 on the iPhone 17 simulator: the read and
   save of the 184-row Craigh na Dun PDF take well under a second in `PDFImportTests` (PR 1).
 - Orca's PDF opens into a chart of 29×77 with 77 rows read and validated, on a device with Apple
-  Intelligence, in under five minutes, with progress shown and cancel working. (Manual gate: needs
-  an iPhone with Apple Intelligence; the simulator has no model. PR 2 landed the path with a stub
-  reader in its tests; not yet run on a device.)
+  Intelligence, in under five minutes, with progress shown and cancel working. The grid half was
+  measured 2026-09-20 on the mini (iPhone 17 simulator, `PDFImportRealTests`, PR 3): both of page
+  9's charts read to 29×77 and to the hashes the Python pinned, in 8.8 and 9.5 s for the whole
+  nine-page PDF. The rows half (the check, 310 row heads on those pages) still needs an iPhone
+  with Apple Intelligence; the simulator has no model. Not yet run on a device.
 - The cactus blanket's PDF opens into the pinned 28×28 chart in under five seconds on iOS 17
-  (a manual gate on the mini, §8; the fixture is not in the repository).
+  (a manual gate on the mini, §8; the fixture is not in the repository). Measured 2026-09-20 on
+  the mini (PR 3): 28×28 from page 2 in 1.6 s, to the Python's hash. Santa's PDF, the other
+  gitignored grid fixture: 56×56 in 0.7 s with the Python's eight colours in the same order, but a
+  different rows hash, because two cells under the page's watermark that pdfium renders within the
+  palette fold-in distance come out of PDFKit a few Lab units farther and stay as single-cell
+  colours; the phone's hash is pinned beside the Mac's in `manifest.toml` and the fold-in rule is
+  #167.
 - Every failure in §5.4 shows its sentence and leaves the library untouched.

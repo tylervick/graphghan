@@ -21,6 +21,10 @@ width = 56
 height = 56
 colors = 8
 rows_sha256 = "9447f03d86f6f7df4b2a2c4cda80271180d9d088ff40d65306bfd8760478af2b"
+# The phone (PDFKit's render, ios/Tests/PDFImportRealTests.swift) reads the same eight colours in
+# the same order, but two cells under the page's watermark come out a few Lab units farther from
+# cream than pdfium renders them, past the fold-in distance (13.3 and 13.9 in Lab against 12), and stay as single-cell colours (#167).
+phone_rows_sha256 = "3ccf3b8544d83597bc9aaf9bea9c5742aa3e1ddbe8ba84e6a1a8e93151c8be08"
 
 [[fixture]]
 id = "onhand-en-orcacrossbodybagpdfpattern-front"

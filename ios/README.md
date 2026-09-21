@@ -79,10 +79,21 @@ Apple Intelligence (iOS 26), row by row behind a progress sheet that names the r
 estimate and has Cancel, and is assembled by `RowsChart` in GraphghanCore under the same width and
 row-number checks the Python importer applies; the chart records `ext.graphghan.import` (spec §6.3)
 and the detail screen says when the gauge was not printed. Without the model the sheet says so and
-points at the Mac. A PDF whose pages hold almost no text is named as a picture of text (#151); one
-with neither chart nor rows gets "No chart or written rows were found in this PDF" until the grid
-reader lands (spec §8); one that PDFKit cannot open, or ours with a row the reader cannot parse or
-a chart too large to hold, gets its own sentence (`PDFImportError.message`, spec §5.4). The sheet
+points at the Mac. A PDF with a picture of the chart goes through `GridReader` in GraphghanCore, a
+port of the Python `rasterchart.py` held to its answers on the images under `fixtures/import/grid/`
+(`GridReaderTests`, `GridColoursTests`): each page is rendered by `PageRenderer` under the
+40-megapixel budget (spec §5.1), the largest grid of at least 8×8 cells becomes the chart at once
+(`GridChart`), and the written rows, when the pages have them and the iPhone has the model, are
+then read as the check underneath the chart on the sheet, with Skip; "Add to library" before the
+check ends saves it as stopped. The outcome is `ext.graphghan.import` on the chart (spec §6.3:
+`check`, `rows_checked`, `rows_total`, `rows_disagree`, `problem`) and the detail screen's sentence
+(`ImportRecord.sentence`). The real pattern PDFs (`fixtures/import/real/`, on the mini only) read to
+the Python's pinned hashes in `PDFImportRealTests`, which skips a file that is absent. The grid
+reader walks every pixel, so `Packages/GraphghanCore/Package.swift` optimises the package's debug
+builds too (`-O`; forty seconds a page otherwise). A PDF whose pages hold almost no text is named
+as a picture of text (#151); one with neither chart nor rows gets "No chart or written rows were
+found in this PDF"; one that PDFKit cannot open, or ours with a row the reader cannot parse or a
+chart too large to hold, gets its own sentence (`PDFImportError.message`, spec §5.4). The sheet
 shows the chart before "Add to library" saves it; a read writes nothing, and Cancel leaves the
 library as it was. The model never runs in a test: `PDFImportTests` stand a canned `RowReading` in
 for it. `--import <path>.pdf` drives the identical path on the simulator, which has no model.
