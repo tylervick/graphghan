@@ -387,6 +387,12 @@ final class AppModel {
         state.probe = await reader.probe(context: context)
     }
 
+    /// The button: the measurement runs as a task the sheet owns, so Cancel can stop it.
+    func startModelLimitMeasurement() {
+        guard let state = pdfImport, !state.measuring, state.limits == nil else { return }
+        state.measureTask = Task { [weak self] in await self?.measureModelLimit() }
+    }
+
     /// "Measure the limit": the three probes all answered, so the refusal is not in any single
     /// request and the question is how many of them this phone will take (#176). Minutes long,
     /// and the screen is held awake for it.
@@ -417,6 +423,7 @@ final class AppModel {
         state.stage = .saving
         // Adding before the check ends stops it; its record (stopped at the row it reached) is saved.
         if let task = state.checkTask { task.cancel(); await task.value }
+        state.measureTask?.cancel()  // the sheet is going: nothing of it may keep asking the model
         var record: ImportRecord?
         if case .done(let r) = state.check { record = r }
         let importer = pdfImporter
@@ -440,6 +447,7 @@ final class AppModel {
         guard let state = pdfImport, state.stage != .saving else { return }
         state.task?.cancel()
         state.checkTask?.cancel()
+        state.measureTask?.cancel()
         pdfImport = nil
     }
 

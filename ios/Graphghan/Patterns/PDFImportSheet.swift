@@ -37,6 +37,9 @@ final class PDFImportState {
     var limits: LimitReport? = nil
     var measuring = false
     var measuringStep = ""
+    /// The measurement in flight, so Cancel and "Add to library" stop it: it asks the model for
+    /// minutes and holds the screen awake, neither of which may outlive the sheet.
+    var measureTask: Task<Void, Never>? = nil
     init(fileName: String) { self.fileName = fileName }
 
     /// Cancel while the model reads or before the chart is added; Done once it failed.
@@ -166,7 +169,7 @@ struct PDFImportSheet: View {
                 Text(state.measuringStep).font(Font.Heather.caption).foregroundStyle(Color.ink2)
             }
         } else if state.probe?.steps.allSatisfy(\.ok) == true {
-            Button("Measure the limit (a few minutes)") { Task { await model.measureModelLimit() } }
+            Button("Measure the limit (a few minutes)") { model.startModelLimitMeasurement() }
                 .font(Font.Heather.caption)
         }
     }
