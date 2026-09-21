@@ -53,7 +53,7 @@
 - Create: `fixtures/import/grid/generate.py`
 - Create: `fixtures/import/grid/README.md`
 - Create: `tests/test_grid_fixtures.py`
-- Commit: `fixtures/import/grid/one-grid.png/.json`, `two-grids.png/.json`, `symbols.png/.json`, `text-page.png/.json`, `photo.png/.json`
+- Commit: `fixtures/import/grid/one-grid.png/.json`, `two-grids.png/.json`, `symbols.png/.json`, `text-page.png/.json` (the photo case is drawn by the Swift test itself: noise does not compress, 968 KB as a PNG)
 
 **Interfaces:**
 - Produces: for each image `<name>.json` = `{"regions": [{"cols", "rows", "pitch": [px, py], "bbox": [x0, y0, x1, y1], "noise"}], "palette": [hexes] | null, "cells": [[int]] | null, "cluster": {"hexes": [...], "warnings": [...]} | null}`. `cells` are the Python `snap_to_palette` indexes over `PALETTE` for the first region; `cluster` is `cluster_palette` over that region's samples.
@@ -216,7 +216,7 @@ def test_the_answers_are_what_the_unit_tests_assert():
 - [ ] **Step 3: Generate and run**
 
 Run: `uv run python fixtures/import/grid/generate.py && uv run pytest tests/test_grid_fixtures.py -q`
-Expected: five PNGs (each under 100 KB; flat colour compresses well) and five JSON files; 2 passed. If a PNG is over 300 KB, stop and say so: Pillow's default bitmap font is deterministic, but a font change would make the fixtures machine-dependent.
+Expected: four PNGs (the charts under 20 KB, the text page about 110 KB) and four JSON files; 2 passed.
 
 - [ ] **Step 4: README and commit**
 
@@ -646,13 +646,23 @@ import Testing
         }
     }
 
-    @Test(arguments: ["one-grid", "two-grids", "symbols", "text-page", "photo"])
+    @Test(arguments: ["one-grid", "two-grids", "symbols", "text-page"])
     func regionsMatchThePythonAnswer(name: String) throws {
         let (img, answer) = try Self.fixture(name)
         let started = Date()
         let regions = try GridReader.findRegions(img)
         print("GridReader.findRegions \(name) \(img.width)x\(img.height): \(Int(Date().timeIntervalSince(started) * 1000)) ms")
         Self.expectSame(regions, answer.regions, name)
+    }
+
+    /// Python's test_a_photo_is_not_a_chart: noise under a fence of lines every 30 px. The noise is
+    /// this test's own (numpy's generator is not reproduced), so only "no grid" is asserted.
+    @Test func aPhotoUnderAFenceOfLinesIsNotAChart() throws {
+        var rgb = [UInt8](repeating: 0, count: 600 * 600 * 3)
+        var seed: UInt32 = 1
+        for i in rgb.indices { seed = seed &* 1_664_525 &+ 1_013_904_223; rgb[i] = UInt8(truncatingIfNeeded: seed >> 24) }
+        for y in 0..<600 { for x in 0..<600 where x % 30 < 2 || y % 30 < 2 { let i = (y * 600 + x) * 3; rgb[i] = 0; rgb[i + 1] = 0; rgb[i + 2] = 0 } }
+        #expect(try GridReader.findRegions(GridImage(width: 600, height: 600, rgb: rgb)).isEmpty)
     }
 
     @Test func anOversizedImageIsRefused() {
@@ -1081,7 +1091,7 @@ Two places to read with care against the Python before running: `colNoise` trans
 - [ ] **Step 4: Run the tests**
 
 Run: `cd ios/Packages/GraphghanCore && swift test --filter GridReaderTests 2>&1 | grep -E "error:|✘|✔ Test run|ms$" | head -20`
-Expected: `✔ Test run with 7 tests`. If a fixture's region count matches but a pitch or bbox is off by more than the tolerance, the difference is in `peak`'s rounding or `pitch`'s mean; compare against `uv run python -c "from graphghan import rasterchart as rc; from PIL import Image; print([r.describe() for r in rc.find_regions(Image.open('fixtures/import/grid/one-grid.png'))])"`. Note the printed times; the Craigh page (2448×3168 at 4×) should be well under two seconds in debug.
+Expected: `✔ Test run with 7 tests` (four fixtures, the photo, the cap, the own page). If a fixture's region count matches but a pitch or bbox is off by more than the tolerance, the difference is in `peak`'s rounding or `pitch`'s mean; compare against `uv run python -c "from graphghan import rasterchart as rc; from PIL import Image; print([r.describe() for r in rc.find_regions(Image.open('fixtures/import/grid/one-grid.png'))])"`. Note the printed times; the Craigh page (2448×3168 at 4×) should be well under two seconds in debug.
 
 - [ ] **Step 5: Commit**
 
