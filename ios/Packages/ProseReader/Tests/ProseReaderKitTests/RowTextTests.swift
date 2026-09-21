@@ -165,6 +165,8 @@ import Testing
     #expect(RowText.rowNumbers(of: "Rows 2 & 3: Chain1, (12sc), Turn.") == [2, 3])
     #expect(RowText.rowNumbers(of: "Row 13-15: sc in c1.") == [13, 14, 15])
     #expect(RowText.rowNumbers(of: "Rows 9- 10: 3 sc in c1, 11 sc in c2, 3 sc in c1") == [9, 10])
+    // The count a progress bar is out of expands ranges the way `read` does (CodeRabbit, PR #163).
+    #expect(RowText.rowCount(in: ["Rows 1-10: sc across.\nRow 11: 3 A, 2 B.", "Rows 12 & 13: sc across."]) == 13)
     #expect(RowText.rowNumbers(of: "Rows 2 and 3: sc across") == [2, 3])
     #expect(RowText.rowNumbers(of: "Row 5: 7sc in c1, 3sc in c2, 7sc in c1.") == [5])
     #expect(RowText.rowNumbers(of: "7. 2G, 3R, 2G") == [7])
@@ -258,4 +260,10 @@ import Testing
     #expect(codes([RunOut(count: 2, code: "lb")], key: [:], printed: ["lb"], text: "Row 5: (lb) x 2") == ["lb"])
     #expect(codes([RunOut(count: 5, code: "Gd")], key: [:], text: "Row 1: 5 Gd, 3 Y") == ["Gd"])
     #expect(codes([RunOut(count: 5, code: "Gd")], key: [:], text: "Row 1: 5 Y") == [])
+}
+
+@Test func theRowCountIsTheNumberOfBlocksAcrossPages() {
+    let pages = ["Key\nA red\nRow 1: 3 A, 4 B\nRow 2: 7 A\n", "Row 3: 7 B\nCraigh Page 2\n", "Nothing here"]
+    #expect(RowText.rowCount(in: pages) == 3)
+    #expect(RowText.rowCount(in: []) == 0)
 }

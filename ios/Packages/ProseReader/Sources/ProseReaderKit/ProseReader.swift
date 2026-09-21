@@ -38,7 +38,15 @@ public struct ReaderOptions: Sendable {
 public struct ReaderProgress: Sendable {
     public let page: Int
     public let rowsSoFar: Int
+    /// Every row head the pages hold, counted before any is read, so a sheet can say "row 34 of 77".
+    public let rowsTotal: Int
     public let seconds: Double
+    public init(page: Int, rowsSoFar: Int, rowsTotal: Int, seconds: Double) {
+        self.page = page
+        self.rowsSoFar = rowsSoFar
+        self.rowsTotal = rowsTotal
+        self.seconds = seconds
+    }
 }
 
 @available(macOS 26.0, iOS 26.0, *)
@@ -60,12 +68,16 @@ public struct ProseReader: Sendable {
             case .unavailable(let why): return "on-device model unavailable: \(why)"
             }
         case .cloud:
+            // The cloud model's type is in the macOS 27 / iOS 27 SDKs (Swift 6.4); an older
+            // toolchain, like CI's Xcode 26.2, builds the on-device path alone.
+            #if compiler(>=6.4)
             if #available(macOS 27.0, iOS 27.0, *) {
                 switch PrivateCloudComputeLanguageModel().availability {
                 case .available: return nil
                 case .unavailable(let why): return "Private Cloud Compute model unavailable: \(why)"
                 }
             }
+            #endif
             return "Private Cloud Compute needs macOS 27 or iOS 27"
         }
     }
@@ -103,9 +115,11 @@ public struct ProseReader: Sendable {
         case .onDevice:
             return LanguageModelSession(model: .default, instructions: instructions)
         case .cloud:
+            #if compiler(>=6.4)
             if #available(macOS 27.0, iOS 27.0, *) {
                 return LanguageModelSession(model: PrivateCloudComputeLanguageModel(), instructions: instructions)
             }
+            #endif
             return LanguageModelSession(model: .default, instructions: instructions)
         }
     }
@@ -113,6 +127,7 @@ public struct ProseReader: Sendable {
     /// Read a pattern whose pages are already text (PDFKit, or the importer's staged pNN.txt).
     public func read(pages: [String], progress: (@Sendable (ReaderProgress) -> Void)? = nil) async -> ProseDocument {
         let started = Date()
+        let rowsTotal = RowText.rowCount(in: pages)
         var doc = await readFront(pages: pages)
         let key = Dictionary(
             (doc.palette ?? []).compactMap { p in p.key_label.map { ($0.lowercased(), p.code) } },
@@ -187,10 +202,15 @@ public struct ProseReader: Sendable {
                     }
                     session = nil
                 }
-                progress?(ReaderProgress(page: pageNo, rowsSoFar: rows.count, seconds: Date().timeIntervalSince(started)))
+                progress?(ReaderProgress(page: pageNo, rowsSoFar: rows.count, rowsTotal: rowsTotal, seconds: Date().timeIntervalSince(started)))
                 continue
             }
             for block in blocks {
+                if Task.isCancelled {  // the sheet's Cancel: what is read so far, marked, and out
+                    doc.uncertain = (doc.uncertain ?? []) + ["cancelled after \(rows.count) rows"]
+                    if !rows.isEmpty { doc.written_rows = rows }
+                    return doc
+                }
                 // One row per prompt, in parts when the row is long: each part is one answer the
                 // model can hold, and the parts join in order. The row number comes from the text's
                 // own head (the model once answered 189 for "Row 1 (RS): 189 Y"), and increases and
@@ -202,7 +222,7 @@ public struct ProseReader: Sendable {
                     for n in numbers.isEmpty ? [0] : numbers {
                         emit(ProseDocument.Row(row: n, page: pageNo, text: block, runs: src.runs, total: src.total, error: nil), derivedFrom: numbers + [0])
                     }
-                    progress?(ReaderProgress(page: pageNo, rowsSoFar: rows.count, seconds: Date().timeIntervalSince(started)))
+                    progress?(ReaderProgress(page: pageNo, rowsSoFar: rows.count, rowsTotal: rowsTotal, seconds: Date().timeIntervalSince(started)))
                     continue
                 }
                 let normalizedBlock = RowText.normalized(block, printed: printedMap, width: lastWidth)
@@ -221,7 +241,7 @@ public struct ProseReader: Sendable {
                             if numbers.count > 1 { derived[n] = rows.count - 1 } else if n > 0 { explicit.insert(n) }
                         }
                     }
-                    progress?(ReaderProgress(page: pageNo, rowsSoFar: rows.count, seconds: Date().timeIntervalSince(started)))
+                    progress?(ReaderProgress(page: pageNo, rowsSoFar: rows.count, rowsTotal: rowsTotal, seconds: Date().timeIntervalSince(started)))
                     continue
                 }
                 let parts = RowText.chunks(of: normalizedBlock, maxRuns: options.chunkRuns)
@@ -264,7 +284,7 @@ public struct ProseReader: Sendable {
                 for n in covered {
                     emit(ProseDocument.Row(row: failure == nil ? n : 0, page: pageNo, text: block, runs: failure == nil ? runs : [], total: total, error: failure), derivedFrom: numbers)
                 }
-                progress?(ReaderProgress(page: pageNo, rowsSoFar: rows.count, seconds: Date().timeIntervalSince(started)))
+                progress?(ReaderProgress(page: pageNo, rowsSoFar: rows.count, rowsTotal: rowsTotal, seconds: Date().timeIntervalSince(started)))
             }
         }
         if !pendingPlain.isEmpty, let width = widthVotes.max(by: { $0.value < $1.value || ($0.value == $1.value && $0.key > $1.key) })?.key {
@@ -394,6 +414,12 @@ public enum RowText {
 
     /// Each written row's text on a page, wrapped continuation lines rejoined (a continuation
     /// starts with a count or carries a comma-separated list; a footer does neither).
+    /// How many written rows the pages hold: every row a head covers, so "Rows 1-10" is ten and
+    /// a head with no number one. What a progress bar is out of; `read` emits rows the same way.
+    public static func rowCount(in pages: [String]) -> Int {
+        pages.reduce(0) { total, page in total + blocks(in: page).reduce(0) { $0 + max(1, rowNumbers(of: $1).count) } }
+    }
+
     public static func blocks(in text: String) -> [String] {
         var blocks: [String] = []
         for raw in text.split(whereSeparator: \.isNewline) {

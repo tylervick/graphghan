@@ -297,7 +297,9 @@ id ignores `ext`.
   with the same chart id the Mac computes. Measured 2026-09-20 on the iPhone 17 simulator: the read and
   save of the 184-row Craigh na Dun PDF take well under a second in `PDFImportTests` (PR 1).
 - Orca's PDF opens into a chart of 29×77 with 77 rows read and validated, on a device with Apple
-  Intelligence, in under five minutes, with progress shown and cancel working.
+  Intelligence, in under five minutes, with progress shown and cancel working. (Manual gate: needs
+  an iPhone with Apple Intelligence; the simulator has no model. PR 2 landed the path with a stub
+  reader in its tests; not yet run on a device.)
 - The cactus blanket's PDF opens into the pinned 28×28 chart in under five seconds on iOS 17
   (a manual gate on the mini, §8; the fixture is not in the repository).
 - Every failure in §5.4 shows its sentence and leaves the library untouched.

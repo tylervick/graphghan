@@ -56,7 +56,7 @@ func run() async -> Int32 {
         return 1
     }
     let doc = await reader.read(pages: pages) { p in
-        FileHandle.standardError.write("  page \(p.page): \(p.rowsSoFar) rows, \(Int(p.seconds)) s\r".data(using: .utf8)!)
+        FileHandle.standardError.write("  page \(p.page): \(p.rowsSoFar) of \(p.rowsTotal) rows, \(Int(p.seconds)) s\r".data(using: .utf8)!)
     }
     let encoder = JSONEncoder()
     encoder.outputFormatting = [.prettyPrinted, .sortedKeys]

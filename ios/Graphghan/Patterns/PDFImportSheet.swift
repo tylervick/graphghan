@@ -7,6 +7,7 @@ import SwiftUI
 final class PDFImportState {
     enum Stage: Equatable {
         case reading
+        case readingRows(done: Int, of: Int, secondsElapsed: Int)
         case found
         case saving
         case failed(String)
@@ -15,7 +16,17 @@ final class PDFImportState {
     let fileName: String
     var reading: PDFImportReading? = nil
     var preview: UIImage? = nil
+    /// The read in flight, so Cancel can stop the model mid-row.
+    var task: Task<Void, Never>? = nil
     init(fileName: String) { self.fileName = fileName }
+
+    /// Cancel while the model reads or before the chart is added; Done once it failed.
+    var isCancellable: Bool {
+        switch stage {
+        case .found, .readingRows: return true
+        case .reading, .saving, .failed: return false
+        }
+    }
 }
 
 struct PDFImportSheet: View {
@@ -31,6 +42,14 @@ struct PDFImportSheet: View {
                         ProgressView()
                         Text("Reading the pages…").font(Font.Heather.body).foregroundStyle(Color.ink2)
                     }
+                case .readingRows(let done, let of, let seconds):
+                    VStack(spacing: 12) {
+                        Text("This pattern has no chart the app can read, so it is reading the \(of) written rows. About \(PDFImportSheet.minutes(for: of)) minutes.")
+                            .font(Font.Heather.body).foregroundStyle(Color.ink2).multilineTextAlignment(.center)
+                        ProgressView(value: Double(done), total: Double(max(of, 1))).tint(Color.ink)
+                        Text("Row \(done) of \(of), \(seconds) s").font(Font.Heather.caption).foregroundStyle(Color.ink2).monospacedDigit()
+                    }
+                    .padding()
                 case .found:
                     VStack(spacing: 16) {
                         if let preview = state.preview {
@@ -68,11 +87,16 @@ struct PDFImportSheet: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     if state.stage != .saving {
-                        Button(state.stage == .found ? "Cancel" : "Done") { model.cancelPDFImport() }
+                        Button(state.isCancellable ? "Cancel" : "Done") { model.cancelPDFImport() }
                     }
                 }
             }
         }
         .interactiveDismissDisabled(state.stage == .reading || state.stage == .saving)
+    }
+
+    /// The estimate the sheet prints: rows at the measured pace, rounded up, never under a minute.
+    static func minutes(for rows: Int) -> Int {
+        max(1, Int((Double(rows) * PDFImporter.secondsPerRow / 60).rounded(.up)))
     }
 }

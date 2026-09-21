@@ -3,6 +3,7 @@ import Observation
 import SwiftData
 import UIKit
 import GraphghanCore
+import ProseReaderKit
 
 /// App-wide state: the stores, the library as last loaded, navigation between tabs, and the
 /// project currently open on the Work screen.
@@ -17,6 +18,10 @@ final class AppModel {
     let localPatterns: LocalPatternStore
     let projects: ProjectService
     let liveActivity: LiveActivityController
+    /// The written-row reader for PDFs (#112): the on-device model when this iPhone has one, else
+    /// nil with `modelUnavailable` saying why.
+    let rowReader: (any RowReading)?
+    let modelUnavailable: String?
 
     var tab: Tab = .patterns
     var index: [IndexEntry] = []
@@ -61,10 +66,24 @@ final class AppModel {
     init(context: ModelContext, patterns: PatternStore, charts: ChartLibrary,
          localPatterns: LocalPatternStore,
          activityBackend: ActivityBackend = ActivityKitBackend(),
-         defaults: UserDefaults = UserDefaults(suiteName: AppGroup.identifier) ?? .standard) {
+         defaults: UserDefaults = UserDefaults(suiteName: AppGroup.identifier) ?? .standard,
+         rowReader: (any RowReading)?? = nil, modelUnavailable: String?? = nil) {
         self.patterns = patterns
         self.charts = charts
         self.localPatterns = localPatterns
+        // Double optionals: not given resolves the device's model; given nil means none (tests).
+        if let rowReader {
+            self.rowReader = rowReader
+            self.modelUnavailable = modelUnavailable ?? nil
+        } else if #available(iOS 26, *) {
+            let reader = ProseReader(model: .onDevice, options: ReaderOptions(examples: true))
+            let why = reader.unavailableReason()
+            self.rowReader = why == nil ? reader : nil
+            self.modelUnavailable = why
+        } else {
+            self.rowReader = nil
+            self.modelUnavailable = "needs iOS 26"
+        }
         self.projects = ProjectService(context: context, charts: charts, patterns: patterns)
         self.liveActivity = LiveActivityController(backend: activityBackend, defaults: defaults)
         // One mutation path, one activity refresh: every step -- Work screen or lock-screen button --
@@ -279,26 +298,45 @@ final class AppModel {
     /// The import sheet while a PDF is being read or shown; nil otherwise.
     var pdfImport: PDFImportState? = nil
 
-    /// The sheet's first two states: reading, then the chart found or the sentence for why not.
+    private var pdfImporter: PDFImporter {
+        PDFImporter(charts: charts, local: localPatterns, rowReader: rowReader, modelUnavailable: modelUnavailable)
+    }
+
+    /// The sheet's reading states, then the chart found or the sentence for why not. Cancel
+    /// cancels the task; the read then throws `.cancelled` and the sheet is already gone.
     func importPDF(data: Data, fileName: String) async {
         let state = PDFImportState(fileName: fileName)
         pdfImport = state
-        let importer = PDFImporter(charts: charts, local: localPatterns)
-        do {
-            let reading = try await importer.read(data, fileName: fileName)
-            state.reading = reading
-            state.preview = UIImage(data: reading.preview)
-            state.stage = .found
-        } catch {
-            state.stage = .failed(error.message)
+        let importer = pdfImporter
+        let task = Task { [weak self] in
+            do {
+                let reading = try await importer.read(data, fileName: fileName) { p in
+                    Task { @MainActor in
+                        if case .rows(let done, let of, let seconds) = p, state.stage != .found {
+                            state.stage = .readingRows(done: done, of: of, secondsElapsed: seconds)
+                        }
+                    }
+                }
+                state.reading = reading
+                state.preview = UIImage(data: reading.preview)
+                state.stage = .found
+            } catch PDFImportError.cancelled {
+                if self?.pdfImport === state { self?.pdfImport = nil }
+            } catch let error as PDFImportError {
+                state.stage = .failed(error.message)
+            } catch {
+                state.stage = .failed(PDFImportError.cannotOpen.message)
+            }
         }
+        state.task = task
+        await task.value
     }
 
     /// "Add to library": the bundle importer's order, then the same landing as an opened bundle.
     func addImportedPDF() async {
         guard let state = pdfImport, let reading = state.reading, state.stage == .found || state.stage == .saving else { return }
         state.stage = .saving
-        let importer = PDFImporter(charts: charts, local: localPatterns)
+        let importer = pdfImporter
         do {
             let manifest = try await importer.save(reading)
             manifests[manifest.id] = manifest
@@ -316,7 +354,8 @@ final class AppModel {
     /// Cancel and swipe-down: nothing written. Not while a save runs (the sheet hides the button
     /// and blocks the swipe then); the save finishes and lands as usual.
     func cancelPDFImport() {
-        guard pdfImport?.stage != .saving else { return }
+        guard let state = pdfImport, state.stage != .saving else { return }
+        state.task?.cancel()
         pdfImport = nil
     }
 

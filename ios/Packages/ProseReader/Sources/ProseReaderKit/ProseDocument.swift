@@ -62,24 +62,50 @@ public struct FrontOut: Sendable {
 /// The JSON the Python importer consumes: `graphghan-import/1`.
 public struct ProseDocument: Codable, Sendable {
     public struct Gauge: Codable, Sendable {
-        public struct Over: Codable, Sendable { public var value: Int; public var unit: String }
+        public struct Over: Codable, Sendable {
+            public var value: Int
+            public var unit: String
+            public init(value: Int, unit: String) {
+                self.value = value
+                self.unit = unit
+            }
+        }
         public var stitches: Int?
         public var rows: Int?
         public var over: Over?
         public var stitch: String?
         public var hook: String?
         public var yarn_weight: String?
+        public init(stitches: Int? = nil, rows: Int? = nil, over: Over? = nil, stitch: String? = nil, hook: String? = nil, yarn_weight: String? = nil) {
+            self.stitches = stitches
+            self.rows = rows
+            self.over = over
+            self.stitch = stitch
+            self.hook = hook
+            self.yarn_weight = yarn_weight
+        }
     }
     public struct Palette: Codable, Sendable {
         public var code: String
         public var name: String
         public var hex: String?
         public var key_label: String?
+        public init(code: String, name: String, hex: String? = nil, key_label: String? = nil) {
+            self.code = code
+            self.name = name
+            self.hex = hex
+            self.key_label = key_label
+        }
     }
     public struct Chart: Codable, Sendable {
         public var width: Int?
         public var height: Int?
         public var row1: String = "bottom-right"
+        public init(width: Int? = nil, height: Int? = nil, row1: String = "bottom-right") {
+            self.width = width
+            self.height = height
+            self.row1 = row1
+        }
     }
     public struct Row: Codable, Sendable {
         public var row: Int
@@ -88,6 +114,14 @@ public struct ProseDocument: Codable, Sendable {
         public var runs: [[RunValue]]
         public var total: Int?
         public var error: String?
+        public init(row: Int, page: Int, text: String, runs: [[RunValue]], total: Int? = nil, error: String? = nil) {
+            self.row = row
+            self.page = page
+            self.text = text
+            self.runs = runs
+            self.total = total
+            self.error = error
+        }
     }
     /// A run is `[code, count]` in the schema: a two-element array of a string and an integer.
     public enum RunValue: Codable, Sendable {
@@ -108,4 +142,5 @@ public struct ProseDocument: Codable, Sendable {
     public var chart: Chart?
     public var written_rows: [Row]?
     public var uncertain: [String]?
+    public init() {}
 }

@@ -1,26 +1,56 @@
 import Foundation
 import GraphghanCore
 import PDFKit
+import ProseReaderKit
 
 /// A pattern PDF, from bytes to a pattern the library shows (phone import spec §5.1, §5.3). PDFKit
-/// turns the pages into text here; every decision about that text is `GraphghanCore`'s. Reading
-/// and saving are two steps because the sheet shows the chart before "Add to library" saves it,
-/// and a read writes nothing.
+/// turns the pages into text here; every decision about that text is `GraphghanCore`'s or the
+/// row reader's. Reading and saving are two steps because the sheet shows the chart before "Add
+/// to library" saves it, and a read writes nothing.
 struct PDFImporter: Sendable {
     let charts: ChartLibrary
     let local: LocalPatternStore
+    /// The written-row reader (spec §4.3), nil when this iPhone has no model to run it on; then
+    /// `modelUnavailable` says why, for the log.
+    let rowReader: (any RowReading)?
+    let modelUnavailable: String?
 
     /// A pattern PDF is a few MB; the Orca bag, all photos, is 18 MB.
     static let maximumBytes = 20 << 20
+    /// A page with fewer characters than this holds a page number and a title at most: its rows,
+    /// if any, are a picture (spec §4.4). A page of prose is well past it.
+    static let pictureTextLimit = 40
+    /// Seconds one row takes on the on-device model (spec §4.3, measured on Orca), for the estimate.
+    static let secondsPerRow = 3.0
 
-    func read(_ data: Data, fileName: String) async throws(PDFImportError) -> PDFImportReading {
+    func read(_ data: Data, fileName: String, progress: (@Sendable (PDFImportProgress) -> Void)? = nil) async throws(PDFImportError) -> PDFImportReading {
         guard data.count <= Self.maximumBytes else { throw .tooBig }
         guard let document = PDFDocument(data: data), document.pageCount > 0 else { throw .cannotOpen }
-        let texts = (0..<document.pageCount).map { document.page(at: $0)?.string ?? "" }
+        var texts: [String] = []
+        var thinPages = 0
+        for i in 0..<document.pageCount {
+            let text = document.page(at: i)?.string ?? ""
+            texts.append(text)
+            if text.trimmingCharacters(in: .whitespacesAndNewlines).count < Self.pictureTextLimit { thinPages += 1 }
+            progress?(.pages(done: i + 1, of: document.pageCount))
+        }
         let title = (document.documentAttributes?[PDFDocumentAttribute.titleAttribute] as? String)?
             .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        // PR 2 and 3 of the phone import add the written-row and grid readers here.
-        guard OwnPDFReader.isOwn(pageTexts: texts) else { throw .nothingFound }
+        if OwnPDFReader.isOwn(pageTexts: texts) {
+            return try await assembleOwn(texts: texts, title: title, fileName: fileName)
+        }
+        // PR 3 of the phone import adds the grid reader here, before the rows.
+        guard RowText.rowCount(in: texts) >= 2 else {
+            // Every page nearly empty of text: the rows are printed as a picture (§4.4).
+            throw thinPages == document.pageCount ? .rowsArePictures : .nothingFound
+        }
+        guard let rowReader else { throw .needsAppleIntelligence }
+        return try await assembleRows(texts: texts, reader: rowReader, title: title, fileName: fileName, progress: progress)
+    }
+
+    // MARK: our own PDF (spec §4.1)
+
+    func assembleOwn(texts: [String], title: String, fileName: String) async throws(PDFImportError) -> PDFImportReading {
         let reading: OwnPDFReading
         do {
             reading = try OwnPDFReader.read(pageTexts: texts, title: title.isEmpty ? Self.stem(fileName) : title)
@@ -29,16 +59,104 @@ struct PDFImporter: Sendable {
         } catch {
             throw .invalidChart("\(error)")
         }
-        let title2 = reading.pattern.title.isEmpty ? Self.stem(fileName) : reading.pattern.title
-        let slug = await Self.uniqueSlug(Self.slug(title2), in: local)
-        let draft = ChartWriter.draft(from: reading, id: slug)
+        let patternTitle = reading.pattern.title.isEmpty ? Self.stem(fileName) : reading.pattern.title
+        let draft = ChartWriter.draft(from: reading, id: "")
+        return try await assemble(draft: draft, title: patternTitle, version: reading.pattern.version, fileName: fileName, source: .ownPDF)
+    }
+
+    // MARK: written rows alone (spec §4.3)
+
+    func assembleRows(texts: [String], reader: any RowReading, title: String, fileName: String,
+                      progress: (@Sendable (PDFImportProgress) -> Void)?) async throws(PDFImportError) -> PDFImportReading {
+        let started = Date()
+        // The sheet moves to the rows state before the first row is read, so the estimate and
+        // Cancel are there while the model warms up.
+        progress?(.rows(done: 0, of: RowText.rowCount(in: texts), secondsElapsed: 0))
+        let doc = await reader.read(pages: texts) { p in
+            progress?(.rows(done: p.rowsSoFar, of: p.rowsTotal, secondsElapsed: Int(Date().timeIntervalSince(started))))
+        }
+        if Task.isCancelled { throw .cancelled }
+        let all = doc.written_rows ?? []
+        // A row the reader could not read is named, never dropped: dropping the last one would
+        // shrink the height inferred below and pass a truncated chart off as whole.
+        let unread = all.compactMap { r -> String? in
+            if let error = r.error { return "row \(r.row): \(error)" }
+            return r.runs.isEmpty ? "row \(r.row): no runs read" : nil
+        }
+        guard unread.isEmpty else { throw .rowsDoNotAssemble(unread) }
+        guard !all.isEmpty else { throw .rowsDoNotAssemble(["no written rows were read"]) }
+        let rows = all.map { RowsChart.Row(row: $0.row, runs: $0.runs.map(Self.run), total: $0.total) }
+        // Width and height are what the front matter says, else the widest row and the highest
+        // number; either way within what the app works (§5.1) before any grid is allocated.
+        let width = doc.chart?.width.flatMap { $0 > 0 ? $0 : nil } ?? rows.map { $0.runs.reduce(0) { $0 + $1.count } }.max() ?? 0
+        let height = doc.chart?.height.flatMap { $0 > 0 ? $0 : nil } ?? rows.map(\.row).max() ?? 0
+        guard width >= 1, height >= 1 else { throw .rowsDoNotAssemble(["the chart would be \(width) × \(height)"]) }
+        guard width <= OwnPDFReader.maximumSide, height <= OwnPDFReader.maximumSide else { throw .badRow(.tooLarge(width: width, height: height)) }
+        // Every code the rows use is in the palette; a key colour with no hex gets a placeholder.
+        var palette = (doc.palette ?? []).map { ChartDraft.Palette(code: $0.code, name: $0.name.isEmpty ? $0.code : $0.name, hex: $0.hex ?? "") }
+        let used = Set(rows.flatMap { $0.runs.map(\.code) })
+        for code in used.sorted() where !palette.contains(where: { $0.code == code }) {
+            palette.append(ChartDraft.Palette(code: code, name: code, hex: ""))
+        }
+        for i in palette.indices where !Self.isHex(palette[i].hex) {
+            let taken = palette.map(\.hex).filter(Self.isHex)
+            palette[i] = ChartDraft.Palette(code: palette[i].code, name: palette[i].name, hex: RowsChart.placeholderHex(avoiding: taken))
+        }
+        let strings: [String]
+        switch RowsChart.rowStrings(rows: rows, codes: palette.map(\.code), width: width, height: height, row1: doc.chart?.row1 ?? "bottom-right") {
+        case .success(let s): strings = s
+        case .failure(let problems): throw .rowsDoNotAssemble(problems.sentences)
+        }
+        let patternTitle = doc.pattern?["title"].flatMap { $0.isEmpty ? nil : $0 } ?? (title.isEmpty ? Self.stem(fileName) : title)
+        var gauge = ChartDraft.Gauge()
+        var gaugePrinted = false
+        if let g = doc.gauge, let st = g.stitches, let rws = g.rows, let over = g.over,
+           st > 0, rws > 0, over.value > 0, over.unit == "in" || over.unit == "cm" {
+            gauge.stitches = Double(st)
+            gauge.rows = Double(rws)
+            gauge.overValue = Double(over.value)
+            gauge.overUnit = over.unit
+            gaugePrinted = true
+        }
+        gauge.stitch = doc.gauge?.stitch.flatMap { $0.isEmpty ? nil : $0 } ?? "sc"
+        gauge.hook = doc.gauge?.hook.flatMap { $0.isEmpty ? nil : $0 }
+        gauge.yarnWeight = doc.gauge?.yarn_weight.flatMap { $0.isEmpty ? nil : $0 }
+        let ext: JSONValue = .object(["graphghan": .object(["import": .object([
+            "source": .string("pdf"), "grid": .bool(false), "check": .string("none"),
+            "rows_checked": .int(0), "rows_disagree": .array([]), "gauge_printed": .bool(gaugePrinted),
+        ])])])
+        let draft = ChartDraft(pattern: .init(id: "", title: patternTitle, version: "0.1.0"), palette: palette, rows: strings,
+                               width: width, height: height, gauge: gauge, ext: ext)
+        return try await assemble(draft: draft, title: patternTitle, version: "0.1.0", fileName: fileName,
+                                  source: .writtenRows(count: rows.count, gaugePrinted: gaugePrinted))
+    }
+
+    /// `["A", 3]` from the reader's document as a run.
+    static func run(_ pair: [ProseDocument.RunValue]) -> (code: String, count: Int) {
+        var code = ""
+        var count = 0
+        for v in pair {
+            switch v {
+            case .code(let s): code = s
+            case .count(let n): count = n
+            }
+        }
+        return (code, count)
+    }
+
+    // MARK: the tail every reader shares (spec §5.3)
+
+    func assemble(draft: ChartDraft, title: String, version: String, fileName: String, source: PDFImportSource) async throws(PDFImportError) -> PDFImportReading {
+        var draft = draft
+        let slug = await Self.uniqueSlug(Self.slug(title), in: local)
+        draft.pattern.id = slug
         let (chartData, chartID) = ChartWriter.encode(draft)
         let chart: Chart
         do { chart = try Chart.load(chartData) } catch { throw .invalidChart("\(error)") }
         guard let preview = ChartPreview.png(chart) else { throw .invalidChart("no preview") }
         let gaugeKey = draft.gauge.stitch ?? "sc"
         let dedication = "Imported from \(fileName) on \(Self.today())"
-        let manifestData = ManifestWriter.encode(id: slug, title: title2, version: reading.pattern.version, dedication: dedication,
+        let manifestData = ManifestWriter.encode(id: slug, title: title, version: version, dedication: dedication,
                                                  chart: chart, chartID: chartID, variant: "final", gaugeKey: gaugeKey, palette: draft.palette)
         let manifest: PatternManifest
         do { manifest = try JSONDecoder().decode(PatternManifest.self, from: manifestData) } catch { throw .invalidChart("manifest: \(error)") }
@@ -46,7 +164,7 @@ struct PDFImporter: Sendable {
         let bundle = PatternBundle(manifest: manifest, manifestData: manifestData,
                                    charts: [BundleChart(entry: entry, chart: chart, data: chartData)],
                                    previews: ["preview.png": preview, entry.preview: preview])
-        return PDFImportReading(bundle: bundle, preview: preview, width: chart.width, height: chart.height, colours: chart.palette.count)
+        return PDFImportReading(bundle: bundle, preview: preview, width: chart.width, height: chart.height, colours: chart.palette.count, source: source)
     }
 
     /// The bundle importer's order (bundle design §6.2): charts, then the pattern directory whole.
@@ -54,6 +172,10 @@ struct PDFImporter: Sendable {
         for chart in reading.bundle.charts { _ = try await charts.store(chart.data) }
         try await local.save(reading.bundle)
         return reading.bundle.manifest
+    }
+
+    static func isHex(_ s: String) -> Bool {
+        s.range(of: "^#[0-9a-fA-F]{6}$", options: .regularExpression) != nil
     }
 
     static func stem(_ fileName: String) -> String { (fileName as NSString).deletingPathExtension }
@@ -106,12 +228,26 @@ struct PDFImporter: Sendable {
     }
 }
 
+/// How far a read has got, for the sheet (spec §5.2): pages while PDFKit extracts text, rows while
+/// the model reads them.
+enum PDFImportProgress: Sendable, Equatable {
+    case pages(done: Int, of: Int)
+    case rows(done: Int, of: Int, secondsElapsed: Int)
+}
+
+/// Which reader made the chart, for the sheet's and the detail screen's sentences.
+enum PDFImportSource: Sendable, Equatable {
+    case ownPDF
+    case writtenRows(count: Int, gaugePrinted: Bool)
+}
+
 struct PDFImportReading: Sendable {
     let bundle: PatternBundle
     let preview: Data
     let width: Int
     let height: Int
     let colours: Int
+    let source: PDFImportSource
 }
 
 /// Why a PDF was refused; `message` is the sentence the sheet shows (phone import spec §5.4).
@@ -119,17 +255,26 @@ enum PDFImportError: Error, Equatable {
     case tooBig
     case cannotOpen
     case nothingFound
+    case rowsArePictures
+    case needsAppleIntelligence
+    case rowsDoNotAssemble([String])
     case invalidChart(String)
     case badRow(OwnPDFError)
+    case cancelled
 
     var message: String {
         switch self {
         case .tooBig: return "That file is too big to be a pattern."
         case .cannotOpen: return "That PDF couldn't be opened."
         case .nothingFound: return "No chart or written rows were found in this PDF."
+        case .rowsArePictures: return "This pattern's rows are printed as a picture; the app can't read that yet."
+        case .needsAppleIntelligence:
+            return "Reading written rows needs Apple Intelligence on this iPhone. Open the PDF on a Mac with graphghan, or send a .graphghan file instead."
+        case .rowsDoNotAssemble(let why): return "The written rows in this PDF don't add up: \(why.joined(separator: "; "))."
         case .invalidChart(let why): return "The chart in this PDF isn't one the app can work: \(why)."
         case .badRow(.tooLarge(let w, let h)): return "The chart in this PDF is too big for the app: \(w) × \(h) stitches."
         case .badRow(let error): return "A written row in this PDF couldn't be read (\(PDFImporter.describe(error)))."
+        case .cancelled: return ""
         }
     }
 }
