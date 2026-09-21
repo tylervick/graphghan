@@ -46,6 +46,11 @@ struct PatternDetailContent: View {
                 specRow("Finished", d?.sizeLabel ?? "—")
                 specRow("Stitch", d?.stitch ?? "—")
                 specRow("Version", manifest.version)
+                if let chart, chart.document.ext?["graphghan"]?["import"]?["gauge_printed"]?.boolValue == false {
+                    let g = chart.document.gauge
+                    Text("Gauge not printed in the PDF; using \(g.stitches.formatted()) × \(g.rows.formatted()) over \(g.over.value.formatted()) \(g.over.unit).")
+                        .font(Font.Heather.caption).foregroundStyle(Color.ink2).frame(maxWidth: .infinity, alignment: .leading)
+                }
             }
         }
     }
