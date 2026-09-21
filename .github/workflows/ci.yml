@@ -18,7 +18,7 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         # Nothing in this job pushes; leaving the token in .git/config only widens
         # what a compromised later step could reach. fetch-depth 0 because hk's
         # gitleaks step scans commit history rather than the working tree, and a
@@ -50,7 +50,7 @@ jobs:
     outputs:
       run: ${{ steps.filter.outputs.run }}
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with: {persist-credentials: false, fetch-depth: 0}
       - id: filter
         env:
@@ -77,7 +77,7 @@ jobs:
       SIMULATOR_DEVICE: iPhone 17
       SIMULATOR_OS: "26.2"
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with: {persist-credentials: false}
       - name: Select Xcode
         env:
@@ -220,7 +220,7 @@ jobs:
             echo "have=true" >> "$GITHUB_OUTPUT"
           fi
       - if: steps.key.outputs.have == 'true'
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with: {persist-credentials: false}
       # Same pin as the `ios` job, and for the same reason: this artifact should
       # be built by the Xcode the app is tested and shipped with.
