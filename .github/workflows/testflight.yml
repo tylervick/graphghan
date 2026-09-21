@@ -72,7 +72,7 @@ jobs:
     outputs:
       ship: ${{ steps.gate.outputs.ship }}
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with: {fetch-depth: 0, persist-credentials: false}
       - id: gate
         env:
@@ -103,7 +103,7 @@ jobs:
       # persist-credentials stays true (the default) and is written explicitly: the "Tag the shipped
       # build" step below pushes with it, and zizmor's artipacked audit wants the trade-off spelled out
       # rather than left implicit.
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: true
