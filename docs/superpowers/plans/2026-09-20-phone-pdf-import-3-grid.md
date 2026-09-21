@@ -741,7 +741,7 @@ enum PageRender {
         let space = CGColorSpaceCreateDeviceRGB()
         let info = CGImageAlphaInfo.premultipliedLast.rawValue | CGBitmapInfo.byteOrder32Big.rawValue
         guard let ctx = CGContext(data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: 0, space: space, bitmapInfo: info) else { return nil }
-        ctx.setFillColor(CGColor(red: 1, green: 1, blue: 1, alpha: 1))
+        ctx.setFillColor(gray: 1, alpha: 1)  // the page's paper, not a design colour
         ctx.fill(CGRect(x: 0, y: 0, width: w, height: h))
         ctx.scaleBy(x: scale, y: scale)
         ctx.translateBy(x: -box.minX, y: -box.minY)
@@ -2105,7 +2105,11 @@ and the new methods:
             record.problem = "written rows give \(w)x\(h), the chart reads \(chart.width)x\(chart.height)"
             return record
         }
-        guard !rows.isEmpty else { record.problem = "no written rows could be read"; return record }
+        guard !rows.isEmpty else {
+            // Stopped before the first row is simply stopped at row 0; finished with nothing read is a problem.
+            if !stopped { record.problem = "no written rows could be read" }
+            return record
+        }
         switch RowsChart.crossCheck(rows: rows, codes: codes, grid: chart.cells, width: chart.width, height: chart.height, row1: doc.chart?.row1 ?? "bottom-right") {
         case .compared(let disagree, _): record.rowsDisagree = disagree
         case .incomparable(let why): record.problem = why

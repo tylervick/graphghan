@@ -188,7 +188,11 @@ struct PDFImporter: Sendable {
             record.problem = "written rows give \(w)x\(h), the chart reads \(chart.width)x\(chart.height)"
             return record
         }
-        guard !rows.isEmpty else { record.problem = "no written rows could be read"; return record }
+        guard !rows.isEmpty else {
+            // Stopped before the first row is simply stopped at row 0; finished with nothing read is a problem.
+            if !stopped { record.problem = "no written rows could be read" }
+            return record
+        }
         switch RowsChart.crossCheck(rows: rows, codes: codes, grid: chart.cells, width: chart.width, height: chart.height, row1: doc.chart?.row1 ?? "bottom-right") {
         case .compared(let disagree, _): record.rowsDisagree = disagree
         case .incomparable(let why): record.problem = why

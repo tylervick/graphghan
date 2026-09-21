@@ -108,4 +108,74 @@ import ProseReaderKit
         #expect(model.pdfImport?.stage == .failed(PDFImportError.needsAppleIntelligence.message))
         #expect(model.pdfImport?.isCancellable == false)
     }
+
+    // MARK: a chart in the PDF (PR 3)
+
+    @Test func aChartIsFoundThenTheCheckRunsUnderneathAndFinishes() async throws {
+        let model = try await make(rowReader: PDFImportTests.StubRowReader(document: PDFImportTests.chartDocument(wrongRow: 3), delayPerRow: .milliseconds(20)))
+        await model.importPDF(data: try #require(PDFTestDocuments.chart(rows: true)), fileName: "drawn.pdf")
+        let state = try #require(model.pdfImport)
+        #expect(state.stage == .found && state.reading?.source == .grid(page: 1, rowsToCheck: 15))
+        _ = try #require(await Self.checkState(of: model) { if case .running = $0 { return true }; return false })
+        let done = try #require(await Self.checkState(of: model) { if case .done = $0 { return true }; return false })
+        guard case .done(let record) = done else { return }
+        #expect(record.check == .finished && record.rowsDisagree == [3])
+        #expect(record.sentence == "Row 3 disagrees with the chart. The chart is as drawn; check those rows against the PDF.")
+        await model.addImportedPDF()
+        #expect(model.pdfImport == nil)
+        #expect(model.libraryItems.contains { $0.source == .local && $0.slug == "drawn" })
+        let manifest = try await model.manifest(for: "drawn", path: nil)
+        let chart = try await model.charts.chart(id: manifest.charts[0].id)
+        #expect(ImportRecord(json: chart.document.ext) == record)
+    }
+
+    @Test func skipStopsTheCheckAndAddSavesWhatWasChecked() async throws {
+        let model = try await make(rowReader: PDFImportTests.StubRowReader(document: PDFImportTests.chartDocument(), delayPerRow: .milliseconds(300)))
+        await model.importPDF(data: try #require(PDFTestDocuments.chart(rows: true)), fileName: "drawn.pdf")
+        _ = try #require(await Self.checkState(of: model) { if case .running = $0 { return true }; return false })
+        model.skipPDFCheck()
+        let done = try #require(await Self.checkState(of: model) { if case .done = $0 { return true }; return false })
+        guard case .done(let record) = done else { return }
+        #expect(record.check == .stopped && record.rowsTotal == 15 && record.rowsChecked < 15)
+        #expect(record.sentence?.hasPrefix("Written rows checked up to row \(record.rowsChecked); \(record.rowsChecked + 1)–15 not checked.") == true)
+    }
+
+    @Test func addingBeforeTheCheckEndsSavesItAsStopped() async throws {
+        let model = try await make(rowReader: PDFImportTests.StubRowReader(document: PDFImportTests.chartDocument(), delayPerRow: .milliseconds(300)))
+        await model.importPDF(data: try #require(PDFTestDocuments.chart(rows: true)), fileName: "drawn.pdf")
+        _ = try #require(await Self.checkState(of: model) { if case .running = $0 { return true }; return false })
+        await model.addImportedPDF()
+        let manifest = try await model.manifest(for: "drawn", path: nil)
+        let chart = try await model.charts.chart(id: manifest.charts[0].id)
+        let record = try #require(ImportRecord(json: chart.document.ext))
+        #expect(record.check == .stopped && record.rowsTotal == 15)
+    }
+
+    @Test func withoutAModelTheChartIsSavedUnchecked() async throws {
+        let model = try await make(rowReader: nil, modelUnavailable: "needs iOS 26")
+        await model.importPDF(data: try #require(PDFTestDocuments.chart(rows: true)), fileName: "drawn.pdf")
+        let done = try #require(await Self.checkState(of: model) { if case .done = $0 { return true }; return false })
+        guard case .done(let record) = done else { return }
+        #expect(record.check == .unavailable && record.sentence == "Written rows not checked on this iPhone.")
+        await model.addImportedPDF()
+        #expect(model.libraryItems.contains { $0.slug == "drawn" })
+    }
+
+    @Test func cancelDuringTheCheckWritesNothing() async throws {
+        let model = try await make(rowReader: PDFImportTests.StubRowReader(document: PDFImportTests.chartDocument(), delayPerRow: .milliseconds(300)))
+        await model.importPDF(data: try #require(PDFTestDocuments.chart(rows: true)), fileName: "drawn.pdf")
+        _ = try #require(await Self.checkState(of: model) { if case .running = $0 { return true }; return false })
+        model.cancelPDFImport()
+        try await Task.sleep(for: .milliseconds(100))
+        #expect(model.pdfImport == nil && model.libraryItems.isEmpty)
+    }
+
+    /// The sheet's check stage once `test` accepts it, or nil after three seconds.
+    static func checkState(of model: AppModel, _ test: (PDFImportState.CheckStage) -> Bool) async -> PDFImportState.CheckStage? {
+        for _ in 0..<300 {
+            if let s = model.pdfImport?.check, test(s) { return s }
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+        return nil
+    }
 }
