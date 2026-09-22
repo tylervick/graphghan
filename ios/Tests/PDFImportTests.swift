@@ -182,7 +182,8 @@ import ProseReaderKit
         doc.written_rows?[1].error = "no colour named"
         let importer = try await make().importer(rowReader: StubRowReader(document: doc, delayPerRow: .zero))
         let pdf = try #require(PDFTestDocuments.plain(text: Self.twoRowText))
-        await #expect(throws: PDFImportError.rowsDoNotAssemble(["row 0: the on-device model is busy", "row 0: no colour named"])) {
+        // One sentence now, a few rows named and the rest counted (#179).
+        await #expect(throws: PDFImportError.rowsDoNotAssemble(["row 0: the on-device model is busy; row 0: no colour named"])) {
             try await importer.read(pdf, fileName: "x.pdf")
         }
     }
@@ -296,14 +297,30 @@ import ProseReaderKit
         #expect(record2.check == .finished && record2.rowsDisagree == [5] && record2.problem == nil)
     }
 
-    @Test func aRowTheReaderCouldNotReadMakesTheCheckIncomparableNotSilentlyClean() async throws {
+    /// A row the reader could not read is named, never passed off as clean -- and no longer
+    /// cancels the comparison of the rows that did read (#176). Two rows a model fumbles should
+    /// not cost the maker the other seventy-five.
+    @Test func aRowTheReaderCouldNotReadIsNamedWhileTheRestAreStillChecked() async throws {
         var doc = Self.chartDocument()
         doc.written_rows?[4].runs = []
         doc.written_rows?[4].error = "no colour named"
         let importer = try await make().importer(rowReader: StubRowReader(document: doc, delayPerRow: .zero))
         let record = await importer.check(try await importer.read(try #require(PDFTestDocuments.chart(rows: true)), fileName: "drawn.pdf"), progress: nil)
-        #expect(record.check == .finished && record.problem == "row 5: no colour named" && record.rowsDisagree.isEmpty)
-        #expect(record.sentence == "Written rows could not be compared with the chart: row 5: no colour named.")
+        #expect(record.check == .finished && record.problem == "row 5: no colour named")
+        #expect(record.rowsUnread == 1 && record.rowsDisagree.isEmpty)
+        #expect(record.sentence == "1 written row couldn't be read (row 5: no colour named). The rest agree with the chart.")
+    }
+
+    /// The same, with one of the rows that did read disagreeing: both facts are reported.
+    @Test func anUnreadRowAndADisagreeingRowAreBothReported() async throws {
+        var doc = Self.chartDocument(wrongRow: 3)
+        doc.written_rows?[4].runs = []
+        doc.written_rows?[4].error = "no colour named"
+        let importer = try await make().importer(rowReader: StubRowReader(document: doc, delayPerRow: .zero))
+        let record = await importer.check(try await importer.read(try #require(PDFTestDocuments.chart(rows: true)), fileName: "drawn.pdf"), progress: nil)
+        #expect(record.rowsUnread == 1 && record.rowsDisagree == [3])
+        #expect(record.sentence?.hasPrefix("1 written row couldn't be read (row 5: no colour named).") == true)
+        #expect(record.sentence?.contains("Row 3 disagrees with the chart.") == true)
     }
 
     /// The same on the check: the chart from the grid is still there and still saveable, and the
@@ -337,6 +354,17 @@ import ProseReaderKit
         let mixed = try await make().importer(rowReader: StubRowReader(document: doc, delayPerRow: .zero))
         let second = await mixed.check(try await mixed.read(try #require(PDFTestDocuments.chart(rows: true)), fileName: "drawn.pdf"), progress: nil)
         #expect(second.problem == "row 5: the on-device model is busy; row 7: no colour named")
+    }
+
+    /// A read that loses many rows names a few and counts the rest: naming all 77 put fifteen
+    /// thousand characters in a view sized for a sentence, and the same string into the chart
+    /// (#179).
+    @Test func manyUnreadRowsAreNamedAFewAndCounted() {
+        #expect(PDFImporter.unreadSentence(["row 1: a", "row 2: b"]) == "row 1: a; row 2: b")
+        #expect(PDFImporter.unreadSentence(["row 1: a", "row 2: b", "row 3: c"]) == "row 1: a; row 2: b; row 3: c")
+        #expect(PDFImporter.unreadSentence((1...77).map { "row \($0): why" })
+            == "row 1: why; row 2: why; row 3: why; and 74 more")
+        #expect(PDFImporter.unreadSentence((1...77).map { "row \($0): why" }).count < 200)
     }
 
     /// The reader writes these words and the record matches them across a package boundary, so

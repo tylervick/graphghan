@@ -358,6 +358,8 @@ final class AppModel {
         // sheet, and whether the system counts the app as foreground at this moment is #176's
         // first hypothesis. The probe's report prints what the scene was doing here.
         state.appStateAtCheck = Self.describe(UIApplication.shared.applicationState)
+        state.powerAtCheck = PowerState.summary
+        state.onBatteryAtCheck = PowerState.isOnBattery
         IdleTimer.hold()
         state.checkTask = Task {
             defer { IdleTimer.release() }
@@ -385,8 +387,10 @@ final class AppModel {
         guard let state = pdfImport, !state.probing, state.probe == nil else { return }
         state.probing = true
         defer { state.probing = false }
-        var context = ["the app was \(Self.describe(UIApplication.shared.applicationState)) now"]
+        var context = ["the app was \(Self.describe(UIApplication.shared.applicationState)) now",
+                       PowerState.summary + " now"]
         if !state.appStateAtCheck.isEmpty { context.append("the app was \(state.appStateAtCheck) when the check started") }
+        if !state.powerAtCheck.isEmpty { context.append(state.powerAtCheck + " when the check started") }
         guard #available(iOS 26, *), let reader = rowReader as? ProseReader else {
             state.probe = ModelProbe(
                 steps: [.init(kind: .availability, name: "the model is there", ok: false, detail: modelUnavailable ?? "no on-device reader", seconds: 0)],
@@ -415,7 +419,8 @@ final class AppModel {
             IdleTimer.release()
             state.measuring = false
         }
-        let context = ["the app was \(Self.describe(UIApplication.shared.applicationState)) while measuring"]
+        let context = ["the app was \(Self.describe(UIApplication.shared.applicationState)) while measuring",
+                       PowerState.summary + " while measuring"]
         state.limits = await reader.measureRequestLimit(context: context) { step in
             Task { @MainActor in state.measuringStep = step }
         }

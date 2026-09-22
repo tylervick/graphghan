@@ -12,6 +12,10 @@ public struct ImportRecord: Sendable, Equatable {
     public var rowsChecked: Int
     public var rowsTotal: Int
     public var rowsDisagree: [Int]
+    /// Rows the reader handed back unread. They are left out of the comparison rather than
+    /// cancelling it: two rows a model would not read should not cost the maker the other
+    /// seventy-five (#176).
+    public var rowsUnread: Int
     public var gaugePrinted: Bool
     /// Why the rows could not be compared at all (`CheckOutcome.incomparable`), when they could not.
     public var problem: String?
@@ -24,7 +28,9 @@ public struct ImportRecord: Sendable, Equatable {
     /// What the sheet and the detail screen say for it: a state that passes, not a fault.
     public static let modelBusySentence = "The on-device model is busy; try the check again in a minute."
 
-    public init(grid: Bool, check: Check, rowsChecked: Int, rowsTotal: Int, rowsDisagree: [Int], gaugePrinted: Bool, problem: String?) {
+    public init(grid: Bool, check: Check, rowsChecked: Int, rowsTotal: Int, rowsDisagree: [Int],
+                rowsUnread: Int = 0, gaugePrinted: Bool, problem: String?) {
+        self.rowsUnread = rowsUnread
         self.grid = grid
         self.check = check
         self.rowsChecked = rowsChecked
@@ -38,7 +44,8 @@ public struct ImportRecord: Sendable, Equatable {
         var o: [String: JSONValue] = [
             "source": .string("pdf"), "grid": .bool(grid), "check": .string(check.rawValue),
             "rows_checked": .int(rowsChecked), "rows_total": .int(rowsTotal),
-            "rows_disagree": .array(rowsDisagree.map(JSONValue.int)), "gauge_printed": .bool(gaugePrinted),
+            "rows_disagree": .array(rowsDisagree.map(JSONValue.int)), "rows_unread": .int(rowsUnread),
+            "gauge_printed": .bool(gaugePrinted),
         ]
         if let problem { o["problem"] = .string(problem) }
         return .object(["graphghan": .object(["import": .object(o)])])
@@ -49,7 +56,8 @@ public struct ImportRecord: Sendable, Equatable {
         guard let o = ext?["graphghan"]?["import"], let check = Check(rawValue: o["check"]?.stringValue ?? "") else { return nil }
         self.init(grid: o["grid"]?.boolValue ?? false, check: check, rowsChecked: o["rows_checked"]?.intValue ?? 0,
                   rowsTotal: o["rows_total"]?.intValue ?? 0,
-                  rowsDisagree: (o["rows_disagree"]?.arrayValue ?? []).compactMap(\.intValue), gaugePrinted: o["gauge_printed"]?.boolValue ?? false,
+                  rowsDisagree: (o["rows_disagree"]?.arrayValue ?? []).compactMap(\.intValue),
+                  rowsUnread: o["rows_unread"]?.intValue ?? 0, gaugePrinted: o["gauge_printed"]?.boolValue ?? false,
                   problem: o["problem"]?.stringValue)
     }
 
@@ -61,6 +69,19 @@ public struct ImportRecord: Sendable, Equatable {
             // refusal that began at once apart from one that set in part way down (#176).
             guard rowsChecked > 0, rowsTotal > 0 else { return Self.modelBusySentence }
             return "The on-device model is busy; \(rowsChecked) of \(rowsTotal) written rows were checked. Try the check again in a minute."
+        }
+        // Some rows unread while the rest were compared: say what was achieved. Reporting that
+        // as a failed comparison threw away seventy-five good rows in the telling as well as in
+        // the code (#176).
+        if let problem, rowsUnread > 0, rowsChecked > 0 {
+            let lost = "\(rowsUnread) written row\(rowsUnread == 1 ? "" : "s") couldn't be read (\(problem))."
+            let disagree = rowsDisagree.isEmpty ? "" : " " + Self.disagreeSentence(rowsDisagree)
+            // A check that was stopped part way has rows nobody looked at, and they are not
+            // "the rest agree": only the rows actually reached were compared.
+            if check == .stopped, rowsChecked < rowsTotal {
+                return lost + " Checked up to row \(rowsChecked); \(rowsChecked + 1)–\(rowsTotal) not checked." + disagree
+            }
+            return lost + (rowsDisagree.isEmpty ? " The rest agree with the chart." : disagree)
         }
         if let problem { return "Written rows could not be compared with the chart: \(problem)." }
         switch check {

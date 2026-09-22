@@ -29,6 +29,10 @@ final class PDFImportState {
     var checkTask: Task<Void, Never>? = nil
     /// What the app's scene was doing when the check started, for the probe's report (#176).
     var appStateAtCheck: String = ""
+    /// And what the iPhone's power situation was, which nobody thought to note on the first
+    /// four runs and which may be the whole of it.
+    var powerAtCheck: String = ""
+    var onBatteryAtCheck = false
     /// The three probes' answers, once "Why?" has asked them, and whether they are being asked.
     var probe: ModelProbe? = nil
     var probing = false
@@ -95,9 +99,23 @@ struct PDFImportSheet: View {
                             VStack(spacing: 8) {
                                 // Nothing to say for a chart with no written rows; agreement only for a finished check.
                                 if let sentence = record.sentence ?? (record.check == .finished ? "Written rows agree with the chart." : nil) {
-                                    Text(sentence).font(Font.Heather.caption).foregroundStyle(Color.ink2).multilineTextAlignment(.center)
+                                    if record.problem == nil {
+                                        Text(sentence).font(Font.Heather.caption).foregroundStyle(Color.ink2).multilineTextAlignment(.center)
+                                    } else {
+                                        // Anything that went wrong has to leave the phone: this
+                                        // is the sentence a maker sends on, and it was the one
+                                        // thing on the sheet that could not be copied (#176).
+                                        report(sentence)
+                                    }
                                 }
-                                if record.problem == ImportRecord.modelBusy { whyTheModelIsBusy }
+                                if record.problem == ImportRecord.modelBusy {
+                                    if state.onBatteryAtCheck {
+                                        Text("This iPhone was on battery, which may be why; plugging in may help.")
+                                            .font(Font.Heather.caption).foregroundStyle(Color.ink2)
+                                            .multilineTextAlignment(.center)
+                                    }
+                                    whyTheModelIsBusy
+                                }
                             }
                         }
                         Button("Add to library") {
