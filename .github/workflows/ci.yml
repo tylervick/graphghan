@@ -155,7 +155,11 @@ jobs:
     concurrency:
       group: testflight
       cancel-in-progress: false
-    uses: ./.github/workflows/testflight.yml
+    # zizmor 1.30.1's self-repository audit wants GitHub's newer "$/..." form here, and
+    # actionlint 1.7.12 rejects that form outright ("is not following the format ..."), so the
+    # two linters cannot both be satisfied today. The workspace-relative form is the one that
+    # runs, so it stays until actionlint learns the new syntax (#191).
+    uses: ./.github/workflows/testflight.yml  # zizmor: ignore[self-repository]
     secrets:
       BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
       P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
