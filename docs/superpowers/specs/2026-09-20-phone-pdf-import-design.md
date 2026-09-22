@@ -352,8 +352,9 @@ id ignores `ext`.
   the turnover budget of 16 was roughly double what fits and every tenth row cost a doomed
   request. It is 6. That run reproduced no rate limit at all -- everything it saw refused was an
   overflow -- while the check itself is still refused as one, which is the open question. The
-  time goes here when a run passes. The fifth run, with #195 in, was **not** refused: the rate
-  limit is gone and the rows read. Two of them then failed the invention filter (#197), and the
+  time goes here when a run passes. The fifth run, with #195 in, was **not** refused: it
+  read the rows. That is one run, not a cleared cause -- which of that build's four changes
+  mattered, and whether the refusal returns, needs more runs before either is written down. Two of them then failed the invention filter (#197), and the
   check now reports that underneath the comparison of the rows that did read rather than
   cancelling it.
 - Every failure in §5.4 shows its sentence and leaves the library untouched.

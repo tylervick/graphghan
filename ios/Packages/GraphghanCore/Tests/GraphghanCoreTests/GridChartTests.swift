@@ -74,6 +74,24 @@ import Testing
             == "The on-device model is busy; 43 of 77 written rows were checked. Try the check again in a minute.")
     }
 
+    /// A check stopped part way has rows nobody looked at. Saying "the rest agree" of those
+    /// would claim a comparison that never happened (CodeRabbit review).
+    @Test func aStoppedCheckWithUnreadRowsDoesNotClaimTheRestAgree() {
+        var r = ImportRecord(grid: true, check: .stopped, rowsChecked: 40, rowsTotal: 77,
+                             rowsDisagree: [], rowsUnread: 2, gaugePrinted: false, problem: "row 0: no colour named")
+        #expect(r.sentence == "2 written rows couldn't be read (row 0: no colour named). Checked up to row 40; 41–77 not checked.")
+        #expect(!(r.sentence ?? "").contains("The rest agree"))
+        r.rowsDisagree = [12]
+        #expect(r.sentence?.contains("Row 12 disagrees with the chart.") == true)
+    }
+
+    /// A finished check with unread rows may say it, because everything else really was compared.
+    @Test func aFinishedCheckWithUnreadRowsSaysTheRestAgree() {
+        let r = ImportRecord(grid: true, check: .finished, rowsChecked: 77, rowsTotal: 77,
+                             rowsDisagree: [], rowsUnread: 2, gaugePrinted: false, problem: "row 0: no colour named")
+        #expect(r.sentence == "2 written rows couldn't be read (row 0: no colour named). The rest agree with the chart.")
+    }
+
     /// Anything else keeps reporting itself as it stands.
     @Test func anotherProblemIsStillReportedVerbatim() {
         var other = record(checked: 43, total: 77)

@@ -74,8 +74,14 @@ public struct ImportRecord: Sendable, Equatable {
         // as a failed comparison threw away seventy-five good rows in the telling as well as in
         // the code (#176).
         if let problem, rowsUnread > 0, rowsChecked > 0 {
-            let rest = rowsDisagree.isEmpty ? " The rest agree with the chart." : " " + Self.disagreeSentence(rowsDisagree)
-            return "\(rowsUnread) written row\(rowsUnread == 1 ? "" : "s") couldn't be read (\(problem))." + rest
+            let lost = "\(rowsUnread) written row\(rowsUnread == 1 ? "" : "s") couldn't be read (\(problem))."
+            let disagree = rowsDisagree.isEmpty ? "" : " " + Self.disagreeSentence(rowsDisagree)
+            // A check that was stopped part way has rows nobody looked at, and they are not
+            // "the rest agree": only the rows actually reached were compared.
+            if check == .stopped, rowsChecked < rowsTotal {
+                return lost + " Checked up to row \(rowsChecked); \(rowsChecked + 1)–\(rowsTotal) not checked." + disagree
+            }
+            return lost + (rowsDisagree.isEmpty ? " The rest agree with the chart." : disagree)
         }
         if let problem { return "Written rows could not be compared with the chart: \(problem)." }
         switch check {

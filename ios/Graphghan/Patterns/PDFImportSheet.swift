@@ -110,7 +110,7 @@ struct PDFImportSheet: View {
                                 }
                                 if record.problem == ImportRecord.modelBusy {
                                     if state.onBatteryAtCheck {
-                                        Text("This iPhone was on battery. The on-device model is stricter then, so plugging in may help.")
+                                        Text("This iPhone was on battery, which may be why; plugging in may help.")
                                             .font(Font.Heather.caption).foregroundStyle(Color.ink2)
                                             .multilineTextAlignment(.center)
                                     }
