@@ -231,6 +231,19 @@ import ProseReaderKit
         #expect(IdleTimer.count == before)
     }
 
+    /// Sharing a second PDF while a check is still reading must stop the first one: a session
+    /// answers one request at a time, and two readers asking at once is a documented way to be
+    /// told the model is rate limited (#176).
+    @Test func aSecondImportStopsTheFirstOnesCheck() async throws {
+        let model = try await make(rowReader: PDFImportTests.StubRowReader(document: PDFImportTests.chartDocument(), delayPerRow: .milliseconds(300)))
+        await model.importPDF(data: try #require(PDFTestDocuments.chart(rows: true)), fileName: "first.pdf")
+        let first = try #require(model.pdfImport)
+        _ = try #require(await Self.checkState(of: model) { if case .running = $0 { return true }; return false })
+        await model.importPDF(data: try #require(PDFTestDocuments.chart(rows: true)), fileName: "second.pdf")
+        #expect(first.checkTask?.isCancelled == true)
+        #expect(model.pdfImport !== first && model.pdfImport?.fileName == "second.pdf")
+    }
+
     @Test func cancelDuringTheCheckWritesNothing() async throws {
         let model = try await make(rowReader: PDFImportTests.StubRowReader(document: PDFImportTests.chartDocument(), delayPerRow: .milliseconds(300)))
         await model.importPDF(data: try #require(PDFTestDocuments.chart(rows: true)), fileName: "drawn.pdf")

@@ -27,6 +27,11 @@ description = "Run the app target's unit tests on the iPhone 17 simulator"
 depends = ["generate"]
 run = "xcodebuild test -quiet -project Graphghan.xcodeproj -scheme Graphghan -destination 'platform=iOS Simulator,name=iPhone 17' -derivedDataPath build/DerivedData"
 
+[tasks.device]
+description = "Build, install and launch on a tethered iPhone, streaming its console (#176)"
+depends = ["generate"]
+run = "Scripts/run-on-device.sh"
+
 [tasks.script-test]
 description = "Hermetic tests for the shell scripts under Scripts/"
 run = """

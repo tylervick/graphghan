@@ -9,6 +9,7 @@ against `../fixtures/chart-format`.
     mise run generate       # Graphghan.xcodeproj (gitignored)
     mise run core-test      # swift test, macOS host
     mise run prose-test     # swift test for ProseReader, macOS host
+    mise run device         # build, install and run on a tethered iPhone, with its console
     mise run test           # app unit tests on the iPhone 17 simulator
     open Graphghan.xcodeproj
 
@@ -127,7 +128,13 @@ waits of 15, 30 and 60 s to see what clears a refusal. It takes a few minutes an
 measured number under the pacing, rather than a guess. It has already earned that: the
 5000-character prompt `readFront` used to send does not fit the on-device window at all (4124
 tokens against 4096), so every front-matter request failed silently behind its `try?` (#178).
-`ProseReader.frontPrefixes` now shrinks the page -- 2500, then 1200, then 600 characters -- on a
+The `@Generable` schema goes in once a session
+rather than with every request (`includeSchemaInPrompt`, which Apple says to leave out of
+requests the session has already seen it in): sending it every time is what filled the window at
+the tenth row. Each new session is `prewarm`ed. A second import cancels whatever the last one
+left running, because a session answers one request at a time and two readers at once is a
+documented way to be told the model is rate limited.
+`ProseReader.frontPrefixes` shrinks the page -- 2500, then 1200, then 600 characters -- on a
 context overflow and only on one, and what it still cannot read goes into the document's
 `uncertain` list rather than nowhere. `ReaderSession` retries an overflow only on a session that
 had already answered, where the transcript is the cause; on a fresh session the prompt is the
