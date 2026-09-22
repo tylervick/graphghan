@@ -358,15 +358,42 @@ public struct ProseReader: Sendable {
         isBusy(error) ? busyMessage : String(describing: error).prefix(200).description
     }
 
+    /// How much of a page the front-matter read hands over, longest first. 5000 characters did
+    /// not fit the on-device window at all: measured on the phone, that prompt came to 4124
+    /// tokens against a limit of 4096, once the `FrontOut` schema and the instructions were
+    /// counted in (#176). How much of that budget the schema takes is not knowable from here and
+    /// will not stay the same, so the reader tries shorter prefixes instead of a number somebody
+    /// picked, and a page that only just overflows still gets read.
+    static let frontPrefixes = [2500, 1200, 600]
+
     private func readFront(pages: [String]) async -> ProseDocument {
         var doc = ProseDocument()
+        var unread: [String] = []
         var holder = ReaderSession<LanguageModelSession>(
             reuse: true, isBusy: Self.isBusy, isContextFull: Self.isContextFull,
             make: { makeSession(instructions: Self.frontInstructions) })
-        for text in pages.prefix(3) where !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            let clipped = String(text.prefix(5000))
-            guard let got = try? await holder.answer({ try await $0.respond(to: "Read this page:\n" + clipped, generating: FrontOut.self).content })
-            else { continue }
+        for (index, text) in pages.prefix(3).enumerated() where !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            var answer: FrontOut? = nil
+            var failure: (any Error)? = nil
+            for prefix in Self.frontPrefixes {
+                let clipped = String(text.prefix(prefix))
+                do {
+                    answer = try await holder.answer({ try await $0.respond(to: "Read this page:\n" + clipped, generating: FrontOut.self).content })
+                    failure = nil
+                    break
+                } catch {
+                    failure = error
+                    // Only a prompt that will not fit is worth trying smaller; anything else
+                    // would be the same request again.
+                    guard Self.isContextFull(error), prefix != Self.frontPrefixes.last else { break }
+                }
+            }
+            guard let got = answer else {
+                // Never silently: the palette, the title and the gauge all come from here, and a
+                // page lost without a word is worse than a row lost with one (#178).
+                if let failure { unread.append("page \(index + 1) of the front matter: \(Self.failureText(failure))") }
+                continue
+            }
             var pattern = doc.pattern ?? [:]
             if !got.title.isEmpty, pattern["title"] == nil { pattern["title"] = got.title }
             if !got.author.isEmpty, pattern["author"] == nil { pattern["author"] = got.author }
@@ -406,6 +433,7 @@ public struct ProseReader: Sendable {
             }
         }
         if let g = doc.gauge, g.stitches == nil, g.hook == nil, g.yarn_weight == nil, g.stitch == nil { doc.gauge = nil }
+        if !unread.isEmpty { doc.uncertain = (doc.uncertain ?? []) + unread }
         return doc
     }
 }

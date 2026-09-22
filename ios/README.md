@@ -122,7 +122,14 @@ run found -- the refusal is in none of them, and a second button offers
 `ProseReader.measureRequestLimit` (`LimitReport`): the same small request up to thirty times in
 a row, then one 5000-character prompt of the kind `readFront` sends followed by a small one, then
 waits of 15, 30 and 60 s to see what clears a refusal. It takes a few minutes and exists to put a
-measured number under the pacing, rather than a guess. The screen is held awake for a check or a rows-only
+measured number under the pacing, rather than a guess. It has already earned that: the
+5000-character prompt `readFront` used to send does not fit the on-device window at all (4124
+tokens against 4096), so every front-matter request failed silently behind its `try?` (#178).
+`ProseReader.frontPrefixes` now shrinks the page -- 2500, then 1200, then 600 characters -- on a
+context overflow and only on one, and what it still cannot read goes into the document's
+`uncertain` list rather than nowhere. `ReaderSession` retries an overflow only on a session that
+had already answered, where the transcript is the cause; on a fresh session the prompt is the
+cause and asking again would just send it twice. The screen is held awake for a check or a rows-only
 read through `IdleTimer`, which counts holds so the Work screen and an import cannot cancel
 each other's.
 

@@ -74,10 +74,13 @@ struct ReaderSession<Session> {
                 busyRun = 0
                 return got
             } catch {
+                let hadTranscript = used > 0
                 discard()  // a session that threw is never asked twice
-                // A full window is not a refusal: the same request on a fresh session is the fix,
-                // and it is worth exactly one more go.
-                if isContextFull(error), !remade {
+                // A full window on a session that had already answered is the transcript's
+                // doing, and a fresh session is the fix. On a session that had answered nothing
+                // it is the prompt's own size, and asking again changes nothing: the caller has
+                // to send less, which is what the front-matter read now does (#176).
+                if isContextFull(error), hadTranscript, !remade {
                     remade = true
                     continue
                 }

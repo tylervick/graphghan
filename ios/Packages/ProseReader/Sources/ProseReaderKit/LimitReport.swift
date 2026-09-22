@@ -34,14 +34,18 @@ public struct LimitReport: Sendable, Equatable {
         let big = step(.bigPrompt)
         let burst = step(.burst)
         let recovery = step(.recovery)
-        if big?.ok == true, burst?.ok == true {
+        if big?.ok == true, burst?.ok == true, recovery == nil {
             return "Nothing was refused: neither one large prompt on an untouched budget nor a run of small requests after it. Whatever the check trips is not reproduced here, so the pattern's own text is the next thing to look at rather than the pace."
         }
         var said: [String] = []
         if let big {
-            said.append(big.ok
-                ? "one 5000-character prompt of the kind the front-matter read sends did not bring the refusal on by itself"
-                : "one 5000-character prompt of the kind the front-matter read sends was enough on its own, on a budget nothing had spent, to bring the refusal on, which puts the front-matter read (#178) ahead of the rows")
+            if big.detail.contains("does not fit the window") {
+                said.append("a 5000-character prompt does not fit the on-device window at all, so the front-matter read was never a limit to pace against but a prompt to make smaller (#178)")
+            } else {
+                said.append(big.ok
+                    ? "one 5000-character prompt of the kind the front-matter read sends did not bring the refusal on by itself"
+                    : "one 5000-character prompt of the kind the front-matter read sends was enough on its own, on a budget nothing had spent, to bring the refusal on, which puts the front-matter read (#178) ahead of the rows")
+            }
         }
         if let burst {
             said.append(burst.ok
@@ -137,18 +141,27 @@ extension ProseReader {
         let filler = String(repeating: Self.grammarExamples + "\n", count: 12).prefix(5000)
         var detail = ""
         var bigOK = true
+        // A prompt too big for the window is not a refusal and must not be counted as one: it is
+        // the prompt's own size, it will happen every time, and no amount of waiting or pacing
+        // touches it. #176 found exactly that -- 4124 tokens against a 4096 limit.
+        var bigTooLarge = false
         do {
             _ = try await makeSession(instructions: Self.frontProbeInstructions)
                 .respond(to: "Read this page:\n" + filler, generating: FrontOut.self).content
             detail = "the large prompt answered, "
         } catch {
-            detail = "the large prompt was refused (\(ProseReader.failureText(error))), "
+            bigTooLarge = ProseReader.isContextFull(error)
+            detail = bigTooLarge
+                ? "the large prompt does not fit the window at all (\(String(describing: error).prefix(120))), "
+                : "the large prompt was refused (\(ProseReader.failureText(error))), "
             bigOK = false
         }
+        var smallAfterBigAnswered = false
         do {
             session = nil
             try await small()
             detail += "the small one after it answered"
+            smallAfterBigAnswered = true
         } catch {
             detail += "the small one after it was refused (\(ProseReader.failureText(error)))"
             bigOK = false
@@ -156,9 +169,10 @@ extension ProseReader {
         steps.append(.init(kind: .bigPrompt, name: "a 5000-character prompt, then a small one", ok: bigOK,
                            detail: detail, seconds: Date().timeIntervalSince(bigStarted)))
 
-        // 2. Back to a state worth counting from, and how long that took.
-        var ready = bigOK
-        if !bigOK, !Task.isCancelled { ready = await recover() }
+        // 2. Back to a state worth counting from, and how long that took. A prompt that did not
+        //    fit is nothing to recover from, so the burst follows it straight away.
+        var ready = bigOK || (bigTooLarge && smallAfterBigAnswered)
+        if !ready, !Task.isCancelled { ready = await recover() }
 
         // 3. The burst, only from there. A count taken while the model is still refusing would
         //    measure the refusal, not the limit.

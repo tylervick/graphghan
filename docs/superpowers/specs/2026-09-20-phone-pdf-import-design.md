@@ -341,5 +341,12 @@ id ignores `ext`.
   same prompt under the 1308-character instructions in 1.9 s and a structured row in 2.9 s, with
   the app active throughout. The refusal therefore follows the volume of requests rather than any
   one of them, and what the limit actually counts is being measured on the device
-  (`LimitReport`) before the reader is paced to it. The time goes here when a run passes.
+  (`LimitReport`). The third run, on the cactus blanket, found the first real defect that way:
+  the front-matter read's 5000-character prompt does not fit the on-device window at all — 4124
+  tokens against a limit of 4096 — so every front-matter request on every pattern had been
+  failing silently behind `try?` (#178), six of them before the first row once #180's
+  context-overflow retry doubled each one. `readFront` now shrinks its prompt until it fits
+  (2500, 1200, 600 characters) and records what it could not read. Whether the rows still refuse
+  once that is out of the way is the next thing a device run answers. The time goes here when
+  one passes.
 - Every failure in §5.4 shows its sentence and leaves the library untouched.
