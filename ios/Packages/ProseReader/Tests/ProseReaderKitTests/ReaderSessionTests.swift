@@ -32,7 +32,7 @@ import Testing
     @Test func oneSessionAnswersManyRequestsAndIsTurnedOverBeforeItFills() async throws {
         var session = holder(waits: Waits())
         var sessions: [Int] = []
-        for _ in 0..<(ReaderSession<Int>.requestBudget * 2) { sessions.append(try await session.answer { $0 }) }
+        for _ in 0..<(ReaderSession<Int>.requestBudget * 2) { sessions.append(try await session.answer { s, _ in s }) }
         // One session for the budget, then the next: not one a request, which is the change #176 asks for.
         #expect(sessions.prefix(ReaderSession<Int>.requestBudget).allSatisfy { $0 == 1 })
         #expect(sessions.dropFirst(ReaderSession<Int>.requestBudget).allSatisfy { $0 == 2 })
@@ -42,7 +42,7 @@ import Testing
     @Test func withoutReuseEveryRequestGetsItsOwnSession() async throws {
         var session = holder(reuse: false, waits: Waits())
         var sessions: [Int] = []
-        for _ in 0..<3 { sessions.append(try await session.answer { $0 }) }
+        for _ in 0..<3 { sessions.append(try await session.answer { s, _ in s }) }
         #expect(sessions == [1, 2, 3])
     }
 
@@ -50,7 +50,7 @@ import Testing
         let waits = Waits()
         var session = holder(waits: waits)
         var tries = 0
-        let got: String = try await session.answer { _ in
+        let got: String = try await session.answer { _, _ in
             tries += 1
             if tries == 1 { throw Busy() }
             return "read"
@@ -66,7 +66,7 @@ import Testing
         var session = holder(waits: waits)
         var tries = 0
         await #expect(throws: Busy.self) {
-            try await session.answer { _ -> String in
+            try await session.answer { _, _ -> String in
                 tries += 1
                 throw Busy()
             }
@@ -80,14 +80,14 @@ import Testing
         let waits = Waits()
         var session = holder(waits: waits)
         for _ in 0..<ReaderSession<Int>.patience {
-            await #expect(throws: Busy.self) { try await session.answer { _ -> String in throw Busy() } }
+            await #expect(throws: Busy.self) { try await session.answer { _, _ -> String in throw Busy() } }
         }
         let paid = waits.slept.count
         #expect(paid == ReaderSession<Int>.patience * ReaderSession<Int>.waits.count)
         // A phone whose model will not answer must not cost a 310-row check an hour of waiting.
         var tries = 0
         await #expect(throws: Busy.self) {
-            try await session.answer { _ -> String in
+            try await session.answer { _, _ -> String in
                 tries += 1
                 throw Busy()
             }
@@ -100,13 +100,13 @@ import Testing
         let waits = Waits()
         var session = holder(waits: waits)
         for _ in 0..<ReaderSession<Int>.patience {
-            await #expect(throws: Busy.self) { try await session.answer { _ -> String in throw Busy() } }
+            await #expect(throws: Busy.self) { try await session.answer { _, _ -> String in throw Busy() } }
         }
-        _ = try await session.answer { _ in "read" }
+        _ = try await session.answer { _, _ in "read" }
         #expect(session.busyRun == 0)
         var tries = 0
         await #expect(throws: Busy.self) {
-            try await session.answer { _ -> String in
+            try await session.answer { _, _ -> String in
                 tries += 1
                 throw Busy()
             }
@@ -118,9 +118,9 @@ import Testing
     @Test func aFullWindowOnAUsedSessionIsCuredByAFreshOne() async throws {
         let waits = Waits()
         var session = holder(waits: waits)
-        _ = try await session.answer { _ in "read" }  // the session has answered something
+        _ = try await session.answer { _, _ in "read" }  // the session has answered something
         var seen: [Int] = []
-        let got: String = try await session.answer { s in
+        let got: String = try await session.answer { s, _ in
             seen.append(s)
             if seen.count == 1 { throw ContextFull() }
             return "read"
@@ -132,10 +132,10 @@ import Testing
 
     @Test func aFullWindowOnAUsedSessionIsRetriedOnlyOnce() async throws {
         var session = holder(waits: Waits())
-        _ = try await session.answer { _ in "read" }
+        _ = try await session.answer { _, _ in "read" }
         var tries = 0
         await #expect(throws: ContextFull.self) {
-            try await session.answer { _ -> String in
+            try await session.answer { _, _ -> String in
                 tries += 1
                 throw ContextFull()
             }
@@ -151,7 +151,7 @@ import Testing
         var session = holder(waits: Waits())
         var tries = 0
         await #expect(throws: ContextFull.self) {
-            try await session.answer { _ -> String in
+            try await session.answer { _, _ -> String in
                 tries += 1
                 throw ContextFull()
             }
@@ -164,7 +164,7 @@ import Testing
         var session = holder(waits: waits)
         var tries = 0
         await #expect(throws: Refused.self) {
-            try await session.answer { _ -> String in
+            try await session.answer { _, _ -> String in
                 tries += 1
                 throw Refused()
             }
@@ -177,8 +177,8 @@ import Testing
     @Test func aSessionThatThrewIsNeverAskedTwice() async throws {
         var session = holder(waits: Waits())
         var seen: [Int] = []
-        await #expect(throws: Refused.self) { try await session.answer { _ -> String in throw Refused() } }
-        _ = try await session.answer { s -> String in
+        await #expect(throws: Refused.self) { try await session.answer { _, _ -> String in throw Refused() } }
+        _ = try await session.answer { s, _ -> String in
             seen.append(s)
             return "read"
         }
@@ -244,4 +244,120 @@ import Testing
         #expect(Set(ProseReader.frontPrefixes).count == ProseReader.frontPrefixes.count)
         #expect(try! #require(ProseReader.frontPrefixes.last) >= 400)  // a key page still fits in it
     }
+}
+
+/// What `LimitReport` concludes from a set of steps (#176). The first device run of it reported
+/// "the limit counts requests ... the reader has to be paced" from a burst that had merely
+/// filled its own transcript, and credited a 15-second wait for what a fresh session had fixed.
+/// Both are the same mistake: naming a cause the steps do not show.
+@Suite struct LimitFindingTests {
+    func step(_ kind: ModelProbe.Kind, ok: Bool, _ detail: String,
+              _ outcome: ModelProbe.Outcome = .plain) -> ModelProbe.Step {
+        .init(kind: kind, name: String(describing: kind), ok: ok, detail: detail, seconds: 1, outcome: outcome)
+    }
+
+    @Test func aBurstThatFilledTheWindowIsNotCalledARateLimit() {
+        let report = LimitReport(steps: [
+            step(.bigPrompt, ok: true, "the large prompt answered, the small one after it answered"),
+            step(.burst, ok: false, "9 answered, then refused (Content contains 4127 tokens, which exceeds the maximum allowed context size of 4096.)", .windowFull),
+        ])
+        #expect(report.finding.contains("filling the window"))
+        #expect(!report.finding.contains("paced to it"))
+    }
+
+    @Test func aBurstTrulyRefusedIsStillCalledOneToPaceAgainst() {
+        let report = LimitReport(steps: [
+            step(.bigPrompt, ok: true, "the large prompt answered, the small one after it answered"),
+            step(.burst, ok: false, "9 answered, then refused (the on-device model is busy)"),
+        ])
+        #expect(report.finding.contains("paced to it"))
+        #expect(!report.finding.contains("filling the window"))
+    }
+
+    @Test func aFreshSessionCuringItIsNotCreditedToTheWait() {
+        let report = LimitReport(steps: [
+            step(.burst, ok: false, "9 answered, then refused (Content contains 4127 tokens, which exceeds the maximum allowed context size of 4096.)", .windowFull),
+            step(.recovery, ok: true, "a fresh session answered at once, with no waiting: the transcript was the trouble, not the pace", .freshSessionCured),
+        ])
+        #expect(report.finding.contains("nothing here was waiting on the clock"))
+        #expect(!report.finding.contains("only too short"))
+    }
+
+    @Test func aWaitThatTrulyClearedItStillSaysSo() {
+        let report = LimitReport(steps: [
+            step(.burst, ok: false, "9 answered, then refused (the on-device model is busy)"),
+            step(.recovery, ok: true, "answered again after 45 s of waiting in all"),
+        ])
+        #expect(report.finding.contains("only too short"))
+    }
+}
+
+/// The schema goes in once a session (#176). Apple's guidance is to leave it out of requests
+/// the same session has already seen it in, and it is what filled the window at the tenth row.
+@Suite struct SchemaOnceTests {
+    struct Busy: Error {}
+
+    func holder(reuse: Bool) -> ReaderSession<Int> {
+        var next = 0
+        return ReaderSession<Int>(reuse: reuse, isBusy: { $0 is Busy }, make: { next += 1; return next })
+    }
+
+    @Test func onlyTheFirstRequestOnASessionIsToldTheSchema() async throws {
+        var session = holder(reuse: true)
+        var toldSchema: [Bool] = []
+        for _ in 0..<(ReaderSession<Int>.requestBudget + 2) {
+            _ = try await session.answer { _, first -> String in
+                toldSchema.append(first)
+                return "read"
+            }
+        }
+        // True once for the first session, then again for the one made after the budget ran out.
+        let budget = ReaderSession<Int>.requestBudget
+        #expect(Array(toldSchema.prefix(budget)) == [true] + Array(repeating: false, count: budget - 1),
+                "got \(toldSchema)")
+        #expect(toldSchema[budget] == true)
+        #expect(session.sessionsMade == 2)
+    }
+
+    @Test func withoutReuseEveryRequestIsTheFirstOnItsOwnSession() async throws {
+        var session = holder(reuse: false)
+        var toldSchema: [Bool] = []
+        for _ in 0..<3 {
+            _ = try await session.answer { _, first -> String in
+                toldSchema.append(first)
+                return "read"
+            }
+        }
+        #expect(toldSchema == [true, true, true])
+    }
+
+    @Test func aNewSessionAfterAFailureIsToldTheSchemaAgain() async throws {
+        var session = holder(reuse: true)
+        var toldSchema: [Bool] = []
+        _ = try await session.answer { _, first -> String in
+            toldSchema.append(first)
+            return "read"
+        }
+        session.discard()
+        _ = try await session.answer { _, first -> String in
+            toldSchema.append(first)
+            return "read"
+        }
+        #expect(toldSchema == [true, true])
+    }
+
+    @Test func eachNewSessionIsPreparedBeforeItIsAsked() async throws {
+        var next = 0
+        let prepared = Waits()  // reused as a recorder
+        var session = ReaderSession<Int>(
+            reuse: true, isBusy: { _ in false },
+            prepare: { _ in prepared.slept.append(.seconds(1)) },
+            make: { next += 1; return next })
+        for _ in 0..<(ReaderSession<Int>.requestBudget + 1) { _ = try await session.answer { s, _ in s } }
+        #expect(prepared.slept.count == session.sessionsMade)
+        #expect(session.sessionsMade == 2)
+    }
+
+    /// Recorder shared with ReaderSessionTests.
+    final class Waits: @unchecked Sendable { var slept: [Duration] = [] }
 }

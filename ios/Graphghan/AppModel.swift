@@ -309,6 +309,15 @@ final class AppModel {
     /// The sheet's reading states, then the chart found or the sentence for why not. Cancel
     /// cancels the task; the read then throws `.cancelled` and the sheet is already gone.
     func importPDF(data: Data, fileName: String) async {
+        // Whatever the last import left running stops here. A check reads for minutes, and
+        // sharing a second PDF while one is in flight used to leave both readers asking the
+        // model at once: a session answers one request at a time, and overlapping requests are
+        // one of the documented ways to be told the model is rate limited (#176).
+        if let running = pdfImport {
+            running.task?.cancel()
+            running.checkTask?.cancel()
+            running.measureTask?.cancel()
+        }
         let state = PDFImportState(fileName: fileName)
         pdfImport = state
         let importer = pdfImporter

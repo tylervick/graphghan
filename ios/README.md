@@ -9,6 +9,7 @@ against `../fixtures/chart-format`.
     mise run generate       # Graphghan.xcodeproj (gitignored)
     mise run core-test      # swift test, macOS host
     mise run prose-test     # swift test for ProseReader, macOS host
+    mise run device         # build, install and run on a tethered iPhone, with its console
     mise run test           # app unit tests on the iPhone 17 simulator
     open Graphghan.xcodeproj
 
@@ -101,8 +102,10 @@ for it. `--import <path>.pdf` drives the identical path on the simulator, which 
 
 What the phone will let the app ask of the model is its own constraint (#176, spec §4.3).
 `ReaderSession` in `ProseReaderKit` keeps one `LanguageModelSession` for a whole read instead of
-one a row, makes a fresh one every 16 requests so the transcript never fills the 4k window (and
-at once if it ever says it has), and waits out a `GenerationError.rateLimited` twice before
+one a row, makes a fresh one every 6 requests so the transcript never fills the 4k window (and
+at once if it ever says it has; 6 is measured, not guessed -- a burst of row requests on one
+session overflowed at the tenth, and the `@Generable` schema going in with every request is why
+the transcript grows faster than the prompts do), and waits out a `GenerationError.rateLimited` twice before
 giving a request up — then stops waiting altogether once three requests running have been given
 up on, so a phone whose model will not answer costs seconds, not an hour. `ReaderSessionTests`
 runs that loop against a counter, with no model involved. A read whose every lost row was lost
@@ -125,7 +128,13 @@ waits of 15, 30 and 60 s to see what clears a refusal. It takes a few minutes an
 measured number under the pacing, rather than a guess. It has already earned that: the
 5000-character prompt `readFront` used to send does not fit the on-device window at all (4124
 tokens against 4096), so every front-matter request failed silently behind its `try?` (#178).
-`ProseReader.frontPrefixes` now shrinks the page -- 2500, then 1200, then 600 characters -- on a
+The `@Generable` schema goes in once a session
+rather than with every request (`includeSchemaInPrompt`, which Apple says to leave out of
+requests the session has already seen it in): sending it every time is what filled the window at
+the tenth row. Each new session is `prewarm`ed. A second import cancels whatever the last one
+left running, because a session answers one request at a time and two readers at once is a
+documented way to be told the model is rate limited.
+`ProseReader.frontPrefixes` shrinks the page -- 2500, then 1200, then 600 characters -- on a
 context overflow and only on one, and what it still cannot read goes into the document's
 `uncertain` list rather than nowhere. `ReaderSession` retries an overflow only on a session that
 had already answered, where the transcript is the cause; on a fresh session the prompt is the

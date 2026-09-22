@@ -14,10 +14,15 @@ import Foundation
 /// - that session is turned over before the transcript fills the window, and at once if it ever
 ///   reports it has.
 struct ReaderSession<Session> {
-    /// Requests one session answers before a fresh one is made. The on-device window holds about
-    /// 4k tokens and every answer stays in the transcript, so a reused session has to be turned
-    /// over or a pattern of any length runs out of room part way down the page.
-    static var requestBudget: Int { 16 }
+    /// Requests one session answers before a fresh one is made. Measured on the phone, not
+    /// guessed: a burst of the reader's own row requests on one session overflowed the window at
+    /// the tenth, "4127 tokens ... exceeds the maximum allowed context size of 4096" (#176).
+    /// What made it grow that fast was the `@Generable` schema going in with every request;
+    /// `includeSchemaInPrompt` now sends it once a session, as Apple's guidance says to when the
+    /// model has already seen it, so the same window holds several times as many requests.
+    /// Twelve is deliberately below what that allows: the next burst measures the new ceiling,
+    /// and overflowing is handled anyway, so this is an optimisation and not a correctness rule.
+    static var requestBudget: Int { 12 }
     /// What a refused request waits before each further attempt: two waits, so three attempts.
     static var waits: [Duration] { [.seconds(2), .seconds(8)] }
     /// Requests refused one after another before the reader stops waiting at all. A phone whose
@@ -25,6 +30,8 @@ struct ReaderSession<Session> {
     static var patience: Int { 3 }
 
     private let make: () -> Session
+    /// Run once on each new session, before it is asked anything: `ProseReader` prewarms.
+    private let prepare: (Session) -> Void
     private let reuse: Bool
     private let isBusy: (any Error) -> Bool
     private let isContextFull: (any Error) -> Bool
@@ -42,7 +49,9 @@ struct ReaderSession<Session> {
          isBusy: @escaping (any Error) -> Bool,
          isContextFull: @escaping (any Error) -> Bool = { _ in false },
          sleep: @escaping (Duration) async throws -> Void = { try await Task.sleep(for: $0) },
+         prepare: @escaping (Session) -> Void = { _ in },
          make: @escaping () -> Session) {
+        self.prepare = prepare
         self.reuse = reuse
         self.isBusy = isBusy
         self.isContextFull = isContextFull
@@ -59,17 +68,21 @@ struct ReaderSession<Session> {
 
     /// Asks `respond` on a session, with the retries and the turnover above. The error of the last
     /// attempt is thrown when they are all used up.
-    mutating func answer<T: Sendable>(_ respond: (Session) async throws -> T) async throws -> T {
+    /// `respond` is handed the session and whether it has answered nothing yet, which is what
+    /// decides `includeSchemaInPrompt`: Apple's guidance is to send the schema once and leave it
+    /// out of later requests the same session has already seen it in.
+    mutating func answer<T: Sendable>(_ respond: (Session, _ isFirstOnSession: Bool) async throws -> T) async throws -> T {
         var attempt = 0
         var remade = false
         while true {
             if session == nil || !reuse || used >= Self.requestBudget {
                 session = make()
+                prepare(session!)
                 used = 0
                 sessionsMade += 1
             }
             do {
-                let got = try await respond(session!)
+                let got = try await respond(session!, used == 0)
                 used += 1
                 busyRun = 0
                 return got

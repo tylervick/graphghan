@@ -39,7 +39,7 @@ public struct LimitReport: Sendable, Equatable {
         }
         var said: [String] = []
         if let big {
-            if big.detail.contains("does not fit the window") {
+            if big.outcome == .windowFull {
                 said.append("a 5000-character prompt does not fit the on-device window at all, so the front-matter read was never a limit to pace against but a prompt to make smaller (#178)")
             } else {
                 said.append(big.ok
@@ -48,16 +48,24 @@ public struct LimitReport: Sendable, Equatable {
             }
         }
         if let burst {
-            said.append(burst.ok
-                ? "a run of small requests was not refused"
-                : "small requests one after another are refused after a few, so the limit counts requests or the tokens in them and the reader has to be paced to it")
+            if burst.outcome == .windowFull {
+                said.append("a run of small requests ended by filling the window, not by being refused -- one session's transcript ran out of room, which is `requestBudget`'s business and not a limit to pace against")
+            } else {
+                said.append(burst.ok
+                    ? "a run of small requests was not refused"
+                    : "small requests one after another are refused after a few, so the limit counts requests or the tokens in them and the reader has to be paced to it")
+            }
         } else {
             said.append("the burst was not counted, because the refusal never cleared and a count taken while refused would mean nothing")
         }
         if let recovery {
-            said.append(recovery.ok
-                ? "a refusal clears on its own after a wait, so the waits the reader already has are the right shape and only too short"
-                : "a refusal had not cleared after the longest wait tried, so waiting is not the answer and the request rate has to come down")
+            if recovery.ok, recovery.outcome == .freshSessionCured {
+                said.append("and a fresh session answered straight away, so nothing here was waiting on the clock")
+            } else {
+                said.append(recovery.ok
+                    ? "a refusal clears on its own after a wait, so the waits the reader already has are the right shape and only too short"
+                    : "a refusal had not cleared after the longest wait tried, so waiting is not the answer and the request rate has to come down")
+            }
         }
         return said.joined(separator: "; ") + "."
     }
@@ -115,6 +123,17 @@ extension ProseReader {
             let started = Date()
             var waited = 0
             var last = ""
+            // A fresh session first, with no wait at all. Resetting the session and waiting are
+            // two different cures, and doing both at once credited the wait for what the reset
+            // had fixed: a run that overflowed its transcript reported "answered again after
+            // 15 s", as if time had been the remedy (#176).
+            session = nil
+            if (try? await small()) != nil {
+                steps.append(.init(kind: .recovery, name: "waiting after a refusal", ok: true,
+                                   detail: "a fresh session answered at once, with no waiting: the transcript was the trouble, not the pace",
+                                   seconds: Date().timeIntervalSince(started), outcome: .freshSessionCured))
+                return true
+            }
             for wait in Self.recoveryWaits {
                 progress?("waiting \(wait) s to see whether it clears")
                 try? await Task.sleep(for: .seconds(wait))
@@ -178,7 +197,8 @@ extension ProseReader {
             bigOK = false
         }
         steps.append(.init(kind: .bigPrompt, name: "a 5000-character prompt, then a small one", ok: bigOK,
-                           detail: detail, seconds: Date().timeIntervalSince(bigStarted)))
+                           detail: detail, seconds: Date().timeIntervalSince(bigStarted),
+                           outcome: bigTooLarge ? .windowFull : .plain))
 
         // 2. Back to a state worth counting from, and how long that took. A prompt that did not
         //    fit is nothing to recover from, so the burst follows it straight away.
@@ -197,10 +217,12 @@ extension ProseReader {
         let burstStarted = Date()
         var answered = 0
         var refusal: String? = nil
+        var burstFilledWindow = false
         for i in 1...Self.burstLimit {
             progress?("request \(i) of \(Self.burstLimit)")
             do { try await small() } catch {
                 refusal = ProseReader.failureText(error)
+                burstFilledWindow = ProseReader.isContextFull(error)
                 session = nil
                 break
             }
@@ -213,7 +235,7 @@ extension ProseReader {
             detail: refusal == nil
                 ? "\(answered) answered, none refused"
                 : "\(answered) answered, then refused (\(refusal!))",
-            seconds: burstSeconds))
+            seconds: burstSeconds, outcome: burstFilledWindow ? .windowFull : .plain))
         if answered > 0 { context.append(String(format: "about %.1f s a request", burstSeconds / Double(answered))) }
 
         // The recovery time, if the burst is the first thing that has been refused.

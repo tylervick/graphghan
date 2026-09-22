@@ -234,6 +234,7 @@ public struct ProseReader: Sendable {
         // request, which is what the breadth measurements were taken with.
         var holder = ReaderSession<LanguageModelSession>(
             reuse: options.reuseSession, isBusy: Self.isBusy, isContextFull: Self.isContextFull,
+            prepare: { $0.prewarm() },  // Apple's guidance: warm a session you are about to use
             make: { makeSession(instructions: rowInstructionsInUse) })
         for (index, text) in pages.enumerated() {
             let pageNo = index + 1
@@ -242,7 +243,9 @@ public struct ProseReader: Sendable {
             if options.batching == .page {
                 let prompt = "Transcribe every row in this text:\n" + blocks.joined(separator: "\n")
                 do {
-                    let got = try await holder.answer { try await $0.respond(to: prompt, generating: RowsPageOut.self).content }
+                    let got = try await holder.answer { session, first in
+                        try await session.respond(to: prompt, generating: RowsPageOut.self, includeSchemaInPrompt: first).content
+                    }
                     for (i, r) in got.rows.enumerated() {
                         let source = i < blocks.count ? blocks[i] : blocks.last ?? ""
                         rows.append(
@@ -310,8 +313,12 @@ public struct ProseReader: Sendable {
                 for (k, part) in parts.enumerated() {
                     let label = parts.count > 1 ? " (part \(k + 1) of \(parts.count) of one row)" : ""
                     do {
-                        let got = try await holder.answer {
-                            try await $0.respond(to: "Transcribe this row\(label):\n" + part, generating: WrittenRowOut.self).content
+                        let got = try await holder.answer { session, first in
+                            // The schema goes in once a session, not with every row: it is what
+                            // filled the window at the tenth request (#176).
+                            try await session.respond(to: "Transcribe this row\(label):\n" + part,
+                                                      generating: WrittenRowOut.self,
+                                                      includeSchemaInPrompt: first).content
                         }
                         if rowNo == 0 { rowNo = got.row }  // only when the head carried none
                         let cleaned = RowText.cleanRuns(got.runs, key: key, printed: printedCodes, spellings: &spellings, text: part)
@@ -371,6 +378,7 @@ public struct ProseReader: Sendable {
         var unread: [String] = []
         var holder = ReaderSession<LanguageModelSession>(
             reuse: true, isBusy: Self.isBusy, isContextFull: Self.isContextFull,
+            prepare: { $0.prewarm() },
             make: { makeSession(instructions: Self.frontInstructions) })
         for (index, text) in pages.prefix(3).enumerated() where !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             var answer: FrontOut? = nil
@@ -378,7 +386,10 @@ public struct ProseReader: Sendable {
             for prefix in Self.frontPrefixes {
                 let clipped = String(text.prefix(prefix))
                 do {
-                    answer = try await holder.answer({ try await $0.respond(to: "Read this page:\n" + clipped, generating: FrontOut.self).content })
+                    answer = try await holder.answer({ session, first in
+                        try await session.respond(to: "Read this page:\n" + clipped, generating: FrontOut.self,
+                                                  includeSchemaInPrompt: first).content
+                    })
                     failure = nil
                     break
                 } catch {
