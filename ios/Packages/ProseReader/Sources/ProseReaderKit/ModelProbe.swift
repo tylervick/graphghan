@@ -31,6 +31,19 @@ public struct ModelProbe: Sendable, Equatable {
         case recovery
     }
 
+    /// What a step ran into, recorded where the typed error is still in hand. A finding must
+    /// never work this out again from `detail`: the first version did, and a `LimitReport`
+    /// deciding what a run means by searching its own prose is a wrong answer waiting for a
+    /// reworded sentence (#176).
+    public enum Outcome: String, Sendable {
+        /// Nothing worth distinguishing: it answered, or it was refused as a refusal.
+        case plain
+        /// The window would not hold the request -- the prompt's own size, or the transcript's.
+        case windowFull
+        /// A fresh session answered with no waiting, so the transcript was the trouble.
+        case freshSessionCured
+    }
+
     public struct Step: Sendable, Equatable {
         public let kind: Kind
         public let name: String
@@ -38,12 +51,14 @@ public struct ModelProbe: Sendable, Equatable {
         /// The answer's first words, or the failure's own description.
         public let detail: String
         public let seconds: Double
-        public init(kind: Kind, name: String, ok: Bool, detail: String, seconds: Double) {
+        public let outcome: Outcome
+        public init(kind: Kind, name: String, ok: Bool, detail: String, seconds: Double, outcome: Outcome = .plain) {
             self.kind = kind
             self.name = name
             self.ok = ok
             self.detail = detail
             self.seconds = seconds
+            self.outcome = outcome
         }
     }
 

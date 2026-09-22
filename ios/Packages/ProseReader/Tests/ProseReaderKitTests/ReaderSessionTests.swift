@@ -251,14 +251,15 @@ import Testing
 /// filled its own transcript, and credited a 15-second wait for what a fresh session had fixed.
 /// Both are the same mistake: naming a cause the steps do not show.
 @Suite struct LimitFindingTests {
-    func step(_ kind: ModelProbe.Kind, ok: Bool, _ detail: String) -> ModelProbe.Step {
-        .init(kind: kind, name: String(describing: kind), ok: ok, detail: detail, seconds: 1)
+    func step(_ kind: ModelProbe.Kind, ok: Bool, _ detail: String,
+              _ outcome: ModelProbe.Outcome = .plain) -> ModelProbe.Step {
+        .init(kind: kind, name: String(describing: kind), ok: ok, detail: detail, seconds: 1, outcome: outcome)
     }
 
     @Test func aBurstThatFilledTheWindowIsNotCalledARateLimit() {
         let report = LimitReport(steps: [
             step(.bigPrompt, ok: true, "the large prompt answered, the small one after it answered"),
-            step(.burst, ok: false, "9 answered, then refused (Content contains 4127 tokens, which exceeds the maximum allowed context size of 4096.)"),
+            step(.burst, ok: false, "9 answered, then refused (Content contains 4127 tokens, which exceeds the maximum allowed context size of 4096.)", .windowFull),
         ])
         #expect(report.finding.contains("filling the window"))
         #expect(!report.finding.contains("paced to it"))
@@ -275,8 +276,8 @@ import Testing
 
     @Test func aFreshSessionCuringItIsNotCreditedToTheWait() {
         let report = LimitReport(steps: [
-            step(.burst, ok: false, "9 answered, then refused (Content contains 4127 tokens, which exceeds the maximum allowed context size of 4096.)"),
-            step(.recovery, ok: true, "a fresh session answered at once, with no waiting: the transcript was the trouble, not the pace"),
+            step(.burst, ok: false, "9 answered, then refused (Content contains 4127 tokens, which exceeds the maximum allowed context size of 4096.)", .windowFull),
+            step(.recovery, ok: true, "a fresh session answered at once, with no waiting: the transcript was the trouble, not the pace", .freshSessionCured),
         ])
         #expect(report.finding.contains("nothing here was waiting on the clock"))
         #expect(!report.finding.contains("only too short"))
