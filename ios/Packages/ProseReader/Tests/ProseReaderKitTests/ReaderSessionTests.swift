@@ -114,9 +114,11 @@ import Testing
         #expect(tries == 3)  // the patience is spent again, not spent for good
     }
 
-    @Test func aFullWindowIsCuredByAFreshSessionRatherThanAWait() async throws {
+    /// A window filled by the transcript: a fresh session is the cure, and it is worth one go.
+    @Test func aFullWindowOnAUsedSessionIsCuredByAFreshOne() async throws {
         let waits = Waits()
         var session = holder(waits: waits)
+        _ = try await session.answer { _ in "read" }  // the session has answered something
         var seen: [Int] = []
         let got: String = try await session.answer { s in
             seen.append(s)
@@ -128,8 +130,9 @@ import Testing
         #expect(waits.slept.isEmpty)
     }
 
-    @Test func aFullWindowIsRetriedOnlyOnce() async throws {
+    @Test func aFullWindowOnAUsedSessionIsRetriedOnlyOnce() async throws {
         var session = holder(waits: Waits())
+        _ = try await session.answer { _ in "read" }
         var tries = 0
         await #expect(throws: ContextFull.self) {
             try await session.answer { _ -> String in
@@ -138,6 +141,22 @@ import Testing
             }
         }
         #expect(tries == 2)
+    }
+
+    /// A window filled by the prompt itself, on a session that has answered nothing: asking
+    /// again sends the same oversized request, so it is not asked again. #176 measured a
+    /// 5000-character front-matter prompt at 4124 tokens against a 4096 limit, and the retry
+    /// was quietly doubling every one of those.
+    @Test func aFullWindowOnAFreshSessionIsNotAskedTwice() async throws {
+        var session = holder(waits: Waits())
+        var tries = 0
+        await #expect(throws: ContextFull.self) {
+            try await session.answer { _ -> String in
+                tries += 1
+                throw ContextFull()
+            }
+        }
+        #expect(tries == 1)
     }
 
     @Test func anyOtherRefusalIsHandedStraightBack() async throws {
@@ -205,5 +224,24 @@ import Testing
         let context = LanguageModelSession.GenerationError.Context(debugDescription: "Request has been rate limited.")
         #expect(ProseReader.failureText(LanguageModelSession.GenerationError.rateLimited(context)) == ReaderFailure.modelBusy)
         #expect(ProseReader.failureText(Spelled(description: "no colour named")) == "no colour named")
+    }
+}
+
+/// The front-matter read's prompt sizes (#176). Measured on the phone, 5000 characters of page
+/// plus the `FrontOut` schema and the instructions came to 4124 tokens against a 4096 limit, so
+/// every front-matter request on every pattern failed, silently, before a single row was read.
+@Suite struct FrontPrefixTests {
+    @Test func theLongestPrefixIsWellUnderWhatOverflowed() {
+        let longest = try! #require(ProseReader.frontPrefixes.first)
+        #expect(longest < 5000)
+        // 4124 tokens for 5000 characters leaves no room for the answer either; halving the page
+        // is the margin, not a trim.
+        #expect(longest <= 2500)
+    }
+
+    @Test func thePrefixesShrinkAndEndSmallEnoughToBeWorthATry() {
+        #expect(ProseReader.frontPrefixes == ProseReader.frontPrefixes.sorted(by: >))
+        #expect(Set(ProseReader.frontPrefixes).count == ProseReader.frontPrefixes.count)
+        #expect(try! #require(ProseReader.frontPrefixes.last) >= 400)  // a key page still fits in it
     }
 }
