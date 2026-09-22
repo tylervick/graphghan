@@ -78,16 +78,23 @@ jobs:
         env:
           EVENT: ${{ github.event_name }}
         run: |
-          ship() { echo "ship=$1" >> "$GITHUB_OUTPUT"; echo "$2"; }
-          if [ "$EVENT" = "workflow_dispatch" ]; then ship true "Dispatched by hand: shipping."; exit 0; fi
-          NEWEST="$(git tag --list 'ios-build-*' --sort=-v:refname | head -n 1)"
-          if [ -z "$NEWEST" ]; then ship true "No build shipped yet: shipping."; exit 0; fi
-          CHANGED="$(git diff --name-only "$NEWEST..HEAD" -- 'ios/' ':(exclude)ios/docs/' ':(exclude)ios/Tests/' ':(exclude)ios/Scripts/')"
-          if [ -n "$CHANGED" ]; then
-            ship true "App code changed since $NEWEST:"; echo "$CHANGED"
-          else
-            ship false "Nothing that goes into the binary has changed since $NEWEST; not shipping."
+          # The decision lives in ios/Scripts/should-ship.sh, which has its own tests
+          # (`mise run script-test`): it shipped older code as a newer build once (#193), so it
+          # is worth being able to exercise without a merge.
+          if [ "$EVENT" = "workflow_dispatch" ]; then
+            echo "ship=true" >> "$GITHUB_OUTPUT"
+            echo "Dispatched by hand: shipping."
+            exit 0
           fi
+          # Assigned rather than echoed inline: `echo "ship=$(...)"` succeeds whatever the
+          # script does, so a broken gate would write an empty value and the release would skip
+          # in silence, which is the one failure nobody would notice.
+          SHIP="$(ios/Scripts/should-ship.sh)"
+          case "$SHIP" in
+            true|false) ;;
+            *) echo "::error::should-ship.sh answered '$SHIP', expected true or false"; exit 1 ;;
+          esac
+          echo "ship=$SHIP" >> "$GITHUB_OUTPUT"
 
   testflight:
     name: Archive and upload
