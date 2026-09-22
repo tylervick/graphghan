@@ -101,8 +101,10 @@ for it. `--import <path>.pdf` drives the identical path on the simulator, which 
 
 What the phone will let the app ask of the model is its own constraint (#176, spec §4.3).
 `ReaderSession` in `ProseReaderKit` keeps one `LanguageModelSession` for a whole read instead of
-one a row, makes a fresh one every 16 requests so the transcript never fills the 4k window (and
-at once if it ever says it has), and waits out a `GenerationError.rateLimited` twice before
+one a row, makes a fresh one every 6 requests so the transcript never fills the 4k window (and
+at once if it ever says it has; 6 is measured, not guessed -- a burst of row requests on one
+session overflowed at the tenth, and the `@Generable` schema going in with every request is why
+the transcript grows faster than the prompts do), and waits out a `GenerationError.rateLimited` twice before
 giving a request up — then stops waiting altogether once three requests running have been given
 up on, so a phone whose model will not answer costs seconds, not an hour. `ReaderSessionTests`
 runs that loop against a counter, with no model involved. A read whose every lost row was lost

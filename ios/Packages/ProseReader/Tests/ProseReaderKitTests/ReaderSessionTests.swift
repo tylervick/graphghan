@@ -245,3 +245,48 @@ import Testing
         #expect(try! #require(ProseReader.frontPrefixes.last) >= 400)  // a key page still fits in it
     }
 }
+
+/// What `LimitReport` concludes from a set of steps (#176). The first device run of it reported
+/// "the limit counts requests ... the reader has to be paced" from a burst that had merely
+/// filled its own transcript, and credited a 15-second wait for what a fresh session had fixed.
+/// Both are the same mistake: naming a cause the steps do not show.
+@Suite struct LimitFindingTests {
+    func step(_ kind: ModelProbe.Kind, ok: Bool, _ detail: String) -> ModelProbe.Step {
+        .init(kind: kind, name: String(describing: kind), ok: ok, detail: detail, seconds: 1)
+    }
+
+    @Test func aBurstThatFilledTheWindowIsNotCalledARateLimit() {
+        let report = LimitReport(steps: [
+            step(.bigPrompt, ok: true, "the large prompt answered, the small one after it answered"),
+            step(.burst, ok: false, "9 answered, then refused (Content contains 4127 tokens, which exceeds the maximum allowed context size of 4096.)"),
+        ])
+        #expect(report.finding.contains("filling the window"))
+        #expect(!report.finding.contains("paced to it"))
+    }
+
+    @Test func aBurstTrulyRefusedIsStillCalledOneToPaceAgainst() {
+        let report = LimitReport(steps: [
+            step(.bigPrompt, ok: true, "the large prompt answered, the small one after it answered"),
+            step(.burst, ok: false, "9 answered, then refused (the on-device model is busy)"),
+        ])
+        #expect(report.finding.contains("paced to it"))
+        #expect(!report.finding.contains("filling the window"))
+    }
+
+    @Test func aFreshSessionCuringItIsNotCreditedToTheWait() {
+        let report = LimitReport(steps: [
+            step(.burst, ok: false, "9 answered, then refused (Content contains 4127 tokens, which exceeds the maximum allowed context size of 4096.)"),
+            step(.recovery, ok: true, "a fresh session answered at once, with no waiting: the transcript was the trouble, not the pace"),
+        ])
+        #expect(report.finding.contains("nothing here was waiting on the clock"))
+        #expect(!report.finding.contains("only too short"))
+    }
+
+    @Test func aWaitThatTrulyClearedItStillSaysSo() {
+        let report = LimitReport(steps: [
+            step(.burst, ok: false, "9 answered, then refused (the on-device model is busy)"),
+            step(.recovery, ok: true, "answered again after 45 s of waiting in all"),
+        ])
+        #expect(report.finding.contains("only too short"))
+    }
+}

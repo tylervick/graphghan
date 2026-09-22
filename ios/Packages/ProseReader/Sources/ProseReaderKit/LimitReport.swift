@@ -48,16 +48,26 @@ public struct LimitReport: Sendable, Equatable {
             }
         }
         if let burst {
-            said.append(burst.ok
-                ? "a run of small requests was not refused"
-                : "small requests one after another are refused after a few, so the limit counts requests or the tokens in them and the reader has to be paced to it")
+            if burst.detail.localizedCaseInsensitiveContains("context size")
+                || burst.detail.localizedCaseInsensitiveContains("contextwindow")
+                || burst.detail.localizedCaseInsensitiveContains("exceededContextWindowSize") {
+                said.append("a run of small requests ended by filling the window, not by being refused -- one session's transcript ran out of room, which is `requestBudget`'s business and not a limit to pace against")
+            } else {
+                said.append(burst.ok
+                    ? "a run of small requests was not refused"
+                    : "small requests one after another are refused after a few, so the limit counts requests or the tokens in them and the reader has to be paced to it")
+            }
         } else {
             said.append("the burst was not counted, because the refusal never cleared and a count taken while refused would mean nothing")
         }
         if let recovery {
-            said.append(recovery.ok
-                ? "a refusal clears on its own after a wait, so the waits the reader already has are the right shape and only too short"
-                : "a refusal had not cleared after the longest wait tried, so waiting is not the answer and the request rate has to come down")
+            if recovery.ok, recovery.detail.contains("fresh session") {
+                said.append("and a fresh session answered straight away, so nothing here was waiting on the clock")
+            } else {
+                said.append(recovery.ok
+                    ? "a refusal clears on its own after a wait, so the waits the reader already has are the right shape and only too short"
+                    : "a refusal had not cleared after the longest wait tried, so waiting is not the answer and the request rate has to come down")
+            }
         }
         return said.joined(separator: "; ") + "."
     }
@@ -115,6 +125,17 @@ extension ProseReader {
             let started = Date()
             var waited = 0
             var last = ""
+            // A fresh session first, with no wait at all. Resetting the session and waiting are
+            // two different cures, and doing both at once credited the wait for what the reset
+            // had fixed: a run that overflowed its transcript reported "answered again after
+            // 15 s", as if time had been the remedy (#176).
+            session = nil
+            if (try? await small()) != nil {
+                steps.append(.init(kind: .recovery, name: "waiting after a refusal", ok: true,
+                                   detail: "a fresh session answered at once, with no waiting: the transcript was the trouble, not the pace",
+                                   seconds: Date().timeIntervalSince(started)))
+                return true
+            }
             for wait in Self.recoveryWaits {
                 progress?("waiting \(wait) s to see whether it clears")
                 try? await Task.sleep(for: .seconds(wait))

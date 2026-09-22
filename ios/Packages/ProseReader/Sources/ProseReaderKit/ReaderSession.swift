@@ -14,10 +14,13 @@ import Foundation
 /// - that session is turned over before the transcript fills the window, and at once if it ever
 ///   reports it has.
 struct ReaderSession<Session> {
-    /// Requests one session answers before a fresh one is made. The on-device window holds about
-    /// 4k tokens and every answer stays in the transcript, so a reused session has to be turned
-    /// over or a pattern of any length runs out of room part way down the page.
-    static var requestBudget: Int { 16 }
+    /// Requests one session answers before a fresh one is made. Measured on the phone, not
+    /// guessed: a burst of the reader's own row requests on one session overflowed the window at
+    /// the tenth, "4127 tokens ... exceeds the maximum allowed context size of 4096" (#176). The
+    /// transcript grows by more than the prompt and the answer, because the `@Generable` schema
+    /// goes in with every request; 16 was roughly double what fits, so every tenth row was
+    /// costing a doomed request and a forced session remake. Six leaves room to spare.
+    static var requestBudget: Int { 6 }
     /// What a refused request waits before each further attempt: two waits, so three attempts.
     static var waits: [Duration] { [.seconds(2), .seconds(8)] }
     /// Requests refused one after another before the reader stops waiting at all. A phone whose

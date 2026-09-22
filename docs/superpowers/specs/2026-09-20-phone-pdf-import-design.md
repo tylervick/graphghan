@@ -108,7 +108,7 @@ and can be cancelled at any time with nothing written.
 
 On the phone the reader also has to live within what the system will let an app ask of the model
 (#176). Three things follow, and they apply to the check in §4.2 and to the rows-only path alike:
-one session answers the whole read rather than one a row, turned over every 16 requests so the
+one session answers the whole read rather than one a row, turned over every 6 requests so the
 transcript never fills the 4k window and at once if it ever reports that it has; a request the
 model refuses as `GenerationError.rateLimited` is waited out and asked again, three attempts and
 ten seconds of waiting in all; and once three requests running have been given up on, the waiting
@@ -346,7 +346,11 @@ id ignores `ext`.
   tokens against a limit of 4096 — so every front-matter request on every pattern had been
   failing silently behind `try?` (#178), six of them before the first row once #180's
   context-overflow retry doubled each one. `readFront` now shrinks its prompt until it fits
-  (2500, 1200, 600 characters) and records what it could not read. Whether the rows still refuse
-  once that is out of the way is the next thing a device run answers. The time goes here when
-  one passes.
+  (2500, 1200, 600 characters) and records what it could not read. The fourth run, with that in,
+  was still refused, and its measurement found the next defect: one reused session overflows the
+  window at the tenth row request, because the `@Generable` schema goes in with every one, so
+  the turnover budget of 16 was roughly double what fits and every tenth row cost a doomed
+  request. It is 6. That run reproduced no rate limit at all -- everything it saw refused was an
+  overflow -- while the check itself is still refused as one, which is the open question. The
+  time goes here when a run passes.
 - Every failure in §5.4 shows its sentence and leaves the library untouched.
