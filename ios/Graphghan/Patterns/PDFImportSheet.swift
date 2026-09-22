@@ -99,7 +99,14 @@ struct PDFImportSheet: View {
                             VStack(spacing: 8) {
                                 // Nothing to say for a chart with no written rows; agreement only for a finished check.
                                 if let sentence = record.sentence ?? (record.check == .finished ? "Written rows agree with the chart." : nil) {
-                                    Text(sentence).font(Font.Heather.caption).foregroundStyle(Color.ink2).multilineTextAlignment(.center)
+                                    if record.problem == nil {
+                                        Text(sentence).font(Font.Heather.caption).foregroundStyle(Color.ink2).multilineTextAlignment(.center)
+                                    } else {
+                                        // Anything that went wrong has to leave the phone: this
+                                        // is the sentence a maker sends on, and it was the one
+                                        // thing on the sheet that could not be copied (#176).
+                                        report(sentence)
+                                    }
                                 }
                                 if record.problem == ImportRecord.modelBusy {
                                     if state.onBatteryAtCheck {

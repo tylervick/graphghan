@@ -213,15 +213,22 @@ struct PDFImporter: Sendable {
             if let error = r.error { return "row \(r.row): \(error)" }
             return r.runs.isEmpty ? "row \(r.row): no runs read" : nil
         }
-        let rows = all.map { RowsChart.Row(row: $0.row, runs: $0.runs.map(Self.run), total: $0.total) }
+        // Only the rows that read go into the comparison. `crossCheck` compares the rows it is
+        // given and leaves the rest alone, so two rows the model fumbled no longer cancel the
+        // check on the other seventy-five (#176).
+        let readable = all.filter { $0.error == nil && !$0.runs.isEmpty }
+        let rows = readable.map { RowsChart.Row(row: $0.row, runs: $0.runs.map(Self.run), total: $0.total) }
         var codes = (doc.palette ?? []).map(\.code)
         if codes.isEmpty { for r in rows { for run in r.runs where !codes.contains(run.code) { codes.append(run.code) } } }
         // Cancel can land after the last row: a read that returned every row is finished.
         let stopped = Task.isCancelled && all.count < total
         record.check = stopped ? .stopped : .finished
         record.rowsChecked = rows.map(\.row).max() ?? 0
-        guard unread.isEmpty else {
-            record.problem = Self.isModelBusy(all) ? ImportRecord.modelBusy : Self.unreadSentence(unread)
+        record.rowsUnread = unread.count
+        // A model that refused every row has nothing to compare; anything less is still worth
+        // comparing, and the rows it lost are reported underneath the result.
+        guard !Self.isModelBusy(all) else {
+            record.problem = ImportRecord.modelBusy
             return record
         }
         let chart = reading.bundle.charts[0].chart
@@ -238,6 +245,8 @@ struct PDFImporter: Sendable {
         case .compared(let disagree, _): record.rowsDisagree = disagree
         case .incomparable(let why): record.problem = why
         }
+        // Why a row was lost is said after the comparison, not instead of it.
+        if record.problem == nil, !unread.isEmpty { record.problem = Self.unreadSentence(unread) }
         return record
     }
 
