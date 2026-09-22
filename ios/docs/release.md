@@ -64,7 +64,8 @@ but whose tag did not land.
 - Signing: "No Apple Distribution identity" means the p12 secret lacks its private key or the certificate expired. Regenerate the p12 and the profiles.
 - Export: 'No "iOS App Store" profiles ... matching' means a profile name drifted between `project.yml`, `ExportOptions-ci.plist`, and the portal, or the widget profile secret is missing.
 - Tag or notes failed after the upload: the build IS uploaded. Do not re-run; follow the message in the log (tag by hand, or set the notes in App Store Connect). Tag promptly: the next merge derives its build number from the newest tag, and without this one it would reuse the number App Store Connect already has.
-- The `testflight` job of a CI run was skipped: its `decide` job found nothing under `ios/` (less docs, tests, scripts) changed since the newest tag, or a test job failed. The job's log says which.
+- The `testflight` job of a CI run was skipped: its `decide` job found nothing worth shipping, or a test job failed. The job's log says which. The decision is `ios/Scripts/should-ship.sh` (tested by `mise run script-test`): it refuses a commit already contained in the newest `ios-build-*` tag, and otherwise ships only when something under `ios/`, less docs, tests and scripts, has changed since that tag.
+- Two merges close together: the second run does not ship, because its commit is an ancestor of what the first one just tagged. Before #193 it did, uploading older code under a higher build number -- build 23 is `e469d33`, which predates build 22's `9388b26`. If that ever recurs, the older build should be expired in App Store Connect rather than left for a tester to install.
 - Distribution logs are attached as the `xcdistributionlogs` artifact on failure.
 
 ## TestFlight feedback
