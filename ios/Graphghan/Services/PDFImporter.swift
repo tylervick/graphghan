@@ -243,7 +243,13 @@ struct PDFImporter: Sendable {
         }
         switch RowsChart.crossCheck(rows: rows, codes: codes, grid: chart.cells, width: chart.width, height: chart.height, row1: doc.chart?.row1 ?? "bottom-right") {
         case .compared(let disagree, _): record.rowsDisagree = disagree
-        case .incomparable(let why): record.problem = why
+        case .incomparable(let why):
+            // Nothing was compared, so nothing was checked: leaving `rowsChecked` at the highest
+            // row the reader returned made the sentence claim a comparison that never ran.
+            record.rowsChecked = 0
+            // The same flooding as #179 from a second source -- this one came back with sixteen
+            // clauses on one pattern.
+            record.problem = Self.unreadSentence(why.components(separatedBy: "; "))
         }
         // Why a row was lost is said after the comparison, not instead of it.
         if record.problem == nil, !unread.isEmpty { record.problem = Self.unreadSentence(unread) }

@@ -73,6 +73,9 @@ public struct ImportRecord: Sendable, Equatable {
         // Some rows unread while the rest were compared: say what was achieved. Reporting that
         // as a failed comparison threw away seventy-five good rows in the telling as well as in
         // the code (#176).
+        // `rowsChecked > 0` is what says a comparison actually happened. Without it this branch
+        // ran for a check that came back incomparable and told the maker "the rest agree with
+        // the chart" when nothing had been compared at all (#176).
         if let problem, rowsUnread > 0, rowsChecked > 0 {
             let lost = "\(rowsUnread) written row\(rowsUnread == 1 ? "" : "s") couldn't be read (\(problem))."
             let disagree = rowsDisagree.isEmpty ? "" : " " + Self.disagreeSentence(rowsDisagree)
@@ -83,7 +86,10 @@ public struct ImportRecord: Sendable, Equatable {
             }
             return lost + (rowsDisagree.isEmpty ? " The rest agree with the chart." : disagree)
         }
-        if let problem { return "Written rows could not be compared with the chart: \(problem)." }
+        if let problem {
+            let lost = rowsUnread > 0 ? " \(rowsUnread) row\(rowsUnread == 1 ? "" : "s") could not be read at all." : ""
+            return "Written rows could not be compared with the chart: \(problem)." + lost
+        }
         switch check {
         case .noRows: return nil
         case .unavailable: return "Written rows not checked on this iPhone."

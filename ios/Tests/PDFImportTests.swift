@@ -367,6 +367,21 @@ import ProseReaderKit
         #expect(PDFImporter.unreadSentence((1...77).map { "row \($0): why" }).count < 200)
     }
 
+    /// A comparison that cannot run reports itself as one, and never as agreement: on a device
+    /// it said "2 written rows couldn't be read (...). The rest agree with the chart" while
+    /// `crossCheck` had returned incomparable and nothing had been compared (#176).
+    @Test func aCheckThatCannotCompareSaysSoAndClaimsNoAgreement() async throws {
+        var doc = Self.chartDocument()
+        // A code the palette does not carry makes the whole comparison incomparable.
+        doc.written_rows?[2].runs = [[.code("RS"), .count(Self.chartWidth)]]
+        let importer = try await make().importer(rowReader: StubRowReader(document: doc, delayPerRow: .zero))
+        let record = await importer.check(try await importer.read(try #require(PDFTestDocuments.chart(rows: true)), fileName: "drawn.pdf"), progress: nil)
+        let sentence = try #require(record.sentence)
+        #expect(record.rowsChecked == 0, "nothing was compared, so nothing was checked")
+        #expect(!sentence.contains("agree"), "\(sentence)")
+        #expect(sentence.hasPrefix("Written rows could not be compared with the chart:"))
+    }
+
     /// The reader writes these words and the record matches them across a package boundary, so
     /// they have to stay the same words.
     @Test func theReadersWordsForABusyModelAreTheOnesTheRecordMatches() {

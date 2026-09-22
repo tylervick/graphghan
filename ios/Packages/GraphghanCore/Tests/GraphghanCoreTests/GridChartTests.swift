@@ -92,6 +92,20 @@ import Testing
         #expect(r.sentence == "2 written rows couldn't be read (row 0: no colour named). The rest agree with the chart.")
     }
 
+    /// A check that came back incomparable compared nothing, so it may not say anything agrees.
+    /// It did, on a device: "2 written rows couldn't be read (...). The rest agree with the
+    /// chart", where the bracket held the comparison's own failure and nothing had been
+    /// compared at all (#176).
+    @Test func anIncomparableCheckNeverSaysAnythingAgrees() {
+        let r = ImportRecord(grid: true, check: .finished, rowsChecked: 0, rowsTotal: 77,
+                             rowsDisagree: [], rowsUnread: 2, gaugePrinted: false,
+                             problem: "row 1 uses code 'RS', not in the palette")
+        let sentence = try! #require(r.sentence)
+        #expect(!sentence.contains("agree"))
+        #expect(sentence.hasPrefix("Written rows could not be compared with the chart:"))
+        #expect(sentence.hasSuffix("2 rows could not be read at all."))
+    }
+
     /// Anything else keeps reporting itself as it stands.
     @Test func anotherProblemIsStillReportedVerbatim() {
         var other = record(checked: 43, total: 77)
