@@ -142,10 +142,7 @@ struct PDFImportSheet: View {
     /// where they are asked. The report says which of the three is the first to be refused.
     @ViewBuilder private var whyTheModelIsBusy: some View {
         if let probe = state.probe {
-            Text(probe.text)
-                .font(Font.Heather.caption).foregroundStyle(Color.ink2)
-                .multilineTextAlignment(.leading).textSelection(.enabled)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            report(probe.text)
             measureTheLimit
         } else if state.probing {
             ProgressView()
@@ -159,10 +156,7 @@ struct PDFImportSheet: View {
     /// thirty times and waits out a refusal, so it runs on a second tap, not with the first.
     @ViewBuilder private var measureTheLimit: some View {
         if let limits = state.limits {
-            Text(limits.text)
-                .font(Font.Heather.caption).foregroundStyle(Color.ink2)
-                .multilineTextAlignment(.leading).textSelection(.enabled)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            report(limits.text)
         } else if state.measuring {
             VStack(spacing: 6) {
                 ProgressView()
@@ -172,6 +166,28 @@ struct PDFImportSheet: View {
             Button("Measure the limit (a few minutes)") { model.startModelLimitMeasurement() }
                 .font(Font.Heather.caption)
         }
+    }
+
+    /// A report the maker has to get off the phone and into an issue. It scrolls, because these
+    /// run to a dozen lines and the sheet would otherwise cut the last ones off -- which is
+    /// exactly what happened to the run that mattered (#176) -- and it copies and shares, because
+    /// reading a token count off a screen and typing it out again loses the digits that matter.
+    @ViewBuilder private func report(_ text: String) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ScrollView {
+                Text(text)
+                    .font(Font.Heather.caption).foregroundStyle(Color.ink2)
+                    .multilineTextAlignment(.leading).textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .frame(maxHeight: 220)
+            HStack(spacing: 16) {
+                Button("Copy") { UIPasteboard.general.string = text }
+                ShareLink(item: text) { Text("Share") }
+            }
+            .font(Font.Heather.caption)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     /// The estimate the sheet prints: rows at the measured pace, rounded up, never under a minute.

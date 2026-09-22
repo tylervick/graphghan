@@ -127,7 +127,18 @@ extension ProseReader {
                                        detail: "answered again after \(waited) s of waiting in all",
                                        seconds: Date().timeIntervalSince(started)))
                     return true
-                } catch { last = ProseReader.failureText(error) }
+                } catch {
+                    last = ProseReader.failureText(error)
+                    // Only a refusal is worth waiting out. Anything else -- a prompt that will
+                    // not fit, a decoding failure -- will say the same thing in 60 s as in 15,
+                    // and reporting it as "still refused" would put it in the wrong column.
+                    guard ProseReader.isBusy(error) else {
+                        steps.append(.init(kind: .recovery, name: "waiting after a refusal", ok: false,
+                                           detail: "not a refusal at all, so waiting was not tried: \(last)",
+                                           seconds: Date().timeIntervalSince(started)))
+                        return false
+                    }
+                }
             }
             steps.append(.init(kind: .recovery, name: "waiting after a refusal", ok: false,
                                detail: "still refused after \(waited) s of waiting in all (\(last))",
