@@ -72,7 +72,7 @@ struct PDFImporter: Sendable {
         // The sheet moves to the rows state before the first row is read, so the estimate and
         // Cancel are there while the model warms up.
         progress?(.rows(done: 0, of: RowText.rowCount(in: texts), secondsElapsed: 0))
-        let doc = await reader.read(pages: texts) { p in
+        let doc = await reader.read(pages: texts, section: nil) { p in
             progress?(.rows(done: p.rowsSoFar, of: p.rowsTotal, secondsElapsed: Int(Date().timeIntervalSince(started))))
         }
         if Task.isCancelled { throw .cancelled }
@@ -170,8 +170,11 @@ struct PDFImporter: Sendable {
         do { (draft, _, gridWarnings) = try GridChart.draft(image: image, region: best.region, title: patternTitle) }
         catch GridColoursError.tooManyColours(let n) { throw .invalidChart("the chart has \(n) colours, more than the 256 a chart can hold") }
         catch { throw .invalidChart("\(error)") }
+        // Only the written rows that are this chart's are checked: a PDF also prints the other
+        // panel, a body, a strap, or construction rows that name no colour at all (#176, #197, #198).
+        let rowsToCheck = RowText.section(fitting: best.region.rows, in: texts)?.rows ?? 0
         return try await assemble(draft: draft, title: patternTitle, version: "0.1.0", fileName: fileName, texts: texts,
-                                  source: .grid(page: best.page + 1, rowsToCheck: RowText.rowCount(in: texts)), warnings: warnings + gridWarnings)
+                                  source: .grid(page: best.page + 1, rowsToCheck: rowsToCheck), warnings: warnings + gridWarnings)
     }
 
     /// Every row the reader gave up on was given up for the one reason the app words itself:
@@ -205,8 +208,9 @@ struct PDFImporter: Sendable {
         guard case .grid(_, let total) = reading.source, total > 0 else { record.check = .noRows; return record }
         record.rowsTotal = total
         guard let rowReader else { record.check = .unavailable; return record }
+        let section = RowText.section(fitting: reading.height, in: reading.pageTexts)
         progress?(.checking(done: 0, of: total))
-        let doc = await rowReader.read(pages: reading.pageTexts) { p in progress?(.checking(done: p.rowsSoFar, of: p.rowsTotal)) }
+        let doc = await rowReader.read(pages: reading.pageTexts, section: section) { p in progress?(.checking(done: p.rowsSoFar, of: p.rowsTotal)) }
         let all = doc.written_rows ?? []
         // A row the reader returned unread is named, never dropped, as the rows-only path does.
         let unread = all.compactMap { r -> String? in

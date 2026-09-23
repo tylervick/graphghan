@@ -181,9 +181,11 @@ public struct ProseReader: Sendable {
     }
 
     /// Read a pattern whose pages are already text (PDFKit, or the importer's staged pNN.txt).
-    public func read(pages: [String], progress: (@Sendable (ReaderProgress) -> Void)? = nil) async -> ProseDocument {
+    /// With a `section`, only its rows are read: the rest of the pages still give the front matter
+    /// and the key, but the model is asked about no row outside it (#176).
+    public func read(pages: [String], section: RowSection? = nil, progress: (@Sendable (ReaderProgress) -> Void)? = nil) async -> ProseDocument {
         let started = Date()
-        let rowsTotal = RowText.rowCount(in: pages)
+        let rowsTotal = section?.rows ?? RowText.rowCount(in: pages)
         var doc = await readFront(pages: pages)
         let key = Dictionary(
             (doc.palette ?? []).compactMap { p in p.key_label.map { ($0.lowercased(), p.code) } },
@@ -238,7 +240,7 @@ public struct ProseReader: Sendable {
             make: { makeSession(instructions: rowInstructionsInUse) })
         for (index, text) in pages.enumerated() {
             let pageNo = index + 1
-            let blocks = RowText.blocks(in: text)
+            let blocks = RowText.blocks(in: text).enumerated().filter { section?.contains(page: index, index: $0.offset) ?? true }.map(\.element)
             if blocks.isEmpty { continue }
             if options.batching == .page {
                 let prompt = "Transcribe every row in this text:\n" + blocks.joined(separator: "\n")

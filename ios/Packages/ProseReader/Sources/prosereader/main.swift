@@ -1,4 +1,5 @@
-// prosereader <pdf|dir of pNN.txt> --model ondevice|cloud [--batch row|page] [--chunk N] [--examples] [--reuse-session] [--out prose.json]
+// prosereader <pdf|dir of pNN.txt> --model ondevice|cloud [--batch row|page] [--chunk N] [--examples] [--reuse-session] [--height N] [--out prose.json]
+// prosereader <pdf|dir of pNN.txt> --sections [--height N]
 //
 // Reads a pattern's text through Apple's Foundation Models and writes the graphghan-import/1
 // document the Python importer consumes. Text comes from PDFKit for a PDF, or from the
@@ -25,8 +26,12 @@ func run() async -> Int32 {
     let chunk = Int(take("--chunk") ?? "4") ?? 4
     let examples = args.contains("--examples")
     args.removeAll { $0 == "--examples" }
+    // --height N reads only the rows a chart N rows tall is checked by, as the app's check does (#176).
+    let height = take("--height").flatMap(Int.init)
+    let listSections = args.contains("--sections")
+    args.removeAll { $0 == "--sections" }
     guard let input = args.first, let model = ReaderModel(rawValue: modelName), let batching = RowBatching(rawValue: batchName) else {
-        FileHandle.standardError.write("usage: prosereader <pdf|dir> --model ondevice|cloud [--batch row|page] [--chunk N] [--examples] [--reuse-session] [--out prose.json]\n".data(using: .utf8)!)
+        FileHandle.standardError.write("usage: prosereader <pdf|dir> --model ondevice|cloud [--batch row|page] [--chunk N] [--examples] [--reuse-session] [--height N] [--out prose.json]\n       prosereader <pdf|dir> --sections [--height N]\n".data(using: .utf8)!)
         return 2
     }
     // A pattern is a few pages of text; anything past these limits is not one, and the model reads
@@ -50,12 +55,27 @@ func run() async -> Int32 {
         FileHandle.standardError.write("cannot read \(inputPath)\n".data(using: .utf8)!)
         return 1
     }
+    if listSections {
+        // No model: the sections the rows fall into, and which one a chart of --height would read.
+        let chosen = height.flatMap { RowText.section(fitting: $0, in: pages) }
+        for s in RowText.sections(in: pages) {
+            let pagesOf = Set(s.blocks.map { $0.page + 1 }).sorted().map(String.init).joined(separator: ",")
+            print("\(s == chosen ? "*" : " ") pages \(pagesOf): rows to \(s.lastRow), \(s.rows) rows, \(s.colourBlocks) of \(s.blocks.count) name a colour\(s.isColour ? "" : " -- not colour rows")")
+        }
+        if height != nil, chosen == nil { print("no colour rows to check") }
+        return 0
+    }
+    let section = height.flatMap { RowText.section(fitting: $0, in: pages) }
+    if height != nil, section == nil {
+        FileHandle.standardError.write("no colour rows to check\n".data(using: .utf8)!)
+        return 1
+    }
     let reader = ProseReader(model: model, options: ReaderOptions(batching: batching, reuseSession: reuse, chunkRuns: chunk, examples: examples))
     if let why = reader.unavailableReason() {
         FileHandle.standardError.write("\(why)\n".data(using: .utf8)!)
         return 1
     }
-    let doc = await reader.read(pages: pages) { p in
+    let doc = await reader.read(pages: pages, section: section) { p in
         FileHandle.standardError.write("  page \(p.page): \(p.rowsSoFar) of \(p.rowsTotal) rows, \(Int(p.seconds)) s\r".data(using: .utf8)!)
     }
     let encoder = JSONEncoder()

@@ -3,7 +3,8 @@ import Foundation
 /// What the app asks of a written-row reader (phone import spec §9): the same call `ProseReader`
 /// answers, so a test can stand a canned document in for the model.
 public protocol RowReading: Sendable {
-    func read(pages: [String], progress: (@Sendable (ReaderProgress) -> Void)?) async -> ProseDocument
+    /// `section` limits the rows read to one run of them (`RowText.section(fitting:in:)`); nil reads every row.
+    func read(pages: [String], section: RowSection?, progress: (@Sendable (ReaderProgress) -> Void)?) async -> ProseDocument
 }
 
 /// Words a reader writes on a row's `error` that the app acts on rather than shows (#176). Not
