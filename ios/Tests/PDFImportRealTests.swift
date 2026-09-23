@@ -58,4 +58,21 @@ import GraphghanCore
             .flatMap { [$0.hash] + ($0.phoneHash.map { [$0] } ?? []) }
         #expect(sibling.contains(hash), "\(entry.id): \(hash)")
     }
+
+    /// The written rows a real chart is checked by (#176, #197, #198). Orca prints its body, strap
+    /// and both panels: only one panel's 77 rows are the chart's. The cactus prints c2c
+    /// construction rows with no colour in them: nothing to check.
+    @Test(arguments: [("EN_OrcaCrossbodyBagPDFPattern.pdf", 77), ("ys-bernat-corner-to-corner-crochet-cactus-blanket.pdf", 0)])
+    func aRealChartChecksOnlyItsOwnRows(file: String, rows: Int) async throws {
+        let url = TestFixtures.root.appendingPathComponent("fixtures/import/real/\(file)")
+        guard let data = try? Data(contentsOf: url) else {
+            print("SKIP real fixture \(file) is absent; see fixtures/import/real/README.md")
+            return
+        }
+        let importer = PDFImporter(charts: ChartLibrary(directory: try temporaryDirectory()), local: LocalPatternStore(directory: try temporaryDirectory()),
+                                   rowReader: nil, modelUnavailable: nil)
+        let reading = try await importer.read(data, fileName: file)
+        guard case .grid(_, let toCheck) = reading.source else { Issue.record("\(file) read no grid"); return }
+        #expect(toCheck == rows, "\(file)")
+    }
 }

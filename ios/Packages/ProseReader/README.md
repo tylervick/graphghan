@@ -30,6 +30,10 @@ key order unless the rows print codes. A head that covers several rows ("Rows 2-
 number, and "Row 6: repeat row 5" copies row 5 without a prompt. A run whose code is neither a colour of the
 document nor a word of the row is dropped, and a row left with none is reported as an error, not a guess.
 
+`--sections` prints how the pages' rows fall into sections (a new one wherever the rows count from 1
+again) and whether each names colours, without the model; `--height N` marks, or with `--model` reads
+only, the section a chart N rows tall is checked by, as the app's check does (#176, #197, #198).
+
 Scoring against ground truth: `uv run python Scripts/score.py prose.json craigh|orca` (Craigh na Dun's
 rows come from our own PDF's text layer; Orca's from the hand transcript in `fixtures/import/real/`).
 

@@ -32,9 +32,11 @@ import ProseReaderKit
     struct StubRowReader: RowReading {
         let document: ProseDocument
         let delayPerRow: Duration
-        /// Like `ProseReader`, a cancelled read returns the rows read so far.
-        func read(pages: [String], progress: (@Sendable (ReaderProgress) -> Void)?) async -> ProseDocument {
-            let total = RowText.rowCount(in: pages)
+        var asked: Asked? = nil
+        /// Like `ProseReader`, a cancelled read returns the rows read so far, and a section limits the rows to it.
+        func read(pages: [String], section: RowSection?, progress: (@Sendable (ReaderProgress) -> Void)?) async -> ProseDocument {
+            await asked?.record(section)
+            let total = section?.rows ?? RowText.rowCount(in: pages)
             for i in 0..<total {
                 if Task.isCancelled {
                     var partial = document
@@ -297,6 +299,34 @@ import ProseReaderKit
         #expect(record2.check == .finished && record2.rowsDisagree == [5] && record2.problem == nil)
     }
 
+    /// Construction rows, no colour in any of them (the cactus blanket, #198): nothing to check,
+    /// and the model is never asked.
+    @Test func aChartWhoseRowsNameNoColourHasNoRowsToCheck() async throws {
+        let construction = (1...Self.chartHeight).map { "Row \($0): ch 1, turn, 1 dc in each of next 2 ch. Turn." }.joined(separator: "\n")
+        let asked = Asked()
+        let importer = try await make().importer(rowReader: StubRowReader(document: Self.chartDocument(), delayPerRow: .zero, asked: asked))
+        let reading = try await importer.read(try #require(PDFTestDocuments.chart(rows: true, rowsText: construction)), fileName: "drawn.pdf")
+        #expect(reading.source == .grid(page: 1, rowsToCheck: 0))
+        #expect(await importer.check(reading, progress: nil).check == .noRows)
+        #expect(await asked.sections.isEmpty)
+    }
+
+    /// Orca's shape (#176, #197): a body in one colour and a shorter run of colour rows, both
+    /// counting from row 1, before the rows the chart draws. Only the chart's rows are read.
+    @Test func theCheckReadsOnlyTheRowsAsTallAsTheChart() async throws {
+        let body = (1...4).map { $0 == 1 ? "Row 1: (Black) ch 7, 6 sc [6]" : "Row \($0): ch 1, turn, 6 sc [6]" }.joined(separator: "\n")
+        let strap = (1...5).map { "Row \($0): 2 B, 4 A" }.joined(separator: "\n")
+        let asked = Asked()
+        let importer = try await make().importer(rowReader: StubRowReader(document: Self.chartDocument(), delayPerRow: .zero, asked: asked))
+        let pdf = try #require(PDFTestDocuments.chart(rows: true, rowsText: [body, strap, PDFTestDocuments.colourRows].joined(separator: "\n")))
+        let reading = try await importer.read(pdf, fileName: "drawn.pdf")
+        #expect(reading.source == .grid(page: 1, rowsToCheck: Self.chartHeight))
+        let record = await importer.check(reading, progress: nil)
+        #expect(record.check == .finished && record.rowsDisagree == [] && record.problem == nil)
+        let section = try #require(await asked.sections.first ?? nil)
+        #expect(section.rows == Self.chartHeight && section.lastRow == Self.chartHeight && section.blocks.first?.text.hasPrefix("Row 1: 3 B") == true)
+    }
+
     /// A row the reader could not read is named, never passed off as clean -- and no longer
     /// cancels the comparison of the rows that did read (#176). Two rows a model fumbles should
     /// not cost the maker the other seventy-five.
@@ -437,6 +467,12 @@ import ProseReaderKit
 }
 
 /// Progress events collected off the importer's callback.
+/// The section each read was asked for.
+actor Asked {
+    var sections: [RowSection?] = []
+    func record(_ s: RowSection?) { sections.append(s) }
+}
+
 actor Progress {
     var items: [PDFImportProgress] = []
     func add(_ p: PDFImportProgress) { items.append(p) }
@@ -456,7 +492,11 @@ enum PDFTestDocuments {
 
     /// A page with the synthetic chart drawn at 12 pt cells (48 px at 4×), grid lines 0.5 pt with
     /// every fifth bold, numbers above and beside; with `rows`, a second page of written rows.
-    static func chart(rows: Bool) -> Data? {
+    /// Written rows the way a pattern prints them: every row names its colours.
+    static let colourRows = (1...PDFImportTests.chartHeight).map { "Row \($0): 3 B, 17 A" }.joined(separator: "\n")
+
+    /// The chart page, then with `rows` a page of written rows: `rowsText` when given, else `colourRows`.
+    static func chart(rows: Bool, rowsText: String? = nil) -> Data? {
         let cell: CGFloat = 12, ox: CGFloat = 60, oy: CGFloat = 80
         let w = PDFImportTests.chartWidth, h = PDFImportTests.chartHeight
         let renderer = UIGraphicsPDFRenderer(bounds: bounds)
@@ -485,7 +525,7 @@ enum PDFTestDocuments {
             for y in 0..<h { ("\(h - y)" as NSString).draw(at: CGPoint(x: ox - 14, y: oy + CGFloat(y) * cell + 3), withAttributes: attrs) }
             if rows {
                 ctx.beginPage()
-                let text = (1...h).map { "Row \($0): sc across in the colours shown" }.joined(separator: "\n")
+                let text = rowsText ?? colourRows
                 (text as NSString).draw(in: bounds.insetBy(dx: 36, dy: 36), withAttributes: [.font: UIFont.systemFont(ofSize: 12)])
             }
         }
