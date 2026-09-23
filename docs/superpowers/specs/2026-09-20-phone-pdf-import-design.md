@@ -323,8 +323,7 @@ id ignores `ext`.
   Intelligence, in under five minutes, with progress shown and cancel working. The grid half was
   measured 2026-09-20 on the mini (iPhone 17 simulator, `PDFImportRealTests`, PR 3): both of page
   9's charts read to 29×77 and to the hashes the Python pinned, in 8.8 and 9.5 s for the whole
-  nine-page PDF. The rows half (the check, 310 row heads on those pages) still needs an iPhone
-  with Apple Intelligence; the simulator has no model. Not yet run on a device.
+  nine-page PDF. The rows half is the next bullet.
 - The cactus blanket's PDF opens into the pinned 28×28 chart in under five seconds on iOS 17
   (a manual gate on the mini, §8; the fixture is not in the repository). Measured 2026-09-20 on
   the mini (PR 3): 28×28 from page 2 in 1.6 s, to the Python's hash. Santa's PDF, the other
@@ -333,28 +332,31 @@ id ignores `ext`.
   palette fold-in distance come out of PDFKit a few Lab units farther and stay as single-cell
   colours; the phone's hash is pinned beside the Mac's in `manifest.toml` and the fold-in rule is
   #167.
-- Orca's check to completion on an iPhone with Apple Intelligence, 77 of 77 rows, is #176's
-  acceptance test. Two device runs so far, neither of them a pass. The first (TestFlight, main at
-  829014c) was refused with "Request has been rate limited". The second, 2026-09-21, carried the
-  retry, the one reused session and the turnover of §4.3 and was refused again — so a session per
-  row was not the cause — while the probe on the same phone answered a bare prompt in 1.9 s, the
-  same prompt under the 1308-character instructions in 1.9 s and a structured row in 2.9 s, with
-  the app active throughout. The refusal therefore follows the volume of requests rather than any
-  one of them, and what the limit actually counts is being measured on the device
-  (`LimitReport`). The third run, on the cactus blanket, found the first real defect that way:
-  the front-matter read's 5000-character prompt does not fit the on-device window at all — 4124
-  tokens against a limit of 4096 — so every front-matter request on every pattern had been
-  failing silently behind `try?` (#178), six of them before the first row once #180's
-  context-overflow retry doubled each one. `readFront` now shrinks its prompt until it fits
-  (2500, 1200, 600 characters) and records what it could not read. The fourth run, with that in,
-  was still refused, and its measurement found the next defect: one reused session overflows the
-  window at the tenth row request, because the `@Generable` schema goes in with every one, so
-  the turnover budget of 16 was roughly double what fits and every tenth row cost a doomed
-  request. It is 6. That run reproduced no rate limit at all -- everything it saw refused was an
-  overflow -- while the check itself is still refused as one, which is the open question. The
-  time goes here when a run passes. The fifth run, with #195 in, was **not** refused: it
-  read the rows. That is one run, not a cleared cause -- which of that build's four changes
-  mattered, and whether the refusal returns, needs more runs before either is written down. Two of them then failed the invention filter (#197), and the
-  check now reports that underneath the comparison of the rows that did read rather than
-  cancelling it.
+- Orca's check on an iPhone with Apple Intelligence is #176's acceptance test. As first written
+  it asked for "77 of 77 rows", which no reader could meet, for two reasons found on the Mac on
+  2026-09-22 rather than on the device:
+  - **The check read every page.** Orca prints the bag's body, its strap and two panels that
+    each count from row 1: 310 heads, 246 rows, rows 1-77 "printed twice", nothing compared. The
+    body's rows name no colour, which is what #197's "invented colours" were. The check now reads
+    only the chart's own rows (`RowText.section(fitting:in:)`: the first run of colour rows as
+    tall as the chart), 77 of them on the front panel's pages 17-18, and none on the cactus,
+    whose rows are construction text (#198).
+  - **Orca is shaped.** Row 1 is 9 stitches, the widest 29, row 77 is 3, on a 29-wide chart
+    whose other cells are the no-stitch colour; the comparison wanted every row 29 wide, and the
+    Python manifest pins exactly that failure for the hand transcript. Rows narrower than the
+    chart are now laid on the cells off the background (the colour in the chart's corners), and
+    a row whose count is not the piece's disagrees on its own (`RowsChart.crossCheck`).
+  The comparison is proven without the model: the hand transcript against the grid the phone
+  reads off page 9, 77 rows compared, none disagreeing (`PDFImportRealTests`). What a device run
+  adds is the model's reading, so the test is now: **the check runs to completion without being
+  refused, reads the front panel's 77 rows, and says truthfully what it compared** -- agreement
+  only for rows compared, every unread or disagreeing row named -- **with its time recorded
+  here.** How many of the 77 the model reads correctly is the reader's accuracy, measured on the
+  Mac (§9 of the import design) and by #200, not a pass mark for the phone.
+  Five device runs came before this (TestFlight builds 19-22 and the #195 build). The first four
+  were refused as rate limited, and on the way #180, #190 and #195 fixed three real defects (the
+  front-matter prompt did not fit the 4096-token window; the schema went in with every request;
+  a second import overlapped the first). The fifth, with the phone plugged in, was not refused and
+  read rows into the problems above. Which change ended the refusals, or whether it was the
+  power, is not established; #196 records the power state with every check so the next run says.
 - Every failure in §5.4 shows its sentence and leaves the library untouched.

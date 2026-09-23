@@ -49,13 +49,35 @@ public enum RowsChart {
     }
 
     /// Every written row whose runs do not sum to the chart width, or to its own printed total.
-    static func totalProblems(_ rows: [Row], width: Int) -> [String] {
+    /// A shaped piece's rows are narrower than its chart by design, so `shaped` asks only the second.
+    static func totalProblems(_ rows: [Row], width: Int, shaped: Bool = false) -> [String] {
         rows.compactMap { r in
             let total = r.runs.reduce(0) { $0 + $1.count }
             if let printed = r.total, printed != total { return "row \(r.row): runs sum to \(total) but the pattern prints \(printed) sts" }
-            if total != width { return "row \(r.row): runs sum to \(total), chart width is \(width)" }
+            if total != width, !shaped { return "row \(r.row): runs sum to \(total), chart width is \(width)" }
             return nil
         }
+    }
+
+    /// The colour a shaped piece is drawn on: the one in at least three of the chart's four corners
+    /// (#176). Orca's panel is 9 stitches wide at row 1 on a 29-wide chart; the cells either side
+    /// are this colour, which no written row names. Nil when the corners do not agree, and then a
+    /// row narrower than the chart is a row read wrong, as it always was.
+    static func background(of grid: [UInt8], width: Int, height: Int) -> UInt8? {
+        guard width > 0, height > 0, grid.count == width * height else { return nil }
+        let corners = [grid[0], grid[width - 1], grid[(height - 1) * width], grid[height * width - 1]]
+        return corners.first { c in corners.filter { $0 == c }.count >= 3 }
+    }
+
+    /// The written rows laid on the chart: palette indexes in display order, nil where no row was
+    /// given (a stopped check compares only what was read) and on a shaped piece's background.
+    struct Written {
+        var cells: [UInt8?]
+        /// Grid rows (from the top) the written rows were laid on.
+        var covered: [Int] = []
+        /// Rows of a shaped piece whose stitch count is not the count of its cells off the
+        /// background: a row that disagrees, whatever its colours say.
+        var wrongLength: [Int] = []
     }
 
     static func numberProblems(_ rows: [Row], height: Int) -> [String] {
@@ -113,8 +135,11 @@ public enum RowsChart {
     /// The written grid as palette indexes in display order, nil in the rows not given (`written_to_grid`
     /// over a prefix): a stopped check compares only what was read. Problems are the Python's,
     /// except that missing rows are not a problem here.
-    static func writtenGrid(rows: [Row], codes: [String], width: Int, height: Int, row1: String) -> Result<[UInt8?], Problems> {
-        var problems = totalProblems(rows, width: width)
+    /// With `shape` (the chart's grid and its background), a row narrower than the chart is laid on
+    /// its grid row's cells off the background, in working order, instead of being a problem.
+    static func writtenGrid(rows: [Row], codes: [String], width: Int, height: Int, row1: String,
+                            shape: (grid: [UInt8], background: UInt8)? = nil) -> Result<Written, Problems> {
+        var problems = totalProblems(rows, width: width, shaped: shape != nil)
         var counts: [Int: Int] = [:]
         for r in rows { counts[r.row, default: 0] += 1 }
         let dup = counts.filter { $0.value > 1 }.keys.sorted()
@@ -136,15 +161,21 @@ public enum RowsChart {
             }
         }
         if !problems.isEmpty { return .failure(Problems(sentences: problems)) }
-        var grid = [UInt8?](repeating: nil, count: width * height)
+        var written = Written(cells: [UInt8?](repeating: nil, count: width * height))
         for r in rows {
             var cells: [UInt8] = []
             for run in r.runs { cells += [UInt8](repeating: index[run.code]!, count: run.count) }
             if readsRightToLeft(row: r.row, row1: row1) { cells.reverse() }
             let y = gridRow(row: r.row, height: height, row1: row1)
-            for (x, c) in cells.enumerated() { grid[y * width + x] = c }
+            var xs = Array(0..<width)
+            if cells.count != width, let shape {
+                xs = xs.filter { shape.grid[y * width + $0] != shape.background }
+                guard xs.count == cells.count else { written.wrongLength.append(r.row); continue }
+            }
+            for (x, c) in zip(xs, cells) { written.cells[y * width + x] = c }
+            written.covered.append(y)
         }
-        return .success(grid)
+        return .success(written)
     }
 
     /// The written rows against the grid read off the chart (`_match_by_rows` then
@@ -152,13 +183,17 @@ public enum RowsChart {
     /// vote over the cells the rows put in them, then each written row is compared with its grid
     /// row. Disagreements are row numbers; a pairing that fails, or more than a tenth of the rows
     /// disagreeing, means the rows cannot be compared and says why.
+    /// A shaped piece (#176) is compared on the cells off its background (`background(of:)`), and
+    /// the background needs no code of its own.
     public static func crossCheck(rows: [Row], codes: [String], grid: [UInt8], width: Int, height: Int, row1: String = "bottom-right") -> CheckOutcome {
-        let written: [UInt8?]
-        switch writtenGrid(rows: rows, codes: codes, width: width, height: height, row1: row1) {
-        case .success(let g): written = g
+        guard grid.count == width * height else { return .incomparable("the chart has \(grid.count) cells, not \(width) × \(height)") }
+        let background = background(of: grid, width: width, height: height)
+        let result: Written
+        switch writtenGrid(rows: rows, codes: codes, width: width, height: height, row1: row1, shape: background.map { (grid, $0) }) {
+        case .success(let w): result = w
         case .failure(let p): return .incomparable(p.sentences.joined(separator: "; "))
         }
-        guard grid.count == width * height else { return .incomparable("the chart has \(grid.count) cells, not \(width) × \(height)") }
+        let written = result.cells
         // Majority vote: which key code each chart colour is, over the cells the rows cover.
         var warnings: [String] = []
         let clusterCount = Int(grid.max() ?? 0) + 1
@@ -180,13 +215,15 @@ public enum RowsChart {
             let dup = Set(claimed.filter { k in claimed.filter { $0 == k }.count > 1 }).map { codes[$0] }.sorted()
             return .incomparable("two chart colours both read as [\(dup.map { "\"\($0)\"" }.joined(separator: ", "))] in the written rows; the picture has more colours than the key, or a row is wrong")
         }
-        let coveredRows = (0..<height).filter { y in written[y * width] != nil }
-        let unmatched = (0..<clusterCount).filter { g in mapping[g] == nil && coveredRows.contains { y in (0..<width).contains { Int(grid[y * width + $0]) == g } } }
+        let coveredRows = result.covered.sorted()
+        let unmatched = (0..<clusterCount).filter { g in
+            g != background.map(Int.init) && mapping[g] == nil && coveredRows.contains { y in (0..<width).contains { Int(grid[y * width + $0]) == g } }
+        }
         if !unmatched.isEmpty {
             return .incomparable("chart colours \(unmatched) fall on no written row; the picture and the rows do not line up")
         }
         // Compare, row by row, the rows that were written.
-        var mismatches: [Int] = []
+        var mismatches = result.wrongLength
         var flippedTB = true, flippedLR = true, rotated = true
         for y in coveredRows {
             let row = row1.hasPrefix("bottom") ? height - y : y + 1
@@ -205,12 +242,13 @@ public enum RowsChart {
             if differ { mismatches.append(row) }
         }
         mismatches.sort()
-        if mismatches.count > max(1, Int((mismatchLimit * Double(coveredRows.count)).rounded(.up))) {
+        let compared = coveredRows.count + result.wrongLength.count
+        if mismatches.count > max(1, Int((mismatchLimit * Double(compared)).rounded(.up))) {
             var hint = ""
             if flippedTB { hint = " The grid matches when flipped top to bottom: chart.row1 probably starts at the other edge." }
             else if flippedLR { hint = " The grid matches when flipped left to right: chart.row1 probably starts at the other corner." }
             else if rotated { hint = " The grid matches when rotated: chart.row1 is probably the opposite corner." }
-            return .incomparable("\(mismatches.count) of \(coveredRows.count) rows disagree with the chart; the row-1 position or direction is probably wrong, not the rows.\(hint)")
+            return .incomparable("\(mismatches.count) of \(compared) rows disagree with the chart; the row-1 position or direction is probably wrong, not the rows.\(hint)")
         }
         return .compared(disagree: mismatches, warnings: warnings)
     }

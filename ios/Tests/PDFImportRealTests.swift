@@ -2,6 +2,7 @@ import CryptoKit
 import Foundation
 import Testing
 import GraphghanCore
+import ProseReaderKit
 @testable import Graphghan
 
 /// The real pattern PDFs (`fixtures/import/real/`, gitignored, on the mini only) through the
@@ -74,5 +75,32 @@ import GraphghanCore
         let reading = try await importer.read(data, fileName: file)
         guard case .grid(_, let toCheck) = reading.source else { Issue.record("\(file) read no grid"); return }
         #expect(toCheck == rows, "\(file)")
+    }
+
+    /// Orca's panel is shaped (#176): 9 stitches at row 1, 29 at its widest, 3 at row 77, on a
+    /// 29-wide chart. The hand transcript of its written rows (`…-front.prose.json`, the Python's
+    /// ground truth) against the grid the phone reads off page 9: every row compared, none
+    /// disagreeing. This is spec §11's check with the model taken out.
+    @Test func orcasWrittenRowsAgreeWithItsShapedChart() async throws {
+        let dir = TestFixtures.root.appendingPathComponent("fixtures/import/real")
+        guard let data = try? Data(contentsOf: dir.appendingPathComponent("EN_OrcaCrossbodyBagPDFPattern.pdf")),
+              let truth = try? Data(contentsOf: dir.appendingPathComponent("onhand-en-orcacrossbodybagpdfpattern-front.prose.json")) else {
+            print("SKIP Orca's PDF or its transcript is absent; see fixtures/import/real/README.md")
+            return
+        }
+        let importer = PDFImporter(charts: ChartLibrary(directory: try temporaryDirectory()), local: LocalPatternStore(directory: try temporaryDirectory()),
+                                   rowReader: nil, modelUnavailable: nil)
+        let chart = try await importer.read(data, fileName: "orca.pdf").bundle.charts[0].chart
+        let doc = try JSONDecoder().decode(ProseDocument.self, from: truth)
+        let rows = (doc.written_rows ?? []).map { r in
+            RowsChart.Row(row: r.row, runs: r.runs.compactMap { run -> (code: String, count: Int)? in
+                guard case .code(let c) = run.first, case .count(let n) = run.last else { return nil }
+                return (c, n)
+            }, total: r.total)
+        }
+        #expect(rows.count == 77)
+        let outcome = RowsChart.crossCheck(rows: rows, codes: (doc.palette ?? []).map(\.code), grid: chart.cells, width: chart.width, height: chart.height,
+                                           row1: doc.chart?.row1 ?? "bottom-right")
+        #expect(outcome == .compared(disagree: [], warnings: []), "\(outcome)")
     }
 }

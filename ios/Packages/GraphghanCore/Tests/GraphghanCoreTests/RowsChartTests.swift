@@ -120,4 +120,37 @@ import Testing
         #expect(RowsChart.crossCheck(rows: [Row(row: 1, runs: [("A", 2)], total: nil), Row(row: 2, runs: [("A", 2)], total: nil)], codes: ["A", "B"], grid: grid, width: 2, height: 2)
                 == .incomparable("two chart colours both read as [\"A\"] in the written rows; the picture has more colours than the key, or a row is wrong"))
     }
+
+    // A shaped piece (#176): Orca's panel is 9 stitches at row 1 and 29 at its widest, drawn on a
+    // 29-wide chart whose other cells are a background colour in all four corners. Rows narrower
+    // than the chart are laid on the cells off the background, in their working direction.
+    //   row 4   . . A A A . .
+    //   row 3   . A B B A A .      (0 is the background, 1 is A, 2 is B)
+    //   row 2   . A A B B A .
+    //   row 1   . . A A A . .      row 1 starts bottom right, so odd rows are written right to left
+    static let shapedGrid: [UInt8] = [0, 0, 1, 1, 1, 0, 0,
+                                      0, 1, 2, 2, 1, 1, 0,
+                                      0, 1, 1, 2, 2, 1, 0,
+                                      0, 0, 1, 1, 1, 0, 0]
+    static func shapedRows(row2: [(code: String, count: Int)] = [("A", 2), ("B", 2), ("A", 1)]) -> [Row] {
+        [Row(row: 1, runs: [("A", 3)], total: nil),
+         Row(row: 2, runs: row2, total: nil),
+         Row(row: 3, runs: [("A", 2), ("B", 2), ("A", 1)], total: nil),
+         Row(row: 4, runs: [("A", 3)], total: nil)]
+    }
+
+    @Test func aShapedPieceIsComparedOnTheCellsOffItsBackground() {
+        #expect(RowsChart.crossCheck(rows: Self.shapedRows(), codes: ["A", "B"], grid: Self.shapedGrid, width: 7, height: 4)
+                == .compared(disagree: [], warnings: []))
+    }
+
+    @Test func aShapedRowWhoseCountIsNotThePiecesDisagreesAndTheRestAreCompared() {
+        #expect(RowsChart.crossCheck(rows: Self.shapedRows(row2: [("A", 2), ("B", 2), ("A", 2)]), codes: ["A", "B"], grid: Self.shapedGrid, width: 7, height: 4)
+                == .compared(disagree: [2], warnings: []))
+    }
+
+    @Test func aShapedRowOfTheRightCountInTheWrongColoursDisagrees() {
+        #expect(RowsChart.crossCheck(rows: Self.shapedRows(row2: [("A", 1), ("B", 3), ("A", 1)]), codes: ["A", "B"], grid: Self.shapedGrid, width: 7, height: 4)
+                == .compared(disagree: [2], warnings: []))
+    }
 }
