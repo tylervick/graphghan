@@ -273,7 +273,7 @@ struct PDFImporter: Sendable {
         var draft = draft
         draft.pattern.id = await Self.uniqueSlug(Self.slug(title), in: local)
         let (bundle, preview, chart) = try Self.bundle(for: draft, title: title, version: version, fileName: fileName)
-        return PDFImportReading(bundle: bundle, preview: preview, width: chart.width, height: chart.height, colours: chart.palette.filter { $0.use != ChartDraft.Palette.noStitch }.count,
+        return PDFImportReading(bundle: bundle, preview: preview, width: chart.width, height: chart.height, colours: bundle.manifest.charts[0].colors,
                                 source: source, draft: draft, title: title, version: version, fileName: fileName, pageTexts: texts, warnings: warnings)
     }
 
