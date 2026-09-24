@@ -404,15 +404,16 @@ struct PDFContents: Sendable, Equatable {
         let imported = charts == 1 ? "The chart was imported" : rowSets == 0 ? "One was imported" : "One chart was imported"
         var left: [String] = []
         if otherCharts > 0 {
-            let noun = rowSets == 0 ? "" : otherCharts == 1 ? " chart" : " charts"
-            left.append(otherCharts == 1 ? "the other" + noun : "the other \(otherCharts)" + noun)
+            var charts = otherCharts == 1 ? "the other" : "the other \(otherCharts)"
+            if rowSets > 0 { charts += otherCharts == 1 ? " chart" : " charts" }  // "One was imported; the other was left out."
+            left.append(charts)
         }
         if otherSets > 0 {
-            // None of them the chart's own: all of them were left out, so "the".
-            left.append(rowSetMatched ? sets(otherSets) : otherSets == 1 ? "the set of written rows" : "the " + sets(otherSets))
+            // None of them the chart's own: every one was left out, so "the".
+            if rowSetMatched { left.append(sets(otherSets)) } else { left.append(otherSets == 1 ? "the set of written rows" : "the " + sets(otherSets)) }
         }
-        let one = left.count == 1 && (otherCharts == 1 || otherSets == 1)
-        return has + " " + imported + "; " + left.joined(separator: " and ") + (one ? " was" : " were") + " left out."
+        let verb = otherCharts + otherSets == 1 ? "was" : "were"
+        return has + " " + imported + "; " + left.joined(separator: " and ") + " \(verb) left out."
     }
 }
 
