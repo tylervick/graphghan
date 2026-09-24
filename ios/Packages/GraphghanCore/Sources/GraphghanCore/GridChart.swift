@@ -122,7 +122,10 @@ public enum GridChart {
         let samples = GridReader.readRegion(image, region)
         let (grid, hexes, warnings) = try GridColours.clusterPalette(samples)
         // The hexes are `GridColours.hex` output, so each has a name; the code is the fallback in case.
-        let palette = hexes.enumerated().map { ChartDraft.Palette(code: GridColours.code($0.offset), name: GridColours.nameColour($0.element) ?? GridColours.code($0.offset), hex: $0.element) }
+        var palette = hexes.enumerated().map { ChartDraft.Palette(code: GridColours.code($0.offset), name: GridColours.nameColour($0.element) ?? GridColours.code($0.offset), hex: $0.element) }
+        // A shaped piece's background stays a palette colour so the grid stays rectangular, marked
+        // as no yarn (#205); working around those cells is #37.
+        if let bg = RowsChart.noStitch(of: grid.flatMap { $0 }, width: region.cols, height: region.rows) { palette[Int(bg)].use = ChartDraft.Palette.noStitch }
         let codes = palette.map(\.code)
         let rows = grid.map { row -> String in
             var runs: [(code: String, count: Int)] = []

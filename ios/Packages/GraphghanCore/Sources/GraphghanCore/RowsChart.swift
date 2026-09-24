@@ -69,6 +69,19 @@ public enum RowsChart {
         return corners.first { c in corners.filter { $0 == c }.count >= 3 }
     }
 
+    /// The corner colour when it is a shaped piece's background and no yarn (#205): every row keeps
+    /// at least one other cell, and a row's other cells are one unbroken run, as a piece worked in
+    /// rows must be. A blanket drawn on a plain background has a row of nothing else, or the colour
+    /// between two other cells of a row, and there the corner colour is stitched: nil.
+    public static func noStitch(of grid: [UInt8], width: Int, height: Int) -> UInt8? {
+        guard let bg = background(of: grid, width: width, height: height) else { return nil }
+        for y in 0..<height {
+            let xs = (0..<width).filter { grid[y * width + $0] != bg }
+            guard let first = xs.first, let last = xs.last, last - first + 1 == xs.count else { return nil }
+        }
+        return bg
+    }
+
     /// The written rows laid on the chart: palette indexes in display order, nil where no row was
     /// given (a stopped check compares only what was read) and on a shaped piece's background.
     struct Written {
