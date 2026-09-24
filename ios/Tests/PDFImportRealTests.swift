@@ -103,4 +103,22 @@ import ProseReaderKit
                                            row1: doc.chart?.row1 ?? "bottom-right")
         #expect(outcome == .compared(disagree: [], warnings: []), "\(outcome)")
     }
+
+    /// Orca's light blue is the background its panel is drawn on, not a yarn (#205): the palette
+    /// keeps it, marked "no stitch", so the grid stays 29 wide, and the sheet counts three colours.
+    /// The cactus's corners are one colour too, but its sky rows are stitched: all of it stays yarn.
+    @Test(arguments: [("EN_OrcaCrossbodyBagPDFPattern.pdf", 3, 1), ("ys-bernat-corner-to-corner-crochet-cactus-blanket.pdf", 2, 0)])
+    func aShapedChartsBackgroundIsNoStitch(file: String, colours: Int, noStitch: Int) async throws {
+        let url = TestFixtures.root.appendingPathComponent("fixtures/import/real/\(file)")
+        guard let data = try? Data(contentsOf: url) else {
+            print("SKIP real fixture \(file) is absent; see fixtures/import/real/README.md")
+            return
+        }
+        let importer = PDFImporter(charts: ChartLibrary(directory: try temporaryDirectory()), local: LocalPatternStore(directory: try temporaryDirectory()),
+                                   rowReader: nil, modelUnavailable: nil)
+        let reading = try await importer.read(data, fileName: file)
+        let marked = reading.bundle.charts[0].chart.palette.filter { $0.use == ChartDraft.Palette.noStitch }
+        #expect(reading.colours == colours && marked.count == noStitch, "\(file): \(reading.colours) colours, \(marked.map(\.hex)) no stitch")
+        #expect(reading.bundle.manifest.charts[0].colors == colours, "\(file)")
+    }
 }

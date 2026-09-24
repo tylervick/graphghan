@@ -153,4 +153,31 @@ import Testing
         #expect(RowsChart.crossCheck(rows: Self.shapedRows(row2: [("A", 1), ("B", 3), ("A", 1)]), codes: ["A", "B"], grid: Self.shapedGrid, width: 7, height: 4)
                 == .compared(disagree: [2], warnings: []))
     }
+
+    // The background of a shaped piece is not a yarn (#205): the palette marks it "no stitch". A
+    // blanket's corners are often one colour too, and there that colour is stitched, so the corners
+    // alone decide nothing. A piece worked in rows has a stitch in every row, and a row's stitches
+    // are one unbroken run; a blanket's plain background row, or a gap inside a row, is stitched.
+    @Test func aShapedPiecesBackgroundIsNoStitch() {
+        #expect(RowsChart.noStitch(of: Self.shapedGrid, width: 7, height: 4) == 0)
+    }
+
+    @Test func aRowOfNothingButTheCornerColourMeansTheColourIsStitched() {
+        let blanket: [UInt8] = [0, 0, 0, 0, 0,
+                                0, 1, 1, 1, 0,
+                                0, 0, 0, 0, 0]
+        #expect(RowsChart.background(of: blanket, width: 5, height: 3) == 0)
+        #expect(RowsChart.noStitch(of: blanket, width: 5, height: 3) == nil)
+    }
+
+    @Test func theCornerColourBetweenOtherCellsOfARowMeansItIsStitched() {
+        let arms: [UInt8] = [0, 1, 0, 1, 0,
+                             0, 1, 1, 1, 0,
+                             0, 0, 1, 0, 0]
+        #expect(RowsChart.noStitch(of: arms, width: 5, height: 3) == nil)
+    }
+
+    @Test func noCornerColourMeansNoBackground() {
+        #expect(RowsChart.noStitch(of: [0, 1, 1, 0], width: 2, height: 2) == nil)
+    }
 }

@@ -23,4 +23,22 @@ import Testing
         #expect(c.yardsEst > 0 && c.size?.unit == "in")
         #expect(m.updated == "1980-01-01T00:00:00Z")
     }
+
+    /// A shaped piece's background (#205) is in the palette so the grid stays rectangular, marked
+    /// "no stitch"; it is not a yarn, so the library's colour count leaves it out.
+    @Test func aNoStitchColourIsWrittenAndNotCounted() throws {
+        let draft = ChartDraft(pattern: .init(id: "orca", title: "Orca", version: "0.1.0"),
+                               palette: [.init(code: "A", name: "light blue", hex: "#a4dade", use: ChartDraft.Palette.noStitch),
+                                         .init(code: "B", name: "black", hex: "#000000")],
+                               rows: ["1A1B1A", "3B"], width: 3, height: 2, gauge: .init())
+        let (data, id) = ChartWriter.encode(draft)
+        let chart = try Chart.load(data)
+        #expect(chart.palette.map(\.use) == ["no stitch", nil])
+        #expect(ChartWriter.encode(ChartDraft(pattern: draft.pattern, palette: draft.palette.map { .init(code: $0.code, name: $0.name, hex: $0.hex) },
+                                              rows: draft.rows, width: 3, height: 2, gauge: .init())).id == id)  // the id ignores it
+        let bytes = ManifestWriter.encode(id: "orca", title: "Orca", version: "0.1.0", dedication: "", chart: chart, chartID: id,
+                                          variant: "final", gaugeKey: "sc", palette: draft.palette)
+        let m = try JSONDecoder().decode(PatternManifest.self, from: bytes)
+        #expect(m.charts.first?.colors == 1)
+    }
 }

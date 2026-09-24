@@ -267,7 +267,7 @@ struct PDFImporter: Sendable {
         var draft = draft
         draft.pattern.id = await Self.uniqueSlug(Self.slug(title), in: local)
         let (bundle, preview, chart) = try Self.bundle(for: draft, title: title, version: version, fileName: fileName)
-        return PDFImportReading(bundle: bundle, preview: preview, width: chart.width, height: chart.height, colours: chart.palette.count,
+        return PDFImportReading(bundle: bundle, preview: preview, width: chart.width, height: chart.height, colours: chart.palette.filter { $0.use != ChartDraft.Palette.noStitch }.count,
                                 source: source, draft: draft, title: title, version: version, fileName: fileName, pageTexts: texts, warnings: warnings)
     }
 
@@ -381,6 +381,7 @@ struct PDFImportReading: Sendable {
     let preview: Data
     let width: Int
     let height: Int
+    /// Yarn colours: a shaped piece's background is in the palette but is none (#205).
     let colours: Int
     let source: PDFImportSource
     /// What was assembled, so "Add to library" can write the check's record into it (§6.3).

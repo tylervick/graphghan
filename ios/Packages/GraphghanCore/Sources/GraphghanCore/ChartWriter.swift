@@ -23,11 +23,17 @@ public struct ChartDraft: Sendable, Equatable {
         public let name: String
         public let hex: String
         public var yarnNote: String? = nil
-        public init(code: String, name: String, hex: String, yarnNote: String? = nil) {
+        /// What the colour is for, as the format's `use`; `noStitch` for a background (#205).
+        public var use: String? = nil
+        /// The `use` of a colour that is not a yarn: a shaped piece's background, which stays in the
+        /// palette so the grid stays rectangular (the Python's `chart.no_stitch`).
+        public static let noStitch = "no stitch"
+        public init(code: String, name: String, hex: String, yarnNote: String? = nil, use: String? = nil) {
             self.code = code
             self.name = name
             self.hex = hex
             self.yarnNote = yarnNote
+            self.use = use
         }
     }
     public struct Gauge: Sendable, Equatable {
@@ -108,6 +114,7 @@ public enum ChartWriter {
             "palette": .array(draft.palette.map { p in
                 var e: [String: JSONValue] = ["code": .string(p.code), "name": .string(p.name), "hex": .string(p.hex)]
                 if let n = p.yarnNote { e["yarn"] = .object(["note": .string(n)]) }
+                if let u = p.use { e["use"] = .string(u) }
                 return .object(e)
             }),
             "rows": .array(draft.rows.map(JSONValue.string)),
