@@ -152,6 +152,7 @@ struct PDFImporter: Sendable {
     func readGrid(_ document: PDFDocument, texts: [String], title: String, fileName: String,
                   progress: (@Sendable (PDFImportProgress) -> Void)?) async throws(PDFImportError) -> PDFImportReading? {
         var best: (page: Int, region: Region)?
+        var charts = 0
         var warnings: [String] = []
         for i in 0..<document.pageCount {
             if Task.isCancelled { throw .cancelled }
@@ -159,6 +160,7 @@ struct PDFImporter: Sendable {
             guard let image = PageRenderer.image(page) else { warnings.append("page \(i + 1) is too large to read"); continue }
             let regions = (try? GridReader.findRegions(image)) ?? []  // tooLarge cannot happen under the budget
             for r in regions where r.cols >= Self.minimumGridSide && r.rows >= Self.minimumGridSide {
+                charts += 1
                 if best == nil || r.cells > best!.region.cells { best = (i, r) }
             }
             progress?(.pages(done: i + 1, of: document.pageCount))
@@ -172,9 +174,13 @@ struct PDFImporter: Sendable {
         catch { throw .invalidChart("\(error)") }
         // Only the written rows that are this chart's are checked: a PDF also prints the other
         // panel, a body, a strap, or construction rows that name no colour at all (#176, #197, #198).
-        let rowsToCheck = RowText.section(fitting: best.region.rows, in: texts)?.rows ?? 0
-        return try await assemble(draft: draft, title: patternTitle, version: "0.1.0", fileName: fileName, texts: texts,
-                                  source: .grid(page: best.page + 1, rowsToCheck: rowsToCheck), warnings: warnings + gridWarnings)
+        let own = RowText.section(fitting: best.region.rows, in: texts)
+        let rowsToCheck = own?.rows ?? 0
+        var reading = try await assemble(draft: draft, title: patternTitle, version: "0.1.0", fileName: fileName, texts: texts,
+                                         source: .grid(page: best.page + 1, rowsToCheck: rowsToCheck), warnings: warnings + gridWarnings)
+        // The other chart regions and sets of rows are named on the sheet, not dropped silently (#206).
+        reading.contents = PDFContents(charts: charts, rowSets: RowText.sections(in: texts).count, rowSetMatched: own != nil)
+        return reading
     }
 
     /// Every row the reader gave up on was given up for the one reason the app words itself:
@@ -376,6 +382,40 @@ enum PDFImportSource: Sendable, Equatable {
     case writtenRows(count: Int, gaugePrinted: Bool)
 }
 
+/// What a PDF holds beside the chart imported, for the sheet (#206). A pattern can be several
+/// pieces, and the import keeps one chart; the rest is named rather than dropped silently.
+/// Counted, not named: a set of written rows is a run counting from row 1 (`RowText.sections`),
+/// which may be a piece, a part of one, or construction rows, so the sheet says no more than that.
+struct PDFContents: Sendable, Equatable {
+    /// Chart regions on every page (`GridReader.findRegions`), the one imported among them.
+    let charts: Int
+    /// Sets of written rows, and whether one of them is the imported chart's own.
+    let rowSets: Int
+    let rowSetMatched: Bool
+
+    /// "This PDF has 2 charts and 9 sets of written rows. One chart was imported; the other chart
+    /// and 8 sets of written rows were left out." Nil when nothing was.
+    var sentence: String? {
+        let otherCharts = charts - 1
+        let otherSets = rowSets - (rowSetMatched ? 1 : 0)
+        guard otherCharts > 0 || otherSets > 0 else { return nil }
+        let sets = { (n: Int) in n == 1 ? "1 set of written rows" : "\(n) sets of written rows" }
+        let has = "This PDF has \(charts == 1 ? "1 chart" : "\(charts) charts")" + (rowSets > 0 ? " and \(sets(rowSets))" : "") + "."
+        let imported = charts == 1 ? "The chart was imported" : rowSets == 0 ? "One was imported" : "One chart was imported"
+        var left: [String] = []
+        if otherCharts > 0 {
+            let noun = rowSets == 0 ? "" : otherCharts == 1 ? " chart" : " charts"
+            left.append(otherCharts == 1 ? "the other" + noun : "the other \(otherCharts)" + noun)
+        }
+        if otherSets > 0 {
+            // None of them the chart's own: all of them were left out, so "the".
+            left.append(rowSetMatched ? sets(otherSets) : otherSets == 1 ? "the set of written rows" : "the " + sets(otherSets))
+        }
+        let one = left.count == 1 && (otherCharts == 1 || otherSets == 1)
+        return has + " " + imported + "; " + left.joined(separator: " and ") + (one ? " was" : " were") + " left out."
+    }
+}
+
 struct PDFImportReading: Sendable {
     let bundle: PatternBundle
     let preview: Data
@@ -391,6 +431,8 @@ struct PDFImportReading: Sendable {
     let fileName: String
     let pageTexts: [String]
     let warnings: [String]
+    /// What the PDF holds beside the chart imported (#206); nil where every page went into it.
+    var contents: PDFContents? = nil
 }
 
 /// Why a PDF was refused; `message` is the sentence the sheet shows (phone import spec §5.4).
