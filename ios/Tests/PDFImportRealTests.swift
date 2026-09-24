@@ -121,4 +121,26 @@ import ProseReaderKit
         #expect(reading.colours == colours && marked.count == noStitch, "\(file): \(reading.colours) colours, \(marked.map(\.hex)) no stitch")
         #expect(reading.bundle.manifest.charts[0].colors == colours, "\(file)")
     }
+
+    /// What the sheet says a real PDF left out (#206). Orca draws its front and back panels side by
+    /// side on page 9 and prints nine sets of written rows (both panels, the body, the strap and
+    /// the small parts); the cactus prints three sets of construction and edging rows; Santa one chart.
+    @Test(arguments: [
+        ("EN_OrcaCrossbodyBagPDFPattern.pdf",
+         "This PDF has 2 charts and 9 sets of written rows. One chart was imported; the other chart and 8 sets of written rows were left out."),
+        ("ys-bernat-corner-to-corner-crochet-cactus-blanket.pdf",
+         "This PDF has 1 chart and 3 sets of written rows. The chart was imported; the 3 sets of written rows were left out."),
+        ("mdc-c2c-santa-blanket.pdf", nil),
+    ] as [(String, String?)])
+    func aRealPDFSaysWhatItLeftOut(file: String, sentence: String?) async throws {
+        let url = TestFixtures.root.appendingPathComponent("fixtures/import/real/\(file)")
+        guard let data = try? Data(contentsOf: url) else {
+            print("SKIP real fixture \(file) is absent; see fixtures/import/real/README.md")
+            return
+        }
+        let importer = PDFImporter(charts: ChartLibrary(directory: try temporaryDirectory()), local: LocalPatternStore(directory: try temporaryDirectory()),
+                                   rowReader: nil, modelUnavailable: nil)
+        let reading = try await importer.read(data, fileName: file)
+        #expect(reading.contents?.sentence == sentence, "\(file): \(String(describing: reading.contents))")
+    }
 }

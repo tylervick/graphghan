@@ -85,6 +85,9 @@ struct PDFImportSheet: View {
                         if let r = state.reading {
                             Text(r.bundle.manifest.title).font(Font.Heather.heading).foregroundStyle(Color.ink)
                             Text("\(r.width) × \(r.height) stitches, \(r.colours) colours").font(Font.Heather.body).foregroundStyle(Color.ink2)
+                            if let leftOut = r.contents?.sentence {
+                                Text(leftOut).font(Font.Heather.caption).foregroundStyle(Color.ink2).multilineTextAlignment(.center)
+                            }
                         }
                         switch state.check {
                         case .none:

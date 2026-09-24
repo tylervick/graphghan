@@ -19,13 +19,14 @@ public enum ManifestWriter {
         let sizeW = (Double(chart.width) * g.over.value / g.stitches * 10).rounded() / 10
         let sizeH = (Double(chart.height) * g.over.value / g.rows * 10).rounded() / 10
         let dir = "charts/\(variant)-\(gaugeKey)"
-        // A shaped piece's background stays in the palette but is not a yarn (#205): not a colour.
+        // A shaped piece's background stays in the palette but is not a yarn (#205).
+        let colours = palette.filter { $0.use != ChartDraft.Palette.noStitch }.count
         let entry: JSONValue = .object([
             "id": .string(chartID), "variant": .string(variant), "gauge_key": .string(gaugeKey), "default": .bool(true),
             "path": .string("\(dir)/chart.json"), "preview": .string("\(dir)/preview.png"),
             "width": .int(chart.width), "height": .int(chart.height),
             "size": .object(["width": .double(sizeW), "height": .double(sizeH), "unit": .string(g.over.unit)]),
-            "stitch": .string(g.stitch ?? ""), "colors": .int(palette.filter { $0.use != ChartDraft.Palette.noStitch }.count), "stitches": .int(chart.width * chart.height),
+            "stitch": .string(g.stitch ?? ""), "colors": .int(colours), "stitches": .int(chart.width * chart.height),
             "changes_per_row": .object(["mean": .double(mean), "max": .int(perRow.max() ?? 0)]),
             "yards_est": .int(yards),
         ])

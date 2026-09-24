@@ -327,6 +327,32 @@ import ProseReaderKit
         #expect(section.rows == Self.chartHeight && section.lastRow == Self.chartHeight && section.blocks.first?.text.hasPrefix("Row 1: 3 B") == true)
     }
 
+    /// What the import left out, as the sheet says it (#206): every chart the pages draw and every
+    /// set of written rows counting from row 1, less the chart imported and the set that is its own.
+    @Test func theSheetSaysWhatTheImportLeftOut() {
+        func say(_ charts: Int, _ sets: Int, _ matched: Bool) -> String? { PDFContents(charts: charts, rowSets: sets, rowSetMatched: matched).sentence }
+        #expect(say(1, 0, false) == nil && say(1, 1, true) == nil)
+        #expect(say(2, 9, true) == "This PDF has 2 charts and 9 sets of written rows. One chart was imported; the other chart and 8 sets of written rows were left out.")
+        #expect(say(1, 3, false) == "This PDF has 1 chart and 3 sets of written rows. The chart was imported; the 3 sets of written rows were left out.")
+        #expect(say(1, 2, true) == "This PDF has 1 chart and 2 sets of written rows. The chart was imported; 1 set of written rows was left out.")
+        #expect(say(1, 1, false) == "This PDF has 1 chart and 1 set of written rows. The chart was imported; the set of written rows was left out.")
+        #expect(say(2, 0, false) == "This PDF has 2 charts. One was imported; the other was left out.")
+        #expect(say(3, 1, true) == "This PDF has 3 charts and 1 set of written rows. One chart was imported; the other 2 charts were left out.")
+    }
+
+    /// The synthetic page with a body, a strap and the chart's own rows: one chart, three sets,
+    /// the chart's set matched, so two sets were left out. A page with only the chart says nothing.
+    @Test func aChartPageCountsTheSetsOfRowsItLeftOut() async throws {
+        let body = (1...4).map { $0 == 1 ? "Row 1: (Black) ch 7, 6 sc [6]" : "Row \($0): ch 1, turn, 6 sc [6]" }.joined(separator: "\n")
+        let strap = (1...5).map { "Row \($0): 2 B, 4 A" }.joined(separator: "\n")
+        let importer = try await make().importer(rowReader: nil)
+        let pdf = try #require(PDFTestDocuments.chart(rows: true, rowsText: [body, strap, PDFTestDocuments.colourRows].joined(separator: "\n")))
+        let reading = try await importer.read(pdf, fileName: "drawn.pdf")
+        #expect(reading.contents == PDFContents(charts: 1, rowSets: 3, rowSetMatched: true))
+        let bare = try await importer.read(try #require(PDFTestDocuments.chart(rows: false)), fileName: "bare.pdf")
+        #expect(bare.contents == PDFContents(charts: 1, rowSets: 0, rowSetMatched: false) && bare.contents?.sentence == nil)
+    }
+
     /// A row the reader could not read is named, never passed off as clean -- and no longer
     /// cancels the comparison of the rows that did read (#176). Two rows a model fumbles should
     /// not cost the maker the other seventy-five.
