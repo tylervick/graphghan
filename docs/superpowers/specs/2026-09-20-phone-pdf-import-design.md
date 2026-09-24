@@ -359,4 +359,9 @@ id ignores `ext`.
   a second import overlapped the first). The fifth, with the phone plugged in, was not refused and
   read rows into the problems above. Which change ended the refusals, or whether it was the
   power, is not established; #196 records the power state with every check so the next run says.
+  **Passed 2026-09-23** on an iPhone with Apple Intelligence, TestFlight build of `dd2be0c` (#201
+  and #203 in): the chart read to 29 × 77 stitches in 4 colours, the check ran to completion
+  unrefused, and the sheet said "Written rows agree with the chart", which it says only when
+  rows were compared and none were left unread or disagreeing. The check's time was not
+  captured on this run.
 - Every failure in §5.4 shows its sentence and leaves the library untouched.
