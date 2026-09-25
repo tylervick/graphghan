@@ -233,10 +233,12 @@ A piece that is not a grid: `pieces/<piece-id>.rows.json`.
 
 - `pieces[]`: `id` (a slug, unique), `title`, `make` (≥ 1, default 1), exactly one of `chart` (a
   `charts[].id`) or `rows` (a path, with its `rows_id`), optional `pages` (pages of the source PDF).
-  Order is the pattern's order.
-- In a manifest with `pieces`, `charts` lists the charts the pieces name, each once; `default`
-  marks the one the library card shows. They are not alternatives; alternatives per piece are
-  #213.
+  Order is the pattern's order. `pieces` is non-empty when present.
+- In a manifest with `pieces`, `charts` lists the charts the pieces name, each once. They are not
+  alternatives; alternatives per piece are #213. When `charts` is non-empty exactly one entry is
+  `default`, as in schema 1: the first chart piece's chart, which the library card shows. A
+  pattern whose pieces are all written has `charts: []`, no `default`, and the card shows the
+  manifest's `preview` (or the title alone when it has none).
 - `assembly[]`: `title`, optional `text`, optional `pages`. A step with only pages is a pointer
   into the source PDF (§5.5).
 - A manifest without `pieces` is one piece: the default chart. Writers write schema 1 when there
@@ -262,13 +264,24 @@ A piece that is not a grid: `pieces/<piece-id>.rows.json`.
 
 - One `pieces` entry per piece copy that has been started; `make: 2` gives copies 1 and 2.
 - A chart piece's cursor and summary are progress schema 1's, per piece, over §5.1's sequence.
-- A written piece's cursor is `{row}` alone (the 1-based pass). `total_rows` is the last `to`, or
+- A written piece's cursor is `{row, run: 0}`: `row` is the 1-based pass and `run` is always 0,
+  and `stitch` is never written. The boundary position does not exist for a written piece; Done on
+  its last row finishes it. `total_rows` is the last `to`, or
   absent when the last entry is open-ended. `percent` is rows done over `total_rows`, absent when
   open-ended. Stitch figures are emitted only when every entry has a `count` and the piece is
   closed; otherwise the keys are absent, per the §Cells rule.
 - Project figures: `pieces_done`, `pieces_total` (the sum of `make`), `assembly_done`,
   `assembly_total`. No project percent (§3.4).
-- Sessions are computed over all events as today. `stitches_per_hour` counts chart pieces only.
+- Events keep schema 1's shape plus `piece` and `copy`: `{t, piece, copy, row, run, stitch?,
+  kind}`, recording the cursor after the action. On a written piece `advance` and `back` move one
+  row and `jump` any number, always with `run: 0`, so Python's `event["run"]` and Swift's
+  `ProgressEvent.run` keep their types. An event without `piece` belongs to the single piece of a
+  manifest without `pieces`.
+- Sessions are split over all events by time as today. A session's `cells` is the sum, over the
+  chart pieces its events touch, of each piece's cells-done difference across the session (the
+  cursor before a piece's first event is that piece's cursor before the session, or row 1, run 0).
+  Its `rows` is the same sum over written pieces, in rows. `stitches_per_hour` counts chart pieces
+  only; written rows get no pace figure.
 - Progress schema 1 stays valid for a single-chart project.
 
 ### 5.5 Bundle and source PDF
