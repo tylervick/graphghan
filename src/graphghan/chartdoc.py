@@ -186,10 +186,24 @@ def finished_size(doc: dict) -> tuple[float, float, str] | None:
 
 
 def _pass_1_stitches(doc: dict, width: int, ns: str | None) -> int:
-    """Stitches in the grid row pass 1 works: the chart's width unless the chart is shaped. The
-    bottom row unless `technique.start` says otherwise, as `sequence` derives it."""
+    """Stitches in the grid row pass 1 works: the chart's width unless the chart is shaped.
+    Explicit `passes` win here exactly as they win in `sequence`: pass 1's own run counts are
+    used, since its grid row need not be the technique-derived one at all. Otherwise the bottom
+    row unless `technique.start` says otherwise, as `sequence` derives it. Falls back to `width`
+    wherever the shape doesn't parse cleanly; validate_document reports the real problem there."""
+    if ns is None:
+        return width
+    passes = doc.get("passes")
+    if isinstance(passes, list) and passes:
+        p0 = passes[0]
+        runs = p0.get("runs") if isinstance(p0, dict) and p0 else None
+        if isinstance(runs, list):
+            counts = [r.get("count") if isinstance(r, dict) else None for r in runs]
+            if counts and all(isinstance(c, int) and not isinstance(c, bool) for c in counts):
+                return sum(counts)
+        return width
     rows = doc.get("rows") or []
-    if ns is None or not rows:
+    if not rows:
         return width
     t = doc.get("technique") or {}
     s = rows[len(rows) - 1] if t.get("start", "bottom") == "bottom" else rows[0]
@@ -220,7 +234,7 @@ def validate_document(doc: dict) -> list[str]:
     marked = [p.get("code") for p in palette if isinstance(p, dict) and p.get("stitch") is False]
     ns = marked[0] if marked else None
     if len(marked) > 1:
-        problems.append(f'palette marks {len(marked)} colours "stitch": false; at most one may be')
+        problems.append(f'palette marks {len(marked)} colours "stitch": false; at most one may be marked')
     if ns is not None and doc.get("schema") != 3:
         # A schema-2 reader would count these cells as stitches: writers MUST NOT, readers refuse.
         problems.append(

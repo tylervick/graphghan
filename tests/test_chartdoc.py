@@ -512,6 +512,20 @@ def test_explicit_passes_may_not_list_the_no_stitch_colour():
     assert any("no-stitch colour" in p for p in problems), problems
 
 
+def test_foundation_counts_explicit_pass_1_not_the_technique_derived_row():
+    # grid_row 3 is "1N5A1N" (5 stitches); the bottom row a technique would derive is "2N3A2N"
+    # (3 stitches) -- explicit passes must win, so the foundation check must use 5, not 3.
+    passes = [
+        {"label": "Row 1", "grid_row": 3, "runs": [{"code": "A", "count": 5, "x0": 1}]},
+        {"label": "Row 2", "grid_row": 4, "runs": [{"code": "A", "count": 3, "x0": 2}]},
+    ]
+    short = shaped(technique={"type": "none"}, passes=passes, foundation={"chain": 5, "first_stitch_in": 2})
+    problems = chartdoc.validate_document(short)
+    assert any("foundation" in p for p in problems), problems
+    ok = shaped(technique={"type": "none"}, passes=passes, foundation={"chain": 6, "first_stitch_in": 2})
+    assert chartdoc.validate_document(ok) == []
+
+
 def test_written_has_one_entry_per_pass():
     ok = shaped(written=["R1", "R2", "R3", "R4", "R5"])
     assert chartdoc.validate_document(ok) == []
