@@ -2,7 +2,7 @@ import Foundation
 
 /// A chart document the phone assembles (phone import spec §5.3). Encoded with `CanonicalJSON`
 /// so the bytes are the same every time and `chart.id` is the id `ChartID.compute` hashes, the
-/// way the Mac computed it: codes, rows, technique and (when present) cell.
+/// way the Mac computed it: codes, rows, technique, cell and no-stitch code (when present).
 public struct ChartDraft: Sendable, Equatable {
     public struct Pattern: Sendable, Equatable {
         public var id: String
@@ -58,6 +58,8 @@ public struct ChartDraft: Sendable, Equatable {
     public var gauge: Gauge
     /// `ext.graphghan.import` and the like; nil for none. The id ignores it.
     public var ext: JSONValue? = nil
+    /// The pattern's own row text, one per pass (row 1 first); nil for none. The id ignores it.
+    public var written: [String]? = nil
     public init(pattern: Pattern, palette: [Palette], rows: [String], width: Int, height: Int, gauge: Gauge, ext: JSONValue? = nil) {
         self.pattern = pattern
         self.palette = palette
@@ -84,7 +86,9 @@ public enum ChartWriter {
 
     public static func encode(_ draft: ChartDraft) -> (data: Data, id: String) {
         let codes = draft.palette.map(\.code)
-        let id = ChartID.compute(codes: codes, rows: draft.rows, technique: techniqueRows, passes: nil)
+        // A background #205 marked is the schema 3 ground: `"stitch": false`, in the id (spec §5.1).
+        let noStitch = draft.palette.first { $0.use == ChartDraft.Palette.noStitch }?.code
+        let id = ChartID.compute(codes: codes, rows: draft.rows, technique: techniqueRows, passes: nil, noStitch: noStitch)
         var pattern: [String: JSONValue] = [
             "id": .string(draft.pattern.id), "title": .string(draft.pattern.title), "version": .string(draft.pattern.version),
         ]
@@ -107,7 +111,7 @@ public enum ChartWriter {
             ])
         }
         var doc: [String: JSONValue] = [
-            "schema": .int(2),
+            "schema": .int(noStitch == nil ? 2 : 3),
             "pattern": .object(pattern),
             "chart": .object(["id": .string(id), "width": .int(draft.width), "height": .int(draft.height)]),
             "generator": .object(["name": .string("graphghan-ios"), "version": .string("0.1.0")]),
@@ -115,6 +119,7 @@ public enum ChartWriter {
                 var e: [String: JSONValue] = ["code": .string(p.code), "name": .string(p.name), "hex": .string(p.hex)]
                 if let n = p.yarnNote { e["yarn"] = .object(["note": .string(n)]) }
                 if let u = p.use { e["use"] = .string(u) }
+                if p.code == noStitch { e["stitch"] = .bool(false) }
                 return .object(e)
             }),
             "rows": .array(draft.rows.map(JSONValue.string)),
@@ -122,6 +127,7 @@ public enum ChartWriter {
             "technique": techniqueRows,
         ]
         if let ext = draft.ext { doc["ext"] = ext }
+        if let w = draft.written { doc["written"] = .array(w.map(JSONValue.string)) }
         return (Data(CanonicalJSON.encode(.object(doc)).utf8), id)
     }
 

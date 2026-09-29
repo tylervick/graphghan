@@ -27,4 +27,11 @@ import Testing
         let (w, h) = ChartPreview.size(width: 1000, height: 10, aspect: 1, maxSide: 300)
         #expect(w == 1000 && h == 10)
     }
+
+    @Test func theGroundIsTransparent() throws {
+        let chart = try Chart.load(Fixtures.data("shaped-basic.chart.json"))
+        let px = try #require(ChartPreview.pixels(chart))
+        #expect(Array(px[0..<4]) == [0, 0, 0, 0])            // (0, 0) is N, the ground
+        #expect(Array(px[8..<12]) == [0x11, 0x22, 0x33, 255]) // (2, 0) is A
+    }
 }

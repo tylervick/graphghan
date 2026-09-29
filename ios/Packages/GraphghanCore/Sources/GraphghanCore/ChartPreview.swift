@@ -9,23 +9,9 @@ public enum ChartPreview {
     public static func png(_ chart: Chart, maxSide: Int = 512) -> Data? {
         let w = chart.width
         let h = chart.height
-        guard w > 0, h > 0, chart.cells.count == w * h else { return nil }
         // `Chart.load` has already refused a palette entry whose hex is not `#rrggbb`; a chart
         // that still fails here is not drawn rather than drawn black.
-        var rgb: [(UInt8, UInt8, UInt8)] = []
-        for entry in chart.palette {
-            guard entry.hex.hasPrefix("#"), entry.hex.count == 7, let v = UInt32(entry.hex.dropFirst(), radix: 16) else { return nil }
-            rgb.append((UInt8((v >> 16) & 0xff), UInt8((v >> 8) & 0xff), UInt8(v & 0xff)))
-        }
-        var pixels = [UInt8](repeating: 0, count: w * h * 4)
-        for i in 0..<(w * h) {
-            let index = Int(chart.cells[i])
-            let p = index < rgb.count ? rgb[index] : (0, 0, 0)
-            pixels[i * 4] = p.0
-            pixels[i * 4 + 1] = p.1
-            pixels[i * 4 + 2] = p.2
-            pixels[i * 4 + 3] = 255
-        }
+        guard let pixels = pixels(chart) else { return nil }
         let space = CGColorSpaceCreateDeviceRGB()
         let info = CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue)
         guard let provider = CGDataProvider(data: Data(pixels) as CFData),
@@ -51,5 +37,29 @@ public enum ChartPreview {
     public static func size(width w: Int, height h: Int, aspect: Double, maxSide: Int) -> (Int, Int) {
         let scale = max(1, min(Double(maxSide) / Double(w), Double(maxSide) / (Double(h) * aspect)))
         return (max(w, Int((Double(w) * scale).rounded())), max(1, Int((Double(h) * aspect * scale).rounded())))
+    }
+
+    /// One RGBA pixel per cell, premultiplied, top row first. A shaped piece's ground is clear, so
+    /// the preview is the piece's shape (spec §6.3). Nil when a palette hex does not parse.
+    public static func pixels(_ chart: Chart) -> [UInt8]? {
+        let w = chart.width
+        let h = chart.height
+        guard w > 0, h > 0, chart.cells.count == w * h else { return nil }
+        var rgb: [(UInt8, UInt8, UInt8)] = []
+        for entry in chart.palette {
+            guard entry.hex.hasPrefix("#"), entry.hex.count == 7, let v = UInt32(entry.hex.dropFirst(), radix: 16) else { return nil }
+            rgb.append((UInt8((v >> 16) & 0xff), UInt8((v >> 8) & 0xff), UInt8(v & 0xff)))
+        }
+        var pixels = [UInt8](repeating: 0, count: w * h * 4)
+        for i in 0..<(w * h) {
+            let index = Int(chart.cells[i])
+            guard chart.isStitched(colorIndex: index) else { continue }   // stays 0, 0, 0, 0
+            let p = index < rgb.count ? rgb[index] : (0, 0, 0)
+            pixels[i * 4] = p.0
+            pixels[i * 4 + 1] = p.1
+            pixels[i * 4 + 2] = p.2
+            pixels[i * 4 + 3] = 255
+        }
+        return pixels
     }
 }
