@@ -165,4 +165,26 @@ import GraphghanCore
         #expect(boundary(1, .ribbon) == CGFloat((7 - 2) * 8))   // mirrored: grid column 2 at content 5
         #expect(boundary(2, .ribbon) == CGFloat(6 * 8))   // ltr is never mirrored
     }
+
+    /// Fix round 1 (#37): `spanLeft`/`spanRight` hold the pass's stitched span in content x at
+    /// every cursor position, not just at the boundary, so `drawFolds` can anchor its fold arcs to
+    /// where the stitches actually end instead of the chart's raw edges.
+    @Test func spanEdgesFollowTheShapeInEitherStyle() throws {
+        let chart = try Chart.load(TestFixtures.data("shaped-basic.chart.json"))
+        let seq = try WorkSequence(chart: chart)
+        func span(_ row: Int, _ style: BandStyle) -> (CGFloat, CGFloat) {
+            let pass = seq.pass(at: row)!
+            let l = BandLayout(width: 366, height: 420, chart: chart, pass: pass, cursor: Cursor(row: row, run: 0), segmentLabel: nil, style: style)
+            return (l.spanLeft, l.spanRight)
+        }
+        // Cast on the right: see the note in longRunTicksEveryTen above.
+        var (left, right) = span(1, .fabric)
+        #expect(left == CGFloat(2 * 8) && right == CGFloat(5 * 8))
+        (left, right) = span(1, .ribbon)   // mirrored: grid columns 2 and 5 land at content 40 and 16
+        #expect(left == CGFloat((7 - 5) * 8) && right == CGFloat((7 - 2) * 8))
+        (left, right) = span(2, .fabric)
+        #expect(left == CGFloat(1 * 8) && right == CGFloat(6 * 8))
+        let craigh = Self.layout(Cursor(row: 42, run: 0))
+        #expect(craigh.spanLeft == 0 && craigh.spanRight == CGFloat(189 * 8))   // full row: the chart's own edges
+    }
 }

@@ -190,8 +190,8 @@ struct ChartBand: View {
     private func drawFolds(context: inout GraphicsContext, layout: BandLayout, offset: CGFloat, size: CGSize) {
         let top = layout.rowTop(0)
         let bottom = top + layout.rowHeight(0)
-        let rightX = CGFloat(chart.width) * BandLayout.cell - offset
-        let leftX = -offset
+        let rightX = layout.spanRight - offset
+        let leftX = layout.spanLeft - offset
         let style = StrokeStyle(lineWidth: 2, dash: [3, 3])
         // Only where the engine has a turn step (spec §4.4): a chart worked in the round has no fold
         // between passes, so the ribbon there is one unbroken line and draws no arc and no label.

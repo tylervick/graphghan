@@ -74,4 +74,14 @@ import GraphghanCore
             #expect(try Snapshots.assert(view, named: name, size: Self.size))
         }
     }
+
+    /// Fix round 1 (#37): in ribbon style, the fold arc anchors to the stitched span's edge, not
+    /// the chart's raw edge, so on a shaped row it sits with the boundary marker and the stitches.
+    @Test func shapedRibbonFoldSitsWithTheStitches() throws {
+        let chart = try Chart.load(TestFixtures.data("shaped-basic.chart.json"))
+        let seq = try WorkSequence(chart: chart)
+        let view = ChartBand(chart: chart, sequence: seq, cursor: Cursor(row: 1, run: 1), segmentLabel: nil, mode: .band, style: .ribbon,
+                             onAdvance: {}, onJump: { _, _ in }, onToggleMode: {}).background(Color.ground)
+        #expect(try Snapshots.assert(view, named: "band-shaped-ribbon", size: Self.size))
+    }
 }

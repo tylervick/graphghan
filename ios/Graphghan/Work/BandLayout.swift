@@ -54,6 +54,10 @@ struct BandLayout {
     let ticks: [(x: CGFloat, label: Int)]
     let bracket: (x0: CGFloat, x1: CGFloat, label: String)?
     let boundaryX: CGFloat?
+    /// The pass's stitched span in content x (left and right edges); the chart's full width for an
+    /// unshaped row, so folds and other landmarks anchor to where the stitches actually are.
+    let spanLeft: CGFloat
+    let spanRight: CGFloat
 
     init(width: CGFloat, height: CGFloat, chart: Chart, pass: Pass, cursor: Cursor, segmentLabel: String?, style: BandStyle = .fabric) {
         self.width = width
@@ -73,16 +77,21 @@ struct BandLayout {
         // content x of the boundary between grid columns c-1 and c
         func edge(_ c: Int) -> CGFloat { mirrored ? CGFloat(chart.width - c) * cell : CGFloat(c) * cell }
 
+        // The pass's stitched span, in grid columns: the min run start and max run end. A shaped
+        // row's span sits inside the chart (spec §6.3); a full row's span is the chart, as before.
+        let xs = pass.runs.compactMap { r in r.x0.map { ($0, $0 + r.count) } }
+        let lo = xs.map(\.0).min() ?? 0
+        let hi = xs.map(\.1).max() ?? chart.width
+        let spanA = edge(lo), spanB = edge(hi)
+        spanLeft = min(spanA, spanB)
+        spanRight = max(spanA, spanB)
+
         if cursor.run == pass.runs.count {
             ring = nil
             hook = nil
             ticks = []
             bracket = nil
-            // The turn is where the stitches end: the stitched span's edge, which on a shaped row
-            // is inside the chart (spec §6.3); a full row's span is the chart, as before.
-            let xs = pass.runs.compactMap { r in r.x0.map { ($0, $0 + r.count) } }
-            let lo = xs.map(\.0).min() ?? 0
-            let hi = xs.map(\.1).max() ?? chart.width
+            // The turn is where the stitches end: the stitched span's edge.
             let endX = edge(ltr ? hi : lo)
             boundaryX = endX
             offsetX = clamp(flow ? endX - width : 0)
