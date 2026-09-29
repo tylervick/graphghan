@@ -149,6 +149,17 @@ struct PDFImporter: Sendable {
     /// The smallest grid that counts as a chart (spec §5.1).
     static let minimumGridSide = 8
 
+    /// The chart's own written rows as its `written` text (spec 2026-09-25 §5.1): one printed row
+    /// per pass, row 1 first. Only when the section prints every row 1...height once, in order,
+    /// one row to a block; a range, a gap or a row printed twice leaves `written` out rather than
+    /// set a row beside another row's words.
+    static func writtenRows(_ section: RowSection?, height: Int) -> [String]? {
+        guard let section, section.blocks.count == height else { return nil }
+        for (i, block) in section.blocks.enumerated()
+        where !RowText.isSingleRow(block.text) || RowText.rowNumbers(of: block.text) != [i + 1] { return nil }
+        return section.blocks.map { $0.text.trimmingCharacters(in: .whitespacesAndNewlines) }
+    }
+
     func readGrid(_ document: PDFDocument, texts: [String], title: String, fileName: String,
                   progress: (@Sendable (PDFImportProgress) -> Void)?) async throws(PDFImportError) -> PDFImportReading? {
         var best: (page: Int, region: Region)?
@@ -167,7 +178,7 @@ struct PDFImporter: Sendable {
         }
         guard let best, let page = document.page(at: best.page), let image = PageRenderer.image(page) else { return nil }
         let patternTitle = title.isEmpty ? Self.stem(fileName) : title
-        let draft: ChartDraft
+        var draft: ChartDraft
         let gridWarnings: [String]
         do { (draft, _, gridWarnings) = try GridChart.draft(image: image, region: best.region, title: patternTitle) }
         catch GridColoursError.tooManyColours(let n) { throw .invalidChart("the chart has \(n) colours, more than the 256 a chart can hold") }
@@ -176,6 +187,9 @@ struct PDFImporter: Sendable {
         // panel, a body, a strap, or construction rows that name no colour at all (#176, #197, #198).
         let own = RowText.section(fitting: best.region.rows, in: texts)
         let rowsToCheck = own?.rows ?? 0
+        // The pattern's own words for each row go with the chart, so the Work screen can say how
+        // a shaped row's stitches are added or taken away (#37).
+        draft.written = Self.writtenRows(own, height: best.region.rows)
         var reading = try await assemble(draft: draft, title: patternTitle, version: "0.1.0", fileName: fileName, texts: texts,
                                          source: .grid(page: best.page + 1, rowsToCheck: rowsToCheck), warnings: warnings + gridWarnings)
         // The other chart regions and sets of rows are named on the sheet, not dropped silently (#206).

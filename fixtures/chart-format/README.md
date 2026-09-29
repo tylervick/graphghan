@@ -11,6 +11,7 @@ package, the iOS app, yours) is expected to:
 - refuse to sequence a chart that has no `*.sequence.json` (unknown technique, no passes) while
   still decoding it for display;
 - reproduce `<name>.progress.expected.json` from `<name>.progress.json` (see docs/chart-format.md).
+- reproduce `shaped-basic.shaping.json` from the sequence it derives.
 
 `filet-blocks` pins `chart.cell: {"kind": "block"}` (docs/research/genres/filet.md, #44): a chart
 whose grid cell is a filet block, not a stitch, opens, works and sequences like any other, but its
@@ -27,6 +28,20 @@ and withholds the size.
 inside a run, the boundary position after a row, a Back onto the boundary, and a jump into a run.
 A reader that ignores `stitch` still validates the document; one that reads it reproduces the
 expected summary.
+
+`shaped-basic` pins chart schema 3 (spec 2026-09-25 §5.1, #37): palette code `N` is
+`"stitch": false`, the ground of a shaped piece. It stays in the grid so the grid is the picture,
+and every reader leaves it out of the working order, the counts and the foundation rule: pass 1 is
+3 stitches at `x0` 2 on a 7-wide chart. `shaped-basic.shaping.json` pins the shaping derived for
+each pass (`{"start", "end"}` in the pass's reading direction, `null` for pass 1).
+`progress-shaped` pins that the ground never enters `total_cells`.
+
+`refused/` (spec §9) holds five otherwise-valid schema-3 documents, each broken exactly one way:
+a no-stitch cell between stitches (#210's case), a row of only no-stitch, two no-stitch codes, a
+foundation shorter than pass 1's span, and `written` of the wrong length. Every reader must refuse
+each one (and still validate it against `schema/chart.schema.json` — the refusal comes from the
+rule named in its `ext.fixture.refuses`, which docs/chart-format.md states). They live in a
+subdirectory precisely so the top-level `*.chart.json` globs above do not pick them up.
 
 The two readers in this repo are enforced against these fixtures in their own suites:
 `tests/test_conformance.py` for `graphghan.chartdoc`, and `GraphghanCoreTests` for the Swift

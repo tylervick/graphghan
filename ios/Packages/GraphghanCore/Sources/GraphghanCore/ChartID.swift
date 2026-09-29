@@ -2,13 +2,13 @@ import CryptoKit
 import Foundation
 
 /// `chart.id`: SHA-256 over the canonical JSON of the codes, rows, technique and (when it is a
-/// list) passes and (when it is an object) cell. Names, hexes, yarn, instructions and stats
-/// never affect it. See docs/chart-format.md.
+/// list) passes and (when it is an object) cell and (when a palette colour is "stitch": false)
+/// that code. Names, hexes, yarn, instructions and stats never affect it. See docs/chart-format.md.
 public enum ChartID {
     public static let prefix = "sha256:"
 
     public static func compute(codes: [String], rows: [String], technique: JSONValue,
-                               passes: JSONValue?, cell: JSONValue? = nil) -> String {
+                               passes: JSONValue?, cell: JSONValue? = nil, noStitch: String? = nil) -> String {
         var object: [String: JSONValue] = [
             "codes": .array(codes.map(JSONValue.string)),
             "rows": .array(rows.map(JSONValue.string)),
@@ -16,6 +16,7 @@ public enum ChartID {
         ]
         if let passes, case .array = passes { object["passes"] = passes }
         if let cell, case .object = cell { object["cell"] = cell }
+        if let noStitch { object["no_stitch"] = .string(noStitch) }   // it changes the sequence (spec §5.1)
         let canonical = CanonicalJSON.encode(.object(object))
         let digest = SHA256.hash(data: Data(canonical.utf8))
         return prefix + digest.map { String(format: "%02x", $0) }.joined()

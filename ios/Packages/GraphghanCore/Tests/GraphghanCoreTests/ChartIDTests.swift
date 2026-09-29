@@ -48,7 +48,10 @@ import Testing
         let rows = try #require(doc["rows"] as? [String])
         let technique = try #require(tree["technique"])
         let expected = try #require((doc["chart"] as? [String: Any])?["id"] as? String)
-        #expect(ChartID.compute(codes: codes, rows: rows, technique: technique, passes: tree["passes"], cell: tree["chart"]?["cell"]) == expected)
+        // schema 3's no-stitch colour changes the id (spec §5.1); every other fixture has none.
+        let noStitch = palette.first { ($0["stitch"] as? Bool) == false }?["code"] as? String
+        #expect(ChartID.compute(codes: codes, rows: rows, technique: technique, passes: tree["passes"],
+                                cell: tree["chart"]?["cell"], noStitch: noStitch) == expected)
     }
 
     @Test func chartIDIncludesCellWhenPresent() throws {

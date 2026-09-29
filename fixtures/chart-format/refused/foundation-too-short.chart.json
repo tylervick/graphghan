@@ -1,0 +1,80 @@
+{
+  "schema": 3,
+  "pattern": {
+    "id": "shaped-basic",
+    "title": "Shaped basic",
+    "version": "1.0.0",
+    "author": "graphghan fixtures",
+    "license": "MIT"
+  },
+  "chart": {
+    "id": "sha256:98967271a405be50e162187b5b7839e8334b346ec160848ab488fda8be67a9a9",
+    "variant": "final",
+    "gauge_key": "sc",
+    "width": 7,
+    "height": 5
+  },
+  "generator": {
+    "name": "graphghan-fixtures",
+    "version": "1"
+  },
+  "palette": [
+    {
+      "code": "A",
+      "name": "Color A",
+      "hex": "#112233"
+    },
+    {
+      "code": "B",
+      "name": "Color B",
+      "hex": "#ffffff"
+    },
+    {
+      "code": "N",
+      "name": "Color N",
+      "hex": "#a4dade",
+      "stitch": false,
+      "use": "no stitch"
+    }
+  ],
+  "rows": [
+    "2N3A2N",
+    "1N2A1B3A",
+    "3A1B3A",
+    "1N5A1N",
+    "2N3A2N"
+  ],
+  "gauge": {
+    "stitches": 14.0,
+    "rows": 16.0,
+    "over": {
+      "value": 4,
+      "unit": "in"
+    },
+    "stitch": "sc"
+  },
+  "technique": {
+    "type": "rows",
+    "start": "bottom",
+    "first_side": "RS",
+    "rs_direction": "rtl",
+    "turn": true
+  },
+  "instructions": [],
+  "foundation": {
+    "chain": 3,
+    "first_stitch_in": 2
+  },
+  "written": [
+    "R 1: ch 4, from the second chain from the hook, 3 sc [3]",
+    "R 2: ch 1, turn, 1 inc, 1 sc, 1 inc [5]",
+    "R 3: ch 1, turn, 1 inc, 1 sc, (B) 1 sc, (A) 1 sc, 1 inc [7]",
+    "R 4: ch 1, turn, 1 dec, 1 sc, (B) 1 sc, (A) 3 sc [6]",
+    "R 5: sl st across 2, ch 1, 3 sc, leave 1 unworked [3]"
+  ],
+  "ext": {
+    "fixture": {
+      "refuses": "foundation-too-short"
+    }
+  }
+}

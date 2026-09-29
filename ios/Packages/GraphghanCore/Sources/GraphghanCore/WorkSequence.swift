@@ -126,7 +126,9 @@ public struct WorkSequence: Sendable {
                 side = firstSide
                 direction = rsDirection
             }
-            var runs = chart.runsByRow[y].map { Run(code: chart.palette[$0.colorIndex].code, count: $0.count, x0: $0.x0) }
+            // A shaped piece's ground is no stitch: nothing to work (spec §5.1).
+            var runs = chart.runsByRow[y].filter { chart.isStitched(colorIndex: $0.colorIndex) }
+                .map { Run(code: chart.palette[$0.colorIndex].code, count: $0.count, x0: $0.x0) }
             if direction == .rtl { runs.reverse() }
             passes.append(Pass(label: "\(label) \(k)", side: side, direction: direction, gridRow: y, runs: runs))
         }
@@ -143,6 +145,9 @@ public struct WorkSequence: Sendable {
                     throw SequenceError.malformedPasses("passes[\(i)].runs[\(j)] is malformed")
                 }
                 guard chart.colorIndex(of: code) != nil else { throw SequenceError.malformedPasses("passes[\(i)].runs[\(j)] uses unknown code \(code)") }
+                if let ns = chart.noStitchIndex, chart.colorIndex(of: code) == ns {
+                    throw SequenceError.malformedPasses("passes[\(i)].runs[\(j)] is the no-stitch colour")
+                }
                 return Run(code: code, count: count, x0: ro["x0"]?.intValue)
             }
             guard !runs.isEmpty else { throw SequenceError.malformedPasses("passes[\(i)].runs is empty") }

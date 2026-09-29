@@ -1,0 +1,89 @@
+{
+  "passes": [
+    {
+      "label": "Row 1",
+      "side": "RS",
+      "direction": "rtl",
+      "grid_row": 4,
+      "runs": [
+        {
+          "code": "A",
+          "count": 3,
+          "x0": 2
+        }
+      ]
+    },
+    {
+      "label": "Row 2",
+      "side": "WS",
+      "direction": "ltr",
+      "grid_row": 3,
+      "runs": [
+        {
+          "code": "A",
+          "count": 5,
+          "x0": 1
+        }
+      ]
+    },
+    {
+      "label": "Row 3",
+      "side": "RS",
+      "direction": "rtl",
+      "grid_row": 2,
+      "runs": [
+        {
+          "code": "A",
+          "count": 3,
+          "x0": 4
+        },
+        {
+          "code": "B",
+          "count": 1,
+          "x0": 3
+        },
+        {
+          "code": "A",
+          "count": 3,
+          "x0": 0
+        }
+      ]
+    },
+    {
+      "label": "Row 4",
+      "side": "WS",
+      "direction": "ltr",
+      "grid_row": 1,
+      "runs": [
+        {
+          "code": "A",
+          "count": 2,
+          "x0": 1
+        },
+        {
+          "code": "B",
+          "count": 1,
+          "x0": 3
+        },
+        {
+          "code": "A",
+          "count": 3,
+          "x0": 4
+        }
+      ]
+    },
+    {
+      "label": "Row 5",
+      "side": "RS",
+      "direction": "rtl",
+      "grid_row": 0,
+      "runs": [
+        {
+          "code": "A",
+          "count": 3,
+          "x0": 2
+        }
+      ]
+    }
+  ]
+}

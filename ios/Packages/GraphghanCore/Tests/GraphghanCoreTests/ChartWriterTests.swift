@@ -40,4 +40,12 @@ import Testing
         #expect(text.hasPrefix("{\"chart\":{") && !text.contains("\n"))
         #expect(a.id == "sha256:2b8df35ef492162668789c9dd128123590a5ca9e3e2758b361baf571e52d6f7f")  // fixtures/bundle/craigh-na-dun.graphghan, charts/final-hdc/chart.json
     }
+
+    @Test func writtenRowsRoundTrip() throws {
+        var draft = ChartDraft(pattern: .init(id: "t", title: "T", version: "0.1.0"),
+                               palette: [.init(code: "A", name: "a", hex: "#000000")], rows: ["2A", "2A"], width: 2, height: 2, gauge: .init())
+        draft.written = ["R 1: 2 sc [2]", "R 2: ch 1, turn, 2 sc [2]"]
+        let chart = try Chart.load(ChartWriter.encode(draft).data)
+        #expect(chart.written == draft.written && chart.document.schema == 2)
+    }
 }

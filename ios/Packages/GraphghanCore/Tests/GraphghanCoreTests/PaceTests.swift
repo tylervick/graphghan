@@ -13,7 +13,7 @@ import Testing
         }
     }
 
-    @Test(arguments: ["progress-basic", "progress-stitch"]) func matchesTheProgressFixture(_ name: String) throws {
+    @Test(arguments: ["progress-basic", "progress-stitch", "progress-shaped"]) func matchesTheProgressFixture(_ name: String) throws {
         let doc = try ProgressDocument.decode(Fixtures.data("\(name).progress.json"))
         let raw = try Fixtures.json("\(name).progress.json")
         let chartName = try #require(((raw["ext"] as? [String: Any])?["fixture"] as? [String: Any])?["chart"] as? String)

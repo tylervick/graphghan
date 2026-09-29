@@ -28,11 +28,21 @@ ROUNDS_T = {"type": "rounds", "start": "bottom", "first_side": "RS", "rs_directi
 GAUGE = {"stitches": 14.0, "rows": 16.0, "over": {"value": 4, "unit": "in"}, "stitch": "sc"}
 
 
-def chart(pid, title, palette, rows, technique, passes=None, layers=None, cell=None, gauge=None):
+def _palette_entry(code, hex_, no_stitch):
+    entry = {"code": code, "name": f"Color {code}", "hex": hex_}
+    if code == no_stitch:  # schema 3: the ground of a shaped piece (spec 2026-09-25 §5.1)
+        entry["stitch"] = False
+        entry["use"] = "no stitch"
+    return entry
+
+
+def chart(
+    pid, title, palette, rows, technique, passes=None, layers=None, cell=None, gauge=None, no_stitch=None
+):
     codes = [c for c, _ in palette]
     width = sum(int(n) for n, _ in re.findall(r"(\d+)([A-Za-z]{1,3})", rows[0]))
     chart_block = {
-        "id": chart_id(codes, rows, technique, passes, cell),
+        "id": chart_id(codes, rows, technique, passes, cell, no_stitch),
         "variant": "final",
         "gauge_key": "sc",
         "width": width,
@@ -41,7 +51,7 @@ def chart(pid, title, palette, rows, technique, passes=None, layers=None, cell=N
     if cell is not None:
         chart_block["cell"] = cell
     doc = {
-        "schema": 2,
+        "schema": 3 if no_stitch is not None else 2,
         "pattern": {
             "id": pid,
             "title": title,
@@ -51,7 +61,7 @@ def chart(pid, title, palette, rows, technique, passes=None, layers=None, cell=N
         },
         "chart": chart_block,
         "generator": {"name": "graphghan-fixtures", "version": "1"},
-        "palette": [{"code": c, "name": f"Color {c}", "hex": h} for c, h in palette],
+        "palette": [_palette_entry(c, h, no_stitch) for c, h in palette],
         "rows": rows,
         "gauge": dict(gauge) if gauge is not None else dict(GAUGE),
         "technique": technique,
@@ -195,6 +205,103 @@ TILES_SEQ = [
     p("Row 6", "WS", "ltr", 0, [run("B", 1, 0), run("A", 5, 1)]),
 ]
 
+# The shaped-basic fixture (chart schema 3, spec 2026-09-25 §5.1, #37): Orca's shape at toy size.
+# N is the ground no one stitches. Pass 1 is 3 stitches, grows one at each edge twice, loses one
+# at the start of pass 4 (an asymmetric row), and narrows to 3 on pass 5 -- so the shaping file
+# pins +, -, 0 and a two-cell change, in both reading directions.
+SHAPED_PALETTE = [("A", "#112233"), ("B", "#ffffff"), ("N", "#a4dade")]
+SHAPED_ROWS = ["2N3A2N", "1N2A1B3A", "3A1B3A", "1N5A1N", "2N3A2N"]
+SHAPED_WRITTEN = [
+    "R 1: ch 4, from the second chain from the hook, 3 sc [3]",
+    "R 2: ch 1, turn, 1 inc, 1 sc, 1 inc [5]",
+    "R 3: ch 1, turn, 1 inc, 1 sc, (B) 1 sc, (A) 1 sc, 1 inc [7]",
+    "R 4: ch 1, turn, 1 dec, 1 sc, (B) 1 sc, (A) 3 sc [6]",
+    "R 5: sl st across 2, ch 1, 3 sc, leave 1 unworked [3]",
+]
+# Hand-written expected sequence and shaping, worked out from SHAPED_ROWS as the other fixtures are.
+SHAPED_SEQ = [
+    p("Row 1", "RS", "rtl", 4, [run("A", 3, 2)]),
+    p("Row 2", "WS", "ltr", 3, [run("A", 5, 1)]),
+    p("Row 3", "RS", "rtl", 2, [run("A", 3, 4), run("B", 1, 3), run("A", 3, 0)]),
+    p("Row 4", "WS", "ltr", 1, [run("A", 2, 1), run("B", 1, 3), run("A", 3, 4)]),
+    p("Row 5", "RS", "rtl", 0, [run("A", 3, 2)]),
+]
+SHAPED_SHAPING = [
+    None,
+    {"start": 1, "end": 1},
+    {"start": 1, "end": 1},
+    {"start": -1, "end": 0},
+    {"start": -2, "end": -1},
+]
+
+
+def shaped_basic_chart() -> dict:
+    codes = [c for c, _ in SHAPED_PALETTE]
+    doc = chart("shaped-basic", "Shaped basic", SHAPED_PALETTE, SHAPED_ROWS, ROWS_T, no_stitch="N")
+    doc["foundation"] = {"chain": 4, "first_stitch_in": 2}
+    doc["written"] = SHAPED_WRITTEN
+    a = decode_rows(SHAPED_ROWS, codes)
+    doc["stats"] = chart_stats(a, codes, sized=size_derives(doc), no_stitch=codes.index("N"))
+    return doc
+
+
+# Refusal fixtures (spec §9, fixtures/chart-format/refused/): each mutates shaped-basic exactly one
+# way and is otherwise valid -- schema-clean, chart.id recomputed -- so the only reason a reader
+# refuses it is the rule named in ext.fixture.refuses. `stats` is dropped: these are not worked.
+def _refusal_base() -> dict:
+    doc = json.loads(dump(shaped_basic_chart()))
+    doc.pop("stats", None)
+    return doc
+
+
+def _recompute_chart_id(doc: dict) -> None:
+    """Chart id, width and height after a rows/palette mutation, using the no-stitch code the way
+    a reader derives it: the first palette entry marked `"stitch": false` (chartdoc.no_stitch_code)."""
+    codes = [p["code"] for p in doc["palette"]]
+    ns = next((p["code"] for p in doc["palette"] if p.get("stitch") is False), None)
+    doc["chart"]["id"] = chart_id(
+        codes, doc["rows"], doc["technique"], doc.get("passes"), doc["chart"].get("cell"), ns
+    )
+    doc["chart"]["width"] = sum(int(n) for n, _ in re.findall(r"(\d+)([A-Za-z]{1,3})", doc["rows"][0]))
+    doc["chart"]["height"] = len(doc["rows"])
+
+
+def _refuses(name: str, mutate) -> dict:
+    doc = _refusal_base()
+    mutate(doc)
+    _recompute_chart_id(doc)
+    doc["ext"] = {"fixture": {"refuses": name}}
+    return doc
+
+
+def refused_fixtures() -> dict[str, dict]:
+    """name -> chart doc for fixtures/chart-format/refused/ (spec §9)."""
+
+    def gap_in_row(d):
+        d["rows"][0] = "1A1N5A"
+
+    def row_without_stitches(d):
+        d["rows"][0] = "7N"
+
+    def two_no_stitch_codes(d):
+        for p in d["palette"]:
+            if p["code"] == "B":
+                p["stitch"] = False
+
+    def foundation_too_short(d):
+        d["foundation"] = {"chain": 3, "first_stitch_in": 2}
+
+    def written_wrong_length(d):
+        d["written"] = d["written"][:1]
+
+    return {
+        "gap-in-row": _refuses("gap-in-row", gap_in_row),
+        "row-without-stitches": _refuses("row-without-stitches", row_without_stitches),
+        "two-no-stitch-codes": _refuses("two-no-stitch-codes", two_no_stitch_codes),
+        "foundation-too-short": _refuses("foundation-too-short", foundation_too_short),
+        "written-wrong-length": _refuses("written-wrong-length", written_wrong_length),
+    }
+
 
 def ev(t, row, run, kind="advance"):
     return {"t": t, "row": row, "run": run, "kind": kind}
@@ -254,6 +361,26 @@ PROGRESS_STITCH_EXPECTED = {
     "stitches_per_hour": 480.0,
 }
 
+# A cursor on the shaped chart: 3 + 5 cells of passes 1-2 and pass 3's first run of 3 are done,
+# of 24 stitched cells -- the ground never enters the denominator.
+PROGRESS_SHAPED_EVENTS = [
+    ev("2026-09-12T18:00:00Z", 2, 0),
+    ev("2026-09-12T18:05:00Z", 3, 0),
+    ev("2026-09-12T18:10:00Z", 3, 1),
+]
+PROGRESS_SHAPED_EXPECTED = {
+    "percent": 45.8,
+    "cells_done": 11,
+    "total_cells": 24,
+    "stitches_done": 11,
+    "total_stitches": 24,
+    "sessions": [
+        {"start": "2026-09-12T18:00:00Z", "end": "2026-09-12T18:10:00Z", "cells": 11, "stitches": 11},
+    ],
+    "active_seconds": 600,
+    "stitches_per_hour": 66.0,
+}
+
 
 def progress_fixtures(charts: dict) -> dict[str, tuple[dict, dict]]:
     """name -> (progress doc, expected summary). Each names the chart fixture it runs against."""
@@ -280,9 +407,22 @@ def progress_fixtures(charts: dict) -> dict[str, tuple[dict, dict]]:
         "events": PROGRESS_STITCH_EVENTS,
         "ext": {"fixture": {"chart": "minimal-rows"}},
     }
+    shaped_chart = charts["shaped-basic"][0]
+    shaped_doc = {
+        "schema": 1,
+        "pattern_id": "shaped-basic",
+        "chart_id": shaped_chart["chart"]["id"],
+        "pattern_version": "1.0.0",
+        "cursor": {"row": 3, "run": 1},
+        "started": "2026-09-12T18:00:00Z",
+        "finished": None,
+        "events": PROGRESS_SHAPED_EVENTS,
+        "ext": {"fixture": {"chart": "shaped-basic"}},
+    }
     return {
         "progress-basic": (doc, PROGRESS_BASIC_EXPECTED),
         "progress-stitch": (stitch_doc, PROGRESS_STITCH_EXPECTED),
+        "progress-shaped": (shaped_doc, PROGRESS_SHAPED_EXPECTED),
     }
 
 
@@ -356,6 +496,7 @@ def fixtures() -> dict[str, tuple[dict, dict | None]]:
             ),
             {"passes": TILES_SEQ},
         ),
+        "shaped-basic": (shaped_basic_chart(), {"passes": SHAPED_SEQ}),
         "craigh-na-dun": (craigh, {"sha256": hashlib.sha256(canonical_passes(sequence(craigh))).hexdigest()}),
     }
 
@@ -375,6 +516,11 @@ def main(out_dir: Path) -> None:
     for name, (doc, expected) in progress_fixtures(charts).items():
         (out_dir / f"{name}.progress.json").write_text(dump(doc), encoding="utf-8")
         (out_dir / f"{name}.progress.expected.json").write_text(dump(expected), encoding="utf-8")
+    (out_dir / "shaped-basic.shaping.json").write_text(dump({"shaping": SHAPED_SHAPING}), encoding="utf-8")
+    refused_dir = out_dir / "refused"
+    refused_dir.mkdir(parents=True, exist_ok=True)
+    for name, doc in refused_fixtures().items():
+        (refused_dir / f"{name}.chart.json").write_text(dump(doc), encoding="utf-8")
 
 
 if __name__ == "__main__":

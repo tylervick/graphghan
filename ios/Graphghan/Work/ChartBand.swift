@@ -101,17 +101,20 @@ struct ChartBand: View {
 
     private func drawRow(gridRow: Int, top: CGFloat, height: CGFloat, opacity: Double, context: inout GraphicsContext, layout: BandLayout, offset: CGFloat) {
         guard gridRow >= 0, gridRow < chart.height else { return }
-        let cell = BandLayout.cell
-        for run in chart.runsByRow[gridRow] {
+        // A shaped piece's ground is the band's own ground: no yarn, no hairlines (spec §6.3).
+        let runs = chart.runsByRow[gridRow].filter { chart.isStitched(colorIndex: $0.colorIndex) }
+        for run in runs {
             let rect = layout.runRect(x0: run.x0, count: run.count, top: top, height: height).offsetBy(dx: -offset, dy: 0)
             context.fill(Path(rect), with: .color(fill(run.colorIndex).opacity(opacity)))
         }
-        // cell hairlines, then the row's bottom hairline
-        for x in 0...chart.width {
-            let px = CGFloat(x) * cell - offset
+        guard let lo = runs.map(\.x0).min(), let hi = runs.map({ $0.x0 + $0.count }).max() else { return }
+        // cell hairlines across the stitched span, then the span's bottom hairline
+        for x in lo...hi {
+            let px = layout.edge(x) - offset
             context.fill(Path(CGRect(x: px - 0.25, y: top, width: 0.5, height: height)), with: .color(Color.ink.opacity(0.10 * opacity)))
         }
-        context.fill(Path(CGRect(x: -offset, y: top + height - 0.25, width: CGFloat(chart.width) * cell, height: 0.5)), with: .color(Color.ink.opacity(0.15 * opacity)))
+        let a = layout.edge(lo), b = layout.edge(hi)
+        context.fill(Path(CGRect(x: min(a, b) - offset, y: top + height - 0.25, width: abs(b - a), height: 0.5)), with: .color(Color.ink.opacity(0.15 * opacity)))
     }
 
     private func drawBand(context: inout GraphicsContext, layout: BandLayout, pass: Pass, size: CGSize) {
@@ -187,8 +190,8 @@ struct ChartBand: View {
     private func drawFolds(context: inout GraphicsContext, layout: BandLayout, offset: CGFloat, size: CGSize) {
         let top = layout.rowTop(0)
         let bottom = top + layout.rowHeight(0)
-        let rightX = CGFloat(chart.width) * BandLayout.cell - offset
-        let leftX = -offset
+        let rightX = layout.spanRight - offset
+        let leftX = layout.spanLeft - offset
         let style = StrokeStyle(lineWidth: 2, dash: [3, 3])
         // Only where the engine has a turn step (spec §4.4): a chart worked in the round has no fold
         // between passes, so the ribbon there is one unbroken line and draws no arc and no label.
@@ -217,7 +220,7 @@ struct ChartBand: View {
         let worked = Set((1..<cursor.row).compactMap { sequence.pass(at: $0)?.gridRow })
         for gy in 0..<chart.height {
             let opacity: Double = worked.contains(gy) || gy == currentGridRow ? 1 : 0.28
-            for run in chart.runsByRow[gy] {
+            for run in chart.runsByRow[gy] where chart.isStitched(colorIndex: run.colorIndex) {
                 let r = CGRect(x: rect.minX + CGFloat(run.x0) * cw, y: rect.minY + CGFloat(gy) * ch, width: CGFloat(run.count) * cw + 0.3, height: ch + 0.3)
                 context.fill(Path(r), with: .color(fill(run.colorIndex).opacity(opacity)))
             }

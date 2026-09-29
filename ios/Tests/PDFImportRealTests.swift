@@ -143,4 +143,29 @@ import ProseReaderKit
         let reading = try await importer.read(data, fileName: file)
         #expect(reading.contents?.sentence == sentence, "\(file): \(String(describing: reading.contents))")
     }
+
+    /// Orca's front panel is a shaped piece (#37): chart schema 3, 9 stitches at row 1 from grid
+    /// column 6, 29 at the widest, 3 at row 77, 1805 stitches in all (the Python's grid read of
+    /// page 9 region 1), and its own 77 written rows as the chart's `written` text.
+    @Test func orcaIsAShapedPiece() async throws {
+        let file = "EN_OrcaCrossbodyBagPDFPattern.pdf"
+        let url = TestFixtures.root.appendingPathComponent("fixtures/import/real/\(file)")
+        guard let data = try? Data(contentsOf: url) else {
+            print("SKIP real fixture \(file) is absent; see fixtures/import/real/README.md")
+            return
+        }
+        let importer = PDFImporter(charts: ChartLibrary(directory: try temporaryDirectory()), local: LocalPatternStore(directory: try temporaryDirectory()),
+                                   rowReader: nil, modelUnavailable: nil)
+        let reading = try await importer.read(data, fileName: file)
+        let chart = reading.bundle.charts[0].chart
+        #expect(chart.document.schema == 3 && chart.isShaped && reading.colours == 3)
+        let seq = try WorkSequence(chart: chart)
+        #expect(seq.passes.count == 77)
+        #expect(seq.passes[0].cells == 9 && seq.passes[0].runs.compactMap(\.x0).min() == 6)
+        #expect(seq.passes.map(\.cells).max() == 29 && seq.passes[76].cells == 3)
+        #expect(seq.totalCells == 1805)
+        #expect(reading.bundle.manifest.charts[0].stitches == 1805)
+        #expect(chart.written?.count == 77)
+        #expect(chart.written?.first?.hasPrefix("R 1") == true)
+    }
 }
