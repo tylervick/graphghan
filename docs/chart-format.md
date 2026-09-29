@@ -23,7 +23,7 @@ reader that does not implement the stated kind MUST withhold every stitch-derive
 compute it wrongly. The chart still opens and is still worked: it is the arithmetic that is
 withheld, not the pattern.
 
-## Chart document (schema 2)
+## Chart document (schemas 2 and 3)
 
 ```json
 {
@@ -148,6 +148,7 @@ palette entry may carry `"stitch": false`; its cells are the ground nobody works
   cells between are one non-empty unbroken span. A no-stitch cell between stitches, or a row of
   only no-stitch cells, cannot be worked as written: writers MUST NOT write it, readers MUST
   refuse it (#210 is the case of a row with a gap).
+- **Layer cells over no-stitch cells are not read.**
 - **Explicit `passes`** list stitched runs only; a run of the no-stitch code is invalid.
 - **Sequencing** leaves the no-stitch runs out; `x0` stays the grid column.
 - **Shaping is derived, never stored.** For pass *k* > 1 compare its stitched span with pass
@@ -207,8 +208,9 @@ are optional; absent means unstated.
 Top-level, optional: `{ "chain": 190, "first_stitch_in": 2, "note": "in Gold (Y)" }`. `chain` is
 the authored foundation chain count and `first_stitch_in` the 1-based chain from the hook where
 the first pass's first stitch goes. Both are authored. A foundation with extra chains for an edge
-is legitimate; one with fewer than the stitches of pass 1 (the width, unless the chart is shaped)
-+ first_stitch_in - 1 cannot be worked, and readers MUST refuse the document (see §Design).
+is legitimate; one with fewer than `stitches(pass 1) + first_stitch_in - 1` chains — where
+`stitches(pass 1)` is the width, unless the chart is shaped — cannot be worked, and readers MUST
+refuse the document (see §Design).
 
 ### Chart id
 
