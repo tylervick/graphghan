@@ -32,6 +32,16 @@ import GraphghanCore
         #expect(try Snapshots.assert(view, named: "work-fill-ax5", size: Self.phone))
     }
 
+    /// A shaped chart (#37): the header adds the row's stitches and its shaping, and the pattern's
+    /// own row text sits under the panel.
+    @Test func shaped() throws {
+        let chart = try Chart.load(TestFixtures.data("shaped-basic.chart.json"))
+        let seq = try WorkSequence(chart: chart)
+        let view = WorkScreen(chart: chart, sequence: seq, cursor: Cursor(row: 4, run: 0), step: .ten, perRepetition: true,
+                              onDone: {}, onBack: {}, onClose: {}, onJump: {}, onJumpWithinRow: { _, _ in }, onSetStep: { _ in }, onSetPerRepetition: { _ in })
+        #expect(try Snapshots.assert(view, named: "work-shaped", size: Self.phone))
+    }
+
     @Test func actionLabelsSpellOutTheStitch() {
         let run = Self.seq.pass(at: 42)!.runs[8]
         let name = Self.chart.palette[Self.chart.colorIndex(of: run.code)!].name

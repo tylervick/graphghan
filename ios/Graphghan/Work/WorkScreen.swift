@@ -39,12 +39,12 @@ struct WorkScreen: View {
         Group {
             if verticalSizeClass == .compact {
                 HStack(spacing: 14) {
-                    VStack(spacing: 14) { header; panel(c); Spacer(minLength: 0); bar(c) }.frame(maxWidth: .infinity)
+                    VStack(spacing: 14) { header; panel(c); writtenLine; Spacer(minLength: 0); bar(c) }.frame(maxWidth: .infinity)
                     band(c).frame(maxWidth: .infinity)
                 }
                 .padding(.bottom, 16)
             } else {
-                VStack(spacing: 14) { header; panel(c); band(c); bar(c) }
+                VStack(spacing: 14) { header; panel(c); writtenLine; band(c); bar(c) }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -78,6 +78,10 @@ struct WorkScreen: View {
                         .accessibilityAction(named: "Jump to row", onJump)
                     Text(finished ? "Every row worked" : sideText(pass)).font(Font.Heather.caption).foregroundStyle(Color.ink2)
                         .lineLimit(2).multilineTextAlignment(.center).minimumScaleFactor(0.8)
+                    if !finished, let caption = ShapedRowText.caption(chart: chart, sequence: sequence, row: cursor.row) {
+                        Text(caption).font(Font.Heather.caption).foregroundStyle(Color.heather)
+                            .lineLimit(1).minimumScaleFactor(0.8)
+                    }
                 }
             }
             Spacer()
@@ -188,6 +192,16 @@ struct WorkScreen: View {
         }
         .padding(.horizontal, 16)
         .padding(.bottom, 44)
+    }
+
+    /// The pattern's own words for the row, under the panel (spec §6.3): how the shaping is made.
+    @ViewBuilder private var writtenLine: some View {
+        if !finished, let text = ShapedRowText.written(chart: chart, row: cursor.row) {
+            Text(text).font(Font.Heather.caption).foregroundStyle(Color.ink2)
+                .lineLimit(3).multilineTextAlignment(.leading)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 16)
+        }
     }
 
     private func sideText(_ pass: Pass) -> String {
