@@ -217,4 +217,96 @@ import Testing
         json = json.replacingOccurrences(of: #""chart":{"id":"#, with: #""chart":{"cell":{"kind":"sparkle"},"id":"#)
         #expect(throws: ChartError.unsupportedCellKind("sparkle")) { _ = try Chart.load(Data(json.utf8)) }
     }
+
+    // ---- chart schema 3: shaped rows (spec 2026-09-25 §5.1) ----
+
+    static let shapedRows = ["2N3A2N", "1N2A1B3A", "3A1B3A", "1N5A1N", "2N3A2N"]
+
+    /// A 7-wide shaped chart: A and B are yarns, N the ground; `noStitch` lists the codes marked
+    /// `"stitch": false`, `extra` is raw JSON members appended to the document.
+    static func shaped(rows: [String] = shapedRows, schema: Int = 3, noStitch: [String] = ["N"], start: String = "bottom",
+                       passes: String? = nil, extra: String = "") throws -> Data {
+        let codes = ["A", "B", "N"]
+        let technique: JSONValue = .object(["type": .string(passes == nil ? "rows" : "none"), "start": .string(start)])
+        let passesValue = try passes.map { try JSONDecoder().decode(JSONValue.self, from: Data($0.utf8)) }
+        let id = ChartID.compute(codes: codes, rows: rows, technique: technique, passes: passesValue, noStitch: noStitch.first)
+        let palette = codes.enumerated().map { i, c in
+            #"{"code":"\#(c)","name":"n\#(i)","hex":"\#(String(format: "#%06x", i * 0x111111))"\#(noStitch.contains(c) ? #","stitch":false"# : "")}"#
+        }.joined(separator: ",")
+        return Data(#"""
+        {"schema":\#(schema),"pattern":{"id":"t","title":"T","version":"1"},"chart":{"id":"\#(id)","width":7,"height":\#(rows.count)},
+         "palette":[\#(palette)],"rows":[\#(rows.map { "\"\($0)\"" }.joined(separator: ","))],
+         "gauge":{"stitches":14,"rows":16,"over":{"value":4,"unit":"in"}},"technique":\#(CanonicalJSON.encode(technique))\#(passes.map { ",\"passes\":\($0)" } ?? "")\#(extra)}
+        """#.utf8)
+    }
+
+    @Test func aShapedChartLoads() throws {
+        let chart = try Chart.load(Self.shaped())
+        #expect(chart.noStitchIndex == 2 && chart.isShaped)
+        #expect(chart.isStitched(colorIndex: 0) && !chart.isStitched(colorIndex: 2))
+        #expect(try !Self.chart("minimal-rows").isShaped)
+    }
+
+    @Test func aNoStitchCellBetweenStitchesIsRefused() throws {
+        var rows = Self.shapedRows
+        rows[0] = "1A1N5A"
+        #expect(throws: ChartError.noStitchInsideRow(0)) { try Chart.load(Self.shaped(rows: rows)) }
+    }
+
+    @Test func aRowOfOnlyNoStitchIsRefused() throws {
+        var rows = Self.shapedRows
+        rows[0] = "7N"
+        #expect(throws: ChartError.rowWithoutStitches(0)) { try Chart.load(Self.shaped(rows: rows)) }
+    }
+
+    @Test func twoNoStitchColoursAreRefused() throws {
+        #expect(throws: ChartError.tooManyNoStitch(2)) { try Chart.load(Self.shaped(noStitch: ["B", "N"])) }
+    }
+
+    @Test func stitchFalseNeedsSchema3() throws {
+        #expect(throws: ChartError.noStitchNeedsSchema3) { try Chart.load(Self.shaped(schema: 2)) }
+    }
+
+    @Test func foundationCountsPassOnesStitches() throws {
+        _ = try Chart.load(Self.shaped(extra: #","foundation":{"chain":4,"first_stitch_in":2}"#))
+        #expect(throws: ChartError.foundationTooShort(chain: 3, needed: 4)) {
+            try Chart.load(Self.shaped(extra: #","foundation":{"chain":3,"first_stitch_in":2}"#))
+        }
+    }
+
+    @Test func foundationReadsPassOneAtTheTop() throws {
+        let rows = ["1N5A1N", "3A1B3A", "2N3A2N"]
+        #expect(throws: ChartError.foundationTooShort(chain: 5, needed: 6)) {
+            try Chart.load(Self.shaped(rows: rows, start: "top", extra: #","foundation":{"chain":5,"first_stitch_in":2}"#))
+        }
+        _ = try Chart.load(Self.shaped(rows: rows, start: "top", extra: #","foundation":{"chain":6,"first_stitch_in":2}"#))
+        _ = try Chart.load(Self.shaped(rows: rows, extra: #","foundation":{"chain":4,"first_stitch_in":2}"#))
+    }
+
+    /// The ruling that changes the brief: when the chart is shaped and `passes` is an explicit list,
+    /// pass 1's own run counts win over the technique-derived grid row -- grid_row 3 ("1N5A1N", 5
+    /// stitches) is used, not the bottom row a "rows" technique would derive ("2N3A2N", 3 stitches).
+    /// Mirrors graphghan.chartdoc test_foundation_counts_explicit_pass_1_not_the_technique_derived_row.
+    @Test func foundationCountsExplicitPassOnesStitchesNotTheTechniqueDerivedRow() throws {
+        let passes = #"""
+        [{"label":"Row 1","grid_row":3,"runs":[{"code":"A","count":5,"x0":1}]},
+         {"label":"Row 2","grid_row":4,"runs":[{"code":"A","count":3,"x0":2}]}]
+        """#
+        #expect(throws: ChartError.foundationTooShort(chain: 5, needed: 6)) {
+            try Chart.load(Self.shaped(passes: passes, extra: #","foundation":{"chain":5,"first_stitch_in":2}"#))
+        }
+        _ = try Chart.load(Self.shaped(passes: passes, extra: #","foundation":{"chain":6,"first_stitch_in":2}"#))
+    }
+
+    @Test func writtenHasOneEntryPerPass() throws {
+        let chart = try Chart.load(Self.shaped(extra: #","written":["R1","R2","R3","R4","R5"]"#))
+        #expect(chart.written?.count == 5)
+        #expect(throws: ChartError.writtenCount(got: 1, expected: 5)) { try Chart.load(Self.shaped(extra: #","written":["R1"]"#)) }
+    }
+
+    @Test func theIDIncludesTheNoStitchCode() {
+        let t: JSONValue = .object(["type": .string("rows")])
+        #expect(ChartID.compute(codes: ["A", "N"], rows: ["1N1A"], technique: t, passes: nil)
+                != ChartID.compute(codes: ["A", "N"], rows: ["1N1A"], technique: t, passes: nil, noStitch: "N"))
+    }
 }

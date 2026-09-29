@@ -6,7 +6,7 @@ import Testing
     @Test(arguments: Fixtures.chartNames)
     func decodesEveryFixture(name: String) throws {
         let doc = try ChartDocument.decode(Fixtures.data("\(name).chart.json"))
-        #expect(doc.schema == 2)
+        #expect(doc.schema == 2 || doc.schema == 3)
         #expect(doc.rows.count == doc.chart.height)
         #expect(!doc.palette.isEmpty)
         #expect(doc.gauge.over.unit == "in")

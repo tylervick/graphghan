@@ -176,4 +176,18 @@ import Testing
     @Test func emptySequenceIsNeverFinished() {
         #expect(!WorkEngine.isFinished(.start, in: WorkSequence(passes: [])))
     }
+
+    /// A shaped row is walked on its stitches only: Done goes run to run, then to the boundary,
+    /// then to the next row's first stitched run, and never to a cell of the ground.
+    @Test func doneWalksOnlyStitchedCells() throws {
+        let seq = try WorkSequence(chart: Chart.load(Fixtures.data("shaped-basic.chart.json")))
+        var cursor = Cursor.start
+        var visited: [Int] = []   // x0 of every run the cursor stands on
+        while !WorkEngine.isFinished(cursor, in: seq) {
+            let pass = try #require(seq.pass(at: cursor.row))
+            if cursor.run < pass.runs.count { visited.append(try #require(pass.runs[cursor.run].x0)) }
+            cursor = try #require(WorkEngine.apply(.advance, to: cursor, in: seq, step: .wholeRun)).cursor
+        }
+        #expect(visited == [2, 1, 4, 3, 0, 1, 3, 4, 2])
+    }
 }

@@ -173,4 +173,34 @@ import Testing
         #expect(craigh.turnBoundary && craigh.hasBoundaryStep(after: 42))
         #expect(!WorkSequence(passes: []).hasBoundaryStep(after: 1))
     }
+
+    @Test func aShapedSequenceLeavesOutTheGround() throws {
+        let seq = try Self.sequence("shaped-basic")
+        #expect(seq.passes[0].runs == [Run(code: "A", count: 3, x0: 2)])
+        #expect(seq.totalCells == 24 && seq.totalStitches == 24)
+    }
+
+    @Test func shapingMatchesTheFixture() throws {
+        struct Edge: Decodable { let start: Int; let end: Int }
+        struct Expected: Decodable { let shaping: [Edge?] }
+        let expected = try JSONDecoder().decode(Expected.self, from: Fixtures.data("shaped-basic.shaping.json"))
+        let seq = try Self.sequence("shaped-basic")
+        #expect(expected.shaping.count == seq.passes.count)
+        for (i, want) in expected.shaping.enumerated() {
+            #expect(seq.shaping(at: i + 1) == want.map { Shaping(start: $0.start, end: $0.end) }, "row \(i + 1)")
+        }
+    }
+
+    @Test func shapingSentence() {
+        #expect(Shaping(start: 1, end: 1).sentence == "+1 at start, +1 at end")
+        #expect(Shaping(start: -1, end: 0).sentence == "\u{2212}1 at start")
+        #expect(Shaping(start: 0, end: -2).sentence == "\u{2212}2 at end")
+        #expect(Shaping(start: 0, end: 0).sentence == nil)
+    }
+
+    @Test func explicitPassesMayNotListTheNoStitchColour() throws {
+        let passes = #"[{"label":"Row 1","grid_row":4,"runs":[{"code":"N","count":2,"x0":0}]}]"#
+        let chart = try Chart.load(ChartTests.shaped(passes: passes))
+        #expect(throws: SequenceError.self) { try WorkSequence(chart: chart) }
+    }
 }

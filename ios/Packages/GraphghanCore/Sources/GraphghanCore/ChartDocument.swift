@@ -1,6 +1,6 @@
 import Foundation
 
-/// A chart document exactly as written (schema 2). Unknown keys are ignored; `technique` and
+/// A chart document exactly as written (schema 2 or 3). Unknown keys are ignored; `technique` and
 /// `passes` are kept raw because the chart id hashes them verbatim.
 public struct ChartDocument: Decodable, Sendable {
     public struct PatternInfo: Decodable, Sendable {
@@ -74,6 +74,8 @@ public struct ChartDocument: Decodable, Sendable {
         public let thread: Thread?
         public let use: String?
         public let symbol: String?
+        /// `false` marks a shaped piece's ground (schema 3); absent means a yarn.
+        public let stitch: Bool?
     }
 
     public struct Layer: Decodable, Sendable, Equatable {
@@ -146,11 +148,13 @@ public struct ChartDocument: Decodable, Sendable {
     public let passes: JSONValue?
     public let instructions: [Instruction]
     public let foundation: Foundation?
+    /// The pattern's own row text, one per pass (schema 3 §Shaped rows); not in the id.
+    public let written: [String]?
     /// `ext.graphghan.import` and the like; nil when the document has none. Never validated.
     public let ext: JSONValue?
 
     enum CodingKeys: String, CodingKey {
-        case schema, pattern, chart, generator, palette, rows, layers, gauge, technique, passes, instructions, foundation, ext
+        case schema, pattern, chart, generator, palette, rows, layers, gauge, technique, passes, instructions, foundation, written, ext
     }
 
     public init(from decoder: Decoder) throws {
@@ -168,6 +172,7 @@ public struct ChartDocument: Decodable, Sendable {
         passes = rawPasses == .null ? nil : rawPasses
         instructions = try c.decodeIfPresent([Instruction].self, forKey: .instructions) ?? []
         foundation = try c.decodeIfPresent(Foundation.self, forKey: .foundation)
+        written = try c.decodeIfPresent([String].self, forKey: .written)
         let rawExt = try c.decodeIfPresent(JSONValue.self, forKey: .ext)
         ext = rawExt == .null ? nil : rawExt
     }
