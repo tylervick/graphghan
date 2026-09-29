@@ -353,6 +353,19 @@ import ProseReaderKit
         #expect(bare.contents == PDFContents(charts: 1, rowSets: 0, rowSetMatched: false) && bare.contents?.sentence == nil)
     }
 
+    /// The chart's own rows become its `written` text only when they print rows 1...height once
+    /// each, in order, one to a block; anything else would misalign a row with its text.
+    @Test func writtenRowsNeedEveryRowOnceInOrder() {
+        let page = "R 1 [←]: (Black) ch 4, 3 sc [3]\nR 2 [→]: (Black) ch 1, turn, 1 inc, 1 sc, 1 inc [5]\nR 3 [←]: (White) ch 1, turn, 5 sc [5]"
+        let section = RowText.sections(in: [page]).first
+        #expect(PDFImporter.writtenRows(section, height: 3)?.count == 3)
+        #expect(PDFImporter.writtenRows(section, height: 3)?.first?.hasPrefix("R 1") == true)
+        #expect(PDFImporter.writtenRows(section, height: 4) == nil)
+        let ranged = RowText.sections(in: ["R 1: (Black) ch 4, 3 sc [3]\nR 2 - R 3: (Black) ch 1, turn, 3 sc [3]"]).first
+        #expect(PDFImporter.writtenRows(ranged, height: 3) == nil)
+        #expect(PDFImporter.writtenRows(nil, height: 3) == nil)
+    }
+
     /// A row the reader could not read is named, never passed off as clean -- and no longer
     /// cancels the comparison of the rows that did read (#176). Two rows a model fumbles should
     /// not cost the maker the other seventy-five.
