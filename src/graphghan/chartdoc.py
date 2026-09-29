@@ -1,4 +1,4 @@
-"""Chart documents, schema 2: run strings, chart ids, technique sequencing, validation, derived sizes.
+"""Chart documents, schemas 2 and 3: run strings, chart ids, technique sequencing, validation, derived sizes.
 
 Everything here works on plain dicts (the JSON document), never on the numpy grid, so the same
 rules can be re-implemented from the spec (docs/chart-format.md) in any language.
@@ -47,6 +47,16 @@ def size_derives(doc: dict) -> bool:
     return kind_unit is not None and kind_unit == unit
 
 
+def no_stitch_code(doc: dict) -> str | None:
+    """The palette code marked `"stitch": false` (schema 3): a shaped piece's ground, kept in the
+    palette so the grid stays the picture, and worked by nobody. The first when a document marks
+    more than one, which validate_document refuses."""
+    for p in doc.get("palette") or []:
+        if isinstance(p, dict) and p.get("stitch") is False:
+            return p.get("code")
+    return None
+
+
 class UnsupportedTechnique(ValueError):
     """The document has no derivable working order (unknown/reserved technique and no passes)."""
 
@@ -65,12 +75,15 @@ def chart_id(
     technique: dict,
     passes: list[dict] | None = None,
     cell: dict | None = None,
+    no_stitch: str | None = None,
 ) -> str:
     obj = {"codes": list(codes), "rows": list(rows), "technique": technique}
     if passes is not None:
         obj["passes"] = passes
     if isinstance(cell, dict):  # presence-and-type, exactly as `passes` is guarded at the call site
         obj["cell"] = cell
+    if no_stitch is not None:  # it changes the sequence, so it changes the id (spec §5.1)
+        obj["no_stitch"] = no_stitch
     return "sha256:" + hashlib.sha256(_canonical(obj)).hexdigest()
 
 
@@ -103,6 +116,7 @@ def sequence(doc: dict) -> list[dict]:
             f"technique {typ!r} has no derivable working order and the chart has no passes"
         )
     rows = doc["rows"]
+    ns = no_stitch_code(doc)
     h = len(rows)
     start = t.get("start", "bottom")
     first_side = t.get("first_side", "RS")
@@ -118,13 +132,39 @@ def sequence(doc: dict) -> list[dict]:
             side, direction = first_side, rs_direction
         runs, x = [], 0
         for code, n in parse_runs(rows[y]):
-            runs.append({"code": code, "count": n, "x0": x})
+            if code != ns:  # a shaped piece's ground is no stitch: nothing to work (spec §5.1)
+                runs.append({"code": code, "count": n, "x0": x})
             x += n
         if direction == "rtl":
             runs.reverse()
         out.append(
             {"label": f"{label} {k}", "side": side, "direction": direction, "grid_row": y, "runs": runs}
         )
+    return out
+
+
+def stitched_span(runs: list[dict]) -> tuple[int, int] | None:
+    """The grid columns a pass's runs cover, `(lo, hi)` with `hi` exclusive; None without `x0`."""
+    if not runs or any(r.get("x0") is None for r in runs):
+        return None
+    return min(r["x0"] for r in runs), max(r["x0"] + r["count"] for r in runs)
+
+
+def shaping(passes: list[dict]) -> list[dict | None]:
+    """Per pass, the cells gained (positive) or lost (negative) at each edge against the pass
+    before, named in the pass's own reading direction: `start` is the right edge of an `rtl` pass
+    and the left of an `ltr` one (spec §5.1). Derived, never stored. None for pass 1 and wherever
+    a pass has no grid columns or no direction."""
+    out: list[dict | None] = []
+    for k, p in enumerate(passes):
+        cur = stitched_span(p["runs"])
+        prev = stitched_span(passes[k - 1]["runs"]) if k else None
+        d = p.get("direction")
+        if cur is None or prev is None or d not in ("rtl", "ltr"):
+            out.append(None)
+            continue
+        left, right = prev[0] - cur[0], cur[1] - prev[1]
+        out.append({"start": left, "end": right} if d == "ltr" else {"start": right, "end": left})
     return out
 
 
@@ -143,6 +183,19 @@ def finished_size(doc: dict) -> tuple[float, float, str] | None:
     w = doc["chart"]["width"] / (g["stitches"] / per)
     h = doc["chart"]["height"] / (g["rows"] / per)
     return round(w, 1), round(h, 1), g["over"]["unit"]
+
+
+def _pass_1_stitches(doc: dict, width: int, ns: str | None) -> int:
+    """Stitches in the grid row pass 1 works: the chart's width unless the chart is shaped. The
+    bottom row unless `technique.start` says otherwise, as `sequence` derives it."""
+    rows = doc.get("rows") or []
+    if ns is None or not rows:
+        return width
+    t = doc.get("technique") or {}
+    s = rows[len(rows) - 1] if t.get("start", "bottom") == "bottom" else rows[0]
+    if not isinstance(s, str) or not ROW_RE.match(s):
+        return width
+    return sum(n for code, n in parse_runs(s) if code != ns)
 
 
 def validate_document(doc: dict) -> list[str]:
@@ -164,6 +217,15 @@ def validate_document(doc: dict) -> list[str]:
             seen.add(code)
         if not HEX_RE.match(str(p.get("hex", ""))):
             problems.append(f"palette[{i}].hex {p.get('hex')!r} is not #RRGGBB")
+    marked = [p.get("code") for p in palette if isinstance(p, dict) and p.get("stitch") is False]
+    ns = marked[0] if marked else None
+    if len(marked) > 1:
+        problems.append(f'palette marks {len(marked)} colours "stitch": false; at most one may be')
+    if ns is not None and doc.get("schema") != 3:
+        # A schema-2 reader would count these cells as stitches: writers MUST NOT, readers refuse.
+        problems.append(
+            f'palette code {ns!r} is "stitch": false, which needs schema 3, not {doc.get("schema")!r}'
+        )
     width = doc.get("chart", {}).get("width")
     height = doc.get("chart", {}).get("height")
     rows = doc.get("rows", [])
@@ -181,6 +243,13 @@ def validate_document(doc: dict) -> list[str]:
             total += n
         if total != width:
             problems.append(f"row {y} sums to {total}, not chart.width {width}")
+        if ns is not None:
+            cells_y = [c for c, n in parse_runs(s) for _ in range(n)]
+            stitched = [x for x, c in enumerate(cells_y) if c != ns]
+            if not stitched:
+                problems.append(f"row {y} has no stitches: every cell is the no-stitch colour {ns!r}")
+            elif stitched[-1] - stitched[0] + 1 != len(stitched):
+                problems.append(f"row {y} has a no-stitch cell between stitches (one stitched span per row)")
     for name, layer in (doc.get("layers") or {}).items():
         lrows = layer.get("rows", [])
         if len(lrows) != len(rows):
@@ -215,6 +284,11 @@ def validate_document(doc: dict) -> list[str]:
                     continue
                 if r.get("code") not in known:
                     problems.append(f"passes[{i}].runs[{j}] uses unknown code {r.get('code')!r}")
+                    continue
+                if ns is not None and r.get("code") == ns:
+                    problems.append(
+                        f"passes[{i}].runs[{j}] is the no-stitch colour; passes list stitched runs only"
+                    )
                     continue
                 count = r.get("count")
                 if not isinstance(count, int) or isinstance(count, bool) or count < 1:
@@ -254,11 +328,12 @@ def validate_document(doc: dict) -> list[str]:
         chain = foundation.get("chain")
         into = foundation.get("first_stitch_in", 1)
         if isinstance(chain, int) and isinstance(into, int) and not isinstance(chain, bool):
-            needed = width + into - 1
+            first = _pass_1_stitches(doc, width, ns)
+            needed = first + into - 1
             if chain < needed:  # row 1 could not be worked: refuse, never warn (#50)
                 problems.append(
                     f"foundation.chain {chain} is shorter than the {needed} chains row 1 needs "
-                    f"(width {width} + first_stitch_in {into} - 1)"
+                    f"({first} stitches in row 1 + first_stitch_in {into} - 1)"
                 )
     chart = doc.get("chart")
     cell = chart.get("cell") if isinstance(chart, dict) else None
@@ -274,12 +349,20 @@ def validate_document(doc: dict) -> list[str]:
             for key in ("stitches", "yards_est", "skeins_364yd"):
                 if key in st:
                     problems.append(f"stats.{key} counts stitches, but chart.cell.kind is {kind!r}")
+    written = doc.get("written")
+    if written is not None:
+        n_passes = len(passes) if isinstance(passes, list) else len(rows)
+        if not isinstance(written, list) or not all(isinstance(w, str) for w in written):
+            problems.append("written is not a list of strings")
+        elif len(written) != n_passes:
+            problems.append(f"written has {len(written)} entries, the chart has {n_passes} passes")
     expected = chart_id(
         codes,
         rows,
         doc.get("technique") or {},
         passes if isinstance(passes, list) else None,
         cell,
+        ns,
     )
     actual = doc.get("chart", {}).get("id")
     if actual != expected:

@@ -378,3 +378,142 @@ def test_a_null_unit_reads_as_stitches():
     d = doc(["4A"], width=4)
     d["gauge"]["unit"] = None
     assert chartdoc.size_derives(d)
+
+
+# ---- chart schema 3: shaped rows (spec 2026-09-25 §5.1) ----
+
+SHAPED_ROWS = ["2N3A2N", "1N2A1B3A", "3A1B3A", "1N5A1N", "2N3A2N"]
+
+
+def shaped(rows=None, schema=3, no_stitch=("N",), technique=None, passes=None, **extra):
+    """A 7-wide shaped chart: A and B are yarns, N the ground no one stitches."""
+    rows = list(rows or SHAPED_ROWS)
+    technique = technique or dict(chartdoc.TECHNIQUE_ROWS)
+    palette = [
+        {"code": c, "name": c, "hex": h} for c, h in (("A", "#112233"), ("B", "#ffffff"), ("N", "#a4dade"))
+    ]
+    for p in palette:
+        if p["code"] in no_stitch:
+            p["stitch"] = False
+            p["use"] = "no stitch"
+    ns = no_stitch[0] if no_stitch else None
+    d = {
+        "schema": schema,
+        "pattern": {"id": "s", "title": "S", "version": "0.0.1"},
+        "chart": {
+            "id": chartdoc.chart_id(["A", "B", "N"], rows, technique, passes, None, ns),
+            "width": 7,
+            "height": len(rows),
+        },
+        "palette": palette,
+        "rows": rows,
+        "gauge": {"stitches": 14, "rows": 16, "over": {"value": 4, "unit": "in"}, "stitch": "sc"},
+        "technique": technique,
+    }
+    if passes is not None:
+        d["passes"] = passes
+    d.update(extra)
+    return d
+
+
+def test_a_shaped_chart_validates():
+    assert chartdoc.validate_document(shaped()) == []
+    assert chartdoc.no_stitch_code(shaped()) == "N"
+
+
+def test_sequence_leaves_out_the_no_stitch_cells():
+    passes = chartdoc.sequence(shaped())
+    assert passes[0]["runs"] == [{"code": "A", "count": 3, "x0": 2}]
+    assert passes[2]["runs"] == [
+        {"code": "A", "count": 3, "x0": 4},
+        {"code": "B", "count": 1, "x0": 3},
+        {"code": "A", "count": 3, "x0": 0},
+    ]
+    assert sum(r["count"] for p in passes for r in p["runs"]) == 24
+
+
+def test_shaping_names_each_edge_in_reading_direction():
+    assert chartdoc.shaping(chartdoc.sequence(shaped())) == [
+        None,
+        {"start": 1, "end": 1},
+        {"start": 1, "end": 1},
+        {"start": -1, "end": 0},
+        {"start": -2, "end": -1},
+    ]
+
+
+def test_shaping_is_none_without_grid_columns():
+    passes = [{"label": "R1", "direction": "ltr", "runs": [{"code": "A", "count": 3}]}] * 2
+    assert chartdoc.shaping(passes) == [None, None]
+
+
+def test_chart_id_includes_the_no_stitch_code():
+    t = dict(chartdoc.TECHNIQUE_ROWS)
+    assert chartdoc.chart_id(["A", "N"], ["1N1A"], t) != chartdoc.chart_id(
+        ["A", "N"], ["1N1A"], t, no_stitch="N"
+    )
+    assert chartdoc.chart_id(["A", "N"], ["1N1A"], t) == chartdoc.chart_id(
+        ["A", "N"], ["1N1A"], t, None, None, None
+    )
+
+
+def test_a_no_stitch_cell_between_stitches_is_refused():
+    rows = list(SHAPED_ROWS)
+    rows[0] = "1A1N5A"
+    assert any("between stitches" in p for p in chartdoc.validate_document(shaped(rows)))
+
+
+def test_a_row_of_only_no_stitch_is_refused():
+    rows = list(SHAPED_ROWS)
+    rows[0] = "7N"
+    assert any("no stitches" in p for p in chartdoc.validate_document(shaped(rows)))
+
+
+def test_two_no_stitch_colours_are_refused():
+    assert any("at most one" in p for p in chartdoc.validate_document(shaped(no_stitch=("B", "N"))))
+
+
+def test_stitch_false_needs_schema_3():
+    assert any("schema 3" in p for p in chartdoc.validate_document(shaped(schema=2)))
+
+
+def test_a_use_label_alone_leaves_a_schema_2_chart_rectangular():
+    d = shaped(schema=2, no_stitch=())
+    d["palette"][2]["use"] = "no stitch"
+    assert chartdoc.validate_document(d) == []
+    assert sum(r["count"] for p in chartdoc.sequence(d) for r in p["runs"]) == 35
+
+
+def test_foundation_counts_pass_1s_stitches_not_the_width():
+    assert chartdoc.validate_document(shaped(foundation={"chain": 4, "first_stitch_in": 2})) == []
+    problems = chartdoc.validate_document(shaped(foundation={"chain": 3, "first_stitch_in": 2}))
+    assert any("foundation" in p for p in problems), problems
+
+
+def test_foundation_reads_pass_1_at_the_top_when_start_is_top():
+    rows = ["1N5A1N", "3A1B3A", "2N3A2N"]
+    top = dict(chartdoc.TECHNIQUE_ROWS, start="top")
+    assert any(
+        "foundation" in p
+        for p in chartdoc.validate_document(
+            shaped(rows, technique=top, foundation={"chain": 5, "first_stitch_in": 2})
+        )
+    )
+    assert (
+        chartdoc.validate_document(shaped(rows, technique=top, foundation={"chain": 6, "first_stitch_in": 2}))
+        == []
+    )
+    assert chartdoc.validate_document(shaped(rows, foundation={"chain": 4, "first_stitch_in": 2})) == []
+
+
+def test_explicit_passes_may_not_list_the_no_stitch_colour():
+    passes = [{"label": "Row 1", "grid_row": 4, "runs": [{"code": "N", "count": 2, "x0": 0}]}]
+    problems = chartdoc.validate_document(shaped(technique={"type": "none"}, passes=passes))
+    assert any("no-stitch colour" in p for p in problems), problems
+
+
+def test_written_has_one_entry_per_pass():
+    ok = shaped(written=["R1", "R2", "R3", "R4", "R5"])
+    assert chartdoc.validate_document(ok) == []
+    assert any("written has 1" in p for p in chartdoc.validate_document(shaped(written=["R1"])))
+    assert any("list of strings" in p for p in chartdoc.validate_document(shaped(written="R1")))
