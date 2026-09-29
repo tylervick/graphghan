@@ -155,7 +155,8 @@ struct PDFImporter: Sendable {
     /// set a row beside another row's words.
     static func writtenRows(_ section: RowSection?, height: Int) -> [String]? {
         guard let section, section.blocks.count == height else { return nil }
-        for (i, block) in section.blocks.enumerated() where RowText.rowNumbers(of: block.text) != [i + 1] { return nil }
+        for (i, block) in section.blocks.enumerated()
+        where !RowText.isSingleRow(block.text) || RowText.rowNumbers(of: block.text) != [i + 1] { return nil }
         return section.blocks.map { $0.text.trimmingCharacters(in: .whitespacesAndNewlines) }
     }
 

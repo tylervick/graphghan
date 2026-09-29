@@ -364,6 +364,10 @@ import ProseReaderKit
         let ranged = RowText.sections(in: ["R 1: (Black) ch 4, 3 sc [3]\nR 2 - R 3: (Black) ch 1, turn, 3 sc [3]"]).first
         #expect(PDFImporter.writtenRows(ranged, height: 3) == nil)
         #expect(PDFImporter.writtenRows(nil, height: 3) == nil)
+        // A wide range's head reduces to its first row under `rowNumbers`, but it still names more
+        // than one row, so it must not stand in as that row's own text (CodeRabbit review).
+        let wideRange = RowText.sections(in: ["Rows 1-302: (Black) ch 4, 3 sc [3]"]).first
+        #expect(PDFImporter.writtenRows(wideRange, height: 1) == nil)
     }
 
     /// A row the reader could not read is named, never passed off as clean -- and no longer

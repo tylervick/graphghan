@@ -179,6 +179,17 @@ import Testing
     #expect(RowText.plainRowColour(of: RowText.normalized("Row1: sc in second chain, sc across in color 1")) == "A")
 }
 
+// A head naming a range, even one `rowNumbers` reduces to its first row, is not one row's text.
+@Test func isSingleRowIsFalseForAnyHeadNamingMoreThanOneRow() {
+    #expect(RowText.isSingleRow("R 1 [←]: 3 sc [3]"))
+    #expect(RowText.isSingleRow("Row 12: sc in each st across, turn."))
+    #expect(!RowText.isSingleRow("Rows 1-302: (Black) ch 4, 3 sc [3]"))
+    #expect(!RowText.isSingleRow("Rows 5-3: sc in c1."))
+    #expect(!RowText.isSingleRow("Rows 2 & 3: Chain1, (12sc), Turn."))
+    #expect(!RowText.isSingleRow("R 2 - 26: sc across."))
+    #expect(!RowText.isSingleRow("Total: 3673"))  // no head at all
+}
+
 @Test func aRowThatRepeatsAnotherNamesIt() {
     #expect(RowText.repeatedRow(in: "Row 6: repeat row 5.") == 5)
     #expect(RowText.repeatedRow(in: "Rows 9-10: Rep Row 8.") == 8)

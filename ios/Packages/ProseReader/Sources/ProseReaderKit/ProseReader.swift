@@ -595,6 +595,14 @@ public enum RowText {
         return Array(first...last)
     }
 
+    /// True when a block's head names exactly one row: no range, "&" or "and". A head that names
+    /// more than one row, even one `rowNumbers` reduces to its first row (a misprinted range, say),
+    /// is not one row's written text.
+    public static func isSingleRow(_ block: String) -> Bool {
+        guard let h = head(of: block) else { return false }
+        return h.number.trimmingCharacters(in: .whitespaces).allSatisfy(\.isNumber)
+    }
+
     static let repeatRowRe = try! NSRegularExpression(pattern: #"\brep(?:eat)?\.?\s+rows?\s+(\d+)\b"#, options: .caseInsensitive)
     /// The row this block says to repeat ("Row 6: repeat row 5"), if it is written that way.
     public static func repeatedRow(in block: String) -> Int? {
