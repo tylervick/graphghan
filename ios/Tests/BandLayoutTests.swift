@@ -148,4 +148,21 @@ import GraphghanCore
         let l = BandLayout(width: 366, height: 420, chart: Self.chart, pass: pass, cursor: Cursor(row: 1, run: 0), segmentLabel: nil)
         #expect(l.ring == nil && l.hook == nil && l.boundaryX == nil && l.ticks.isEmpty && l.bracket == nil && l.offsetX == 0)
     }
+
+    /// On a shaped row the turn is where the stitches end, not at the chart's edge: shaped-basic's
+    /// row 2 (ltr) spans columns 1..<6, row 1 (rtl) columns 2..<5.
+    @Test func boundaryStandsAtTheStitchedSpansEnd() throws {
+        let chart = try Chart.load(TestFixtures.data("shaped-basic.chart.json"))
+        let seq = try WorkSequence(chart: chart)
+        func boundary(_ row: Int, _ style: BandStyle) -> CGFloat? {
+            let pass = seq.pass(at: row)!
+            return BandLayout(width: 366, height: 420, chart: chart, pass: pass, cursor: Cursor(row: row, run: pass.runs.count),
+                              segmentLabel: nil, style: style).boundaryX
+        }
+        // Cast on the right: see the note in longRunTicksEveryTen above.
+        #expect(boundary(2, .fabric) == CGFloat(6 * 8))   // ltr: right end of the span
+        #expect(boundary(1, .fabric) == CGFloat(2 * 8))   // rtl: left end of the span
+        #expect(boundary(1, .ribbon) == CGFloat((7 - 2) * 8))   // mirrored: grid column 2 at content 5
+        #expect(boundary(2, .ribbon) == CGFloat(6 * 8))   // ltr is never mirrored
+    }
 }

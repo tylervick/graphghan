@@ -78,7 +78,12 @@ struct BandLayout {
             hook = nil
             ticks = []
             bracket = nil
-            let endX = edge(ltr ? chart.width : 0)
+            // The turn is where the stitches end: the stitched span's edge, which on a shaped row
+            // is inside the chart (spec §6.3); a full row's span is the chart, as before.
+            let xs = pass.runs.compactMap { r in r.x0.map { ($0, $0 + r.count) } }
+            let lo = xs.map(\.0).min() ?? 0
+            let hi = xs.map(\.1).max() ?? chart.width
+            let endX = edge(ltr ? hi : lo)
             boundaryX = endX
             offsetX = clamp(flow ? endX - width : 0)
         } else {
