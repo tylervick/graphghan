@@ -36,6 +36,13 @@ and every reader leaves it out of the working order, the counts and the foundati
 each pass (`{"start", "end"}` in the pass's reading direction, `null` for pass 1).
 `progress-shaped` pins that the ground never enters `total_cells`.
 
+`refused/` (spec §9) holds five otherwise-valid schema-3 documents, each broken exactly one way:
+a no-stitch cell between stitches (#210's case), a row of only no-stitch, two no-stitch codes, a
+foundation shorter than pass 1's span, and `written` of the wrong length. Every reader must refuse
+each one (and still validate it against `schema/chart.schema.json` — the refusal comes from the
+rule named in its `ext.fixture.refuses`, which docs/chart-format.md states). They live in a
+subdirectory precisely so the top-level `*.chart.json` globs above do not pick them up.
+
 The two readers in this repo are enforced against these fixtures in their own suites:
 `tests/test_conformance.py` for `graphghan.chartdoc`, and `GraphghanCoreTests` for the Swift
 reader. A third reader, the browser viewer's hand-written `sequence()` in JavaScript, was retired

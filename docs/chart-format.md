@@ -352,5 +352,10 @@ the Patterns tab as a local pattern. See
 
 A reader claims conformance when, for every fixture in `fixtures/chart-format/`, it validates the
 chart against `schema/chart.schema.json`, reproduces the expected sequence (or its SHA-256), refuses
-to sequence the unknown-technique fixture while still decoding it, and reproduces the expected
-progress summary. Changing the format starts with a fixture.
+to sequence the unknown-technique fixture while still decoding it, reproduces the expected
+progress summary, and reproduces `shaped-basic.shaping.json` from the sequence it derives for
+`shaped-basic`. Changing the format starts with a fixture.
+
+Every document under `fixtures/chart-format/refused/` is otherwise valid — it still validates
+against `schema/chart.schema.json` — but a reader MUST refuse it for the one reason named in its
+`ext.fixture.refuses`.

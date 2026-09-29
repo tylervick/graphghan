@@ -10,8 +10,10 @@ from graphghan import chartdoc, progress
 
 ROOT = Path(__file__).resolve().parents[1]
 FIX = ROOT / "fixtures" / "chart-format"
+REFUSED = FIX / "refused"
 CHART_SCHEMA = json.loads((ROOT / "schema" / "chart.schema.json").read_text(encoding="utf-8"))
 NAMES = sorted(p.name[: -len(".chart.json")] for p in FIX.glob("*.chart.json"))
+REFUSED_NAMES = sorted(p.name[: -len(".chart.json")] for p in REFUSED.glob("*.chart.json"))
 
 
 def load(name):
@@ -79,11 +81,16 @@ def test_sequence_matches_expected(name):
 def test_fixtures_are_fresh(tmp_path):
     gen = runpy.run_path(str(FIX / "generate.py"), run_name="fixtures_generate")
     gen["main"](tmp_path)
-    generated = {p.name for p in tmp_path.iterdir()}
+    generated = {p.name for p in tmp_path.iterdir() if p.suffix == ".json"}
     committed = {p.name for p in FIX.iterdir() if p.suffix == ".json"}
     assert generated == committed
     for name in generated:
         assert (FIX / name).read_bytes() == (tmp_path / name).read_bytes(), name
+    generated_refused = {p.name for p in (tmp_path / "refused").iterdir() if p.suffix == ".json"}
+    committed_refused = {p.name for p in REFUSED.iterdir() if p.suffix == ".json"}
+    assert generated_refused == committed_refused
+    for name in generated_refused:
+        assert (REFUSED / name).read_bytes() == (tmp_path / "refused" / name).read_bytes(), name
 
 
 def test_craigh_fixture_equals_committed_dist():
@@ -331,3 +338,32 @@ def test_schema_accepts_schema_3_keys_and_rejects_bad_ones():
         d = load("shaped-basic")
         mutate(d)
         assert not v.is_valid(d)
+
+
+def load_refused(name):
+    return json.loads((REFUSED / f"{name}.chart.json").read_text(encoding="utf-8"))
+
+
+def test_refused_fixture_set_matches_spec():
+    """Spec §9's five refusal cases, each in its own file so a reader can be pointed at exactly
+    one broken rule at a time."""
+    assert set(REFUSED_NAMES) == {
+        "gap-in-row",
+        "row-without-stitches",
+        "two-no-stitch-codes",
+        "foundation-too-short",
+        "written-wrong-length",
+    }
+
+
+@pytest.mark.parametrize("name", REFUSED_NAMES)
+def test_refused_fixture_validates_against_schema(name):
+    """Otherwise valid: the JSON Schema alone cannot express the rule that refuses it (spec §9),
+    so it must still pass schema validation."""
+    errors = list(Draft202012Validator(CHART_SCHEMA).iter_errors(load_refused(name)))
+    assert errors == [], [e.message for e in errors]
+
+
+@pytest.mark.parametrize("name", REFUSED_NAMES)
+def test_refused_fixture_is_refused(name):
+    assert chartdoc.validate_document(load_refused(name)) != []

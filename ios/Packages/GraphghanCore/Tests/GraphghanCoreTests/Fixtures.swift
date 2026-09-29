@@ -37,6 +37,22 @@ enum Fixtures {
         try Data(contentsOf: directory.appendingPathComponent(name))
     }
 
+    /// `fixtures/chart-format/refused/`: spec §9's otherwise-valid documents, each refused for the
+    /// one rule its `ext.fixture.refuses` names. A subdirectory so `chartNames` above does not see
+    /// them.
+    static let refusedDirectory = directory.appendingPathComponent("refused", isDirectory: true)
+
+    static var refusedNames: [String] {
+        let names = (try? FileManager.default.contentsOfDirectory(atPath: refusedDirectory.path)) ?? []
+        return names.filter { $0.hasSuffix(".chart.json") }
+            .map { String($0.dropLast(".chart.json".count)) }
+            .sorted()
+    }
+
+    static func refusedData(_ name: String) throws -> Data {
+        try Data(contentsOf: refusedDirectory.appendingPathComponent("\(name).chart.json"))
+    }
+
     static func json(_ name: String) throws -> [String: Any] {
         let object = try JSONSerialization.jsonObject(with: data(name))
         guard let dict = object as? [String: Any] else { throw FixtureError.notAnObject(name) }
