@@ -98,27 +98,31 @@ def preview_png(a, rgb, path, cw=8, ch=None, grid=False, bold_every=10):
     preview_image(a, rgb, cw, ch, grid, bold_every).save(path)
 
 
-def stats(a, codes, kind="stitch", sized=True):
+def stats(a, codes, kind="stitch", sized=True, no_stitch=None):
+    """`no_stitch` is the palette index of a shaped piece's ground (chart schema 3): its cells are
+    in the grid but are no stitch and no yarn, so every count below leaves them out. None keeps
+    every number exactly as before."""
     h, w = a.shape
-    counts = {codes[i]: int((a == i).sum()) for i in range(len(codes))}
-    runs = rle_rows(a)
-    singles = {c: 0 for c in codes}
+    counts = {codes[i]: int((a == i).sum()) for i in range(len(codes)) if i != no_stitch}
+    runs = [[(c, n) for c, n in row if c != no_stitch] for row in rle_rows(a)]
+    singles = {c: 0 for i, c in enumerate(codes) if i != no_stitch}
     per_row = []
     for row in runs:
-        per_row.append(len(row) - 1)
+        per_row.append(max(0, len(row) - 1))
         for c, n in row:
             if n == 1:
                 singles[codes[c]] += 1
+    cells = int(w * h) if no_stitch is None else int((a != no_stitch).sum())
     cell_sqin = gr.SW * gr.SH
     yards = {
         code: n * cell_sqin * 1.1 * 1.2 for code, n in counts.items()
     }  # 1.1 yd/sq in worsted sc, +20% tails
     out = {
-        "cells": int(w * h),
+        "cells": cells,
         # gr.SW/gr.SH are per-STITCH dimensions, so this conversion is only meaningful when the
         # gauge and the grid count the same thing (#48). The caller resolves that pairing. Kept
         # in this original key position (rather than appended) so a sized chart's stats are
-        # byte-identical to before `sized` existed.
+        # byte-identical to before `sized` existed. A shaped chart's size is its bounding box.
         **({"size_in": [round(w * gr.SW, 1), round(h * gr.SH, 1)]} if sized else {}),
         "counts": counts,
         "single_stitch_runs": singles,
@@ -131,7 +135,7 @@ def stats(a, codes, kind="stitch", sized=True):
     if kind == "stitch":
         # Every number below counts stitches. A cell is only a stitch when the chart says so, and
         # a missing key cannot be misread the way a wrong number can (#44).
-        out["stitches"] = int(w * h)
+        out["stitches"] = cells
         out["yards_est"] = {k: int(round(v)) for k, v in yards.items()}
         out["skeins_364yd"] = {k: round(v / 364, 1) for k, v in yards.items()}
     return out

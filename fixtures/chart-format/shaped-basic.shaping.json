@@ -1,0 +1,21 @@
+{
+  "shaping": [
+    null,
+    {
+      "start": 1,
+      "end": 1
+    },
+    {
+      "start": 1,
+      "end": 1
+    },
+    {
+      "start": -1,
+      "end": 0
+    },
+    {
+      "start": -2,
+      "end": -1
+    }
+  ]
+}

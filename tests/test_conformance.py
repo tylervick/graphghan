@@ -33,6 +33,7 @@ def test_fixture_set_matches_spec():
         "filet-blocks",
         "tiles-gauge",
         "craigh-na-dun",
+        "shaped-basic",
     }
 
 
@@ -279,6 +280,7 @@ FINISHED_SIZES_BEFORE_48 = {
     "minimal-rows": (4.0, 3.0, "in"),
     "two-letter-codes": (3.4, 0.5, "in"),
     "unknown-technique": (0.9, 0.5, "in"),
+    "shaped-basic": (2.0, 1.2, "in"),
 }
 
 
@@ -302,3 +304,30 @@ def test_finished_sizes_before_48_covers_exactly_the_non_skipping_fixtures():
     unpinned or fail with a KeyError instead of naming the real problem."""
     non_skipping = {name for name in NAMES if not _declares_a_pairing(load(name))}
     assert set(FINISHED_SIZES_BEFORE_48) == non_skipping
+
+
+def test_shaped_fixture_shaping_matches_expected():
+    doc = load("shaped-basic")
+    expected = json.loads((FIX / "shaped-basic.shaping.json").read_text(encoding="utf-8"))
+    assert chartdoc.shaping(chartdoc.sequence(doc)) == expected["shaping"]
+
+
+def test_shaped_fixture_counts_stitched_cells_only():
+    st = load("shaped-basic")["stats"]
+    assert st["cells"] == 24 and st["stitches"] == 24
+    assert st["counts"] == {"A": 22, "B": 2}  # the ground is no yarn
+    assert set(st["yards_est"]) == {"A", "B"}
+    assert st["color_changes_per_row"]["per_row"] == [0, 2, 2, 0, 0]
+
+
+def test_schema_accepts_schema_3_keys_and_rejects_bad_ones():
+    v = Draft202012Validator(CHART_SCHEMA)
+    assert v.is_valid(load("shaped-basic"))
+    for mutate in (
+        lambda d: d.__setitem__("schema", 4),
+        lambda d: d["palette"][2].__setitem__("stitch", "no"),
+        lambda d: d.__setitem__("written", [1, 2]),
+    ):
+        d = load("shaped-basic")
+        mutate(d)
+        assert not v.is_valid(d)

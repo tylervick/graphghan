@@ -1,12 +1,12 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://graphghan.milo.cat/schema/chart.schema.json",
-  "title": "Graphghan chart document, schema 2",
+  "title": "Graphghan chart document, schema 2 or 3",
   "description": "One pixel chart at one gauge. Readers must ignore unknown keys at every level. See docs/chart-format.md.",
   "type": "object",
   "required": ["schema", "pattern", "chart", "palette", "rows", "gauge", "technique"],
   "properties": {
-    "schema": { "const": 2 },
+    "schema": { "enum": [2, 3] },
     "pattern": {
       "type": "object",
       "required": ["id", "title", "version"],
@@ -107,6 +107,7 @@
         "properties": { "title": { "type": "string" }, "text": { "type": "string" } }
       }
     },
+    "written": { "type": "array", "items": { "type": "string" } },
     "stats": { "type": "object" },
     "ext": { "type": "object" }
   },
@@ -133,6 +134,7 @@
           "properties": { "system": { "type": "string" }, "number": { "type": "string" } }
         },
         "use": { "type": "string" },
+        "stitch": { "type": "boolean" },
         "symbol": { "type": "string" }
       }
     },

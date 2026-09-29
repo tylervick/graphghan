@@ -1,6 +1,6 @@
 # Graphghan chart format
 
-Version: chart schema 2, progress schema 1, pattern manifest schema 1. JSON Schemas live in
+Version: chart schemas 2 and 3, progress schema 1, pattern manifest schema 1. JSON Schemas live in
 `schema/`; conformance fixtures in `fixtures/chart-format/`. This document is normative where the
 schema cannot be (sequencing, ids, progress math).
 
@@ -64,7 +64,8 @@ are optional.
   `colorway`, `weight`, `lot`, `note`. `thread` is `{system, number}` for floss systems.
 - `rows` has exactly `chart.height` run strings, top to bottom as displayed. A run string matches
   `^(\d+[A-Za-z]{1,3})+$`; counts in a row sum to `chart.width`; every code is in the palette.
-  Because a run always starts with digits, `7YB` is one run of code `YB`, never two runs.
+  Because a run always starts with digits, `7YB` is one run of code `YB`, never two runs (schema 3
+  adds a no-stitch colour; see §Shaped rows).
 - `layers` are extra grids in the same encoding with their own `legend`; a reader that does not
   know a layer ignores it.
 - A layer's legend describes each cell as it looks on the **right side** of the work (the CYC rule
@@ -135,6 +136,39 @@ all, not even degraded. That is the intended trade for refusing an unrecognised 
 than guessing at it, but it means a new kind is not an additive, optional change the way `cell`
 itself was: it belongs with a schema version bump.
 
+### Shaped rows (schema 3)
+
+A shaped piece (a bag panel that grows from 9 stitches to 29 and back to 3) keeps its grid as the
+picture: every row still sums to `chart.width`, and `width × height` is the bounding box. One
+palette entry may carry `"stitch": false`; its cells are the ground nobody works. Writers keep
+`use: "no stitch"` beside it as the human label.
+
+- **At most one** palette entry is `"stitch": false`.
+- **One stitched span per row.** No-stitch cells form at most a prefix and a suffix of a row; the
+  cells between are one non-empty unbroken span. A no-stitch cell between stitches, or a row of
+  only no-stitch cells, cannot be worked as written: writers MUST NOT write it, readers MUST
+  refuse it (#210 is the case of a row with a gap).
+- **Explicit `passes`** list stitched runs only; a run of the no-stitch code is invalid.
+- **Sequencing** leaves the no-stitch runs out; `x0` stays the grid column.
+- **Shaping is derived, never stored.** For pass *k* > 1 compare its stitched span with pass
+  *k − 1*'s in grid columns; name each edge in pass *k*'s reading direction (start is the right
+  edge of an `rtl` pass, the left of an `ltr` one). The change is a signed cell count: "+1 at
+  start, +1 at end". How a stitch is added or removed is not in the chart (#216).
+- **Numbers** that counted the rectangle count stitched cells: `stats.cells`, `stats.stitches`,
+  `total_cells`, `counts`, `yards_est`, `skeins_364yd`, `color_changes_per_row`,
+  `single_stitch_runs`, and the manifest's `colors` and `stitches`. `stats.size_in` and the
+  manifest `size` stay the bounding box. The foundation rule reads the stitches of pass 1 (the
+  first explicit pass when the chart lists passes, else the grid row pass 1 works):
+  `chain ≥ stitches(pass 1) + first_stitch_in − 1`.
+- **`written`**, optional at either schema: an array of strings, one per pass in pass order, the
+  pattern's own row instruction. Readers show it beside the pass; it is not in the chart id. Its
+  length MUST equal the pass count.
+
+A writer emits schema 3 exactly when the palette has a no-stitch entry, and schema 2 otherwise,
+so a rectangle is byte-identical to what it always was. `"stitch": false` in a schema 2 document
+is refused: a schema 2 reader would count those cells. A schema 2 chart whose palette says only
+`use: "no stitch"` is a rectangle; the label is a label.
+
 ### Gauge
 
 `stitches` and `rows` over `over.value` `over.unit` (`in` or `cm`), the way gauge is stated on a
@@ -173,15 +207,16 @@ are optional; absent means unstated.
 Top-level, optional: `{ "chain": 190, "first_stitch_in": 2, "note": "in Gold (Y)" }`. `chain` is
 the authored foundation chain count and `first_stitch_in` the 1-based chain from the hook where
 the first pass's first stitch goes. Both are authored. A foundation with extra chains for an edge
-is legitimate; one with fewer than `width + first_stitch_in - 1` cannot be worked, and readers
-MUST refuse the document (see §Design).
+is legitimate; one with fewer than the stitches of pass 1 (the width, unless the chart is shaped)
++ first_stitch_in - 1 cannot be worked, and readers MUST refuse the document (see §Design).
 
 ### Chart id
 
 `chart.id` is `"sha256:" + hex(sha256(canonical))` where `canonical` is the UTF-8 JSON of
 `{"codes": [palette codes in order], "rows": rows, "technique": technique}` plus `"passes"` when the
-document has them and plus `"cell"` when the document has it and it is an object, with keys sorted,
-no whitespace (`,` and `:` separators only) and non-ASCII kept as-is. Names, hexes, yarn,
+document has them and plus `"cell"` when the document has it and it is an object, plus `"no_stitch"`
+(the code) when the palette has a `"stitch": false` entry, with keys sorted, no whitespace (`,` and
+`:` separators only) and non-ASCII kept as-is. Names, hexes, yarn,
 instructions and stats do not affect the id: renaming a color is not a new chart. Readers may verify
 the id; writers MUST compute it this way.
 

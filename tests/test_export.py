@@ -280,3 +280,13 @@ def test_write_dist_written_rows_carry_the_chain(tmp_path):
     write_dist(small(), meta, "sc", {}, tmp_path / "dist")
     lines = (tmp_path / "dist" / "written-rows.txt").read_text().splitlines()
     assert lines[0].startswith("Row 1 (RS): 5 A") and lines[1].startswith("Row 2 (WS): ch 1, turn, ")
+
+
+def test_stats_leave_out_the_no_stitch_colour():
+    a = np.array([[2, 0, 0, 2], [0, 1, 0, 0]], dtype=np.uint8)  # 2 is the ground
+    st = stats(a, ["A", "B", "N"], no_stitch=2)
+    assert st["cells"] == 6 and st["stitches"] == 6
+    assert st["counts"] == {"A": 5, "B": 1}
+    assert st["single_stitch_runs"] == {"A": 1, "B": 1}  # row 1: A1 B1 A2
+    assert st["color_changes_per_row"]["per_row"] == [0, 2]
+    assert stats(a, ["A", "B", "N"])["cells"] == 8  # without the flag, unchanged
