@@ -25,16 +25,35 @@ struct WrittenWorkScreen: View {
     static func rowText(row: Int, total: Int?) -> String { total.map { "Row \(row) of \($0)" } ?? "Row \(row)" }
 
     var body: some View {
-        VStack(spacing: 14) {
+        VStack(spacing: 0) {
             header
-            panel
-            Spacer(minLength: 0)
-            if !finished, sequence.isOpen {
-                Button("Finish piece", action: onFinishPiece)
-                    .buttonStyle(.secondary)
-                    .padding(.horizontal, 16)
+            if finished {
+                finishedPanel.padding(.top, 14)
+                Spacer(minLength: 0)
+            } else if let pass {
+                // The row card scrolls; the bar below is pinned outside the scroll region via
+                // `safeAreaInset`, so a long row (or an accessibility text size) never pushes
+                // Back/Done off-screen. `ImageRenderer` can't flatten this `ScrollView` (#67), so
+                // its content renders blank in a full-screen snapshot -- `WrittenRowPanel` is
+                // snapshotted on its own to pin the row text down.
+                ScrollView {
+                    WrittenRowPanel(pass: pass, rowText: Self.rowText(row: cursor.row, total: sequence.totalRows))
+                        .padding(.horizontal, 16)
+                        .padding(.top, 14)
+                }
             }
-            if !finished { bar }
+        }
+        .safeAreaInset(edge: .bottom) {
+            if !finished {
+                VStack(spacing: 14) {
+                    if sequence.isOpen {
+                        Button("Finish piece", action: onFinishPiece)
+                            .buttonStyle(.secondary)
+                            .padding(.horizontal, 16)
+                    }
+                    bar
+                }
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .ignoresSafeArea(edges: .bottom)
@@ -69,34 +88,9 @@ struct WrittenWorkScreen: View {
         .padding(.top, 8)
     }
 
-    /// The pass's label, its text at heading size, and its count as a badge -- one accessibility
-    /// element, spoken as the row and the row's own words. No `.lineLimit`, so a long row grows the
-    /// panel rather than truncating; a `ScrollView` would do this more gracefully, but `ImageRenderer`
-    /// cannot flatten one (its content renders blank, same family of bug as the known List/Form/Toggle
-    /// limitation), so the panel grows instead and only clips at the screen's own edge.
-    @ViewBuilder private var panel: some View {
-        if finished {
-            finishedPanel
-        } else if let pass {
-            Card {
-                VStack(alignment: .leading, spacing: 10) {
-                    Text(pass.label).font(Font.Heather.label).foregroundStyle(Color.ink2)
-                    Text(pass.text).font(Font.Heather.heading).foregroundStyle(Color.ink)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    if let count = pass.count {
-                        Text("\(count) sts").font(Font.Heather.label).foregroundStyle(Color.ink2)
-                            .padding(.horizontal, 10).padding(.vertical, 4)
-                            .overlay(Capsule().strokeBorder(Color.ink2.opacity(0.6), lineWidth: 1.5))
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .padding(.horizontal, 16)
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel("\(Self.rowText(row: cursor.row, total: sequence.totalRows)). \(pass.text)")
-        }
-    }
-
+    /// "`title` done", the Next/Close action, and a low-emphasis Back -- Done on the last row
+    /// finishes a piece, but Back must still be able to un-finish it in place (spec §5.4, review
+    /// focus 1), so the finished panel keeps a way back rather than becoming a dead end.
     private var finishedPanel: some View {
         Card {
             VStack(spacing: 14) {
@@ -107,10 +101,15 @@ struct WrittenWorkScreen: View {
                 } else {
                     Button("Close", action: onClose).buttonStyle(.secondary)
                 }
+                Button("Back", action: onBack)
+                    .buttonStyle(.plain)
+                    .font(Font.Heather.label)
+                    .foregroundStyle(Color.ink2)
             }
             .frame(maxWidth: .infinity)
         }
         .padding(.horizontal, 16)
+        .accessibilityAction(named: "Back", onBack)
     }
 
     private var bar: some View {
