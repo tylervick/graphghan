@@ -1,0 +1,22 @@
+{
+  "schema": 1,
+  "id": "sha256:f82699b13472a0782da53b48b1d31e46fcb82f1773e1ab9ec42114d295693194",
+  "piece": {
+    "title": "Fin"
+  },
+  "rows": [
+    {
+      "label": "R 1",
+      "from": 1,
+      "to": 1,
+      "count": 2,
+      "text": "ch 3, from the second chain from the hook, 2 sc [2]"
+    },
+    {
+      "label": "R 2 - R 3",
+      "from": 2,
+      "to": 3,
+      "text": "ch 1, turn, 1 inc, 1 sc"
+    }
+  ]
+}

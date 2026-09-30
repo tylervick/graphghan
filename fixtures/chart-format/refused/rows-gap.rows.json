@@ -1,0 +1,25 @@
+{
+  "schema": 1,
+  "id": "sha256:b794b78accd6b6ace2f23cb44f90ee8022f5e07042866a8ffde5943dab49a41c",
+  "piece": {
+    "title": "Gap"
+  },
+  "rows": [
+    {
+      "label": "R 1",
+      "from": 1,
+      "to": 1,
+      "code": "A",
+      "count": 6,
+      "text": "(A) ch 7, from the second chain from the hook, 6 sc [6]"
+    },
+    {
+      "label": "R 5",
+      "from": 5,
+      "to": 5,
+      "code": "B",
+      "count": 6,
+      "text": "(B) ch 1, turn, 6 sc [6]"
+    }
+  ]
+}

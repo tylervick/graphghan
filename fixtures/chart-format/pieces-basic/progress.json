@@ -1,0 +1,122 @@
+{
+  "schema": 2,
+  "pattern_id": "pieces-basic",
+  "pattern_version": "1.0.0",
+  "pieces": [
+    {
+      "piece": "panel",
+      "copy": 1,
+      "doc_id": "sha256:98967271a405be50e162187b5b7839e8334b346ec160848ab488fda8be67a9a9",
+      "cursor": {
+        "row": 3,
+        "run": 1
+      },
+      "finished": null
+    },
+    {
+      "piece": "strip",
+      "copy": 1,
+      "doc_id": "sha256:aa97f3d03c87da29760c199eebf395ff86828fa769fd56525037d9f0465c55da",
+      "cursor": {
+        "row": 5,
+        "run": 0
+      },
+      "finished": "2026-09-12T19:30:00Z"
+    },
+    {
+      "piece": "fin",
+      "copy": 1,
+      "doc_id": "sha256:f82699b13472a0782da53b48b1d31e46fcb82f1773e1ab9ec42114d295693194",
+      "cursor": {
+        "row": 2,
+        "run": 0
+      },
+      "finished": null
+    },
+    {
+      "piece": "strap",
+      "copy": 1,
+      "doc_id": "sha256:7b99ea849f3c1b213fc315bdf7f8c3d6ccadd85a8c466716dd392df33f1fded8",
+      "cursor": {
+        "row": 10,
+        "run": 0
+      },
+      "finished": null
+    }
+  ],
+  "current": {
+    "piece": "panel",
+    "copy": 1
+  },
+  "assembly_done": [
+    0
+  ],
+  "started": "2026-09-12T18:00:00Z",
+  "finished": null,
+  "events": [
+    {
+      "t": "2026-09-12T18:00:00Z",
+      "piece": "panel",
+      "copy": 1,
+      "row": 2,
+      "run": 0,
+      "kind": "advance"
+    },
+    {
+      "t": "2026-09-12T18:05:00Z",
+      "piece": "panel",
+      "copy": 1,
+      "row": 3,
+      "run": 0,
+      "kind": "advance"
+    },
+    {
+      "t": "2026-09-12T18:10:00Z",
+      "piece": "panel",
+      "copy": 1,
+      "row": 3,
+      "run": 1,
+      "kind": "advance"
+    },
+    {
+      "t": "2026-09-12T19:00:00Z",
+      "piece": "strip",
+      "copy": 1,
+      "row": 2,
+      "run": 0,
+      "kind": "advance"
+    },
+    {
+      "t": "2026-09-12T19:10:00Z",
+      "piece": "strip",
+      "copy": 1,
+      "row": 5,
+      "run": 0,
+      "kind": "jump"
+    },
+    {
+      "t": "2026-09-12T19:30:00Z",
+      "piece": "strip",
+      "copy": 1,
+      "row": 5,
+      "run": 0,
+      "kind": "advance"
+    },
+    {
+      "t": "2026-09-12T21:00:00Z",
+      "piece": "fin",
+      "copy": 1,
+      "row": 2,
+      "run": 0,
+      "kind": "advance"
+    },
+    {
+      "t": "2026-09-12T21:02:00Z",
+      "piece": "strap",
+      "copy": 1,
+      "row": 10,
+      "run": 0,
+      "kind": "jump"
+    }
+  ]
+}

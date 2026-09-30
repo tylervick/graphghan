@@ -16,9 +16,10 @@ import re
 import sys
 from pathlib import Path
 
-from graphghan.chartdoc import chart_id, sequence, size_derives
+from graphghan.chartdoc import chart_id, finished_size, sequence, size_derives
 from graphghan.export import decode_rows
 from graphghan.export import stats as chart_stats
+from graphghan.rowsdoc import rows_id
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
@@ -245,6 +246,251 @@ def shaped_basic_chart() -> dict:
     return doc
 
 
+# The pieces-basic fixture (spec 2026-09-25 §5.2-§5.4, §9): a manifest-2 pattern in Orca's shape
+# at toy size. `panel` is the shaped-basic chart; `strip` is written rows with a range and every
+# count; `fin` is made twice and one of its entries prints no count; `strap` ends "until desired
+# length". The directory is a bundle's tree: fixtures/bundle zips it as it stands.
+PIECES_DIR = "pieces-basic"
+
+
+def rows_doc(title, entries, palette=None, pages=None):
+    doc = {"schema": 1, "id": rows_id(entries), "piece": {"title": title}}
+    if palette:
+        doc["palette"] = palette
+    doc["rows"] = entries
+    if pages:
+        doc["source"] = {"pages": pages}
+    return doc
+
+
+STRIP_ROWS = [
+    {
+        "label": "R 1",
+        "from": 1,
+        "to": 1,
+        "code": "A",
+        "count": 6,
+        "text": "(A) ch 7, from the second chain from the hook, 6 sc [6]",
+    },
+    {"label": "R 2 - R 4", "from": 2, "to": 4, "count": 6, "text": "ch 1, turn, 6 sc [6]"},
+    {"label": "R 5", "from": 5, "to": 5, "code": "B", "count": 6, "text": "(B) ch 1, turn, 6 sc [6]"},
+]
+FIN_ROWS = [
+    {
+        "label": "R 1",
+        "from": 1,
+        "to": 1,
+        "count": 2,
+        "text": "ch 3, from the second chain from the hook, 2 sc [2]",
+    },
+    {"label": "R 2 - R 3", "from": 2, "to": 3, "text": "ch 1, turn, 1 inc, 1 sc"},
+]
+STRAP_ROWS = [
+    {
+        "label": "1.",
+        "from": 1,
+        "to": 1,
+        "count": 6,
+        "text": "ch 7, from the second chain from the hook, 6 sc",
+    },
+    {
+        "label": "2.",
+        "from": 2,
+        "repeat": "until desired length",
+        "count": 6,
+        "text": "ch 1, turn, 6 sc; repeat until the strap is as long as you want it",
+    },
+]
+PIECES_PALETTE = [
+    {"code": "A", "name": "Color A", "hex": "#112233"},
+    {"code": "B", "name": "Color B", "hex": "#ffffff"},
+]
+
+
+def pieces_basic() -> dict[str, dict]:
+    """relative path -> JSON document, for everything in the pieces-basic tree but the previews."""
+    chart = shaped_basic_chart()
+    strip = rows_doc("Strip", STRIP_ROWS, PIECES_PALETTE, [3])
+    fin = rows_doc("Fin", FIN_ROWS)
+    strap = rows_doc("Strap", STRAP_ROWS)
+    w, h, unit = finished_size(chart)
+    entry = {
+        "id": chart["chart"]["id"],
+        "variant": "final",
+        "gauge_key": "sc",
+        "default": True,
+        "path": "charts/final-sc/chart.json",
+        "preview": "charts/final-sc/preview.png",
+        "width": 7,
+        "height": 5,
+        "size": {"width": w, "height": h, "unit": unit},
+        "stitch": "sc",
+        # Stitched cells and yarn colours only (chart schema 3): the ground is neither.
+        "colors": 2,
+        "stitches": 24,
+        "changes_per_row": {
+            "mean": chart["stats"]["color_changes_per_row"]["mean"],
+            "max": chart["stats"]["color_changes_per_row"]["max"],
+        },
+        "yards_est": int(sum(chart["stats"]["yards_est"].values())),
+    }
+    manifest = {
+        "schema": 2,
+        "id": "pieces-basic",
+        "title": "Pieces basic",
+        "version": "1.0.0",
+        "dedication": "",
+        "quote": "",
+        "author": "graphghan fixtures",
+        "license": "MIT",
+        "preview": "preview.png",
+        "palette": PIECES_PALETTE,
+        "charts": [entry],
+        "pieces": [
+            {"id": "panel", "title": "Panel", "make": 1, "chart": entry["id"], "pages": [2]},
+            {
+                "id": "strip",
+                "title": "Strip",
+                "make": 1,
+                "rows": "pieces/strip.rows.json",
+                "rows_id": strip["id"],
+                "pages": [3],
+            },
+            {"id": "fin", "title": "Fin", "make": 2, "rows": "pieces/fin.rows.json", "rows_id": fin["id"]},
+            {
+                "id": "strap",
+                "title": "Strap",
+                "make": 1,
+                "rows": "pieces/strap.rows.json",
+                "rows_id": strap["id"],
+            },
+        ],
+        "assembly": [
+            {
+                "title": "Sew the strip round the panel",
+                "text": "Whip stitch the strip to the panel's edge, right sides out.",
+                "pages": [3],
+            },
+            {"title": "Pages 4–5", "pages": [4, 5]},
+        ],
+        "updated": "1980-01-01T00:00:00Z",
+    }
+    progress_doc = {
+        "schema": 2,
+        "pattern_id": "pieces-basic",
+        "pattern_version": "1.0.0",
+        "pieces": [
+            {
+                "piece": "panel",
+                "copy": 1,
+                "doc_id": entry["id"],
+                "cursor": {"row": 3, "run": 1},
+                "finished": None,
+            },
+            {
+                "piece": "strip",
+                "copy": 1,
+                "doc_id": strip["id"],
+                "cursor": {"row": 5, "run": 0},
+                "finished": "2026-09-12T19:30:00Z",
+            },
+            {
+                "piece": "fin",
+                "copy": 1,
+                "doc_id": fin["id"],
+                "cursor": {"row": 2, "run": 0},
+                "finished": None,
+            },
+            {
+                "piece": "strap",
+                "copy": 1,
+                "doc_id": strap["id"],
+                "cursor": {"row": 10, "run": 0},
+                "finished": None,
+            },
+        ],
+        "current": {"piece": "panel", "copy": 1},
+        "assembly_done": [0],
+        "started": "2026-09-12T18:00:00Z",
+        "finished": None,
+        "events": [
+            {"t": "2026-09-12T18:00:00Z", "piece": "panel", "copy": 1, "row": 2, "run": 0, "kind": "advance"},
+            {"t": "2026-09-12T18:05:00Z", "piece": "panel", "copy": 1, "row": 3, "run": 0, "kind": "advance"},
+            {"t": "2026-09-12T18:10:00Z", "piece": "panel", "copy": 1, "row": 3, "run": 1, "kind": "advance"},
+            {"t": "2026-09-12T19:00:00Z", "piece": "strip", "copy": 1, "row": 2, "run": 0, "kind": "advance"},
+            {"t": "2026-09-12T19:10:00Z", "piece": "strip", "copy": 1, "row": 5, "run": 0, "kind": "jump"},
+            {"t": "2026-09-12T19:30:00Z", "piece": "strip", "copy": 1, "row": 5, "run": 0, "kind": "advance"},
+            {"t": "2026-09-12T21:00:00Z", "piece": "fin", "copy": 1, "row": 2, "run": 0, "kind": "advance"},
+            {"t": "2026-09-12T21:02:00Z", "piece": "strap", "copy": 1, "row": 10, "run": 0, "kind": "jump"},
+        ],
+    }
+    return {
+        "pattern.json": manifest,
+        "charts/final-sc/chart.json": chart,
+        "pieces/strip.rows.json": strip,
+        "pieces/fin.rows.json": fin,
+        "pieces/strap.rows.json": strap,
+        "progress.json": progress_doc,
+        "progress.expected.json": PIECES_EXPECTED,
+    }
+
+
+# Hand-worked from the progress document above (not produced by summarize_project):
+# panel 3+5+3 = 11 of 24 cells; strip finished, 5 of 5 rows, 30 stitches; fin row 2 = 1 of 3
+# rows, no stitch figures (one entry has no count); strap row 10 = 9 rows, open, no total.
+# Sessions: 18:00-18:10 the panel's 11 cells; 19:00-19:30 the strip's 5 rows (the advance at
+# 19:30 leaves row 5 unchanged, so it is the finishing advance and row 5 counts); 21:00-21:02 the
+# fin's 1 row and the strap's 9. Pace: 11 chart stitches over the 600 s of the session that
+# worked a chart.
+PIECES_EXPECTED = {
+    "pieces": [
+        {
+            "piece": "panel",
+            "copy": 1,
+            "kind": "chart",
+            "finished": False,
+            "percent": 45.8,
+            "cells_done": 11,
+            "total_cells": 24,
+            "stitches_done": 11,
+            "total_stitches": 24,
+        },
+        {
+            "piece": "strip",
+            "copy": 1,
+            "kind": "rows",
+            "finished": True,
+            "rows_done": 5,
+            "total_rows": 5,
+            "percent": 100.0,
+            "total_stitches": 30,
+            "stitches_done": 30,
+        },
+        {
+            "piece": "fin",
+            "copy": 1,
+            "kind": "rows",
+            "finished": False,
+            "rows_done": 1,
+            "total_rows": 3,
+            "percent": 33.3,
+        },
+        {"piece": "strap", "copy": 1, "kind": "rows", "finished": False, "rows_done": 9},
+    ],
+    "pieces_done": 1,
+    "pieces_total": 5,
+    "assembly_done": 1,
+    "assembly_total": 2,
+    "sessions": [
+        {"start": "2026-09-12T18:00:00Z", "end": "2026-09-12T18:10:00Z", "cells": 11, "rows": 0},
+        {"start": "2026-09-12T19:00:00Z", "end": "2026-09-12T19:30:00Z", "cells": 0, "rows": 5},
+        {"start": "2026-09-12T21:00:00Z", "end": "2026-09-12T21:02:00Z", "cells": 0, "rows": 10},
+    ],
+    "active_seconds": 2520,
+    "stitches_per_hour": 66.0,
+}
+
+
 # Refusal fixtures (spec §9, fixtures/chart-format/refused/): each mutates shaped-basic exactly one
 # way and is otherwise valid -- schema-clean, chart.id recomputed -- so the only reason a reader
 # refuses it is the rule named in ext.fixture.refuses. `stats` is dropped: these are not worked.
@@ -300,6 +546,19 @@ def refused_fixtures() -> dict[str, dict]:
         "two-no-stitch-codes": _refuses("two-no-stitch-codes", two_no_stitch_codes),
         "foundation-too-short": _refuses("foundation-too-short", foundation_too_short),
         "written-wrong-length": _refuses("written-wrong-length", written_wrong_length),
+    }
+
+
+def pieces_refused_fixtures(manifest: dict) -> dict[str, dict]:
+    """file name (with its own extension) -> doc, for the pieces-basic refusals (spec §5.2, §5.3,
+    §9): a rows gap, an open-ended entry that is not last, and a piece naming a chart not in
+    `charts`. `manifest` is pieces_basic()["pattern.json"]."""
+    missing_chart = json.loads(json.dumps(manifest))
+    missing_chart["pieces"][0]["chart"] = "sha256:" + "0" * 64
+    return {
+        "rows-gap.rows.json": rows_doc("Gap", [STRIP_ROWS[0], STRIP_ROWS[2]]),
+        "rows-open-not-last.rows.json": rows_doc("Open", [dict(STRAP_ROWS[1], **{"from": 1}), STRIP_ROWS[1]]),
+        "piece-names-missing-chart.pattern.json": missing_chart,
     }
 
 
@@ -521,6 +780,14 @@ def main(out_dir: Path) -> None:
     refused_dir.mkdir(parents=True, exist_ok=True)
     for name, doc in refused_fixtures().items():
         (refused_dir / f"{name}.chart.json").write_text(dump(doc), encoding="utf-8")
+    pieces_dir = out_dir / PIECES_DIR
+    basic = pieces_basic()
+    for rel, doc in basic.items():
+        path = pieces_dir / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(dump(doc), encoding="utf-8")
+    for name, doc in pieces_refused_fixtures(basic["pattern.json"]).items():
+        (refused_dir / name).write_text(dump(doc), encoding="utf-8")
 
 
 if __name__ == "__main__":

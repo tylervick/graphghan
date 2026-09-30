@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "id": "sha256:007b5a30e64eb8a688e2caedc8224b049b3f28ba1f4d0aeaf72f85ac30723da0",
+  "piece": {
+    "title": "Open"
+  },
+  "rows": [
+    {
+      "label": "2.",
+      "from": 1,
+      "repeat": "until desired length",
+      "count": 6,
+      "text": "ch 1, turn, 6 sc; repeat until the strap is as long as you want it"
+    },
+    {
+      "label": "R 2 - R 4",
+      "from": 2,
+      "to": 4,
+      "count": 6,
+      "text": "ch 1, turn, 6 sc [6]"
+    }
+  ]
+}

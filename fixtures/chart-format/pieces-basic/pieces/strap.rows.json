@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "id": "sha256:7b99ea849f3c1b213fc315bdf7f8c3d6ccadd85a8c466716dd392df33f1fded8",
+  "piece": {
+    "title": "Strap"
+  },
+  "rows": [
+    {
+      "label": "1.",
+      "from": 1,
+      "to": 1,
+      "count": 6,
+      "text": "ch 7, from the second chain from the hook, 6 sc"
+    },
+    {
+      "label": "2.",
+      "from": 2,
+      "repeat": "until desired length",
+      "count": 6,
+      "text": "ch 1, turn, 6 sc; repeat until the strap is as long as you want it"
+    }
+  ]
+}

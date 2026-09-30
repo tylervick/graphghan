@@ -1,8 +1,8 @@
 # Graphghan chart format
 
-Version: chart schemas 2 and 3, progress schema 1, pattern manifest schema 1. JSON Schemas live in
-`schema/`; conformance fixtures in `fixtures/chart-format/`. This document is normative where the
-schema cannot be (sequencing, ids, progress math).
+Version: chart schemas 2 and 3, written-rows schema 1, progress schemas 1 and 2, pattern manifest
+schemas 1 and 2. JSON Schemas live in `schema/`; conformance fixtures in `fixtures/chart-format/`.
+This document is normative where the schema cannot be (sequencing, ids, progress math).
 
 ## Design
 
@@ -260,7 +260,51 @@ run regardless of reading direction.
 steps. `stats` is optional and always recomputable. `ext` is a map of vendor name to anything;
 `ext.graphghan.report` is generator-private test scaffolding.
 
-## Progress document (schema 1)
+## Written-rows document (schema 1)
+
+A piece that is not a grid: `pieces/<piece-id>.rows.json`.
+
+```json
+{
+  "schema": 1,
+  "id": "sha256:…",
+  "piece": { "title": "Side panel" },
+  "palette": [ { "code": "A", "name": "Black", "hex": "#201b18" },
+               { "code": "B", "name": "White", "hex": "#ffffff" } ],
+  "rows": [
+    { "label": "R 1", "from": 1, "to": 1, "code": "A", "count": 6,
+      "text": "(Black) ch 7, from the second stitch from the hook, 6 sc [6]" },
+    { "label": "R 2 - R 26", "from": 2, "to": 26, "count": 6, "text": "ch 1, turn, 6 sc [6]" },
+    { "label": "R 27 - 86", "from": 27, "to": 86, "code": "B", "count": 6,
+      "text": "(White) ch 1, turn, 6 sc [6]. Check the alignment and adjust the work if necessary." },
+    { "label": "R 87 - 104", "from": 87, "to": 104, "code": "A", "count": 6,
+      "text": "(Black) ch 1, turn, 6 sc [6]. Check the alignment and adjust the work if necessary." }
+  ],
+  "source": { "pages": [10] },
+  "notes": [ { "title": "", "text": "To change the color, finish off the last stitch in R 26 with white …" } ]
+}
+```
+
+- `rows` entries: `label` (as printed), `from`, `to` (1-based, inclusive), `text` (verbatim),
+  optional `count` (the printed stitch count after the row), optional `code` (a palette code, when
+  the text names a key colour).
+- `from`/`to` tile 1..N in order with no gap and no overlap. A gap is a transcription problem the
+  importer reports by row number (§7.2 of the pieces spec); a document with one is invalid.
+- The **last** entry may be open-ended: `"repeat": "until desired length"` (free text, as
+  printed) and no `to`. Only the last.
+- A pass is one row: an entry from 27 to 86 is 60 passes, each labelled `R 27 - 86 (k of 60)`.
+- `id` is `"sha256:" + hex(sha256(canonical))` over `{"rows": [each entry's from, to, text, count,
+  code, repeat]}` with the chart id's serialisation rules. Titles, palette names and notes are not
+  in it. An absent optional key is left out of its entry, never written as null.
+- `schema/rows.schema.json` is the schema.
+
+Derived numbers: `total_rows` is the last entry's `to`, absent when the piece is open-ended.
+`total_stitches` is emitted only when the piece is closed (has a `total_rows`) and every entry
+carries a `count`; otherwise the key is absent, the same withholding rule as §Cells.
+
+## Progress document (schemas 1 and 2)
+
+### Schema 1
 
 ```json
 { "schema": 1, "pattern_id": "craigh-na-dun", "chart_id": "sha256:…", "pattern_version": "1.0.0",
@@ -290,7 +334,62 @@ run.
   hours, one decimal, or `null` with no active time. For any other kind these four keys are absent
   rather than computed from the wrong cardinality.
 
-## Pattern manifest (schema 1)
+### Schema 2 (pieces)
+
+```json
+{
+  "schema": 2, "pattern_id": "orca-crossbody-bag", "pattern_version": "0.1.0",
+  "pieces": [
+    { "piece": "front", "copy": 1, "doc_id": "sha256:…front", "cursor": { "row": 42, "run": 3 }, "finished": null },
+    { "piece": "side",  "copy": 1, "doc_id": "sha256:…side",  "cursor": { "row": 1 }, "finished": null }
+  ],
+  "current": { "piece": "front", "copy": 1 },
+  "assembly_done": [],
+  "started": "…", "finished": null,
+  "events": [ { "t": "…", "piece": "front", "copy": 1, "row": 42, "run": 2, "kind": "advance" } ]
+}
+```
+
+- One `pieces` entry per piece copy that has been started; `make: 2` gives copies 1 and 2.
+- A chart piece's cursor and summary are progress schema 1's, per piece, over the chart's
+  sequence.
+- A written piece's cursor is `{row, run: 0}`: `row` is the 1-based pass and `run` is always 0,
+  and `stitch` is never written. The boundary position does not exist for a written piece; Done on
+  its last row finishes it. `total_rows` is the last `to`, or absent when the last entry is
+  open-ended. `percent` is rows done over `total_rows`, absent when open-ended. Stitch figures are
+  emitted only when every entry has a `count` and the piece is closed; otherwise the keys are
+  absent, per the §Cells rule.
+- Project figures: `pieces_done`, `pieces_total` (the sum of `make`), `assembly_done`,
+  `assembly_total`. No project percent.
+- Events keep schema 1's shape plus `piece` and `copy`: `{t, piece, copy, row, run, stitch?,
+  kind}`, recording the cursor after the action. On a written piece `advance` and `back` move one
+  row and `jump` any number, always with `run: 0`. An event without `piece` belongs to the single
+  piece of a manifest without `pieces`.
+- Progress schema 1 stays valid for a single-chart project.
+
+Each piece copy carries a running state — its cursor and whether it is finished — that persists
+across events and across a session gap. After an event, the copy's `finished` is true exactly when
+that event is a **finishing advance** — an `advance` on a written piece that leaves its row
+unchanged — and false after any other event (an ordinary advance, a back, or a jump). Un-finishing
+and re-finishing a piece across a gap without moving its row adds no rows to either session.
+
+Two rules follow from that state:
+
+- **Rows done** at a written cursor is `row − 1`, or all of the piece's rows once it is finished
+  (`row` for an open-ended piece, since it has no total).
+- A session's `rows`, for a written piece, is rows done at the copy's state at the end of the
+  session minus rows done at its state before the session — the copy's state after its last
+  earlier event, or row 1, unfinished, before any — never below 0. A session's `cells` is the same
+  difference over chart pieces, in cells. An event naming a piece the manifest does not know is
+  skipped outright (it opens no session and updates no running state); an event for a known piece
+  with no `pieces[]` summary entry still counts.
+
+`stitches_per_hour` is chart-piece stitches — over every session that touched a chart piece —
+divided by those sessions' active seconds; written rows carry no pace figure.
+
+## Pattern manifest (schemas 1 and 2)
+
+### Schema 1
 
 Written by the site build as `patterns/<id>/pattern.json`: identity, `palette` (code, name, hex),
 `preview`, `charts` (one per published chart: `id`, `variant`, `gauge_key`, `default`, `path`,
@@ -300,13 +399,51 @@ is the one also served as `chart.json` at the pattern's top level. `size` (and t
 index's `size_in`) is governed by `gauge.unit` the same way `stats.size_in` is (#48): key absent,
 not a placeholder, when the chart's gauge and cell kind do not pair.
 
+### Schema 2 (pieces and assembly)
+
+```json
+{
+  "schema": 2,
+  "id": "orca-crossbody-bag", "title": "Orca Crossbody Bag", "version": "0.1.0",
+  "palette": [ "…" ],
+  "charts": [
+    { "id": "sha256:…front", "variant": "front", "gauge_key": "sc", "default": true, "path": "charts/front/chart.json", "…": "…" },
+    { "id": "sha256:…back",  "variant": "back",  "gauge_key": "sc", "default": false, "path": "charts/back/chart.json", "…": "…" }
+  ],
+  "pieces": [
+    { "id": "front", "title": "Front panel", "make": 1, "chart": "sha256:…front", "pages": [9, 17, 18] },
+    { "id": "back",  "title": "Back panel",  "make": 1, "chart": "sha256:…back",  "pages": [9, 18, 19, 20] },
+    { "id": "side",  "title": "Side panel",  "make": 1, "rows": "pieces/side.rows.json", "rows_id": "sha256:…", "pages": [10] }
+  ],
+  "assembly": [
+    { "title": "Pages 13–16", "pages": [13, 14, 15, 16] }
+  ]
+}
+```
+
+- `pieces[]`: `id` (a slug, unique), `title`, `make` (≥ 1, default 1), exactly one of `chart` (a
+  `charts[].id`) or `rows` (a path, with its `rows_id`), optional `pages` (pages of the source
+  PDF). Order is the pattern's order. `pieces` is non-empty when present.
+- In a manifest with `pieces`, `charts` lists the charts the pieces name, each once. They are not
+  alternatives; alternatives per piece are a later change. When `charts` is non-empty exactly one
+  entry is `default`, as in schema 1: the first chart piece's chart, which the library card shows.
+  A pattern whose pieces are all written has `charts: []`, no `default`, and the card shows the
+  manifest's `preview` (or the title alone when it has none).
+- `assembly[]`: `title`, optional `text`, optional `pages`. A step with only pages is a pointer
+  into the source PDF (see §Bundle).
+- A manifest without `pieces` is one piece: the default chart. Writers write schema 1 when there
+  are no pieces, so every site pattern and committed bundle is unchanged.
+- `schema/manifest.schema.json` is the first schema file for the manifest, covering schemas 1
+  and 2.
+
 ## Bundle
 
 A `.graphghan` file is a zip with `pattern.json` at its root plus the chart files and previews it
 references at their relative paths -- the pattern preview, and per published chart its
 `chart.json` and `preview.png`. It carries nothing the manifest does not name; readers address
 entries by name and ignore any extras, so a bundle from another tool that also packs
-`written-rows.txt` opens fine.
+`written-rows.txt` opens fine. A pieced bundle also carries every `pieces/*.rows.json` its
+manifest names, and never the source PDF.
 
 `graphghan export <slug> --format graphghan` writes one, and `fixtures/bundle/` commits one per
 pattern with a drift test. The output is byte-reproducible, which fixes two things a zip would
@@ -356,8 +493,14 @@ A reader claims conformance when, for every fixture in `fixtures/chart-format/`,
 chart against `schema/chart.schema.json`, reproduces the expected sequence (or its SHA-256), refuses
 to sequence the unknown-technique fixture while still decoding it, reproduces the expected
 progress summary, and reproduces `shaped-basic.shaping.json` from the sequence it derives for
-`shaped-basic`. Changing the format starts with a fixture.
+`shaped-basic`; reproduces `pieces-basic/progress.expected.json` from `pieces-basic/progress.json`.
+Changing the format starts with a fixture.
 
-Every document under `fixtures/chart-format/refused/` is otherwise valid — it still validates
-against `schema/chart.schema.json` — but a reader MUST refuse it for the one reason named in its
-`ext.fixture.refuses`.
+Every `*.chart.json` document under `fixtures/chart-format/refused/` is otherwise valid — it still
+validates against `schema/chart.schema.json` — but a reader MUST refuse it for the one reason
+named in its `ext.fixture.refuses`. The same directory also holds three more refusals in the
+pieces shape, each otherwise valid against its own schema: a reader MUST refuse
+`refused/rows-gap.rows.json` (a gap between two rows entries) and
+`refused/rows-open-not-last.rows.json` (an open-ended entry that is not last) against
+`schema/rows.schema.json`, and `refused/piece-names-missing-chart.pattern.json` (a piece naming a
+chart not in `charts`) against `schema/manifest.schema.json`.

@@ -1,0 +1,49 @@
+{
+  "schema": 1,
+  "id": "sha256:aa97f3d03c87da29760c199eebf395ff86828fa769fd56525037d9f0465c55da",
+  "piece": {
+    "title": "Strip"
+  },
+  "palette": [
+    {
+      "code": "A",
+      "name": "Color A",
+      "hex": "#112233"
+    },
+    {
+      "code": "B",
+      "name": "Color B",
+      "hex": "#ffffff"
+    }
+  ],
+  "rows": [
+    {
+      "label": "R 1",
+      "from": 1,
+      "to": 1,
+      "code": "A",
+      "count": 6,
+      "text": "(A) ch 7, from the second chain from the hook, 6 sc [6]"
+    },
+    {
+      "label": "R 2 - R 4",
+      "from": 2,
+      "to": 4,
+      "count": 6,
+      "text": "ch 1, turn, 6 sc [6]"
+    },
+    {
+      "label": "R 5",
+      "from": 5,
+      "to": 5,
+      "code": "B",
+      "count": 6,
+      "text": "(B) ch 1, turn, 6 sc [6]"
+    }
+  ],
+  "source": {
+    "pages": [
+      3
+    ]
+  }
+}

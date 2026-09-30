@@ -7,6 +7,11 @@ the writer is byte-reproducible, so `tests/test_bundle_fixtures.py` fails when a
 differs from a fresh generation, the same contract as `fixtures/chart-format/` and
 `fixtures/import/`.
 
+`pieces-basic.graphghan` is the exception: it is built from
+`fixtures/chart-format/pieces-basic/`, not from a `patterns/<slug>/dist/` folder, since the Python
+writes no pieced pattern of its own (#214). `generate.py`'s `pieced_bundles()` zips that fixture
+tree as it stands, less its `progress*.json` files (a bundle carries no progress).
+
 These are the iOS side's only real input. `GraphghanCore`'s `PatternBundleTests` opens one and
 loads every chart through `Chart.load`; the app's `BundleImportTests` imports one into an
 in-memory library. The format and the reproducibility decisions (stored entries, a fixed 1980
