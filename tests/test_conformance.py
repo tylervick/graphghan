@@ -425,6 +425,12 @@ def test_pieces_fixture_files_match_the_manifest():
             assert rowsdoc.validate_rows_document(rd) == [] and rd["id"] == p["rows_id"]
 
 
+def test_a_strip_row_is_not_ascii():
+    """The rows id hashes UTF-8 (spec §5.2): a non-ASCII character in the strip pins both readers
+    to the same bytes (the Swift reader's `theIDMatchesThePythons` covers the strip)."""
+    assert any(not e["text"].isascii() for e in pieced("pieces/strip.rows.json")["rows"])
+
+
 def test_pieces_fixture_progress_summarizes():
     m = pieced("pattern.json")
     docs = {c["id"]: pieced(c["path"]) for c in m["charts"]}
@@ -441,6 +447,11 @@ def test_refused_rows_documents(name):
     rd = json.loads((FIX / "refused" / name).read_text(encoding="utf-8"))
     assert Draft202012Validator(ROWS_SCHEMA).is_valid(rd)
     assert rowsdoc.validate_rows_document(rd) != []
+
+
+def test_the_rows_gap_fixture_is_refused_only_for_its_gap():
+    rd = json.loads((FIX / "refused" / "rows-gap.rows.json").read_text(encoding="utf-8"))
+    assert rowsdoc.validate_rows_document(rd) == ["rows[1] starts at 5; row 2 is missing or printed twice"]
 
 
 def test_refused_manifest_naming_a_missing_chart():

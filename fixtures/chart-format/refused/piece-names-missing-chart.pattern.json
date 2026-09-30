@@ -60,7 +60,7 @@
       "title": "Strip",
       "make": 1,
       "rows": "pieces/strip.rows.json",
-      "rows_id": "sha256:aa97f3d03c87da29760c199eebf395ff86828fa769fd56525037d9f0465c55da",
+      "rows_id": "sha256:191bb826ce837e67a89a7b0250b1e390ef361cfa116c771c4db5bd4ad8dc7269",
       "pages": [
         3
       ]

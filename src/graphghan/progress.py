@@ -137,6 +137,8 @@ def summarize_project(
     out_pieces = []
     for entry in doc["pieces"]:
         m = piece_model(entry["piece"])
+        if m is None:
+            continue  # a piece the manifest does not know, as the Swift reader's compactMap skips it
         finished = entry.get("finished") is not None
         cur = entry["cursor"]
         row = {"piece": entry["piece"], "copy": entry.get("copy", 1), "kind": m["kind"], "finished": finished}

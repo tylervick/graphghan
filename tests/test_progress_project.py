@@ -105,6 +105,19 @@ def test_an_event_for_an_unknown_piece_is_ignored():
     assert s["sessions"] == []
 
 
+def test_a_summary_entry_for_an_unknown_piece_is_skipped():
+    """As the Swift reader's compactMap does: a copy the manifest no longer lists has no model."""
+    ghost = {
+        "piece": "ghost",
+        "copy": 1,
+        "doc_id": RDOC["id"],
+        "cursor": {"row": 2, "run": 0},
+        "finished": None,
+    }
+    s = progress.summarize_project(doc([ghost], []), MANIFEST, {RDOC["id"]: RDOC})
+    assert s["pieces"] == [] and s["pieces_done"] == 0
+
+
 def test_refinishing_after_a_gap_adds_no_rows():
     events = [
         ev("2026-09-12T18:00:00Z", 2),

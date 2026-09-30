@@ -270,7 +270,8 @@ STRIP_ROWS = [
         "to": 1,
         "code": "A",
         "count": 6,
-        "text": "(A) ch 7, from the second chain from the hook, 6 sc [6]",
+        # A curly apostrophe: the rows id hashes UTF-8, so both readers must agree on non-ASCII.
+        "text": "(A) ch 7, from the hook’s second chain, 6 sc [6]",
     },
     {"label": "R 2 - R 4", "from": 2, "to": 4, "count": 6, "text": "ch 1, turn, 6 sc [6]"},
     {"label": "R 5", "from": 5, "to": 5, "code": "B", "count": 6, "text": "(B) ch 1, turn, 6 sc [6]"},
@@ -556,7 +557,8 @@ def pieces_refused_fixtures(manifest: dict) -> dict[str, dict]:
     missing_chart = json.loads(json.dumps(manifest))
     missing_chart["pieces"][0]["chart"] = "sha256:" + "0" * 64
     return {
-        "rows-gap.rows.json": rows_doc("Gap", [STRIP_ROWS[0], STRIP_ROWS[2]]),
+        # The strip's palette, so the gap is the only thing wrong with it.
+        "rows-gap.rows.json": rows_doc("Gap", [STRIP_ROWS[0], STRIP_ROWS[2]], PIECES_PALETTE),
         "rows-open-not-last.rows.json": rows_doc("Open", [dict(STRAP_ROWS[1], **{"from": 1}), STRIP_ROWS[1]]),
         "piece-names-missing-chart.pattern.json": missing_chart,
     }
