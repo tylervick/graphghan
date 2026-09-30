@@ -110,20 +110,33 @@ def summarize_project(
     doc: dict, manifest: dict, docs: dict[str, dict], gap_seconds: int = GAP_SECONDS
 ) -> dict:
     """Progress schema 2 (spec 2026-09-25 §5.4): each started piece copy, the project counts, and
-    sessions over every event. `docs` maps a chart id or rows id to that document."""
+    sessions over every event. `docs` maps a chart id or rows id to that document.
+
+    A piece's model is built lazily and cached, from every piece the manifest knows (not just the
+    ones with a `pieces[]` summary entry): an event for a piece the manifest does not know is
+    skipped, but an event for a known piece with no summary entry still counts in sessions."""
     by_id = {p["id"]: p for p in manifestdoc.pieces(manifest)}
+    model_cache: dict[str, dict | None] = {}
 
-    def piece_model(pid: str) -> dict:
-        p = by_id[pid]
-        if "chart" in p:
-            chart = docs[p["chart"]]
-            return {"kind": "chart", "passes": chartdoc.sequence(chart), "cell": chartdoc.cell_kind(chart)}
-        return {"kind": "rows", "doc": docs[p["rows_id"]]}
+    def piece_model(pid: str) -> dict | None:
+        if pid not in model_cache:
+            p = by_id.get(pid)
+            if p is None:
+                model_cache[pid] = None
+            elif "chart" in p:
+                chart = docs[p["chart"]]
+                model_cache[pid] = {
+                    "kind": "chart",
+                    "passes": chartdoc.sequence(chart),
+                    "cell": chartdoc.cell_kind(chart),
+                }
+            else:
+                model_cache[pid] = {"kind": "rows", "doc": docs[p["rows_id"]]}
+        return model_cache[pid]
 
-    models = {pid: piece_model(pid) for pid in {e["piece"] for e in doc["pieces"]}}
     out_pieces = []
     for entry in doc["pieces"]:
-        m = models[entry["piece"]]
+        m = piece_model(entry["piece"])
         finished = entry.get("finished") is not None
         cur = entry["cursor"]
         row = {"piece": entry["piece"], "copy": entry.get("copy", 1), "kind": m["kind"], "finished": finished}
@@ -153,27 +166,34 @@ def summarize_project(
                 row["stitches_done"] = st_total if finished else rowsdoc.stitches_before(rd, cur["row"])
         out_pieces.append(row)
 
-    # Sessions: every event, split by time; each piece's worked amount across the session.
+    # Sessions: every event, split by time; each piece's worked amount across the session. Each
+    # piece copy's running state is (cursor, finished), carried across sessions (not reset by a
+    # gap): `finished` is True exactly when the event just applied is a finishing advance (an
+    # `advance` on a written piece that leaves its row unchanged) and False after any other event
+    # (back, jump, or an ordinary advance) — so un-finishing and re-finishing across a gap adds no
+    # rows unless the row itself moved. An event naming a piece the manifest does not know is
+    # skipped outright: it opens no session of its own and never updates `last`.
     events = sorted(doc.get("events") or [], key=lambda e: _parse(e["t"]))
-    last: dict[tuple[str, int], tuple[int, int, int]] = {}
+    last: dict[tuple[str, int], tuple[tuple[int, int, int], bool]] = {}
     sessions, current, prev_t = [], None, None
     for e in events:
+        m = piece_model(e["piece"])
+        if m is None:
+            continue
         t = _parse(e["t"])
         if current is None or (t - prev_t).total_seconds() > gap_seconds:
             if current is not None:
                 sessions.append(current)
-            current = {"start": t, "end": t, "from": {}, "to": {}, "finishing": {}}
+            current = {"start": t, "end": t, "from": {}, "to": {}}
         k = _key(e)
-        before = last.get(k, (1, 0, 0))
-        current["from"].setdefault(k, before)
+        before_state = last.get(k, ((1, 0, 0), False))
+        current["from"].setdefault(k, before_state)
         cursor = (e["row"], e["run"], e.get("stitch", 0))
-        # An advance that leaves a written piece's row unchanged is the one that finished it.
-        current["finishing"][k] = (
-            e["kind"] == "advance" and cursor[0] == before[0] and models[e["piece"]]["kind"] == "rows"
-        )
-        current["to"][k] = cursor
+        finishing = e["kind"] == "advance" and cursor[0] == before_state[0][0] and m["kind"] == "rows"
+        state = (cursor, finishing)
+        current["to"][k] = state
         current["end"] = t
-        last[k] = cursor
+        last[k] = state
         prev_t = t
     if current is not None:
         sessions.append(current)
@@ -182,19 +202,20 @@ def summarize_project(
     for s in sessions:
         cells = rows = 0
         touched_chart = False
-        for k, start in s["from"].items():
-            end = s["to"][k]
-            m = models[k[0]]
+        for k, (start_cursor, start_finished) in s["from"].items():
+            end_cursor, end_finished = s["to"][k]
+            m = piece_model(k[0])
             if m["kind"] == "chart":
                 touched_chart = True
-                n = max(0, cells_before(m["passes"], *end) - cells_before(m["passes"], *start))
+                n = max(0, cells_before(m["passes"], *end_cursor) - cells_before(m["passes"], *start_cursor))
                 cells += n
                 if m["cell"] == "stitch":
                     chart_stitches += n
             else:
                 total = rowsdoc.total_rows(m["doc"])
-                after = _rows_done(end[0], s["finishing"][k], total)
-                rows += max(0, after - _rows_done(start[0], False, total))
+                before = _rows_done(start_cursor[0], start_finished, total)
+                after = _rows_done(end_cursor[0], end_finished, total)
+                rows += max(0, after - before)
         secs = int((s["end"] - s["start"]).total_seconds())
         active += secs
         if touched_chart:

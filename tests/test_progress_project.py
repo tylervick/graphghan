@@ -86,3 +86,44 @@ def test_the_finishing_advance_counts_the_last_row():
     ]
     assert s["pieces_done"] == 1
     assert s["stitches_per_hour"] is None  # written rows get no pace figure
+
+
+def test_an_event_for_a_piece_without_a_summary_entry_still_counts():
+    events = [ev("2026-09-12T18:00:00Z", 3)]
+    d = doc([], events)
+    s = progress.summarize_project(d, MANIFEST, {RDOC["id"]: RDOC})
+    assert s["pieces"] == []
+    assert s["sessions"] == [
+        {"start": "2026-09-12T18:00:00Z", "end": "2026-09-12T18:00:00Z", "cells": 0, "rows": 2}
+    ]
+
+
+def test_an_event_for_an_unknown_piece_is_ignored():
+    events = [ev("2026-09-12T18:00:00Z", 3, piece="ghost")]
+    d = doc([], events)
+    s = progress.summarize_project(d, MANIFEST, {RDOC["id"]: RDOC})
+    assert s["sessions"] == []
+
+
+def test_refinishing_after_a_gap_adds_no_rows():
+    events = [
+        ev("2026-09-12T18:00:00Z", 2),
+        ev("2026-09-12T18:01:00Z", 4, "jump"),
+        ev("2026-09-12T18:02:00Z", 4),  # finishes the piece: session 1 counts rows 4
+        ev("2026-09-12T18:30:00Z", 4, "back"),  # > 20 minutes later: a new session
+        ev("2026-09-12T18:31:00Z", 4),  # re-finishes; the row never moved, so no new rows
+    ]
+    d = doc(
+        [
+            {
+                "piece": "strip",
+                "copy": 1,
+                "doc_id": RDOC["id"],
+                "cursor": {"row": 4, "run": 0},
+                "finished": "2026-09-12T18:31:00Z",
+            }
+        ],
+        events,
+    )
+    s = progress.summarize_project(d, MANIFEST, {RDOC["id"]: RDOC})
+    assert [x["rows"] for x in s["sessions"]] == [4, 0]
