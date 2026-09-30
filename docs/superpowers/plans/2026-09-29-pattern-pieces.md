@@ -2596,7 +2596,7 @@ Expected: FAIL to compile — `cannot find 'WrittenWorkScreen' in scope`.
 
 `WorkView.swift`:
 - Add `@State private var work: PieceWork?`, `@State private var manifest: PatternManifest?`, `@State private var pieceFinished = false`, `@State private var nextTitle: String?`.
-- In `.task`: when `project.isPieced`, load `manifest = try await model.manifest(for: project.patternID, path: nil)`, then `work = try await model.projects.work(for: project)`; for `.chart(c, s)` also set `chart = c; sequence = s` so the chart path renders as today (and the Live Activity starts as today); for `.written` do **not** start a Live Activity (its state is run-based; see the follow-on issue in this plan's handoff).
+- In `.task`: when `project.isPieced`, load `manifest = try await model.manifest(for: project.patternID, path: nil)`, then `work = try await model.projects.work(for: project)`; for `.chart(c, s)` also set `chart = c; sequence = s` so the chart path renders as today (and the Live Activity starts as today); for `.written` do **not** start a Live Activity (its state is run-based; #223).
 - In `body`, before the chart branch: `if case .written(let seq)? = work { writtenContent(seq) }`.
 - `writtenContent`: `WrittenWorkScreen(title: currentTitle, sequence: seq, cursor: cursor, finished: pieceFinished, next: nextTitle, onDone: { performWritten(.advance) }, onBack: { performWritten(.back) }, onClose: { dismiss() }, onJump: { showJump = true }, onFinishPiece: { try? model.projects.finishPiece(project); refreshFinished() }, onNext: { Task { await goToNext() } })`, with the same back-swipe gesture and a `JumpToRowSheet(rowCount: seq.totalRows ?? max(cursor.row + 50, 100), current: cursor.row)` (an open piece allows jumping ahead).
 - `performWritten(_ action:)`: `model.projects.apply(action, to: project, work: .written(seq))`, animate `cursor`, then `refreshFinished()`.
@@ -2745,7 +2745,7 @@ git push -u origin HEAD
 gh pr create --title "Patterns made of pieces: manifest 2, written rows, progress 2 (#206)" --body-file <file>
 ```
 
-The body: "Refs #206 and #37 (PR 2 of `docs/superpowers/specs/2026-09-25-pieces-and-shaped-rows-design.md` §8; #206 stays open for the importer PR)", a What changes list (format: rows document, manifest 2, progress 2 with the two rules this PR settles; Python reference; GraphghanCore; the app: pieced projects, the piece list and assembly, the written-piece Work screen, finishing and next piece, progress line, Shortcuts, Live Activity title), the Tests section with each suite's real numbers and the four new snapshots, and Follow-ons with the issue numbers filed at handoff. End with `🤖 Generated with [Claude Code](https://claude.com/claude-code)`.
+The body: "Refs #206 and #37 (PR 2 of `docs/superpowers/specs/2026-09-25-pieces-and-shaped-rows-design.md` §8; #206 stays open for the importer PR)", a What changes list (format: rows document, manifest 2, progress 2 with the two rules this PR settles; Python reference; GraphghanCore; the app: pieced projects, the piece list and assembly, the written-piece Work screen, finishing and next piece, progress line, Shortcuts, Live Activity title), the Tests section with each suite's real numbers and the four new snapshots, and Follow-ons: #223 (Live Activity for a written piece), #220, #222. End with `🤖 Generated with [Claude Code](https://claude.com/claude-code)`.
 
 - [ ] **Step 4: See it to green**
 
