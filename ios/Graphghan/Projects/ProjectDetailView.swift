@@ -7,6 +7,8 @@ struct ProjectDetailView: View {
     let project: Project
     @State private var sequence: WorkSequence?
     @State private var summary: ProgressSummary?
+    /// A pieced project's pieces, in the pattern's order (spec 2026-09-25 §6.2).
+    @State private var statuses: [PieceStatus] = []
     /// The event log could not be read: shown, not hidden behind an empty summary.
     @State private var historyError: String?
     @State private var loadError: String?
@@ -27,7 +29,18 @@ struct ProjectDetailView: View {
 
     var body: some View {
         List {
-            if let sequence, let summary {
+            if project.isPieced, let manifest {
+                PieceListSection(statuses: statuses, assembly: manifest.assembly, assemblyDone: project.assemblyDone,
+                                 onSelect: { key in
+                                     Task {
+                                         try? await model.projects.selectPiece(key, of: project, manifest: manifest)
+                                         model.workingProject = project
+                                     }
+                                 },
+                                 onToggleStep: { i, on in try? model.projects.setAssemblyStep(i, done: on, for: project) })
+                notesSection
+                manageSection(showFinishToggle: false)
+            } else if let sequence, let summary {
                 Section {
                     ProgressView(value: summary.percent, total: 100).tint(.heather)
                     LabeledContent("Row", value: project.isFinished ? "Finished" : "\(project.cursor.row) of \(sequence.passes.count)")
@@ -48,11 +61,7 @@ struct ProjectDetailView: View {
                 if let notice = manifest.flatMap({ model.projects.versionNotice(for: project, manifest: $0) }) {
                     Section("Pattern updated") { versionNotice(notice) }
                 }
-                Section("Notes") {
-                    TextField("Yarn lots, hook, reminders…", text: $notes, axis: .vertical)
-                        .lineLimit(3...8)
-                        .onChange(of: notes) { _, new in try? model.projects.setNotes(new, for: project) }
-                }
+                notesSection
                 if !summary.sessions.isEmpty {
                     Section("Sessions") {
                         ForEach(Array(summary.sessions.suffix(10).reversed().enumerated()), id: \.offset) { _, s in
@@ -61,17 +70,7 @@ struct ProjectDetailView: View {
                         }
                     }
                 }
-                Section {
-                    if project.isFinished {
-                        Button("Mark unfinished") {
-                            do { try model.projects.markUnfinished(project) }
-                            catch { actionError = "Couldn't reopen this project: \(error.localizedDescription)" }
-                        }
-                    } else {
-                        Button("Mark finished") { confirmFinish = true }
-                    }
-                    Button("Delete project", role: .destructive) { confirmDelete = true }
-                }
+                manageSection(showFinishToggle: true)
             } else if let loadError {
                 Section {
                     ContentUnavailableView("Chart missing", systemImage: "exclamationmark.triangle", description: Text(loadError))
@@ -128,6 +127,10 @@ struct ProjectDetailView: View {
         // The summary walks every event; recompute it when the project changes outside the Work
         // screen, never on each tap behind the cover (see ProjectSummaryKey).
         .task(id: SummaryRefresh(key: ProjectSummaryKey.make(for: project, working: model.workingProject), chartID: sequence == nil ? nil : project.chartID)) {
+            if project.isPieced {
+                if let manifest { statuses = await model.projects.statuses(for: project, manifest: manifest) }
+                return
+            }
             guard let sequence, ProjectSummaryKey.make(for: project, working: model.workingProject) != nil || summary == nil else { return }
             do {
                 summary = try model.projects.summary(for: project, sequence: sequence)
@@ -141,11 +144,48 @@ struct ProjectDetailView: View {
 
     private struct SummaryRefresh: Hashable { let key: ProjectSummaryKey?; let chartID: String? }
 
+    @ViewBuilder private var notesSection: some View {
+        Section("Notes") {
+            TextField("Yarn lots, hook, reminders…", text: $notes, axis: .vertical)
+                .lineLimit(3...8)
+                .onChange(of: notes) { _, new in try? model.projects.setNotes(new, for: project) }
+        }
+    }
+
+    /// `showFinishToggle` is false for a pieced project: its finish follows its pieces and
+    /// assembly, so a manual toggle here would be undone by the next step.
+    @ViewBuilder private func manageSection(showFinishToggle: Bool) -> some View {
+        Section {
+            if showFinishToggle {
+                if project.isFinished {
+                    Button("Mark unfinished") {
+                        do { try model.projects.markUnfinished(project) }
+                        catch { actionError = "Couldn't reopen this project: \(error.localizedDescription)" }
+                    }
+                } else {
+                    Button("Mark finished") { confirmFinish = true }
+                }
+            }
+            Button("Delete project", role: .destructive) { confirmDelete = true }
+        }
+    }
+
     private func load() async {
         notes = project.notes
-        do { sequence = try await model.projects.sequence(for: project) }
-        catch { loadError = "This project's chart could not be read. Download it again to continue." }
         manifest = try? await model.manifest(for: project.patternID, path: nil)
+        // A pieced project's chart lives per piece, not on the project; sequence(for:) would read
+        // project.chartID directly and report "Chart missing" while the current piece is written
+        // (chartID is ""), so it is only meaningful for a single-chart project.
+        if project.isPieced {
+            guard let manifest else {
+                loadError = "This project's chart could not be read. Download it again to continue."
+                return
+            }
+            statuses = await model.projects.statuses(for: project, manifest: manifest)
+        } else {
+            do { sequence = try await model.projects.sequence(for: project) }
+            catch { loadError = "This project's chart could not be read. Download it again to continue." }
+        }
     }
 
     private func redownload() async {

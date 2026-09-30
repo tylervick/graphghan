@@ -21,14 +21,22 @@ struct StartProjectSheet: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("Chart") {
-                    Picker("Chart", selection: $chartID) {
-                        ForEach(manifest.charts) { c in
-                            Text("\(c.variant) · \(c.gaugeKey): \(c.sizeLabel.map { "\($0), " } ?? "")\(c.height) rows").tag(c.id)
+                if manifest.isPieced {
+                    Section("Pieces") {
+                        ForEach(manifest.pieces ?? []) { piece in
+                            Text(piece.make > 1 ? "\(piece.title) × \(piece.make)" : piece.title)
                         }
                     }
-                    .pickerStyle(.inline)
-                    .labelsHidden()
+                } else {
+                    Section("Chart") {
+                        Picker("Chart", selection: $chartID) {
+                            ForEach(manifest.charts) { c in
+                                Text("\(c.variant) · \(c.gaugeKey): \(c.sizeLabel.map { "\($0), " } ?? "")\(c.height) rows").tag(c.id)
+                            }
+                        }
+                        .pickerStyle(.inline)
+                        .labelsHidden()
+                    }
                 }
                 Section("Name") {
                     TextField("Project name", text: $title)
@@ -42,18 +50,22 @@ struct StartProjectSheet: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button(starting ? "Starting…" : "Start") { start() }.disabled(chart == nil || starting)
+                    Button(starting ? "Starting…" : "Start") { start() }.disabled((manifest.isPieced ? false : chart == nil) || starting)
                 }
             }
         }
     }
 
     private func start() {
-        guard let chart else { return }
         starting = true
         Task {
             do {
-                try await model.startProject(manifest: manifest, chart: chart, title: title)
+                if manifest.isPieced {
+                    try await model.startPiecedProject(manifest: manifest, title: title)
+                } else {
+                    guard let chart else { starting = false; return }
+                    try await model.startProject(manifest: manifest, chart: chart, title: title)
+                }
                 dismiss()
             } catch {
                 self.error = "Couldn't download the chart. Check your connection and try again."
