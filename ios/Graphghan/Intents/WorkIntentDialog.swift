@@ -31,7 +31,7 @@ enum WorkIntentDialog {
         case .ambiguous(let candidates):
             return Text(questionText(candidates))
         case .moved(let landing):
-            return text(for: landing.step, in: landing.sequence)
+            return text(for: landing.step, in: landing.sequence, pieceTitle: landing.pieceTitle)
         case .movedWritten(let title, let row, let total, let finished):
             if finished { return Text("That's the last row of \(title).") }
             if let total { return Text("\(title), row \(row) of \(total).") }
@@ -68,6 +68,22 @@ enum WorkIntentDialog {
         default: list = titles.dropLast().joined(separator: ", ") + ", or " + titles[titles.count - 1]
         }
         return "Which blanket — \(list)?"
+    }
+
+    /// With `pieceTitle` (a pieced project's chart piece, spec 2026-09-25 §6.5) the sentence is
+    /// the piece's: "Front panel, row 42, run 3 of 5.", and its last step finishes the piece, not
+    /// the blanket.
+    static func text(for step: WorkStep, in sequence: WorkSequence, pieceTitle: String?) -> Text {
+        guard let pieceTitle else { return text(for: step, in: sequence) }
+        if step.finished { return Text("That's the last row of \(pieceTitle).") }
+        let t = text(for: step, in: sequence)
+        return Text("\(pieceTitle), \(lowercasingFirst(t.full))", supporting: "\(pieceTitle), \(lowercasingFirst(t.supporting))")
+    }
+
+    /// "Row 42" → "row 42", "End of row 1" → "end of row 1": the sentence follows the piece's name.
+    private static func lowercasingFirst(_ s: String) -> String {
+        guard let first = s.first else { return s }
+        return first.lowercased() + s.dropFirst()
     }
 
     static func text(for step: WorkStep, in sequence: WorkSequence) -> Text {

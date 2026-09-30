@@ -587,7 +587,14 @@ final class AppModel {
             await adoptActivity(for: project, chart: chart, sequence: sequence)
         }
         guard let step = await step(action, on: project, chart: chart, sequence: sequence) else { return .nowhereToGo(action) }
-        return .moved(WorkIntentLanding(step: step, sequence: sequence, chart: chart, countStep: project.step, perRepetition: project.tapPerRepetition))
+        // A pieced project's chart piece: the reply names the piece (spec 2026-09-25 §6.5).
+        var pieceTitle: String?
+        if project.isPieced {
+            let manifest = try? await manifest(for: project.patternID, path: nil)
+            pieceTitle = manifest?.pieces?.first(where: { $0.id == project.currentPiece })?.title ?? project.currentPiece ?? project.title
+        }
+        return .moved(WorkIntentLanding(step: step, sequence: sequence, chart: chart, countStep: project.step,
+                                        perRepetition: project.tapPerRepetition, pieceTitle: pieceTitle))
     }
 
     enum WorkingProject: Equatable {

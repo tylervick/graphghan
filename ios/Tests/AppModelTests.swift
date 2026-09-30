@@ -115,4 +115,20 @@ import GraphghanCore
         }
         #expect(title == "Strip" && row == 2 && total == 5 && !finished)
     }
+
+    /// Spec §6.5: Siri names the chart piece it moved on.
+    @Test @MainActor func aShortcutsDoneOnAChartPieceNamesThePiece() async throws {
+        let (model, project) = try await Self.piecedProject()
+        let outcome = await model.performIntent(.advance, chosen: project.id)
+        guard case .moved(let landing) = outcome else { Issue.record("expected .moved, got \(outcome)"); return }
+        #expect(landing.pieceTitle == "Panel")
+        #expect(WorkIntentDialog.plain(outcome).hasPrefix("Panel, row 3, "))
+    }
+
+    @Test @MainActor func aShortcutsDoneOnASingleChartNamesNoPiece() async throws {
+        let (model, project) = try await Self.singleChartProject()
+        let outcome = await model.performIntent(.advance, chosen: project.id)
+        guard case .moved(let landing) = outcome else { Issue.record("expected .moved, got \(outcome)"); return }
+        #expect(landing.pieceTitle == nil)
+    }
 }

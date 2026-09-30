@@ -25,6 +25,9 @@ struct WorkIntentLanding: Sendable {
     let chart: Chart
     let countStep: CountStep
     let perRepetition: Bool
+    /// The current piece's title for a pieced project, so the reply names it (spec 2026-09-25
+    /// §6.5); nil for a single chart, whose wording is unchanged.
+    var pieceTitle: String? = nil
 }
 
 /// What a Done or Back on the working project came to, for an intent to put into words.
