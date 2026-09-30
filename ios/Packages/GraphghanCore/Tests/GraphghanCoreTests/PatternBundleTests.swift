@@ -146,10 +146,13 @@ import Testing
     }
 
     @Test func aManifestFromANewerFormatIsRefused() throws {
+        // Schema 2 now decodes (it's the pieces schema, backward-compatible for a manifest
+        // without pieces); a manifest without pieces is one piece, the default chart, at either
+        // schema (spec §5.3). So this exercises an actually-unsupported schema number.
         var object = try Self.manifestJSON()
-        object["schema"] = 2
+        object["schema"] = 3
         let data = try Self.rebuilt(replacing: [PatternBundle.manifestName: try Self.encode(object)])
-        #expect(throws: BundleError.unsupportedManifestSchema(2)) { try PatternBundle.read(data) }
+        #expect(throws: BundleError.unsupportedManifestSchema(3)) { try PatternBundle.read(data) }
     }
 
     @Test(arguments: ["", "../evil", "Craigh Na Dun", "a/b"])
@@ -258,5 +261,43 @@ import Testing
         """
         let manifest = try JSONDecoder().decode(PatternManifest.self, from: Data(json.utf8))
         #expect(IndexEntry(manifest: manifest).sizeIn == [50.0, 100.0])
+    }
+
+    // ---- pieced bundles (manifest schema 2) ----
+
+    static func piecedEntries() throws -> [String: Data] {
+        var entries: [String: Data] = [:]
+        for path in ["pattern.json", "preview.png", "charts/final-sc/chart.json", "charts/final-sc/preview.png",
+                     "pieces/strip.rows.json", "pieces/fin.rows.json", "pieces/strap.rows.json"] {
+            entries[path] = try Fixtures.pieces(path)
+        }
+        return entries
+    }
+
+    @Test func theCommittedPiecedBundleReads() throws {
+        let bundle = try PatternBundle.read(Fixtures.bundle("pieces-basic"))
+        #expect(bundle.manifest.isPieced && bundle.charts.count == 1)
+        #expect(bundle.rows.map(\.piece.id) == ["strip", "fin", "strap"])
+        #expect(bundle.rows[0].document.title == "Strip")
+    }
+
+    /// Review focus 5.
+    @Test func aRowsFileWithTheWrongIDIsRefused() throws {
+        var entries = try Self.piecedEntries()
+        entries["pieces/fin.rows.json"] = entries["pieces/strip.rows.json"]
+        let data = try ZipBuilder(items: entries.map { ZipBuilder.Item($0.key, $0.value) }).build()
+        #expect(throws: BundleError.self) { try PatternBundle.read(data) }
+        do { _ = try PatternBundle.read(data) } catch let e as BundleError {
+            guard case .rowsIDMismatch(let path, _, _) = e else { Issue.record("\(e)"); return }
+            #expect(path == "pieces/fin.rows.json")
+        }
+    }
+
+    /// Review focus 5.
+    @Test func aPieceNamingAMissingChartIsRefused() throws {
+        var entries = try Self.piecedEntries()
+        entries["pattern.json"] = try Data(contentsOf: Fixtures.directory.appendingPathComponent("refused/piece-names-missing-chart.pattern.json"))
+        let data = try ZipBuilder(items: entries.map { ZipBuilder.Item($0.key, $0.value) }).build()
+        #expect(throws: BundleError.pieceNamesMissingChart(piece: "panel")) { try PatternBundle.read(data) }
     }
 }
