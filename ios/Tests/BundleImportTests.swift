@@ -27,6 +27,7 @@ import GraphghanCore
         let model = AppModel(context: container.mainContext,
                              patterns: patterns,
                              charts: ChartLibrary(directory: chartsDirectory),
+                             rows: RowsLibrary(directory: try temporaryDirectory()),
                              localPatterns: LocalPatternStore(directory: localDirectory))
         return Harness(model: model, client: client, chartsDirectory: chartsDirectory, localDirectory: localDirectory)
     }
@@ -114,6 +115,18 @@ import GraphghanCore
         let local = harness.model.libraryItems.filter(\.isLocal)
         #expect(local.count == 1)
         #expect(local.first?.entry.title == "Craigh na Dun, revised")
+    }
+
+    @Test func aPiecedBundleStoresItsChartsAndRows() async throws {
+        let charts = ChartLibrary(directory: try temporaryDirectory())
+        let rows = RowsLibrary(directory: try temporaryDirectory())
+        let importer = BundleImporter(charts: charts, rows: rows, local: try makeLocalPatternStore())
+        let manifest = try await importer.importBundle(try TestFixtures.bundle("pieces-basic"))
+        #expect(manifest.isPieced)
+        for piece in manifest.pieces ?? [] {
+            if let id = piece.rowsID { #expect(await rows.has(id: id)) }
+            if let id = piece.chart { #expect(await charts.hasChart(id: id)) }
+        }
     }
 
     // MARK: refusals leave everything alone

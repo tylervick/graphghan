@@ -14,7 +14,8 @@ import ProseReaderKit
         let container = try makeInMemoryContainer()
         let patterns = PatternStore(baseURL: URL(string: "https://example.test/")!, cacheDirectory: try temporaryDirectory(), client: StubClient())
         return AppModel(context: container.mainContext, patterns: patterns,
-                        charts: ChartLibrary(directory: try temporaryDirectory()), localPatterns: LocalPatternStore(directory: try temporaryDirectory()),
+                        charts: ChartLibrary(directory: try temporaryDirectory()), rows: RowsLibrary(directory: try temporaryDirectory()),
+                        localPatterns: LocalPatternStore(directory: try temporaryDirectory()),
                         rowReader: .some(rowReader), modelUnavailable: .some(modelUnavailable))
     }
 

@@ -29,6 +29,18 @@ final class Project {
     /// App state, never exported; the default is what makes this a lightweight migration.
     var bandStyle: String = BandStyle.default.rawValue
     var lastWorked: Date?
+    /// A pieced project's current piece (manifest schema 2); nil for a single-chart project, whose
+    /// cursor fields are its only piece. For a pieced project `chartID` and the cursor fields
+    /// mirror the current piece (spec 2026-09-25 §6.1). Defaults keep the migration lightweight.
+    var currentPiece: String? = nil
+    var currentCopy: Int = 1
+    /// The current piece's rows id when it is written, not charted; `chartID` is then "".
+    var currentRowsID: String? = nil
+    /// Indexes of the assembly steps ticked off.
+    var assemblyDone: [Int] = []
+    /// Piece copies to make and assembly steps, from the manifest when the project started.
+    var piecesTotal: Int = 1
+    var assemblyTotal: Int = 0
     // The event log is not modelled as an array here on purpose (#79): a to-many relationship
     // made every insert maintain its inverse, so a tap cost time proportional to the project's
     // history. Events point at their project (`ProgressEvent.project`) and are fetched by
@@ -70,4 +82,8 @@ final class Project {
     }
 
     var isFinished: Bool { finished != nil }
+
+    var isPieced: Bool { currentPiece != nil }
+    var currentIsWritten: Bool { currentRowsID != nil }
+    var currentKey: PieceKey? { currentPiece.map { PieceKey(piece: $0, copy: currentCopy) } }
 }

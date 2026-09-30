@@ -15,6 +15,7 @@ import GraphghanCore
         let charts = ChartLibrary(directory: try temporaryDirectory())
         let backend = RecordingBackend()
         let model = AppModel(context: container.mainContext, patterns: patterns, charts: charts,
+                             rows: RowsLibrary(directory: try temporaryDirectory()),
                              localPatterns: try makeLocalPatternStore(), activityBackend: backend,
                              defaults: UserDefaults(suiteName: "test-\(UUID().uuidString)")!)
         model.registerIntentHandler()

@@ -16,6 +16,7 @@ enum AppGroup {
     static var cachesURL: URL { containerURL.appendingPathComponent("Library/Caches", isDirectory: true) }
     static var storeURL: URL { supportURL.appendingPathComponent("graphghan.store") }
     static var chartsURL: URL { supportURL.appendingPathComponent("charts", isDirectory: true) }
+    static var rowsURL: URL { supportURL.appendingPathComponent("rows", isDirectory: true) }
     static var patternsCacheURL: URL { cachesURL.appendingPathComponent("patterns", isDirectory: true) }
     /// Patterns opened from a file (#16). Application Support, not the purgeable cache: a site
     /// pattern's cache is a copy of something the network can produce again, while this is the

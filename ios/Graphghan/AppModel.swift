@@ -14,6 +14,8 @@ final class AppModel {
 
     let patterns: PatternStore
     let charts: ChartLibrary
+    /// Written-rows documents for a pieced project's written pieces (spec 2026-09-25 §6.1).
+    let rows: RowsLibrary
     /// Patterns opened from a file (#16), which the site knows nothing about.
     let localPatterns: LocalPatternStore
     let projects: ProjectService
@@ -63,13 +65,14 @@ final class AppModel {
         if #available(iOS 18, *) { await ProjectIndexer.upsert(snapshot) }
     }
 
-    init(context: ModelContext, patterns: PatternStore, charts: ChartLibrary,
+    init(context: ModelContext, patterns: PatternStore, charts: ChartLibrary, rows: RowsLibrary,
          localPatterns: LocalPatternStore,
          activityBackend: ActivityBackend = ActivityKitBackend(),
          defaults: UserDefaults = UserDefaults(suiteName: AppGroup.identifier) ?? .standard,
          rowReader: (any RowReading)?? = nil, modelUnavailable: String?? = nil) {
         self.patterns = patterns
         self.charts = charts
+        self.rows = rows
         self.localPatterns = localPatterns
         // Double optionals: not given resolves the device's model; given nil means none (tests).
         if let rowReader {
@@ -120,6 +123,7 @@ final class AppModel {
         let model = AppModel(context: context,
                              patterns: PatternStore(cacheDirectory: AppGroup.patternsCacheURL, client: URLSessionHTTPClient()),
                              charts: ChartLibrary(directory: AppGroup.chartsURL),
+                             rows: RowsLibrary(directory: AppGroup.rowsURL),
                              localPatterns: LocalPatternStore(directory: AppGroup.localPatternsURL))
         model.registerIntentHandler()
         model.indexesProjects = true
@@ -239,7 +243,7 @@ final class AppModel {
     /// landing on what you opened is the point of the gesture.
     @discardableResult
     func importBundle(data: Data) async -> PatternManifest? {
-        let importer = BundleImporter(charts: charts, local: localPatterns)
+        let importer = BundleImporter(charts: charts, rows: rows, local: localPatterns)
         do {
             let manifest = try await importer.importBundle(data)
             manifests[manifest.id] = manifest

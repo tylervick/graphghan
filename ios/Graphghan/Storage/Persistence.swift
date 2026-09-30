@@ -2,7 +2,7 @@ import Foundation
 import SwiftData
 
 enum Persistence {
-    static let schema = Schema([Project.self, ProgressEvent.self])
+    static let schema = Schema([Project.self, ProgressEvent.self, PieceProgress.self])
 
     static func makeContainer(inMemory: Bool = false) throws -> ModelContainer {
         let configuration: ModelConfiguration

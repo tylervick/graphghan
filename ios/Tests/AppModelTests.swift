@@ -13,6 +13,7 @@ import GraphghanCore
         let patterns = PatternStore(baseURL: URL(string: "https://example.test/")!, cacheDirectory: try temporaryDirectory(), client: client)
         let charts = ChartLibrary(directory: try temporaryDirectory())
         return (AppModel(context: container.mainContext, patterns: patterns, charts: charts,
+                         rows: RowsLibrary(directory: try temporaryDirectory()),
                          localPatterns: try makeLocalPatternStore()), client)
     }
 
