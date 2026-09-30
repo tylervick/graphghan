@@ -1,8 +1,10 @@
-"""Progress documents (schema 1): cursor math, sessions, and pace. Pure functions over passes."""
+"""Progress documents (schemas 1 and 2): cursor math, sessions, and pace. Pure functions over passes."""
 
 from __future__ import annotations
 
 from datetime import datetime, timezone
+
+from . import chartdoc, manifestdoc, rowsdoc
 
 GAP_SECONDS = 1200
 
@@ -90,4 +92,123 @@ def from_legacy_code(slug: str, row: int, run: int) -> dict:
         "chart_id": None,
         "cursor": {"row": row, "run": run},
         "events": [],
+    }
+
+
+def _key(obj: dict) -> tuple[str, int]:
+    return (obj["piece"], obj.get("copy", 1))
+
+
+def _rows_done(row: int, finished: bool, total: int | None) -> int:
+    """Rows worked at a written cursor: the rows before it, or all of them once finished."""
+    if finished:
+        return total if total is not None else row
+    return row - 1
+
+
+def summarize_project(
+    doc: dict, manifest: dict, docs: dict[str, dict], gap_seconds: int = GAP_SECONDS
+) -> dict:
+    """Progress schema 2 (spec 2026-09-25 §5.4): each started piece copy, the project counts, and
+    sessions over every event. `docs` maps a chart id or rows id to that document."""
+    by_id = {p["id"]: p for p in manifestdoc.pieces(manifest)}
+
+    def piece_model(pid: str) -> dict:
+        p = by_id[pid]
+        if "chart" in p:
+            chart = docs[p["chart"]]
+            return {"kind": "chart", "passes": chartdoc.sequence(chart), "cell": chartdoc.cell_kind(chart)}
+        return {"kind": "rows", "doc": docs[p["rows_id"]]}
+
+    models = {pid: piece_model(pid) for pid in {e["piece"] for e in doc["pieces"]}}
+    out_pieces = []
+    for entry in doc["pieces"]:
+        m = models[entry["piece"]]
+        finished = entry.get("finished") is not None
+        cur = entry["cursor"]
+        row = {"piece": entry["piece"], "copy": entry.get("copy", 1), "kind": m["kind"], "finished": finished}
+        if m["kind"] == "chart":
+            total = total_cells(m["passes"])
+            done = cells_before(m["passes"], cur["row"], cur["run"], cur.get("stitch", 0))
+            row.update(
+                {
+                    "percent": round(100.0 * done / total, 1) if total else 0.0,
+                    "cells_done": done,
+                    "total_cells": total,
+                }
+            )
+            if m["cell"] == "stitch":
+                row.update({"stitches_done": done, "total_stitches": total})
+        else:
+            rd = m["doc"]
+            total = rowsdoc.total_rows(rd)
+            done = _rows_done(cur["row"], finished, total)
+            row["rows_done"] = done
+            if total is not None:
+                row["total_rows"] = total
+                row["percent"] = round(100.0 * done / total, 1) if total else 0.0
+            st_total = rowsdoc.total_stitches(rd)
+            if st_total is not None:
+                row["total_stitches"] = st_total
+                row["stitches_done"] = st_total if finished else rowsdoc.stitches_before(rd, cur["row"])
+        out_pieces.append(row)
+
+    # Sessions: every event, split by time; each piece's worked amount across the session.
+    events = sorted(doc.get("events") or [], key=lambda e: _parse(e["t"]))
+    last: dict[tuple[str, int], tuple[int, int, int]] = {}
+    sessions, current, prev_t = [], None, None
+    for e in events:
+        t = _parse(e["t"])
+        if current is None or (t - prev_t).total_seconds() > gap_seconds:
+            if current is not None:
+                sessions.append(current)
+            current = {"start": t, "end": t, "from": {}, "to": {}, "finishing": {}}
+        k = _key(e)
+        before = last.get(k, (1, 0, 0))
+        current["from"].setdefault(k, before)
+        cursor = (e["row"], e["run"], e.get("stitch", 0))
+        # An advance that leaves a written piece's row unchanged is the one that finished it.
+        current["finishing"][k] = (
+            e["kind"] == "advance" and cursor[0] == before[0] and models[e["piece"]]["kind"] == "rows"
+        )
+        current["to"][k] = cursor
+        current["end"] = t
+        last[k] = cursor
+        prev_t = t
+    if current is not None:
+        sessions.append(current)
+
+    out_sessions, active, chart_active, chart_stitches = [], 0, 0, 0
+    for s in sessions:
+        cells = rows = 0
+        touched_chart = False
+        for k, start in s["from"].items():
+            end = s["to"][k]
+            m = models[k[0]]
+            if m["kind"] == "chart":
+                touched_chart = True
+                n = max(0, cells_before(m["passes"], *end) - cells_before(m["passes"], *start))
+                cells += n
+                if m["cell"] == "stitch":
+                    chart_stitches += n
+            else:
+                total = rowsdoc.total_rows(m["doc"])
+                after = _rows_done(end[0], s["finishing"][k], total)
+                rows += max(0, after - _rows_done(start[0], False, total))
+        secs = int((s["end"] - s["start"]).total_seconds())
+        active += secs
+        if touched_chart:
+            chart_active += secs
+        out_sessions.append({"start": _fmt(s["start"]), "end": _fmt(s["end"]), "cells": cells, "rows": rows})
+
+    return {
+        "pieces": out_pieces,
+        "pieces_done": sum(1 for p in out_pieces if p["finished"]),
+        "pieces_total": sum(p["make"] for p in by_id.values()),
+        "assembly_done": len(doc.get("assembly_done") or []),
+        "assembly_total": len(manifest.get("assembly") or []),
+        "sessions": out_sessions,
+        "active_seconds": active,
+        # Chart stitches only, over the time of the sessions that worked a chart (ruled in the plan).
+        "stitches_per_hour": round(chart_stitches / (chart_active / 3600.0), 1) if chart_active else None,
     }
