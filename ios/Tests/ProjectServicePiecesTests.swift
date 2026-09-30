@@ -122,4 +122,30 @@ import GraphghanCore
         #expect(s.map(\.line) == ["Row 1 of 5", "5 rows", "3 rows", "3 rows", "Open-ended"])
         #expect(s[0].isCurrent && !s[1].isCurrent)
     }
+
+    /// Otherwise `versionNotice`/`switchChart` could act on the chart the project started with,
+    /// once a written piece is current and `chartID` is no longer that chart's id.
+    @Test func selectingAWrittenPieceClearsTheChartFields() async throws {
+        let (service, manifest) = try await Self.make()
+        let p = try await service.startPiecedProject(manifest: manifest, title: "")
+        try await service.selectPiece(PieceKey(piece: "strip", copy: 1), of: p, manifest: manifest)
+        #expect(p.chartVariant == "" && p.chartGaugeKey == "")
+    }
+
+    @Test func setAssemblyStepIgnoresAnOutOfRangeIndex() async throws {
+        let (service, manifest) = try await Self.make()
+        let p = try await service.startPiecedProject(manifest: manifest, title: "")
+        try service.setAssemblyStep(7, done: true, for: p)
+        #expect(p.assemblyDone.isEmpty)
+    }
+
+    /// The project list and Spotlight follow the current piece (spec §4.2's App Intents hook).
+    @Test func selectPieceNotifiesProjectsChanged() async throws {
+        let (service, manifest) = try await Self.make()
+        let p = try await service.startPiecedProject(manifest: manifest, title: "")
+        var count = 0
+        service.onProjectsChanged = { count += 1 }
+        try await service.selectPiece(PieceKey(piece: "strip", copy: 1), of: p, manifest: manifest)
+        #expect(count == 1)
+    }
 }

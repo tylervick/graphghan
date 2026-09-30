@@ -350,10 +350,16 @@ extension ProjectService {
             project.chartVariant = chart.variant
             project.chartGaugeKey = chart.gaugeKey
         } else {
+            // "" for both: a written piece has no chart, so versionNotice/switchChart -- which key
+            // off chartVariant/chartGaugeKey -- can never act on the chart a previous piece left
+            // behind.
             project.currentRowsID = piece.rowsID
             project.chartID = ""
+            project.chartVariant = ""
+            project.chartGaugeKey = ""
         }
         try save()
+        onProjectsChanged?()
     }
 
     /// The current piece, loaded and ready to work.
@@ -376,6 +382,7 @@ extension ProjectService {
     }
 
     func setAssemblyStep(_ index: Int, done: Bool, for project: Project) throws {
+        guard (0..<project.assemblyTotal).contains(index) else { return }
         var steps = Set(project.assemblyDone)
         if done { steps.insert(index) } else { steps.remove(index) }
         project.assemblyDone = steps.sorted()
