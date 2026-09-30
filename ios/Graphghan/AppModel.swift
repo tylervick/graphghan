@@ -517,6 +517,12 @@ final class AppModel {
         guard let chart = try? await projects.chart(for: project), let sequence = try? WorkSequence(chart: chart),
               let state = LiveActivityState.make(cursor: project.cursor, sequence: sequence, perRepetition: project.tapPerRepetition) else { return nil }
         chartCache[project.chartID] = chart
+        // A cold `manifests` cache (a relaunch's `reconcileActivities`, say) would otherwise send
+        // `activityTitle` -- synchronous, so it can only read the cache -- to nil, and the lock
+        // screen would fall back to the chart's own title instead of "<pattern> · <piece>".
+        if project.isPieced, manifests[project.patternID] == nil {
+            _ = try? await manifest(for: project.patternID, path: nil)
+        }
         return (LiveActivityState.info(projectID: project.id, chart: chart, sequence: sequence, title: activityTitle(for: project)), state)
     }
 

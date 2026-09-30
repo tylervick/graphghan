@@ -93,3 +93,23 @@ def test_a_written_only_pattern_has_no_charts_and_no_default():
     m = manifest(charts=[])
     m["pieces"] = [m["pieces"][1]]
     assert manifestdoc.validate_manifest(m) == []
+
+
+def test_schema_rejects_a_piece_with_both_chart_and_rows_but_no_rows_id():
+    # CodeRabbit review of #206: the chart branch of `pieces.items.oneOf` only required "chart",
+    # so a piece with both "chart" and "rows" (but no "rows_id") matched it -- although
+    # `manifestdoc.validate_manifest` refuses that piece as neither one thing nor the other.
+    m = manifest()
+    m["pieces"][0]["rows"] = "pieces/panel.rows.json"
+    assert not Draft202012Validator(SCHEMA).is_valid(m)
+    assert manifestdoc.validate_manifest(m) != []
+
+
+def test_schema_still_accepts_the_existing_valid_manifests():
+    assert Draft202012Validator(SCHEMA).is_valid(manifest())
+    m1 = manifest(schema=1)
+    del m1["pieces"], m1["assembly"]
+    assert Draft202012Validator(SCHEMA).is_valid(m1)
+    written_only = manifest(charts=[])
+    written_only["pieces"] = [written_only["pieces"][1]]
+    assert Draft202012Validator(SCHEMA).is_valid(written_only)

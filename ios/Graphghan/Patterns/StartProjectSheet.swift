@@ -68,9 +68,16 @@ struct StartProjectSheet: View {
                 }
                 dismiss()
             } catch {
-                self.error = "Couldn't download the chart. Check your connection and try again."
+                self.error = Self.startErrorText(pieced: manifest.isPieced)
                 starting = false
             }
         }
+    }
+
+    /// A failed start's sentence: a pieced pattern reads its pieces rather than downloading a
+    /// single chart, so a failure there is not "the chart" (#206 review). `nonisolated` -- it
+    /// touches no actor-isolated state -- so a test can call it without hopping to the main actor.
+    nonisolated static func startErrorText(pieced: Bool) -> String {
+        pieced ? "Couldn't read this pattern's pieces." : "Couldn't download the chart. Check your connection and try again."
     }
 }

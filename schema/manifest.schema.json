@@ -39,7 +39,10 @@
           "rows_id": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
           "pages": { "type": "array", "items": { "type": "integer", "minimum": 1 } }
         },
-        "oneOf": [ { "required": ["chart"] }, { "required": ["rows", "rows_id"] } ]
+        "oneOf": [
+          { "required": ["chart"], "not": { "anyOf": [ { "required": ["rows"] }, { "required": ["rows_id"] } ] } },
+          { "required": ["rows", "rows_id"], "not": { "required": ["chart"] } }
+        ]
       }
     },
     "assembly": {

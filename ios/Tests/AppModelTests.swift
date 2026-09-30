@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+import SwiftData
 import GraphghanCore
 @testable import Graphghan
 
@@ -130,5 +131,28 @@ import GraphghanCore
         let outcome = await model.performIntent(.advance, chosen: project.id)
         guard case .moved(let landing) = outcome else { Issue.record("expected .moved, got \(outcome)"); return }
         #expect(landing.pieceTitle == nil)
+    }
+
+    /// #206 review: `activityTitle(for:)` reads the in-memory `manifests` cache synchronously, so
+    /// a cold cache -- a fresh `AppModel` over the same stores, as a relaunch's `reconcileActivities`
+    /// sees -- must not fall back to the chart's own title for a pieced project's lock screen.
+    @Test @MainActor func activityStateWarmsAColdManifestCacheForAPiecedProject() async throws {
+        let container = try makeInMemoryContainer()
+        let client = StubClient()
+        let patterns = PatternStore(baseURL: URL(string: "https://example.test/")!, cacheDirectory: try temporaryDirectory(), client: client)
+        let charts = ChartLibrary(directory: try temporaryDirectory())
+        let rows = RowsLibrary(directory: try temporaryDirectory())
+        let localPatterns = try makeLocalPatternStore()
+        let model = AppModel(context: container.mainContext, patterns: patterns, charts: charts, rows: rows, localPatterns: localPatterns)
+        let manifest = try #require(await model.importBundle(data: try TestFixtures.bundle("pieces-basic")))
+        try await model.startPiecedProject(manifest: manifest, title: "")
+        let project = try #require(try model.projects.projects().first)
+        for _ in 0..<4 { _ = await model.performIntent(.advance, chosen: project.id) }
+
+        // A fresh model over the same stores: the pattern is still on disk (`localPatterns`), but
+        // this instance's own `manifests` dictionary starts empty, exactly as it does after a relaunch.
+        let reconciled = AppModel(context: container.mainContext, patterns: patterns, charts: charts, rows: rows, localPatterns: localPatterns)
+        let result = try #require(await reconciled.activityState(for: project))
+        #expect(result.0.title == "Pieces basic · Panel")
     }
 }
