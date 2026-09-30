@@ -24,6 +24,12 @@ struct WrittenWorkScreen: View {
 
     static func rowText(row: Int, total: Int?) -> String { total.map { "Row \(row) of \($0)" } ?? "Row \(row)" }
 
+    /// What the panel says when the cursor's row is not in the document (it lost rows since the
+    /// cursor was made); nil whenever there is a row, or the finished panel, to show instead.
+    static func missingRowMessage(sequence: WrittenSequence, row: Int, finished: Bool) -> String? {
+        finished || sequence.pass(at: row) != nil ? nil : "This row isn't in the pattern any more."
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             header
@@ -41,6 +47,14 @@ struct WrittenWorkScreen: View {
                         .padding(.horizontal, 16)
                         .padding(.top, 14)
                 }
+            } else if let message = Self.missingRowMessage(sequence: sequence, row: cursor.row, finished: finished) {
+                Card {
+                    Text(message).font(Font.Heather.body).foregroundStyle(Color.ink)
+                        .frame(maxWidth: .infinity)
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 14)
+                Spacer(minLength: 0)
             }
         }
         .safeAreaInset(edge: .bottom) {

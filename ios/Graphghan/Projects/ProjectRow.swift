@@ -12,12 +12,14 @@ struct ProjectRow: View {
     /// never the event log's summary, which is per chart and a written piece has none of.
     @State private var pieceLine: String?
     @State private var piecePercent: Double?
+    /// The manifest, the current piece or its line could not be read.
+    @State private var pieceUnavailable = false
 
     var body: some View {
         ProjectCardView(
             title: project.title,
             percent: project.isPieced ? piecePercent : summary?.percent,
-            line: project.isPieced ? (pieceLine ?? "") : line(summary),
+            line: project.isPieced ? Self.cardLine(pieceLine, unavailable: pieceUnavailable) : line(summary),
             estimate: project.isPieced ? nil : summary.flatMap { s in
                 project.isFinished ? nil : model.projects.estimatedFinish(from: s).map { "Done around \($0.formatted(date: .abbreviated, time: .omitted))" }
             },
@@ -45,15 +47,27 @@ struct ProjectRow: View {
         .task(id: PieceRefresh(key: ProjectSummaryKey.make(for: project, working: model.workingProject), piece: project.currentPiece, copy: project.currentCopy)) {
             guard project.isPieced, ProjectSummaryKey.make(for: project, working: model.workingProject) != nil || pieceLine == nil else { return }
             guard let manifest = try? await model.manifest(for: project.patternID, path: nil),
-                  let work = try? await model.projects.work(for: project) else { return }
+                  let work = try? await model.projects.work(for: project) else {
+                pieceLine = nil
+                piecePercent = nil
+                pieceUnavailable = true
+                return
+            }
             pieceLine = try? model.projects.progressLine(for: project, manifest: manifest, work: work)
             piecePercent = model.projects.currentPercent(for: project, work: work)
+            pieceUnavailable = pieceLine == nil
         }
         .task { preview = await model.preview(for: project.patternID, sitePath: "patterns/\(project.patternID)/preview.png") }
     }
 
     private struct SummaryRefresh: Hashable { let key: ProjectSummaryKey?; let chartID: String? }
     private struct PieceRefresh: Hashable { let key: ProjectSummaryKey?; let piece: String?; let copy: Int }
+
+    /// A pieced project's card line: its progress line, "History couldn't be read" when that
+    /// failed (the single-chart row's sentence), or empty while it loads.
+    static func cardLine(_ line: String?, unavailable: Bool) -> String {
+        unavailable ? "History couldn't be read" : line ?? ""
+    }
 
     private func line(_ summary: ProgressSummary?) -> String {
         if historyUnavailable { return "History couldn't be read" }

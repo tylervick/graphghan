@@ -72,4 +72,12 @@ import GraphghanCore
         #expect(WrittenWorkScreen.rowText(row: 31, total: 104) == "Row 31 of 104")
         #expect(WrittenWorkScreen.rowText(row: 57, total: nil) == "Row 57")
     }
+
+    /// A cursor past the rows (a closed piece whose document lost rows) says so rather than
+    /// showing an empty panel.
+    @Test func aRowNoLongerInThePatternSaysSo() {
+        #expect(WrittenWorkScreen.missingRowMessage(sequence: Self.strip, row: 9, finished: false) == "This row isn't in the pattern any more.")
+        #expect(WrittenWorkScreen.missingRowMessage(sequence: Self.strip, row: 3, finished: false) == nil)
+        #expect(WrittenWorkScreen.missingRowMessage(sequence: Self.strip, row: 9, finished: true) == nil)
+    }
 }
