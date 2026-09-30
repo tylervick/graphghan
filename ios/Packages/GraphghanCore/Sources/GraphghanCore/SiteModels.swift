@@ -102,7 +102,49 @@ public struct ManifestChart: Decodable, Sendable, Identifiable, Equatable, Hasha
     }
 }
 
-/// `patterns/<id>/pattern.json` (manifest schema 1).
+/// One piece of a pieced pattern (manifest schema 2, spec 2026-09-25 §5.3): a chart, or a
+/// written-rows document for a piece that is not a grid. Worked `make` times.
+public struct ManifestPiece: Decodable, Sendable, Equatable, Hashable, Identifiable {
+    public let id: String
+    public let title: String
+    public let make: Int
+    /// A `charts[].id`, for a chart piece.
+    public let chart: String?
+    /// The rows document's path in the bundle, and its id, for a written piece.
+    public let rows: String?
+    public let rowsID: String?
+    /// Pages of the source PDF this piece comes from.
+    public let pages: [Int]
+    public var isWritten: Bool { rows != nil }
+
+    enum CodingKeys: String, CodingKey { case id, title, make, chart, rows, pages; case rowsID = "rows_id" }
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        title = try c.decode(String.self, forKey: .title)
+        make = try c.decodeIfPresent(Int.self, forKey: .make) ?? 1
+        chart = try c.decodeIfPresent(String.self, forKey: .chart)
+        rows = try c.decodeIfPresent(String.self, forKey: .rows)
+        rowsID = try c.decodeIfPresent(String.self, forKey: .rowsID)
+        pages = try c.decodeIfPresent([Int].self, forKey: .pages) ?? []
+    }
+}
+
+/// One step of putting the pieces together. A step with only pages points into the source PDF.
+public struct AssemblyStep: Decodable, Sendable, Equatable, Hashable {
+    public let title: String
+    public let text: String?
+    public let pages: [Int]
+    enum CodingKeys: String, CodingKey { case title, text, pages }
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        title = try c.decode(String.self, forKey: .title)
+        text = try c.decodeIfPresent(String.self, forKey: .text)
+        pages = try c.decodeIfPresent([Int].self, forKey: .pages) ?? []
+    }
+}
+
+/// `patterns/<id>/pattern.json` (manifest schema 1, or 2 with pieces).
 public struct PatternManifest: Decodable, Sendable, Equatable {
     public let schema: Int
     public let id: String
@@ -116,5 +158,54 @@ public struct PatternManifest: Decodable, Sendable, Equatable {
     public let palette: [Swatch]
     public let charts: [ManifestChart]
     public let updated: String
+    /// Manifest schema 2's pieces, in the pattern's order; nil for a manifest without them, which
+    /// is one piece: the default chart.
+    public let pieces: [ManifestPiece]?
+    /// Putting the pieces together; empty when the manifest has none.
+    public let assembly: [AssemblyStep]
+    public var isPieced: Bool { pieces != nil }
+    /// Piece copies to make: the sum of `make`, or 1 for a manifest without pieces.
+    public var piecesTotal: Int { pieces?.reduce(0) { $0 + $1.make } ?? 1 }
     public var defaultChart: ManifestChart? { charts.first(where: \.isDefault) ?? charts.first }
+
+    enum CodingKeys: String, CodingKey {
+        case schema, id, title, version, dedication, quote, author, license, preview, palette, charts, updated
+        case pieces, assembly
+    }
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        schema = try c.decode(Int.self, forKey: .schema)
+        id = try c.decode(String.self, forKey: .id)
+        title = try c.decode(String.self, forKey: .title)
+        version = try c.decode(String.self, forKey: .version)
+        dedication = try c.decode(String.self, forKey: .dedication)
+        quote = try c.decode(String.self, forKey: .quote)
+        author = try c.decode(String.self, forKey: .author)
+        license = try c.decode(String.self, forKey: .license)
+        preview = try c.decode(String.self, forKey: .preview)
+        palette = try c.decode([Swatch].self, forKey: .palette)
+        charts = try c.decode([ManifestChart].self, forKey: .charts)
+        updated = try c.decode(String.self, forKey: .updated)
+        pieces = try c.decodeIfPresent([ManifestPiece].self, forKey: .pieces)
+        assembly = try c.decodeIfPresent([AssemblyStep].self, forKey: .assembly) ?? []
+    }
+
+    public init(schema: Int, id: String, title: String, version: String, dedication: String, quote: String,
+                author: String, license: String, preview: String, palette: [Swatch], charts: [ManifestChart],
+                updated: String, pieces: [ManifestPiece]? = nil, assembly: [AssemblyStep] = []) {
+        self.schema = schema
+        self.id = id
+        self.title = title
+        self.version = version
+        self.dedication = dedication
+        self.quote = quote
+        self.author = author
+        self.license = license
+        self.preview = preview
+        self.palette = palette
+        self.charts = charts
+        self.updated = updated
+        self.pieces = pieces
+        self.assembly = assembly
+    }
 }

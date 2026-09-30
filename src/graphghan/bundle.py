@@ -60,9 +60,8 @@ def bundle_files(pattern_dir: str | Path) -> dict[str, bytes]:
     return files
 
 
-def to_bundle(pattern_dir: str | Path) -> bytes:
-    """The bundle as bytes. Two calls on one pattern give identical output, on any platform."""
-    files = bundle_files(pattern_dir)
+def zip_files(files: dict[str, bytes]) -> bytes:
+    """A bundle's bytes from its entries: stored, dated 1980-01-01, mode 0644, sorted names."""
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w") as z:
         for name in sorted(files):
@@ -72,3 +71,8 @@ def to_bundle(pattern_dir: str | Path) -> bytes:
             info.create_system = 0  # MS-DOS, so the mode above is the only thing that varies
             z.writestr(info, files[name])
     return buf.getvalue()
+
+
+def to_bundle(pattern_dir: str | Path) -> bytes:
+    """The bundle as bytes. Two calls on one pattern give identical output, on any platform."""
+    return zip_files(bundle_files(pattern_dir))

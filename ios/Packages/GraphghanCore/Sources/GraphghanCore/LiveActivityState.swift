@@ -141,10 +141,12 @@ public enum LiveActivityState {
             repetition: repetition, repetitions: repetition == nil ? nil : segment?.repetitions)
     }
 
-    public static func info(projectID: UUID, chart: Chart, sequence: WorkSequence) -> WorkActivityInfo {
+    /// `title` overrides the chart's own, for a pieced project's current piece (spec §6.5): the
+    /// lock screen then names the piece rather than always saying the chart's title.
+    public static func info(projectID: UUID, chart: Chart, sequence: WorkSequence, title: String? = nil) -> WorkActivityInfo {
         let stitch = chart.stitch
         let chain: Int? = stitch?.boundary.flatMap { $0.kind == .turn ? $0.chain : nil }
-        return WorkActivityInfo(projectID: projectID, title: chart.title, totalRows: sequence.passes.count, totalCells: sequence.totalCells,
+        return WorkActivityInfo(projectID: projectID, title: title ?? chart.title, totalRows: sequence.passes.count, totalCells: sequence.totalCells,
                                 palette: chart.palette.map { ActivitySwatch(code: $0.code, name: $0.name, hex: $0.hex) },
                                 stitch: stitch?.code, turningChain: chain)
     }

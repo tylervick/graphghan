@@ -50,6 +50,14 @@ extension WorkIntentTests {
         #expect(ProjectEntity.percentText(43) == "43%")
     }
 
+    @Test func aPiecedEntityShowsItsDetail() {
+        let snap = ProjectSnapshot(id: UUID(), title: "Orca", patternTitle: "Orca Crossbody Bag", percent: 54.5, lastWorked: nil,
+                                   isFinished: false, detail: "Front panel · Row 42 of 77 · 3 of 8 pieces")
+        #expect(ProjectEntity.subtitle(for: snap) == "Front panel · Row 42 of 77 · 3 of 8 pieces")
+        let single = ProjectSnapshot(id: UUID(), title: "Blanket", patternTitle: "Craigh na Dun", percent: 12, lastWorked: nil, isFinished: false, detail: nil)
+        #expect(ProjectEntity.subtitle(for: single) == "12% · Craigh na Dun")
+    }
+
     @Test func aColdQueryWaitsForTheApp() async throws {
         let h = try await make()
         WorkIntentHandler.shared.perform = nil

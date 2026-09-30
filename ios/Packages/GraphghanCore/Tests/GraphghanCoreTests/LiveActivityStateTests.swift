@@ -61,6 +61,13 @@ import Testing
         #expect(info.palette.map(\.code) == ["G", "Gd", "Kb", "Y"] && info.swatch(for: "Gd")?.hex == "#D9A21B" && info.swatch(for: "Q") == nil)
     }
 
+    @Test func aTitleOverridesTheChartsTitle() throws {
+        let chart = try Chart.load(Fixtures.data("shaped-basic.chart.json"))
+        let seq = try WorkSequence(chart: chart)
+        #expect(LiveActivityState.info(projectID: UUID(), chart: chart, sequence: seq, title: "Pieces basic · Panel").title == "Pieces basic · Panel")
+        #expect(LiveActivityState.info(projectID: UUID(), chart: chart, sequence: seq).title == chart.title)
+    }
+
     @Test func unavailableState() {
         let s = WorkActivityState.unavailable("This project is no longer available.")
         #expect(s.message == "This project is no longer available." && s.finished && s.currentCode == nil)

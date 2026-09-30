@@ -9,7 +9,7 @@ ROOT = Path(__file__).resolve().parents[1]
 FIX = ROOT / "fixtures" / "bundle"
 sys.path.insert(0, str(FIX))
 
-from generate import bundled_patterns  # noqa: E402
+from generate import bundled_patterns, pieced_bundles  # noqa: E402
 
 
 def test_every_pattern_has_a_matching_bundle_fixture():
@@ -23,4 +23,13 @@ def test_every_pattern_has_a_matching_bundle_fixture():
         assert fixture.read_bytes() == to_bundle(d), (
             f"{fixture.name} differs from a fresh export; regenerate it"
         )
-    assert {p.name for p in FIX.glob("*.graphghan")} == expected, "stale bundle fixture with no pattern"
+    assert {p.name for p in FIX.glob("*.graphghan")} == expected | set(pieced_bundles(ROOT)), (
+        "stale bundle fixture with no pattern"
+    )
+
+
+def test_the_pieced_bundle_matches_its_fixture_tree():
+    for name, data in pieced_bundles(ROOT).items():
+        fixture = FIX / name
+        assert fixture.exists(), f"missing {name}; run uv run python fixtures/bundle/generate.py"
+        assert fixture.read_bytes() == data, f"{name} differs from a fresh build; regenerate it"

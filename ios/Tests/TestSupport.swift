@@ -19,6 +19,9 @@ enum TestFixtures {
     static func bundle(_ slug: String) throws -> Data {
         try Data(contentsOf: root.appendingPathComponent("fixtures/bundle/\(slug).graphghan"))
     }
+    static func pieces(_ path: String) throws -> Data {
+        try Data(contentsOf: directory.appendingPathComponent("pieces-basic/\(path)"))
+    }
 }
 
 @MainActor

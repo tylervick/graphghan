@@ -21,6 +21,12 @@ enum Fixtures {
         try Data(contentsOf: root.appendingPathComponent("fixtures/bundle/\(slug).graphghan"))
     }
 
+    /// `fixtures/chart-format/pieces-basic/`: a pieced pattern's tree (manifest 2, a chart, written rows).
+    static let piecesDirectory = directory.appendingPathComponent("pieces-basic", isDirectory: true)
+    static func pieces(_ path: String) throws -> Data {
+        try Data(contentsOf: piecesDirectory.appendingPathComponent(path))
+    }
+
     /// `fixtures/import/grid/<name>.<ext>`: the synthetic chart images and the Python answers.
     static func grid(_ name: String, ext: String) -> URL {
         root.appendingPathComponent("fixtures/import/grid/\(name).\(ext)")

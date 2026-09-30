@@ -73,8 +73,45 @@ struct WorkIntentDialogTests {
         _ = WorkIntentDialog.dialog(for: .ambiguous([]))
     }
 
+    // MARK: a pieced project's chart piece (spec 2026-09-25 §6.5)
+
+    func saidOnPiece(_ action: WorkAction, from cursor: Cursor, in seq: WorkSequence) throws -> WorkIntentDialog.Text {
+        let s = try #require(WorkEngine.apply(action, to: cursor, in: seq))
+        return WorkIntentDialog.text(for: s, in: seq, pieceTitle: "Front panel")
+    }
+
+    @Test func aPieceStepNamesThePiece() throws {
+        #expect(try saidOnPiece(.advance, from: .start, in: Self.rows) == WorkIntentDialog.Text("Front panel, row 1, run 2 of 3."))
+        #expect(try saidOnPiece(.advance, from: Cursor(row: 1, run: 2), in: Self.rows)
+                == WorkIntentDialog.Text("Front panel, end of row 1. Turn.", supporting: "Front panel, row 1, turn"))
+        #expect(try saidOnPiece(.advance, from: .start, in: Self.fill)
+                == WorkIntentDialog.Text("Front panel, row 1, run 1, ten left in it.", supporting: "Front panel, row 1, run 1"))
+    }
+
+    @Test func aPiecesLastStepFinishesThePieceNotTheBlanket() throws {
+        #expect(try saidOnPiece(.advance, from: Cursor(row: 2, run: 2), in: Self.rows).full == "That's the last row of Front panel.")
+    }
+
+    /// The outcome carries the piece title through the landing; nil keeps single-chart wording.
+    @Test func theLandingCarriesThePieceTitle() throws {
+        let chart = try Chart.load(TestFixtures.data("two-letter-codes.chart.json"))
+        let sequence = try WorkSequence(chart: chart)
+        let step = try #require(WorkEngine.apply(.advance, to: .start, in: sequence))
+        let single = WorkIntentLanding(step: step, sequence: sequence, chart: chart, countStep: .default, perRepetition: true)
+        let pieced = WorkIntentLanding(step: step, sequence: sequence, chart: chart, countStep: .default, perRepetition: true,
+                                       pieceTitle: "Front panel")
+        #expect(WorkIntentDialog.plain(.moved(single)) == WorkIntentDialog.text(for: step, in: sequence).full)
+        #expect(WorkIntentDialog.plain(.moved(pieced)).hasPrefix("Front panel, row 1, "))
+    }
+
     static func snapshot(_ title: String, pattern: String = "p") -> ProjectSnapshot {
-        ProjectSnapshot(id: UUID(), title: title, patternTitle: pattern, percent: 0, lastWorked: nil, isFinished: false)
+        ProjectSnapshot(id: UUID(), title: title, patternTitle: pattern, percent: 0, lastWorked: nil, isFinished: false, detail: nil)
+    }
+
+    @Test func aWrittenStepSaysThePieceAndRow() {
+        #expect(WorkIntentDialog.plain(.movedWritten(title: "Strip", row: 2, total: 5, finished: false)) == "Strip, row 2 of 5.")
+        #expect(WorkIntentDialog.plain(.movedWritten(title: "Strap", row: 58, total: nil, finished: false)) == "Strap, row 58.")
+        #expect(WorkIntentDialog.plain(.movedWritten(title: "Strip", row: 5, total: 5, finished: true)) == "That's the last row of Strip.")
     }
 
     @Test func aRepeatedTitleIsToldApartByItsPattern() {

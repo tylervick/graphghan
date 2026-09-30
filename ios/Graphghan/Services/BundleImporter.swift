@@ -11,6 +11,7 @@ import GraphghanCore
 /// directory swapped into place.
 struct BundleImporter: Sendable {
     let charts: ChartLibrary
+    let rows: RowsLibrary
     let local: LocalPatternStore
 
     /// The imported pattern's manifest. Re-importing an id that is already local replaces it:
@@ -21,6 +22,9 @@ struct BundleImporter: Sendable {
         let bundle = try PatternBundle.read(data)
         for chart in bundle.charts {
             _ = try await charts.store(chart.data)
+        }
+        for r in bundle.rows {
+            _ = try await rows.store(r.data)
         }
         try await local.save(bundle)
         return bundle.manifest

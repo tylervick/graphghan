@@ -10,9 +10,12 @@ struct ProjectSnapshot: Sendable, Equatable, Identifiable {
     let title: String
     let patternTitle: String
     /// Cells done over the chart's total, to a tenth, as the Projects tab and the lock screen show it.
+    /// For a pieced project this is the current piece's (spec 2026-09-25 §6.5), never a project percent.
     let percent: Double
     let lastWorked: Date?
     let isFinished: Bool
+    /// A pieced project's line, "Front panel · Row 42 of 77 · 3 of 8 pieces"; nil for a single chart.
+    let detail: String?
 }
 
 /// Where a step landed, with what the reply (spec §3.4) and the snippet (spec §4.4) need.
@@ -22,6 +25,9 @@ struct WorkIntentLanding: Sendable {
     let chart: Chart
     let countStep: CountStep
     let perRepetition: Bool
+    /// The current piece's title for a pieced project, so the reply names it (spec 2026-09-25
+    /// §6.5); nil for a single chart, whose wording is unchanged.
+    var pieceTitle: String? = nil
 }
 
 /// What a Done or Back on the working project came to, for an intent to put into words.
@@ -36,6 +42,10 @@ enum WorkIntentOutcome: Sendable {
     /// first. The intent asks rather than guessing; a wrong guess writes into the wrong history.
     case ambiguous([ProjectSnapshot])
     case moved(WorkIntentLanding)
+    /// A Done or Back on a written current piece (spec §6.5): no chart, no Live Activity, just
+    /// the piece's title, the row it landed on, its total when it has one, and whether that row
+    /// finished it.
+    case movedWritten(title: String, row: Int, total: Int?, finished: Bool)
 }
 
 /// The app registers this at launch (`AppModel.live`). In the widget process nothing registers it

@@ -14,6 +14,8 @@ final class AppModel {
 
     let patterns: PatternStore
     let charts: ChartLibrary
+    /// Written-rows documents for a pieced project's written pieces (spec 2026-09-25 §6.1).
+    let rows: RowsLibrary
     /// Patterns opened from a file (#16), which the site knows nothing about.
     let localPatterns: LocalPatternStore
     let projects: ProjectService
@@ -63,13 +65,14 @@ final class AppModel {
         if #available(iOS 18, *) { await ProjectIndexer.upsert(snapshot) }
     }
 
-    init(context: ModelContext, patterns: PatternStore, charts: ChartLibrary,
+    init(context: ModelContext, patterns: PatternStore, charts: ChartLibrary, rows: RowsLibrary,
          localPatterns: LocalPatternStore,
          activityBackend: ActivityBackend = ActivityKitBackend(),
          defaults: UserDefaults = UserDefaults(suiteName: AppGroup.identifier) ?? .standard,
          rowReader: (any RowReading)?? = nil, modelUnavailable: String?? = nil) {
         self.patterns = patterns
         self.charts = charts
+        self.rows = rows
         self.localPatterns = localPatterns
         // Double optionals: not given resolves the device's model; given nil means none (tests).
         if let rowReader {
@@ -88,7 +91,7 @@ final class AppModel {
             self.rowReader = nil
             self.modelUnavailable = "needs iOS 26"
         }
-        self.projects = ProjectService(context: context, charts: charts, patterns: patterns)
+        self.projects = ProjectService(context: context, charts: charts, rows: rows, patterns: patterns)
         self.liveActivity = LiveActivityController(backend: activityBackend, defaults: defaults)
         // One mutation path, one activity refresh: every step -- Work screen or lock-screen button --
         // pushes the state it just wrote. The hook is synchronous, so it needs a cached chart; a
@@ -97,7 +100,7 @@ final class AppModel {
         // wants anyway.
         projects.onApply = { [weak self] project, sequence, step in
             guard let self, let chart = self.chartCache[project.chartID] else { return }
-            let info = LiveActivityState.info(projectID: project.id, chart: chart, sequence: sequence)
+            let info = LiveActivityState.info(projectID: project.id, chart: chart, sequence: sequence, title: self.activityTitle(for: project))
             guard let state = LiveActivityState.make(cursor: step.cursor, sequence: sequence, perRepetition: project.tapPerRepetition) else { return }
             self.activityUpdate = Task { await self.liveActivity.update(projectID: project.id, info: info, state: state) }
         }
@@ -120,6 +123,7 @@ final class AppModel {
         let model = AppModel(context: context,
                              patterns: PatternStore(cacheDirectory: AppGroup.patternsCacheURL, client: URLSessionHTTPClient()),
                              charts: ChartLibrary(directory: AppGroup.chartsURL),
+                             rows: RowsLibrary(directory: AppGroup.rowsURL),
                              localPatterns: LocalPatternStore(directory: AppGroup.localPatternsURL))
         model.registerIntentHandler()
         model.indexesProjects = true
@@ -231,6 +235,27 @@ final class AppModel {
         tab = .projects
     }
 
+    /// A pieced pattern starts at its first piece (spec 2026-09-25 §6.2).
+    func startPiecedProject(manifest: PatternManifest, title: String) async throws {
+        _ = try await projects.startPiecedProject(manifest: manifest, title: title)
+        tab = .projects
+    }
+
+    /// The project screen's tap on a piece row: select it, then open the Work screen -- but only
+    /// once the select actually succeeded, so a thrown `selectPiece` (an unknown piece, or a chart
+    /// or rows document that couldn't be read) never leaves the Work screen open on a piece that
+    /// didn't become current. Returns whether it succeeded, for the caller's own error sentence.
+    @discardableResult
+    func openPiece(_ key: PieceKey, of project: Project, manifest: PatternManifest) async -> Bool {
+        do {
+            try await projects.selectPiece(key, of: project, manifest: manifest)
+            workingProject = project
+            return true
+        } catch {
+            return false
+        }
+    }
+
     // MARK: opening a bundle (#16)
 
     /// A `.graphghan` file, however it arrived. Nothing is written unless the whole bundle
@@ -239,7 +264,7 @@ final class AppModel {
     /// landing on what you opened is the point of the gesture.
     @discardableResult
     func importBundle(data: Data) async -> PatternManifest? {
-        let importer = BundleImporter(charts: charts, local: localPatterns)
+        let importer = BundleImporter(charts: charts, rows: rows, local: localPatterns)
         do {
             let manifest = try await importer.importBundle(data)
             manifests[manifest.id] = manifest
@@ -484,12 +509,21 @@ final class AppModel {
 
     // MARK: live activity
 
-    /// The attributes and current state for a project, or nil when its chart cannot be read.
+    /// The attributes and current state for a project, or nil when its chart cannot be read --
+    /// which is always true of a pieced project's written current piece (#223: it has no chart
+    /// and never started this activity; a stale one showing it ends quietly, not as unavailable
+    /// -- see `reconcileState(for:)`).
     func activityState(for project: Project) async -> (WorkActivityInfo, WorkActivityState)? {
         guard let chart = try? await projects.chart(for: project), let sequence = try? WorkSequence(chart: chart),
               let state = LiveActivityState.make(cursor: project.cursor, sequence: sequence, perRepetition: project.tapPerRepetition) else { return nil }
         chartCache[project.chartID] = chart
-        return (LiveActivityState.info(projectID: project.id, chart: chart, sequence: sequence), state)
+        // A cold `manifests` cache (a relaunch's `reconcileActivities`, say) would otherwise send
+        // `activityTitle` -- synchronous, so it can only read the cache -- to nil, and the lock
+        // screen would fall back to the chart's own title instead of "<pattern> · <piece>".
+        if project.isPieced, manifests[project.patternID] == nil {
+            _ = try? await manifest(for: project.patternID, path: nil)
+        }
+        return (LiveActivityState.info(projectID: project.id, chart: chart, sequence: sequence, title: activityTitle(for: project)), state)
     }
 
     /// A lock-screen button: same mutation path as the Work screen, then the activity updates via
@@ -498,6 +532,13 @@ final class AppModel {
     func performIntent(_ action: WorkAction, projectID: UUID) async {
         guard let project = try? projects.project(id: projectID) else {
             await endActivityUnavailable(projectID: projectID)
+            return
+        }
+        // A written current piece never started this activity (#223: a Live Activity belongs to
+        // a chart piece). If the system still shows one for this project it is stale -- from
+        // before the piece changed -- so it ends quietly and nothing is applied.
+        if project.isPieced, project.currentIsWritten {
+            await endActivityQuietly(projectID: projectID)
             return
         }
         guard let chart = try? await projects.chart(for: project), let sequence = try? WorkSequence(chart: chart) else {
@@ -534,6 +575,17 @@ final class AppModel {
             case .one(let working): project = working
             }
         }
+        // A written current piece has no chart and starts no Live Activity in this PR (#223): apply
+        // and answer without touching any of the activity machinery below.
+        if project.isPieced, project.currentIsWritten {
+            guard let work = try? await projects.work(for: project), case .written(let seq) = work else {
+                return .chartUnavailable(title: project.title)
+            }
+            guard let step = projects.apply(action, to: project, work: work) else { return .nowhereToGo(action) }
+            let manifest = try? await manifest(for: project.patternID, path: nil)
+            let title = manifest?.pieces?.first(where: { $0.id == project.currentPiece })?.title ?? project.currentPiece ?? project.title
+            return .movedWritten(title: title, row: step.cursor.row, total: seq.totalRows, finished: step.finished)
+        }
         guard let chart = try? await projects.chart(for: project), let sequence = try? WorkSequence(chart: chart) else {
             return .chartUnavailable(title: project.title)
         }
@@ -541,7 +593,14 @@ final class AppModel {
             await adoptActivity(for: project, chart: chart, sequence: sequence)
         }
         guard let step = await step(action, on: project, chart: chart, sequence: sequence) else { return .nowhereToGo(action) }
-        return .moved(WorkIntentLanding(step: step, sequence: sequence, chart: chart, countStep: project.step, perRepetition: project.tapPerRepetition))
+        // A pieced project's chart piece: the reply names the piece (spec 2026-09-25 §6.5).
+        var pieceTitle: String?
+        if project.isPieced {
+            let manifest = try? await manifest(for: project.patternID, path: nil)
+            pieceTitle = manifest?.pieces?.first(where: { $0.id == project.currentPiece })?.title ?? project.currentPiece ?? project.title
+        }
+        return .moved(WorkIntentLanding(step: step, sequence: sequence, chart: chart, countStep: project.step,
+                                        perRepetition: project.tapPerRepetition, pieceTitle: pieceTitle))
     }
 
     enum WorkingProject: Equatable {
@@ -580,20 +639,33 @@ final class AppModel {
     }
 
     func snapshot(for project: Project) async -> ProjectSnapshot {
-        await snapshot(for: project, sequence: try? await projects.sequence(for: project))
+        // A pieced project's current piece may be written, which has no chart at all: `sequence(for:)`
+        // would just throw for it. `snapshot(for:sequence:)` below loads what it needs itself.
+        await snapshot(for: project, sequence: project.isPieced ? nil : try? await projects.sequence(for: project))
     }
 
-    /// With a sequence the caller already holds, the only await is the manifest lookup.
+    /// With a sequence the caller already holds, the only await is the manifest lookup -- for a
+    /// single-chart project. A pieced project ignores `sequence` (its current piece may have none)
+    /// and asks `ProjectService` for its current piece's own line and percent instead (spec §6.5).
     func snapshot(for project: Project, sequence: WorkSequence?) async -> ProjectSnapshot {
+        // Local first, like every other lookup by pattern id (#135).
+        var manifest = await localPatterns.manifest(for: project.patternID)
+        if manifest == nil { manifest = await patterns.cachedManifest(for: project.patternID) }
+        let patternTitle = manifest?.title ?? project.patternID
+
+        if project.isPieced, let manifest, let work = try? await projects.work(for: project) {
+            let percent = projects.currentPercent(for: project, work: work) ?? 0
+            let detail = try? projects.progressLine(for: project, manifest: manifest, work: work)
+            return ProjectSnapshot(id: project.id, title: project.title, patternTitle: patternTitle, percent: percent,
+                                   lastWorked: project.lastWorked, isFinished: project.isFinished, detail: detail)
+        }
+
         var percent = 0.0
         if let sequence, let done = sequence.cellsBefore(project.cursor), sequence.totalCells > 0 {
             percent = (100 * Double(done) / Double(sequence.totalCells) * 10).rounded(.toNearestOrEven) / 10
         }
-        // Local first, like every other lookup by pattern id (#135).
-        var patternTitle = await localPatterns.manifest(for: project.patternID)?.title
-        if patternTitle == nil { patternTitle = await patterns.cachedManifest(for: project.patternID)?.title }
-        return ProjectSnapshot(id: project.id, title: project.title, patternTitle: patternTitle ?? project.patternID, percent: percent,
-                               lastWorked: project.lastWorked, isFinished: project.isFinished)
+        return ProjectSnapshot(id: project.id, title: project.title, patternTitle: patternTitle, percent: percent,
+                               lastWorked: project.lastWorked, isFinished: project.isFinished, detail: nil)
     }
 
     /// Spec §4.2: the index follows the store. Every mutation that changes what a project *is* or
@@ -626,8 +698,18 @@ final class AppModel {
     /// Tells the controller about the activity the system already shows for this project.
     private func adoptActivity(for project: Project, chart: Chart, sequence: WorkSequence) async {
         guard let state = LiveActivityState.make(cursor: project.cursor, sequence: sequence, perRepetition: project.tapPerRepetition) else { return }
-        let info = LiveActivityState.info(projectID: project.id, chart: chart, sequence: sequence)
+        let info = LiveActivityState.info(projectID: project.id, chart: chart, sequence: sequence, title: activityTitle(for: project))
         await liveActivity.start(projectID: project.id, info: info, state: state)
+    }
+
+    /// The lock screen's title for a pieced project's current piece (spec §6.5): "<pattern> ·
+    /// <piece>". Nil for a single-chart project, so `LiveActivityState.info`'s default (the
+    /// chart's own title) applies; nil too when the manifest isn't cached yet -- `onApply` is
+    /// synchronous and must not block a tap on a fetch.
+    private func activityTitle(for project: Project) -> String? {
+        guard project.isPieced, let manifest = manifests[project.patternID] else { return nil }
+        let piece = manifest.pieces?.first(where: { $0.id == project.currentPiece })?.title ?? project.currentPiece ?? ""
+        return "\(manifest.title) · \(piece)"
     }
 
     /// The step every intent takes once it has its project: apply, then wait for the activity
@@ -645,20 +727,50 @@ final class AppModel {
         // method, which would deadlock on the mutex `reconcile` already holds.
         await liveActivity.reconcile { [weak self] info in
             guard info.projectID == projectID else {
-                // another project's activity is refreshed from its own stored cursor, never ended
+                // another project's activity is refreshed from its own stored cursor, or ended
+                // quietly if it turns out to be a pieced project's written current piece -- never
+                // told it is unavailable, which it is not.
                 guard let self, let p = try? self.projects.project(id: info.projectID) else { return nil }
-                return await self.activityState(for: p)?.1
+                return await self.reconcileState(for: p)
             }
             return nil
         }
     }
+
+    /// A written current piece never started this activity (#223), so a stale one showing it is
+    /// not "unavailable" -- it just never applied here. `reconcileState`'s quiet final state ends
+    /// it without a message; other active activities refresh as usual.
+    private func endActivityQuietly(projectID: UUID) async {
+        await liveActivity.reconcile { [weak self] info in
+            guard info.projectID == projectID else {
+                guard let self, let p = try? self.projects.project(id: info.projectID) else { return nil }
+                return await self.reconcileState(for: p)
+            }
+            return Self.quietEnd
+        }
+    }
+
+    /// What `reconcile`'s callers feed the controller for one project's activity: the real state
+    /// for a chart piece; a quiet, message-less final state for a pieced project whose current
+    /// piece is written (a Live Activity belongs to a chart piece -- #223 -- so a stale one just
+    /// closes rather than saying the project is gone); nil when the project or its chart is
+    /// genuinely unreadable, which still ends with the "no longer available" message.
+    private func reconcileState(for project: Project) async -> WorkActivityState? {
+        if project.isPieced, project.currentIsWritten { return Self.quietEnd }
+        return await activityState(for: project)?.1
+    }
+
+    /// A finished state with no message: `LiveActivityController.reconcile` ends an activity that
+    /// gets this without showing anything on the lock screen first.
+    private static let quietEnd = WorkActivityState(row: 0, rowCount: 0, side: nil, runIndex: 0, currentCode: nil, currentCount: nil,
+                                                     nextCode: nil, nextCount: nil, isLastInRow: true, percent: 0, finished: true)
 
     /// Launch-time reconciliation (spec §7): the stored cursor wins; stale activities end.
     func reconcileActivities() async {
         // As above: the closure must not call a public LiveActivityController method.
         await liveActivity.reconcile { [weak self] info in
             guard let self, let project = try? self.projects.project(id: info.projectID) else { return nil }
-            return await self.activityState(for: project)?.1
+            return await self.reconcileState(for: project)
         }
     }
 }

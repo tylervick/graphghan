@@ -1,32 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://graphghan.milo.cat/schema/progress.schema.json",
-  "title": "Graphghan progress document, schema 1",
-  "type": "object",
-  "required": ["schema", "pattern_id", "chart_id", "cursor", "events"],
-  "properties": {
-    "schema": { "const": 1 },
-    "pattern_id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
-    "chart_id": { "type": ["string", "null"], "pattern": "^sha256:[0-9a-f]{64}$" },
-    "pattern_version": { "type": "string" },
-    "cursor": { "$ref": "#/$defs/cursor" },
-    "started": { "type": "string", "format": "date-time" },
-    "finished": { "type": ["string", "null"], "format": "date-time" },
-    "events": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "required": ["t", "row", "run", "kind"],
-        "properties": {
-          "t": { "type": "string", "format": "date-time" },
-          "row": { "type": "integer", "minimum": 1 },
-          "run": { "type": "integer", "minimum": 0 },
-          "stitch": { "type": "integer", "minimum": 0 },
-          "kind": { "enum": ["advance", "back", "jump"] }
-        }
-      }
-    }
-  },
+  "title": "Graphghan progress document, schema 1 or 2",
+  "oneOf": [ { "$ref": "#/$defs/v1" }, { "$ref": "#/$defs/v2" } ],
   "$defs": {
     "cursor": {
       "type": "object",
@@ -35,6 +11,76 @@
         "row": { "type": "integer", "minimum": 1 },
         "run": { "type": "integer", "minimum": 0 },
         "stitch": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "v1": {
+      "type": "object",
+      "required": ["schema", "pattern_id", "chart_id", "cursor", "events"],
+      "properties": {
+        "schema": { "const": 1 },
+        "pattern_id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+        "chart_id": { "type": ["string", "null"], "pattern": "^sha256:[0-9a-f]{64}$" },
+        "pattern_version": { "type": "string" },
+        "cursor": { "$ref": "#/$defs/cursor" },
+        "started": { "type": "string", "format": "date-time" },
+        "finished": { "type": ["string", "null"], "format": "date-time" },
+        "events": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["t", "row", "run", "kind"],
+            "properties": {
+              "t": { "type": "string", "format": "date-time" },
+              "row": { "type": "integer", "minimum": 1 },
+              "run": { "type": "integer", "minimum": 0 },
+              "stitch": { "type": "integer", "minimum": 0 },
+              "kind": { "enum": ["advance", "back", "jump"] }
+            }
+          }
+        }
+      }
+    },
+    "v2": {
+      "type": "object",
+      "required": ["schema", "pattern_id", "pieces", "events"],
+      "properties": {
+        "schema": { "const": 2 },
+        "pattern_id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+        "pattern_version": { "type": "string" },
+        "pieces": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["piece", "copy", "doc_id", "cursor"],
+            "properties": {
+              "piece": { "type": "string" },
+              "copy": { "type": "integer", "minimum": 1 },
+              "doc_id": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+              "cursor": { "$ref": "#/$defs/cursor" },
+              "finished": { "type": ["string", "null"], "format": "date-time" }
+            }
+          }
+        },
+        "current": { "type": "object", "required": ["piece", "copy"], "properties": { "piece": { "type": "string" }, "copy": { "type": "integer", "minimum": 1 } } },
+        "assembly_done": { "type": "array", "items": { "type": "integer", "minimum": 0 } },
+        "started": { "type": "string", "format": "date-time" },
+        "finished": { "type": ["string", "null"], "format": "date-time" },
+        "events": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["t", "piece", "copy", "row", "run", "kind"],
+            "properties": {
+              "t": { "type": "string", "format": "date-time" },
+              "piece": { "type": "string" },
+              "copy": { "type": "integer", "minimum": 1 },
+              "row": { "type": "integer", "minimum": 1 },
+              "run": { "type": "integer", "minimum": 0 },
+              "stitch": { "type": "integer", "minimum": 0 },
+              "kind": { "enum": ["advance", "back", "jump"] }
+            }
+          }
+        }
       }
     }
   }

@@ -15,4 +15,12 @@ import Testing
         .background(Color.ground.weave())
         #expect(try Snapshots.assert(list, named: "project-cards", size: CGSize(width: 390, height: 280)))
     }
+
+    /// A pieced project whose manifest or current piece fails to load says so, as a single-chart
+    /// row does, rather than showing a blank line; while loading the line stays empty.
+    @Test func aPiecedRowThatCannotLoadSaysSo() {
+        #expect(ProjectRow.cardLine(nil, unavailable: true) == "History couldn't be read")
+        #expect(ProjectRow.cardLine(nil, unavailable: false) == "")
+        #expect(ProjectRow.cardLine("Panel · Row 1 of 5 · 0 of 5 pieces", unavailable: false) == "Panel · Row 1 of 5 · 0 of 5 pieces")
+    }
 }

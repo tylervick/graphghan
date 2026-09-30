@@ -1,0 +1,37 @@
+{
+  "schema": 1,
+  "id": "sha256:f566c24015ba473ad578f04291149f0a002036f80fe383fb4db547949df27a93",
+  "piece": {
+    "title": "Gap"
+  },
+  "palette": [
+    {
+      "code": "A",
+      "name": "Color A",
+      "hex": "#112233"
+    },
+    {
+      "code": "B",
+      "name": "Color B",
+      "hex": "#ffffff"
+    }
+  ],
+  "rows": [
+    {
+      "label": "R 1",
+      "from": 1,
+      "to": 1,
+      "code": "A",
+      "count": 6,
+      "text": "(A) ch 7, from the hook’s second chain, 6 sc [6]"
+    },
+    {
+      "label": "R 5",
+      "from": 5,
+      "to": 5,
+      "code": "B",
+      "count": 6,
+      "text": "(B) ch 1, turn, 6 sc [6]"
+    }
+  ]
+}

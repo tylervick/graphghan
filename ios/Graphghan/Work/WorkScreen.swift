@@ -228,8 +228,9 @@ extension CountStep {
     }
 }
 
-private extension View {
+extension View {
     /// Clear Liquid Glass over the yarn colour on iOS 26; a thin material over it before that.
+    /// Shared with `WrittenWorkScreen`, whose bar wears the same capsules.
     @ViewBuilder func capsuleGlass(_ hex: String) -> some View {
         if #available(iOS 26, *) {
             background(YarnSurface.fill(hex).opacity(0.85), in: Capsule())

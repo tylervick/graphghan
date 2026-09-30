@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 from jsonschema import Draft202012Validator
 
-from graphghan import chartdoc, progress
+from graphghan import chartdoc, manifestdoc, progress, rowsdoc
 
 ROOT = Path(__file__).resolve().parents[1]
 FIX = ROOT / "fixtures" / "chart-format"
@@ -91,6 +91,23 @@ def test_fixtures_are_fresh(tmp_path):
     assert generated_refused == committed_refused
     for name in generated_refused:
         assert (REFUSED / name).read_bytes() == (tmp_path / "refused" / name).read_bytes(), name
+    # The pieces-basic/ tree is a bundle's worth of files, not a flat *.json glob, and the two
+    # preview.png files are committed once (not written by main()), so they are excluded here.
+    generated_pieces = {
+        p.relative_to(tmp_path / "pieces-basic").as_posix()
+        for p in (tmp_path / "pieces-basic").rglob("*")
+        if p.is_file() and p.name != "preview.png"
+    }
+    committed_pieces = {
+        p.relative_to(FIX / "pieces-basic").as_posix()
+        for p in (FIX / "pieces-basic").rglob("*")
+        if p.is_file() and p.name != "preview.png"
+    }
+    assert generated_pieces == committed_pieces
+    for rel in generated_pieces:
+        assert (FIX / "pieces-basic" / rel).read_bytes() == (tmp_path / "pieces-basic" / rel).read_bytes(), (
+            rel
+        )
 
 
 def test_craigh_fixture_equals_committed_dist():
@@ -367,3 +384,77 @@ def test_refused_fixture_validates_against_schema(name):
 @pytest.mark.parametrize("name", REFUSED_NAMES)
 def test_refused_fixture_is_refused(name):
     assert chartdoc.validate_document(load_refused(name)) != []
+
+
+def test_refused_directory_listing_matches_spec():
+    """The full refused/ listing, not just the *.chart.json glob REFUSED_NAMES draws from: the
+    three pieces-basic refusals (a rows gap, an open-ended entry that is not last, a piece naming
+    a chart not in `charts`) live alongside the five chart refusals."""
+    assert {p.name for p in REFUSED.glob("*.json")} == {f"{name}.chart.json" for name in REFUSED_NAMES} | {
+        "rows-gap.rows.json",
+        "rows-open-not-last.rows.json",
+        "piece-names-missing-chart.pattern.json",
+    }
+
+
+PIECES = FIX / "pieces-basic"
+MANIFEST_SCHEMA = json.loads((ROOT / "schema" / "manifest.schema.json").read_text(encoding="utf-8"))
+ROWS_SCHEMA = json.loads((ROOT / "schema" / "rows.schema.json").read_text(encoding="utf-8"))
+
+
+def pieced(name):
+    return json.loads((PIECES / name).read_text(encoding="utf-8"))
+
+
+def test_pieces_fixture_manifest_is_valid():
+    m = pieced("pattern.json")
+    assert Draft202012Validator(MANIFEST_SCHEMA).is_valid(m)
+    assert manifestdoc.validate_manifest(m) == []
+    assert [p["id"] for p in manifestdoc.pieces(m)] == ["panel", "strip", "fin", "strap"]
+
+
+def test_pieces_fixture_files_match_the_manifest():
+    m = pieced("pattern.json")
+    for c in m["charts"]:
+        chart = pieced(c["path"])
+        assert chartdoc.validate_document(chart) == [] and chart["chart"]["id"] == c["id"]
+    for p in m["pieces"]:
+        if "rows" in p:
+            rd = pieced(p["rows"])
+            assert Draft202012Validator(ROWS_SCHEMA).is_valid(rd)
+            assert rowsdoc.validate_rows_document(rd) == [] and rd["id"] == p["rows_id"]
+
+
+def test_a_strip_row_is_not_ascii():
+    """The rows id hashes UTF-8 (spec §5.2): a non-ASCII character in the strip pins both readers
+    to the same bytes (the Swift reader's `theIDMatchesThePythons` covers the strip)."""
+    assert any(not e["text"].isascii() for e in pieced("pieces/strip.rows.json")["rows"])
+
+
+def test_pieces_fixture_progress_summarizes():
+    m = pieced("pattern.json")
+    docs = {c["id"]: pieced(c["path"]) for c in m["charts"]}
+    for p in m["pieces"]:
+        if "rows" in p:
+            docs[p["rows_id"]] = pieced(p["rows"])
+    doc = pieced("progress.json")
+    assert Draft202012Validator(PROGRESS_SCHEMA).is_valid(doc)
+    assert progress.summarize_project(doc, m, docs) == pieced("progress.expected.json")
+
+
+@pytest.mark.parametrize("name", ["rows-gap.rows.json", "rows-open-not-last.rows.json"])
+def test_refused_rows_documents(name):
+    rd = json.loads((FIX / "refused" / name).read_text(encoding="utf-8"))
+    assert Draft202012Validator(ROWS_SCHEMA).is_valid(rd)
+    assert rowsdoc.validate_rows_document(rd) != []
+
+
+def test_the_rows_gap_fixture_is_refused_only_for_its_gap():
+    rd = json.loads((FIX / "refused" / "rows-gap.rows.json").read_text(encoding="utf-8"))
+    assert rowsdoc.validate_rows_document(rd) == ["rows[1] starts at 5; row 2 is missing or printed twice"]
+
+
+def test_refused_manifest_naming_a_missing_chart():
+    m = json.loads((FIX / "refused" / "piece-names-missing-chart.pattern.json").read_text(encoding="utf-8"))
+    assert Draft202012Validator(MANIFEST_SCHEMA).is_valid(m)
+    assert any("not in `charts`" in p for p in manifestdoc.validate_manifest(m))

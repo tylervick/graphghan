@@ -35,4 +35,26 @@ import GraphghanCore
         byProject.sortBy = [SortDescriptor(\.t)]
         #expect(try ctx.fetch(byProject).map(\.run) == [0, 1, 2])
     }
+
+    /// Review focus 4: a project made before pieces existed reads as one piece, unchanged.
+    @Test @MainActor func aProjectWithoutPiecesIsUnchanged() throws {
+        let container = try makeInMemoryContainer()
+        let p = Project(patternID: "p", chartID: "sha256:x", chartVariant: "final", chartGaugeKey: "sc", patternVersion: "1", title: "T", started: .now)
+        container.mainContext.insert(p)
+        try container.mainContext.save()
+        #expect(!p.isPieced && !p.currentIsWritten && p.currentKey == nil && p.assemblyDone.isEmpty && p.piecesTotal == 1)
+    }
+
+    @Test @MainActor func pieceProgressKeepsItsCursor() throws {
+        let container = try makeInMemoryContainer()
+        let project = Project(patternID: "p", chartID: "", chartVariant: "", chartGaugeKey: "", patternVersion: "1", title: "T", started: .now)
+        let piece = PieceProgress(pieceID: "strip", copy: 2, docID: "sha256:y")
+        piece.project = project
+        piece.cursor = Cursor(row: 4, run: 0)
+        container.mainContext.insert(project)
+        container.mainContext.insert(piece)
+        try container.mainContext.save()
+        let fetched = try container.mainContext.fetch(FetchDescriptor<PieceProgress>())
+        #expect(fetched.count == 1 && fetched[0].cursor == Cursor(row: 4, run: 0) && fetched[0].key == PieceKey(piece: "strip", copy: 2))
+    }
 }

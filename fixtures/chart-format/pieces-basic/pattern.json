@@ -1,0 +1,100 @@
+{
+  "schema": 2,
+  "id": "pieces-basic",
+  "title": "Pieces basic",
+  "version": "1.0.0",
+  "dedication": "",
+  "quote": "",
+  "author": "graphghan fixtures",
+  "license": "MIT",
+  "preview": "preview.png",
+  "palette": [
+    {
+      "code": "A",
+      "name": "Color A",
+      "hex": "#112233"
+    },
+    {
+      "code": "B",
+      "name": "Color B",
+      "hex": "#ffffff"
+    }
+  ],
+  "charts": [
+    {
+      "id": "sha256:98967271a405be50e162187b5b7839e8334b346ec160848ab488fda8be67a9a9",
+      "variant": "final",
+      "gauge_key": "sc",
+      "default": true,
+      "path": "charts/final-sc/chart.json",
+      "preview": "charts/final-sc/preview.png",
+      "width": 7,
+      "height": 5,
+      "size": {
+        "width": 2.0,
+        "height": 1.2,
+        "unit": "in"
+      },
+      "stitch": "sc",
+      "colors": 2,
+      "stitches": 24,
+      "changes_per_row": {
+        "mean": 0.8,
+        "max": 2
+      },
+      "yards_est": 2
+    }
+  ],
+  "pieces": [
+    {
+      "id": "panel",
+      "title": "Panel",
+      "make": 1,
+      "chart": "sha256:98967271a405be50e162187b5b7839e8334b346ec160848ab488fda8be67a9a9",
+      "pages": [
+        2
+      ]
+    },
+    {
+      "id": "strip",
+      "title": "Strip",
+      "make": 1,
+      "rows": "pieces/strip.rows.json",
+      "rows_id": "sha256:191bb826ce837e67a89a7b0250b1e390ef361cfa116c771c4db5bd4ad8dc7269",
+      "pages": [
+        3
+      ]
+    },
+    {
+      "id": "fin",
+      "title": "Fin",
+      "make": 2,
+      "rows": "pieces/fin.rows.json",
+      "rows_id": "sha256:f82699b13472a0782da53b48b1d31e46fcb82f1773e1ab9ec42114d295693194"
+    },
+    {
+      "id": "strap",
+      "title": "Strap",
+      "make": 1,
+      "rows": "pieces/strap.rows.json",
+      "rows_id": "sha256:7b99ea849f3c1b213fc315bdf7f8c3d6ccadd85a8c466716dd392df33f1fded8"
+    }
+  ],
+  "assembly": [
+    {
+      "title": "Sew the strip round the panel",
+      "text": "Whip stitch the strip to the panel's edge, right sides out.",
+      "pages": [
+        3
+      ]
+    },
+    {
+      "title": "Pages 4–5",
+      "pages": [
+        4,
+        5
+      ]
+    }
+  ],
+  "updated": "1980-01-01T00:00:00Z"
+}

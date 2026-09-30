@@ -20,12 +20,16 @@ public struct PatternBundle: Sendable {
     public let charts: [BundleChart]
     /// Manifest-relative path to PNG bytes: the pattern preview and each chart's.
     public let previews: [String: Data]
+    /// Each written piece's rows document, in the manifest's order. Empty for a manifest without
+    /// pieces, or a pieced manifest whose pieces are all charts.
+    public let rows: [BundleRows]
 
-    public init(manifest: PatternManifest, manifestData: Data, charts: [BundleChart], previews: [String: Data]) {
+    public init(manifest: PatternManifest, manifestData: Data, charts: [BundleChart], previews: [String: Data], rows: [BundleRows] = []) {
         self.manifest = manifest
         self.manifestData = manifestData
         self.charts = charts
         self.previews = previews
+        self.rows = rows
     }
 
     public static let manifestName = "pattern.json"
@@ -47,18 +51,47 @@ public struct PatternBundle: Sendable {
             throw BundleError.badManifest("\(error)")
         }
 
-        guard manifest.schema == 1 else { throw BundleError.unsupportedManifestSchema(manifest.schema) }
+        guard GraphghanCore.manifestSchemas.contains(manifest.schema) else {
+            throw BundleError.unsupportedManifestSchema(manifest.schema)
+        }
+        if manifest.pieces != nil, manifest.schema != 2 { throw BundleError.piecedNeedsSchema2 }
         guard !manifest.id.isEmpty,
               manifest.id.unicodeScalars.allSatisfy(slugCharacters.contains) else {
             throw BundleError.badPatternID(manifest.id)
         }
-        guard !manifest.charts.isEmpty else { throw BundleError.noCharts }
+        if manifest.isPieced {
+            guard !(manifest.pieces ?? []).isEmpty else { throw BundleError.noPieces }
+        } else {
+            guard !manifest.charts.isEmpty else { throw BundleError.noCharts }
+        }
         var seen = Set<String>()
         for entry in manifest.charts where !seen.insert(entry.path).inserted {
             throw BundleError.duplicateChartPath(entry.path)
         }
+
+        // A piece is exactly one of a chart (naming a `charts[]` entry) or written rows (with its
+        // id); checked before the paths are, so its rows files join the paths every entry needs.
+        var rowsPaths: [String] = []
+        if let pieces = manifest.pieces {
+            let chartIDs = Set(manifest.charts.map(\.id))
+            var pieceIDs = Set<String>()
+            for piece in pieces {
+                guard pieceIDs.insert(piece.id).inserted else { throw BundleError.duplicatePiece(piece: piece.id) }
+                guard piece.make >= 1 else { throw BundleError.pieceMakeCount(piece: piece.id, make: piece.make) }
+                switch (piece.chart, piece.rows) {
+                case (let chartID?, nil):
+                    guard chartIDs.contains(chartID) else { throw BundleError.pieceNamesMissingChart(piece: piece.id) }
+                case (nil, let path?):
+                    guard piece.rowsID != nil else { throw BundleError.pieceKind(piece: piece.id) }
+                    rowsPaths.append(path)
+                default:
+                    throw BundleError.pieceKind(piece: piece.id)
+                }
+            }
+        }
+
         try checkPaths([manifestName, manifest.preview]
-            + manifest.charts.map(\.path) + manifest.charts.map(\.preview))
+            + manifest.charts.map(\.path) + manifest.charts.map(\.preview) + rowsPaths)
 
         var charts: [BundleChart] = []
         for entry in manifest.charts {
@@ -75,12 +108,26 @@ public struct PatternBundle: Sendable {
             charts.append(BundleChart(entry: entry, chart: chart, data: chartData))
         }
 
+        var rows: [BundleRows] = []
+        for piece in manifest.pieces ?? [] where piece.rows != nil {
+            let path = piece.rows!
+            let rowsData = try read(path, from: archive)
+            let document: RowsDocument
+            do { document = try RowsDocument.load(rowsData) } catch {
+                throw BundleError.invalidRows(path: path, reason: describe(error))
+            }
+            guard document.id == piece.rowsID else {
+                throw BundleError.rowsIDMismatch(path: path, expected: piece.rowsID ?? "", found: document.id)
+            }
+            rows.append(BundleRows(piece: piece, document: document, data: rowsData))
+        }
+
         var previews: [String: Data] = [:]
         for path in [manifest.preview] + manifest.charts.map(\.preview) where !path.isEmpty {
             previews[path] = try read(path, from: archive)
         }
 
-        return PatternBundle(manifest: manifest, manifestData: manifestData, charts: charts, previews: previews)
+        return PatternBundle(manifest: manifest, manifestData: manifestData, charts: charts, previews: previews, rows: rows)
     }
 
     /// Every referenced path has to be writable as a file under one directory, because that is
@@ -130,6 +177,14 @@ public struct BundleChart: Sendable {
     }
 }
 
+/// A written piece's document in a pieced bundle.
+public struct BundleRows: Sendable {
+    public let piece: ManifestPiece
+    public let document: RowsDocument
+    public let data: Data
+    public init(piece: ManifestPiece, document: RowsDocument, data: Data) { self.piece = piece; self.document = document; self.data = data }
+}
+
 /// Why a bundle was refused. `message` is the sentence the app shows: about the file, not about
 /// the parser. It lives here, beside the condition, so "a broken bundle reports why" is testable
 /// without a screen.
@@ -146,6 +201,20 @@ public enum BundleError: Error, Equatable {
     case unusablePath(String)
     case invalidChart(path: String, reason: String)
     case chartIDMismatch(path: String, expected: String, found: String)
+    /// A manifest whose `pieces` is present but whose `schema` is not 2.
+    case piecedNeedsSchema2
+    /// A pieced manifest (`pieces` present) that lists none.
+    case noPieces
+    /// A chart piece names a `charts[].id` the manifest doesn't carry.
+    case pieceNamesMissingChart(piece: String)
+    /// A piece with neither `chart` nor `rows`, both, or a written piece with no `rows_id`.
+    case pieceKind(piece: String)
+    /// Two pieces share an id: progress keys a piece copy by it.
+    case duplicatePiece(piece: String)
+    /// A piece whose `make` is below 1.
+    case pieceMakeCount(piece: String, make: Int)
+    case invalidRows(path: String, reason: String)
+    case rowsIDMismatch(path: String, expected: String, found: String)
 
     public var message: String {
         switch self {
@@ -184,6 +253,22 @@ public enum BundleError: Error, Equatable {
             return "This pattern's chart \(path) isn't usable: \(reason)."
         case .chartIDMismatch(let path, _, _):
             return "This pattern's chart \(path) doesn't match what the pattern says it is."
+        case .piecedNeedsSchema2:
+            return "This pattern lists its pieces in a format this version of Graphghan doesn't recognise."
+        case .noPieces:
+            return "This pattern says it is made of pieces but lists none."
+        case .pieceNamesMissingChart(let piece):
+            return "The piece “\(piece)” names a chart this file doesn't contain."
+        case .pieceKind(let piece):
+            return "The piece “\(piece)” is neither a chart nor written rows."
+        case .duplicatePiece(let piece):
+            return "Two pieces are both called “\(piece)”."
+        case .pieceMakeCount(let piece, let make):
+            return "The piece “\(piece)” is to be made \(make) times."
+        case .invalidRows(let path, let reason):
+            return "The written rows in \(path) can't be used: \(reason)."
+        case .rowsIDMismatch(let path, _, _):
+            return "The written rows in \(path) don't match what the pattern lists."
         }
     }
 }

@@ -27,6 +27,7 @@ import GraphghanCore
         let model = AppModel(context: container.mainContext,
                              patterns: patterns,
                              charts: ChartLibrary(directory: chartsDirectory),
+                             rows: RowsLibrary(directory: try temporaryDirectory()),
                              localPatterns: LocalPatternStore(directory: localDirectory))
         return Harness(model: model, client: client, chartsDirectory: chartsDirectory, localDirectory: localDirectory)
     }
@@ -114,6 +115,47 @@ import GraphghanCore
         let local = harness.model.libraryItems.filter(\.isLocal)
         #expect(local.count == 1)
         #expect(local.first?.entry.title == "Craigh na Dun, revised")
+    }
+
+    @Test func aPiecedBundleStoresItsChartsAndRows() async throws {
+        let charts = ChartLibrary(directory: try temporaryDirectory())
+        let rows = RowsLibrary(directory: try temporaryDirectory())
+        let importer = BundleImporter(charts: charts, rows: rows, local: try makeLocalPatternStore())
+        let manifest = try await importer.importBundle(try TestFixtures.bundle("pieces-basic"))
+        #expect(manifest.isPieced)
+        for piece in manifest.pieces ?? [] {
+            if let id = piece.rowsID { #expect(await rows.has(id: id)) }
+            if let id = piece.chart { #expect(await charts.hasChart(id: id)) }
+        }
+    }
+
+    /// A written-only pattern (spec §5.3): pieces but no charts. It imports, the detail screen
+    /// lets it start, and it starts on its first written piece.
+    @Test func aWrittenOnlyPatternImportsAndStarts() async throws {
+        let archive = try ZipArchive(try TestFixtures.bundle("pieces-basic"))
+        var object = try #require(try JSONSerialization.jsonObject(with: try archive.data(named: PatternBundle.manifestName)) as? [String: Any])
+        object["charts"] = [Any]()
+        object["pieces"] = (object["pieces"] as? [[String: Any]])?.filter { $0["chart"] == nil }
+        let data = try Self.repack(archive, replacing: [PatternBundle.manifestName: try JSONSerialization.data(withJSONObject: object)],
+                                   dropping: ["charts/final-sc/chart.json", "charts/final-sc/preview.png"])
+
+        let container = try makeInMemoryContainer()
+        let charts = ChartLibrary(directory: try temporaryDirectory())
+        let rows = RowsLibrary(directory: try temporaryDirectory())
+        let manifest = try await BundleImporter(charts: charts, rows: rows, local: try makeLocalPatternStore()).importBundle(data)
+        #expect(manifest.charts.isEmpty && manifest.pieces?.map(\.id) == ["strip", "fin", "strap"])
+        #expect(PatternDetailContent.canStart(manifest))
+
+        let patterns = PatternStore(baseURL: URL(string: "https://example.test/")!, cacheDirectory: try temporaryDirectory(), client: StubClient())
+        let service = ProjectService(context: container.mainContext, charts: charts, rows: rows, patterns: patterns)
+        let project = try await service.startPiecedProject(manifest: manifest, title: "")
+        #expect(project.currentKey == PieceKey(piece: "strip", copy: 1) && project.currentIsWritten)
+    }
+
+    @Test func aSingleChartManifestNeedsAChartToStart() throws {
+        #expect(PatternDetailContent.canStart(TestManifest.make(chartID: "final-sc")))
+        let json = #"{"schema":1,"id":"p","title":"P","version":"1","dedication":"","quote":"","author":"","license":"","preview":"preview.png","palette":[],"charts":[],"updated":"2026-01-01T00:00:00Z"}"#
+        #expect(!PatternDetailContent.canStart(try JSONDecoder().decode(PatternManifest.self, from: Data(json.utf8))))
     }
 
     // MARK: refusals leave everything alone
@@ -230,10 +272,12 @@ import GraphghanCore
     ///
     /// Written as appends rather than one chain of `+`: a long chain of `Data + Data` is a
     /// type-checker timeout waiting to happen, and it timed out on CI's Xcode before this.
-    static func repack(_ archive: ZipArchive, replacing: [String: Data]) throws -> Data {
+    /// `dropping` leaves those entries out of the new archive.
+    static func repack(_ archive: ZipArchive, replacing: [String: Data], dropping: Set<String> = []) throws -> Data {
         var out = Data()
         var central = Data()
-        for name in archive.names {
+        let names = archive.names.filter { !dropping.contains($0) }
+        for name in names {
             let bytes = try replacing[name] ?? archive.data(named: name)
             let nameBytes = Data(name.utf8)
             let offset = UInt32(out.count)
@@ -268,7 +312,7 @@ import GraphghanCore
             central.append(nameBytes)
         }
         let directoryOffset = UInt32(out.count)
-        let count = UInt16(archive.names.count)
+        let count = UInt16(names.count)
         out.append(central)
         append32(&out, 0x0605_4b50)
         append16(&out, 0)              // this disk

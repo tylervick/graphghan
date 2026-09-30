@@ -1,0 +1,68 @@
+{
+  "pieces": [
+    {
+      "piece": "panel",
+      "copy": 1,
+      "kind": "chart",
+      "finished": false,
+      "percent": 45.8,
+      "cells_done": 11,
+      "total_cells": 24,
+      "stitches_done": 11,
+      "total_stitches": 24
+    },
+    {
+      "piece": "strip",
+      "copy": 1,
+      "kind": "rows",
+      "finished": true,
+      "rows_done": 5,
+      "total_rows": 5,
+      "percent": 100.0,
+      "total_stitches": 30,
+      "stitches_done": 30
+    },
+    {
+      "piece": "fin",
+      "copy": 1,
+      "kind": "rows",
+      "finished": false,
+      "rows_done": 1,
+      "total_rows": 3,
+      "percent": 33.3
+    },
+    {
+      "piece": "strap",
+      "copy": 1,
+      "kind": "rows",
+      "finished": false,
+      "rows_done": 9
+    }
+  ],
+  "pieces_done": 1,
+  "pieces_total": 5,
+  "assembly_done": 1,
+  "assembly_total": 2,
+  "sessions": [
+    {
+      "start": "2026-09-12T18:00:00Z",
+      "end": "2026-09-12T18:10:00Z",
+      "cells": 11,
+      "rows": 0
+    },
+    {
+      "start": "2026-09-12T19:00:00Z",
+      "end": "2026-09-12T19:30:00Z",
+      "cells": 0,
+      "rows": 5
+    },
+    {
+      "start": "2026-09-12T21:00:00Z",
+      "end": "2026-09-12T21:02:00Z",
+      "cells": 0,
+      "rows": 10
+    }
+  ],
+  "active_seconds": 2520,
+  "stitches_per_hour": 66.0
+}
