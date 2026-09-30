@@ -19,7 +19,7 @@ import GraphghanCore
         let client = StubClient()
         let patterns = PatternStore(baseURL: URL(string: "https://example.test/")!, cacheDirectory: try temporaryDirectory(), client: client)
         let charts = ChartLibrary(directory: try temporaryDirectory())
-        let service = ProjectService(context: container.mainContext, charts: charts, patterns: patterns)
+        let service = ProjectService(context: container.mainContext, charts: charts, rows: RowsLibrary(directory: try temporaryDirectory()), patterns: patterns)
         let data = try TestFixtures.data("two-letter-codes.chart.json")
         let id = try Chart.load(data).id
         await client.respond("/patterns/two-letter-codes/charts/final-sc/chart.json", data: data)
@@ -251,7 +251,7 @@ import GraphghanCore
         let client = StubClient()
         let patterns = PatternStore(baseURL: URL(string: "https://example.test/")!, cacheDirectory: try temporaryDirectory(), client: client)
         let charts = ChartLibrary(directory: try temporaryDirectory())
-        let service = ProjectService(context: readOnly.mainContext, charts: charts, patterns: patterns)
+        let service = ProjectService(context: readOnly.mainContext, charts: charts, rows: RowsLibrary(directory: try temporaryDirectory()), patterns: patterns)
         let p = try #require(try service.projects().first)
         #expect(p.cursor == .start)
         let seq = try WorkSequence(chart: chart)

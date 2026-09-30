@@ -91,7 +91,7 @@ final class AppModel {
             self.rowReader = nil
             self.modelUnavailable = "needs iOS 26"
         }
-        self.projects = ProjectService(context: context, charts: charts, patterns: patterns)
+        self.projects = ProjectService(context: context, charts: charts, rows: rows, patterns: patterns)
         self.liveActivity = LiveActivityController(backend: activityBackend, defaults: defaults)
         // One mutation path, one activity refresh: every step -- Work screen or lock-screen button --
         // pushes the state it just wrote. The hook is synchronous, so it needs a cached chart; a
@@ -232,6 +232,12 @@ final class AppModel {
 
     func startProject(manifest: PatternManifest, chart: ManifestChart, title: String) async throws {
         _ = try await projects.startProject(manifest: manifest, chart: chart, title: title)
+        tab = .projects
+    }
+
+    /// A pieced pattern starts at its first piece (spec 2026-09-25 §6.2).
+    func startPiecedProject(manifest: PatternManifest, title: String) async throws {
+        _ = try await projects.startPiecedProject(manifest: manifest, title: title)
         tab = .projects
     }
 
