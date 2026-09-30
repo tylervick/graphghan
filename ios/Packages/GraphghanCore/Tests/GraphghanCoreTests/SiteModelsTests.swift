@@ -40,4 +40,21 @@ import Testing
         let entries = try JSONDecoder().decode([IndexEntry].self, from: Data(old.utf8))
         #expect(entries[0].manifest == nil && entries[0].charts == nil)
     }
+
+    @Test func aPiecedManifestDecodesItsPiecesAndAssembly() throws {
+        let m = try JSONDecoder().decode(PatternManifest.self, from: Fixtures.pieces("pattern.json"))
+        #expect(m.schema == 2 && m.isPieced)
+        #expect(m.pieces?.map(\.id) == ["panel", "strip", "fin", "strap"])
+        #expect(m.pieces?[0].chart == m.charts[0].id && m.pieces?[0].isWritten == false)
+        #expect(m.pieces?[1].rows == "pieces/strip.rows.json" && m.pieces?[1].isWritten == true)
+        #expect(m.pieces?[2].make == 2 && m.piecesTotal == 5)
+        #expect(m.assembly.map(\.title) == ["Sew the strip round the panel", "Pages 4–5"])
+        #expect(m.assembly[1].text == nil && m.assembly[1].pages == [4, 5])
+    }
+
+    @Test func aManifestWithoutPiecesIsOnePiece() throws {
+        let data = try Data(contentsOf: Fixtures.root.appendingPathComponent("fixtures/bundle/craigh-na-dun.graphghan"))
+        let m = try PatternBundle.read(data).manifest
+        #expect(!m.isPieced && m.pieces == nil && m.assembly.isEmpty && m.piecesTotal == 1)
+    }
 }

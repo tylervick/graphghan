@@ -5,4 +5,8 @@ public enum GraphghanCore {
     public static let formatSchema = 2
     /// The progress document schema this package reads and writes.
     public static let progressSchema = 1
+    /// Manifest schemas this package can decode: 1 (no pieces) and 2 (with pieces and assembly).
+    public static let manifestSchemas: Set<Int> = [1, 2]
+    /// The written-rows document schema this package reads and writes.
+    public static let rowsSchema = 1
 }
