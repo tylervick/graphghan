@@ -87,13 +87,21 @@ import GraphghanCore
         for key in [PieceKey(piece: "strip", copy: 1), PieceKey(piece: "fin", copy: 1), PieceKey(piece: "fin", copy: 2)] {
             try await service.selectPiece(key, of: p, manifest: manifest)
             let work = try await service.work(for: p)
-            while !(try service.pieceProgress(for: p).first { $0.key == key }?.finished != nil) { service.apply(.advance, to: p, work: work) }
+            // Bounded, so a regression that never finishes fails instead of hanging.
+            var finished = false
+            for _ in 0..<50 {
+                if try service.pieceProgress(for: p).first(where: { $0.key == key })?.finished != nil { finished = true; break }
+                service.apply(.advance, to: p, work: work)
+            }
+            if !finished { Issue.record("\(key) never finished"); return }
         }
         try await service.selectPiece(PieceKey(piece: "strap", copy: 1), of: p, manifest: manifest)
         try service.finishPiece(p)
         try await service.selectPiece(PieceKey(piece: "panel", copy: 1), of: p, manifest: manifest)
         let panel = try await service.work(for: p)
-        while service.apply(.advance, to: p, work: panel)?.finished != true {}
+        var panelFinished = false
+        for _ in 0..<500 where service.apply(.advance, to: p, work: panel)?.finished == true { panelFinished = true; break }
+        if !panelFinished { Issue.record("the panel never finished"); return }
         #expect(!p.isFinished)                       // assembly still open
         try service.setAssemblyStep(0, done: true, for: p)
         try service.setAssemblyStep(1, done: true, for: p)
@@ -147,5 +155,85 @@ import GraphghanCore
         service.onProjectsChanged = { count += 1 }
         try await service.selectPiece(PieceKey(piece: "strip", copy: 1), of: p, manifest: manifest)
         #expect(count == 1)
+    }
+
+    /// A cursor stays with the document it was made on: a re-import that gives the strip a new
+    /// rows document leaves a started strip on its old one (libraries are content-addressed).
+    @Test func aStartedPieceKeepsItsDocumentAfterAReimport() async throws {
+        let (service, manifest) = try await Self.make()
+        let p = try await service.startPiecedProject(manifest: manifest, title: "")
+        try await service.selectPiece(PieceKey(piece: "strip", copy: 1), of: p, manifest: manifest)
+        let oldID = try #require(p.currentRowsID)
+        let work = try await service.work(for: p)
+        service.apply(.advance, to: p, work: work)
+        service.apply(.advance, to: p, work: work)
+
+        // The re-imported strip: one row's words changed, so a new id.
+        let stripData = try TestFixtures.pieces("pieces/strip.rows.json")
+        var entries = try RowsDocument.load(stripData).entries
+        let e = entries[1]
+        entries[1] = RowsDocument.Entry(label: e.label, from: e.from, to: e.to, text: e.text + ", revised", count: e.count,
+                                        code: e.code, repeatText: e.repeatText)
+        let newID = RowsDocument.computeID(entries)
+        var doc = try #require(try JSONSerialization.jsonObject(with: stripData) as? [String: Any])
+        var rows = try #require(doc["rows"] as? [[String: Any]])
+        rows[1]["text"] = entries[1].text
+        doc["rows"] = rows
+        doc["id"] = newID
+        _ = try await service.rows.store(try JSONSerialization.data(withJSONObject: doc))
+        var object = try #require(try JSONSerialization.jsonObject(with: try TestFixtures.pieces("pattern.json")) as? [String: Any])
+        var pieces = try #require(object["pieces"] as? [[String: Any]])
+        pieces[1]["rows_id"] = newID
+        object["pieces"] = pieces
+        let reimported = try JSONDecoder().decode(PatternManifest.self, from: try JSONSerialization.data(withJSONObject: object))
+
+        try await service.selectPiece(PieceKey(piece: "panel", copy: 1), of: p, manifest: reimported)
+        try await service.selectPiece(PieceKey(piece: "strip", copy: 1), of: p, manifest: reimported)
+        #expect(p.currentRowsID == oldID && oldID != newID)
+        #expect(p.cursor == Cursor(row: 3, run: 0))
+        // A piece started after the re-import takes the new manifest's document.
+        try await service.selectPiece(PieceKey(piece: "fin", copy: 1), of: p, manifest: reimported)
+        #expect(p.currentRowsID == manifest.pieces?[2].rowsID)
+    }
+
+    /// "Finish piece" is an advance at the same row (the finishing-advance rule): the log and
+    /// `lastWorked` see it.
+    @Test func finishingAPieceRecordsAnAdvance() async throws {
+        let (service, manifest) = try await Self.make()
+        let p = try await service.startPiecedProject(manifest: manifest, title: "")
+        try await service.selectPiece(PieceKey(piece: "strap", copy: 1), of: p, manifest: manifest)
+        service.now = { Date(timeIntervalSince1970: 1_800_000_000) }
+        service.apply(.advance, to: p, work: try await service.work(for: p))   // row 2
+        let t = Date(timeIntervalSince1970: 1_800_000_600)
+        service.now = { t }
+        try service.finishPiece(p)
+        let events = try service.exportPiecedDocument(for: p).events
+        #expect(events.count == 2)
+        let last = try #require(events.last)
+        #expect(last.t == t && last.kind == .advance && last.row == 2 && last.key == PieceKey(piece: "strap", copy: 1))
+        #expect(p.lastWorked == t && p.cursor == Cursor(row: 2, run: 0))
+        #expect(try service.currentProgress(of: p)?.finished == t)
+    }
+
+    /// The Work screen hides Done on a finished open-ended piece; an intent must not advance past it.
+    @Test func advancingAFinishedOpenEndedPieceDoesNothing() async throws {
+        let (service, manifest) = try await Self.make()
+        let p = try await service.startPiecedProject(manifest: manifest, title: "")
+        try await service.selectPiece(PieceKey(piece: "strap", copy: 1), of: p, manifest: manifest)
+        let work = try await service.work(for: p)
+        try service.finishPiece(p)
+        #expect(service.apply(.advance, to: p, work: work) == nil)
+        #expect(p.cursor == Cursor(row: 1, run: 0))
+        #expect(try service.currentProgress(of: p)?.finished != nil)
+    }
+
+    @Test func deletingAProjectRemovesItsPieceProgress() async throws {
+        let (service, manifest) = try await Self.make()
+        let p = try await service.startPiecedProject(manifest: manifest, title: "")
+        try await service.selectPiece(PieceKey(piece: "strip", copy: 1), of: p, manifest: manifest)
+        let context = p.modelContext!
+        #expect(try context.fetchCount(FetchDescriptor<PieceProgress>()) == 2)
+        try service.delete(p)
+        #expect(try context.fetchCount(FetchDescriptor<PieceProgress>()) == 0)
     }
 }

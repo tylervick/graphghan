@@ -120,6 +120,9 @@ final class ProjectService {
             return apply(action, to: project, in: sequence)
         case .written(let seq):
             let finished = (try? currentProgress(of: project))?.finished != nil
+            // A finished open-ended piece has no next row: the screen hides Done there, and an
+            // intent must not advance past it either.
+            if finished, seq.isOpen, case .advance = action { return nil }
             guard let step = WrittenEngine.apply(action, to: project.cursor, in: seq, finished: finished) else { return nil }
             // A written piece has no "past the end" cursor: finishing is a flag on its last row,
             // so any back or jump leaves it.
@@ -335,6 +338,9 @@ extension ProjectService {
         guard let docID = piece.chart ?? piece.rowsID else { throw ServiceError.pieceUnknown(key) }
         let record: PieceProgress
         if let existing = try progress(key, of: project) {
+            // A cursor stays with the document it was made on: after a re-import that changed
+            // this piece's document, the record's id -- not the manifest's -- is what it works
+            // (libraries are content-addressed, so the old document is still there).
             record = existing
         } else {
             record = PieceProgress(pieceID: key.piece, copy: key.copy, docID: docID)
@@ -346,14 +352,14 @@ extension ProjectService {
         project.cursor = record.cursor
         if let chart {
             project.currentRowsID = nil
-            project.chartID = chart.id
+            project.chartID = record.docID
             project.chartVariant = chart.variant
             project.chartGaugeKey = chart.gaugeKey
         } else {
             // "" for both: a written piece has no chart, so versionNotice/switchChart -- which key
             // off chartVariant/chartGaugeKey -- can never act on the chart a previous piece left
             // behind.
-            project.currentRowsID = piece.rowsID
+            project.currentRowsID = record.docID
             project.chartID = ""
             project.chartVariant = ""
             project.chartGaugeKey = ""
@@ -372,12 +378,14 @@ extension ProjectService {
         return .chart(chart, try WorkSequence(chart: chart))
     }
 
-    /// Done by hand, for an open-ended written piece, which never finishes on its last row.
+    /// Done by hand, for an open-ended written piece, which never finishes on its last row. It is
+    /// an advance at the same row (the finishing-advance rule, spec §5.4), recorded through
+    /// `record` so the event log and `lastWorked` see it like any other step.
     func finishPiece(_ project: Project) throws {
-        guard let progress = try currentProgress(of: project) else { return }
-        progress.finished = now()
-        updateProjectFinished(project)
-        try save()
+        guard try currentProgress(of: project) != nil else { return }
+        let step = WorkStep(cursor: project.cursor, kind: .advance, startedNewRow: false, finished: true, runsWalked: 0)
+        // As every step: a failed save sets `lastError` for the banner and never blocks (spec 6.6).
+        _ = record(step, on: project, leftTheEnd: true)
         onProjectsChanged?()
     }
 

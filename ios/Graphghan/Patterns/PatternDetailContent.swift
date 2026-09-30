@@ -10,6 +10,12 @@ struct PatternDetailContent: View {
     let onStart: () -> Void
     let onBrowse: (ManifestChart) -> Void
 
+    /// Start needs something to work: a chart, or -- for a pattern made of pieces, which may be
+    /// written rows only (spec 2026-09-25 §5.3) -- its pieces.
+    static func canStart(_ manifest: PatternManifest) -> Bool {
+        manifest.isPieced || !manifest.charts.isEmpty
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             previewImage
@@ -22,7 +28,7 @@ struct PatternDetailContent: View {
             colors
             if let chart, !chart.document.instructions.isEmpty { instructions(chart) }
             charts
-            Button("Start project", action: onStart).buttonStyle(.primary).disabled(manifest.charts.isEmpty)
+            Button("Start project", action: onStart).buttonStyle(.primary).disabled(!Self.canStart(manifest))
         }
         .padding(16)
     }
