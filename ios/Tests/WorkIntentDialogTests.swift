@@ -74,7 +74,13 @@ struct WorkIntentDialogTests {
     }
 
     static func snapshot(_ title: String, pattern: String = "p") -> ProjectSnapshot {
-        ProjectSnapshot(id: UUID(), title: title, patternTitle: pattern, percent: 0, lastWorked: nil, isFinished: false)
+        ProjectSnapshot(id: UUID(), title: title, patternTitle: pattern, percent: 0, lastWorked: nil, isFinished: false, detail: nil)
+    }
+
+    @Test func aWrittenStepSaysThePieceAndRow() {
+        #expect(WorkIntentDialog.plain(.movedWritten(title: "Strip", row: 2, total: 5, finished: false)) == "Strip, row 2 of 5.")
+        #expect(WorkIntentDialog.plain(.movedWritten(title: "Strap", row: 58, total: nil, finished: false)) == "Strap, row 58.")
+        #expect(WorkIntentDialog.plain(.movedWritten(title: "Strip", row: 5, total: 5, finished: true)) == "That's the last row of Strip.")
     }
 
     @Test func aRepeatedTitleIsToldApartByItsPattern() {

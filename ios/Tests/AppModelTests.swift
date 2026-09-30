@@ -57,4 +57,62 @@ import GraphghanCore
         let ok = await model.openPiece(PieceKey(piece: "strip", copy: 1), of: project, manifest: manifest)
         #expect(ok && model.workingProject?.id == project.id)
     }
+
+    // MARK: pieced projects (spec 2026-09-25 §6.5) -- Task 11
+
+    static func makeBareModel() async throws -> AppModel {
+        let container = try makeInMemoryContainer()
+        let client = StubClient()
+        let patterns = PatternStore(baseURL: URL(string: "https://example.test/")!, cacheDirectory: try temporaryDirectory(), client: client)
+        let charts = ChartLibrary(directory: try temporaryDirectory())
+        return AppModel(context: container.mainContext, patterns: patterns, charts: charts,
+                        rows: RowsLibrary(directory: try temporaryDirectory()), localPatterns: try makeLocalPatternStore())
+    }
+
+    /// The pieces-basic bundle, imported through `BundleImporter` (via `AppModel.importBundle`)
+    /// and started, then Done four times: the panel's first two rows are each one run, so that is
+    /// run, turn, run, turn -- landing on row 3, run 0.
+    static func piecedProject() async throws -> (AppModel, Project) {
+        let model = try await makeBareModel()
+        let manifest = try #require(await model.importBundle(data: try TestFixtures.bundle("pieces-basic")))
+        try await model.startPiecedProject(manifest: manifest, title: "")
+        let project = try #require(try model.projects.projects().first)
+        for _ in 0..<4 { _ = await model.performIntent(.advance, chosen: project.id) }
+        return (model, project)
+    }
+
+    /// A plain, single-chart project: `two-letter-codes`, never worked.
+    static func singleChartProject() async throws -> (AppModel, Project) {
+        let model = try await makeBareModel()
+        let data = try TestFixtures.data("two-letter-codes.chart.json")
+        _ = try await model.charts.store(data)
+        let manifest = TestManifest.make(chartID: try Chart.load(data).id)
+        let project = try await model.projects.startProject(manifest: manifest, chart: manifest.charts[0], title: "x")
+        return (model, project)
+    }
+
+    @Test @MainActor func aPiecedSnapshotReadsTheCurrentPiece() async throws {
+        let (model, project) = try await Self.piecedProject()
+        let s = await model.snapshot(for: project)
+        #expect(s.detail == "Panel · Row 3 of 5 · 0 of 5 pieces")
+        #expect(abs(s.percent - 33.3) < 0.001)   // 8 of 24 cells: rows 1-2 of the panel (3 + 5)
+    }
+
+    /// Review focus 4.
+    @Test @MainActor func snapshotOfASingleChartProjectIsUnchanged() async throws {
+        let (model, project) = try await Self.singleChartProject()
+        #expect(await model.snapshot(for: project).detail == nil)
+    }
+
+    @Test @MainActor func aShortcutsDoneOnAWrittenPieceMovesOneRow() async throws {
+        let (model, project) = try await Self.piecedProject()
+        let manifest = try await model.manifest(for: project.patternID, path: nil)
+        try await model.projects.selectPiece(PieceKey(piece: "strip", copy: 1), of: project, manifest: manifest)
+        let outcome = await model.performIntent(.advance, chosen: project.id)
+        guard case .movedWritten(let title, let row, let total, let finished) = outcome else {
+            Issue.record("expected .movedWritten, got \(outcome)")
+            return
+        }
+        #expect(title == "Strip" && row == 2 && total == 5 && !finished)
+    }
 }

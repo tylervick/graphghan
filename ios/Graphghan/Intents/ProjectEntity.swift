@@ -21,6 +21,8 @@ struct ProjectEntity: AppEntity {
     @Property(title: "Percent done") var percent: Double
     @Property(title: "Last worked") var lastWorked: Date?
     var isFinished: Bool
+    /// A pieced project's line ("Front panel · Row 42 of 77 · 3 of 8 pieces"); nil for a single chart.
+    var detail: String?
 
     init(_ snapshot: ProjectSnapshot) {
         // Plain stored fields first: assigning a wrapped property goes through its wrapper, which
@@ -31,15 +33,21 @@ struct ProjectEntity: AppEntity {
         patternTitle = snapshot.patternTitle
         percent = snapshot.percent
         lastWorked = snapshot.lastWorked
+        detail = snapshot.detail
     }
 
     var displayRepresentation: DisplayRepresentation {
-        DisplayRepresentation(title: "\(title)", subtitle: "\(Self.percentText(percent)) · \(patternTitle)")
+        DisplayRepresentation(title: "\(title)", subtitle: "\(detail ?? "\(Self.percentText(percent)) · \(patternTitle)")")
     }
 
     /// "43%" for a whole number, "43.5%" otherwise: the tenth is real, the trailing zero is noise.
     static func percentText(_ percent: Double) -> String {
         percent == percent.rounded() ? "\(Int(percent))%" : String(format: "%.1f%%", percent)
+    }
+
+    /// A pieced project's own line when it has one, else "43% · Pattern" (spec §6.5).
+    static func subtitle(for snapshot: ProjectSnapshot) -> String {
+        snapshot.detail ?? "\(percentText(snapshot.percent)) · \(snapshot.patternTitle)"
     }
 }
 
@@ -80,7 +88,7 @@ struct ProjectEntityQuery: EntityStringQuery {
 extension ProjectEntity: IndexedEntity {
     var attributeSet: CSSearchableItemAttributeSet {
         let set = defaultAttributeSet
-        set.contentDescription = "\(Self.percentText(percent)) · \(patternTitle)"
+        set.contentDescription = detail ?? "\(Self.percentText(percent)) · \(patternTitle)"
         set.keywords = [patternTitle, "crochet", "graphghan", "blanket"]
         return set
     }

@@ -32,6 +32,10 @@ enum WorkIntentDialog {
             return Text(questionText(candidates))
         case .moved(let landing):
             return text(for: landing.step, in: landing.sequence)
+        case .movedWritten(let title, let row, let total, let finished):
+            if finished { return Text("That's the last row of \(title).") }
+            if let total { return Text("\(title), row \(row) of \(total).") }
+            return Text("\(title), row \(row).")
         }
     }
 
@@ -39,6 +43,10 @@ enum WorkIntentDialog {
         let t = text(for: outcome)
         return t.supporting == t.full ? IntentDialog("\(t.full)") : IntentDialog(full: "\(t.full)", supporting: "\(t.supporting)")
     }
+
+    /// The same words as `text(for:).full`, for a test that wants a plain string rather than
+    /// `Text`'s equatable wrapper.
+    static func plain(_ outcome: WorkIntentOutcome) -> String { text(for: outcome).full }
 
     /// Spec §4.3: the question the intent asks when the working project is ambiguous, naming the
     /// blankets so the maker can answer with one of them.

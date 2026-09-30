@@ -100,7 +100,7 @@ final class AppModel {
         // wants anyway.
         projects.onApply = { [weak self] project, sequence, step in
             guard let self, let chart = self.chartCache[project.chartID] else { return }
-            let info = LiveActivityState.info(projectID: project.id, chart: chart, sequence: sequence)
+            let info = LiveActivityState.info(projectID: project.id, chart: chart, sequence: sequence, title: self.activityTitle(for: project))
             guard let state = LiveActivityState.make(cursor: step.cursor, sequence: sequence, perRepetition: project.tapPerRepetition) else { return }
             self.activityUpdate = Task { await self.liveActivity.update(projectID: project.id, info: info, state: state) }
         }
@@ -514,7 +514,7 @@ final class AppModel {
         guard let chart = try? await projects.chart(for: project), let sequence = try? WorkSequence(chart: chart),
               let state = LiveActivityState.make(cursor: project.cursor, sequence: sequence, perRepetition: project.tapPerRepetition) else { return nil }
         chartCache[project.chartID] = chart
-        return (LiveActivityState.info(projectID: project.id, chart: chart, sequence: sequence), state)
+        return (LiveActivityState.info(projectID: project.id, chart: chart, sequence: sequence, title: activityTitle(for: project)), state)
     }
 
     /// A lock-screen button: same mutation path as the Work screen, then the activity updates via
@@ -558,6 +558,17 @@ final class AppModel {
                 return .ambiguous(snapshots)
             case .one(let working): project = working
             }
+        }
+        // A written current piece has no chart and starts no Live Activity in this PR (#223): apply
+        // and answer without touching any of the activity machinery below.
+        if project.isPieced, project.currentIsWritten {
+            guard let work = try? await projects.work(for: project), case .written(let seq) = work else {
+                return .chartUnavailable(title: project.title)
+            }
+            guard let step = projects.apply(action, to: project, work: work) else { return .nowhereToGo(action) }
+            let manifest = try? await manifest(for: project.patternID, path: nil)
+            let title = manifest?.pieces?.first(where: { $0.id == project.currentPiece })?.title ?? project.currentPiece ?? project.title
+            return .movedWritten(title: title, row: step.cursor.row, total: seq.totalRows, finished: step.finished)
         }
         guard let chart = try? await projects.chart(for: project), let sequence = try? WorkSequence(chart: chart) else {
             return .chartUnavailable(title: project.title)
@@ -605,20 +616,33 @@ final class AppModel {
     }
 
     func snapshot(for project: Project) async -> ProjectSnapshot {
-        await snapshot(for: project, sequence: try? await projects.sequence(for: project))
+        // A pieced project's current piece may be written, which has no chart at all: `sequence(for:)`
+        // would just throw for it. `snapshot(for:sequence:)` below loads what it needs itself.
+        await snapshot(for: project, sequence: project.isPieced ? nil : try? await projects.sequence(for: project))
     }
 
-    /// With a sequence the caller already holds, the only await is the manifest lookup.
+    /// With a sequence the caller already holds, the only await is the manifest lookup -- for a
+    /// single-chart project. A pieced project ignores `sequence` (its current piece may have none)
+    /// and asks `ProjectService` for its current piece's own line and percent instead (spec §6.5).
     func snapshot(for project: Project, sequence: WorkSequence?) async -> ProjectSnapshot {
+        // Local first, like every other lookup by pattern id (#135).
+        var manifest = await localPatterns.manifest(for: project.patternID)
+        if manifest == nil { manifest = await patterns.cachedManifest(for: project.patternID) }
+        let patternTitle = manifest?.title ?? project.patternID
+
+        if project.isPieced, let manifest, let work = try? await projects.work(for: project) {
+            let percent = projects.currentPercent(for: project, work: work) ?? 0
+            let detail = try? projects.progressLine(for: project, manifest: manifest, work: work)
+            return ProjectSnapshot(id: project.id, title: project.title, patternTitle: patternTitle, percent: percent,
+                                   lastWorked: project.lastWorked, isFinished: project.isFinished, detail: detail)
+        }
+
         var percent = 0.0
         if let sequence, let done = sequence.cellsBefore(project.cursor), sequence.totalCells > 0 {
             percent = (100 * Double(done) / Double(sequence.totalCells) * 10).rounded(.toNearestOrEven) / 10
         }
-        // Local first, like every other lookup by pattern id (#135).
-        var patternTitle = await localPatterns.manifest(for: project.patternID)?.title
-        if patternTitle == nil { patternTitle = await patterns.cachedManifest(for: project.patternID)?.title }
-        return ProjectSnapshot(id: project.id, title: project.title, patternTitle: patternTitle ?? project.patternID, percent: percent,
-                               lastWorked: project.lastWorked, isFinished: project.isFinished)
+        return ProjectSnapshot(id: project.id, title: project.title, patternTitle: patternTitle, percent: percent,
+                               lastWorked: project.lastWorked, isFinished: project.isFinished, detail: nil)
     }
 
     /// Spec §4.2: the index follows the store. Every mutation that changes what a project *is* or
@@ -651,8 +675,18 @@ final class AppModel {
     /// Tells the controller about the activity the system already shows for this project.
     private func adoptActivity(for project: Project, chart: Chart, sequence: WorkSequence) async {
         guard let state = LiveActivityState.make(cursor: project.cursor, sequence: sequence, perRepetition: project.tapPerRepetition) else { return }
-        let info = LiveActivityState.info(projectID: project.id, chart: chart, sequence: sequence)
+        let info = LiveActivityState.info(projectID: project.id, chart: chart, sequence: sequence, title: activityTitle(for: project))
         await liveActivity.start(projectID: project.id, info: info, state: state)
+    }
+
+    /// The lock screen's title for a pieced project's current piece (spec §6.5): "<pattern> ·
+    /// <piece>". Nil for a single-chart project, so `LiveActivityState.info`'s default (the
+    /// chart's own title) applies; nil too when the manifest isn't cached yet -- `onApply` is
+    /// synchronous and must not block a tap on a fetch.
+    private func activityTitle(for project: Project) -> String? {
+        guard project.isPieced, let manifest = manifests[project.patternID] else { return nil }
+        let piece = manifest.pieces?.first(where: { $0.id == project.currentPiece })?.title ?? project.currentPiece ?? ""
+        return "\(manifest.title) · \(piece)"
     }
 
     /// The step every intent takes once it has its project: apply, then wait for the activity
