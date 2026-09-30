@@ -241,6 +241,21 @@ final class AppModel {
         tab = .projects
     }
 
+    /// The project screen's tap on a piece row: select it, then open the Work screen -- but only
+    /// once the select actually succeeded, so a thrown `selectPiece` (an unknown piece, or a chart
+    /// or rows document that couldn't be read) never leaves the Work screen open on a piece that
+    /// didn't become current. Returns whether it succeeded, for the caller's own error sentence.
+    @discardableResult
+    func openPiece(_ key: PieceKey, of project: Project, manifest: PatternManifest) async -> Bool {
+        do {
+            try await projects.selectPiece(key, of: project, manifest: manifest)
+            workingProject = project
+            return true
+        } catch {
+            return false
+        }
+    }
+
     // MARK: opening a bundle (#16)
 
     /// A `.graphghan` file, however it arrived. Nothing is written unless the whole bundle

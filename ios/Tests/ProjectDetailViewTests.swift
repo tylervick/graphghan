@@ -14,7 +14,12 @@ import GraphghanCore
         #expect(ProjectDetailView.sessionValueText(cells: 18, cellKind: .block, seconds: 300) == "18 blocks · 5 min")
     }
 
-    @Test @MainActor func pieceListSnapshot() throws {
+    /// `PieceListSection` itself can't be snapshot -- `ImageRenderer` can't render the `List`
+    /// `Section` needs as a container (it logs "Unable to render flattened version of
+    /// ListRepresentable…" and returns a system placeholder instead of throwing). `PieceRow` and
+    /// `AssemblyStepRow` carry the same visual content without that container, the way
+    /// `project-cards` snapshots `ProjectCardView`s in a plain `VStack`.
+    @Test @MainActor func pieceRowsSnapshot() throws {
         let manifest = try JSONDecoder().decode(PatternManifest.self, from: TestFixtures.pieces("pattern.json"))
         let pieces = manifest.pieces!
         let statuses = [
@@ -24,8 +29,14 @@ import GraphghanCore
             PieceStatus(piece: pieces[2], copy: 2, isWritten: true, line: "3 rows", finished: false, isCurrent: false),
             PieceStatus(piece: pieces[3], copy: 1, isWritten: true, line: "Open-ended", finished: false, isCurrent: false),
         ]
-        let view = List { PieceListSection(statuses: statuses, assembly: manifest.assembly, assemblyDone: [0], onSelect: { _ in }, onToggleStep: { _, _ in }) }
-        #expect(try Snapshots.assert(view, named: "project-pieces", size: CGSize(width: 390, height: 700)))
+        let view = VStack(alignment: .leading, spacing: 14) {
+            ForEach(statuses) { PieceRow(status: $0) }
+            AssemblyStepRow(step: manifest.assembly[0], done: true, onToggle: { _ in })
+            AssemblyStepRow(step: manifest.assembly[1], done: false, onToggle: { _ in })
+        }
+        .padding(16)
+        .background(Color.ground.weave())
+        #expect(try Snapshots.assert(view, named: "project-pieces-rows", size: CGSize(width: 390, height: 480)))
     }
 
     @Test func pagesReadAsTheOriginalPDFsPages() {

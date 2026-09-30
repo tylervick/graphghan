@@ -33,11 +33,15 @@ struct ProjectDetailView: View {
                 PieceListSection(statuses: statuses, assembly: manifest.assembly, assemblyDone: project.assemblyDone,
                                  onSelect: { key in
                                      Task {
-                                         try? await model.projects.selectPiece(key, of: project, manifest: manifest)
-                                         model.workingProject = project
+                                         if await !model.openPiece(key, of: project, manifest: manifest) {
+                                             actionError = "Couldn't open that piece."
+                                         }
                                      }
                                  },
-                                 onToggleStep: { i, on in try? model.projects.setAssemblyStep(i, done: on, for: project) })
+                                 onToggleStep: { i, on in
+                                     do { try model.projects.setAssemblyStep(i, done: on, for: project) }
+                                     catch { actionError = "Couldn't update that step: \(error.localizedDescription)" }
+                                 })
                 notesSection
                 manageSection(showFinishToggle: false)
             } else if let sequence, let summary {
@@ -73,7 +77,8 @@ struct ProjectDetailView: View {
                 manageSection(showFinishToggle: true)
             } else if let loadError {
                 Section {
-                    ContentUnavailableView("Chart missing", systemImage: "exclamationmark.triangle", description: Text(loadError))
+                    ContentUnavailableView(project.isPieced ? "Pattern missing" : "Chart missing",
+                                           systemImage: "exclamationmark.triangle", description: Text(loadError))
                     Button("Download again") { Task { await redownload() } }
                 }
             } else {
@@ -181,6 +186,7 @@ struct ProjectDetailView: View {
                 loadError = "This project's chart could not be read. Download it again to continue."
                 return
             }
+            loadError = nil
             statuses = await model.projects.statuses(for: project, manifest: manifest)
         } else {
             do { sequence = try await model.projects.sequence(for: project) }
@@ -189,6 +195,14 @@ struct ProjectDetailView: View {
     }
 
     private func redownload() async {
+        // A pieced project's chart lives per piece; `chartID` is "" whenever the current piece is
+        // written, and looking that up in `manifest.charts` would report the wrong sentence (or
+        // succeed for the wrong reason). What failed for a pieced project is the manifest fetch
+        // itself, so retry via load() instead of chasing a chart that may not exist.
+        if project.isPieced {
+            await load()
+            return
+        }
         // Swift's `??` autoclosure for its right-hand side isn't `async`, so `manifest ?? (try?
         // await …)` can't compile here (SE-0296 doesn't cover this operator); resolve the fallback
         // with an explicit if/else instead, preserving the brief's "use the cached manifest, else

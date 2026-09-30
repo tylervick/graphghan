@@ -32,4 +32,29 @@ import GraphghanCore
         await model.loadLibrary(force: true)
         #expect(model.index.count == 1 && model.libraryBanner != nil && model.libraryError == nil)
     }
+
+    /// The project screen's piece row tap: `openPiece` must never open the Work screen on a piece
+    /// that didn't actually become current (fix round 1, issue 1).
+    @Test func openingAnUnknownPieceLeavesWorkingProjectNil() async throws {
+        let (model, _) = try await makeModel()
+        _ = try await model.charts.store(try TestFixtures.pieces("charts/final-sc/chart.json"))
+        for name in ["strip", "fin", "strap"] { _ = try await model.rows.store(try TestFixtures.pieces("pieces/\(name).rows.json")) }
+        let manifest = try JSONDecoder().decode(PatternManifest.self, from: try TestFixtures.pieces("pattern.json"))
+        try await model.startPiecedProject(manifest: manifest, title: "")
+        let project = try #require(try model.projects.projects().first)
+        model.workingProject = nil
+        let ok = await model.openPiece(PieceKey(piece: "not-a-piece", copy: 1), of: project, manifest: manifest)
+        #expect(!ok && model.workingProject == nil)
+    }
+
+    @Test func openingAKnownPieceSetsWorkingProject() async throws {
+        let (model, _) = try await makeModel()
+        _ = try await model.charts.store(try TestFixtures.pieces("charts/final-sc/chart.json"))
+        for name in ["strip", "fin", "strap"] { _ = try await model.rows.store(try TestFixtures.pieces("pieces/\(name).rows.json")) }
+        let manifest = try JSONDecoder().decode(PatternManifest.self, from: try TestFixtures.pieces("pattern.json"))
+        try await model.startPiecedProject(manifest: manifest, title: "")
+        let project = try #require(try model.projects.projects().first)
+        let ok = await model.openPiece(PieceKey(piece: "strip", copy: 1), of: project, manifest: manifest)
+        #expect(ok && model.workingProject?.id == project.id)
+    }
 }

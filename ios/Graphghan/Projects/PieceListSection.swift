@@ -1,6 +1,48 @@
 import SwiftUI
 import GraphghanCore
 
+/// One piece row (spec 2026-09-25 §6.2): its current/finished marker, title, chart/written-rows
+/// subtitle, and row line. A plain view (not a `Section` row) so it can be snapshot directly --
+/// `ImageRenderer` cannot render a `List`, which `Section` needs as a container.
+struct PieceRow: View {
+    let status: PieceStatus
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 10) {
+            Image(systemName: status.finished ? "checkmark.circle.fill" : (status.isCurrent ? "play.circle.fill" : "circle"))
+                .foregroundStyle(status.finished || status.isCurrent ? Color.heather : Color.ink2)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).font(Font.Heather.body).foregroundStyle(Color.ink)
+                Text(status.isWritten ? "Written rows" : "Chart").font(Font.Heather.caption).foregroundStyle(Color.ink2)
+            }
+            Spacer()
+            Text(status.line).font(Font.Heather.caption).foregroundStyle(Color.ink2).monospacedDigit()
+        }
+    }
+
+    private var title: String {
+        status.piece.make > 1 ? "\(status.piece.title) \(status.copy) of \(status.piece.make)" : status.piece.title
+    }
+}
+
+/// One assembly step row: its title, text and page reference, with its own done toggle.
+struct AssemblyStepRow: View {
+    let step: AssemblyStep
+    let done: Bool
+    let onToggle: (Bool) -> Void
+
+    var body: some View {
+        Toggle(isOn: Binding(get: { done }, set: onToggle)) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(step.title).font(Font.Heather.body).foregroundStyle(Color.ink)
+                if let text = step.text { Text(text).font(Font.Heather.caption).foregroundStyle(Color.ink2) }
+                if !step.pages.isEmpty { Text(PieceListSection.pageText(step.pages)).font(Font.Heather.caption).foregroundStyle(Color.ink2) }
+            }
+        }
+        .tint(.heather)
+    }
+}
+
 /// A pieced project's pieces in the pattern's order, then its assembly steps (spec 2026-09-25 §6.2).
 struct PieceListSection: View {
     let statuses: [PieceStatus]
@@ -12,41 +54,19 @@ struct PieceListSection: View {
     var body: some View {
         Section("Pieces") {
             ForEach(statuses) { s in
-                Button { onSelect(s.id) } label: {
-                    HStack(alignment: .firstTextBaseline, spacing: 10) {
-                        Image(systemName: s.finished ? "checkmark.circle.fill" : (s.isCurrent ? "play.circle.fill" : "circle"))
-                            .foregroundStyle(s.finished || s.isCurrent ? Color.heather : Color.ink2)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(title(s)).font(Font.Heather.body).foregroundStyle(Color.ink)
-                            Text(s.isWritten ? "Written rows" : "Chart").font(Font.Heather.caption).foregroundStyle(Color.ink2)
-                        }
-                        Spacer()
-                        Text(s.line).font(Font.Heather.caption).foregroundStyle(Color.ink2).monospacedDigit()
-                    }
-                }
-                .buttonStyle(.plain)
-                .accessibilityElement(children: .combine)
-                .accessibilityHint(s.finished ? "Finished" : "Work this piece")
+                Button { onSelect(s.id) } label: { PieceRow(status: s) }
+                    .buttonStyle(.plain)
+                    .accessibilityElement(children: .combine)
+                    .accessibilityHint(s.finished ? "Finished" : "Work this piece")
             }
         }
         if !assembly.isEmpty {
             Section("Assembly · \(assemblyDone.count) of \(assembly.count)") {
                 ForEach(Array(assembly.enumerated()), id: \.offset) { i, step in
-                    Toggle(isOn: Binding(get: { assemblyDone.contains(i) }, set: { onToggleStep(i, $0) })) {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(step.title).font(Font.Heather.body).foregroundStyle(Color.ink)
-                            if let text = step.text { Text(text).font(Font.Heather.caption).foregroundStyle(Color.ink2) }
-                            if !step.pages.isEmpty { Text(Self.pageText(step.pages)).font(Font.Heather.caption).foregroundStyle(Color.ink2) }
-                        }
-                    }
-                    .tint(.heather)
+                    AssemblyStepRow(step: step, done: assemblyDone.contains(i), onToggle: { onToggleStep(i, $0) })
                 }
             }
         }
-    }
-
-    private func title(_ s: PieceStatus) -> String {
-        s.piece.make > 1 ? "\(s.piece.title) \(s.copy) of \(s.piece.make)" : s.piece.title
     }
 
     /// Where the source PDF is not on this phone (always, until the importer keeps it, spec §5.5).
