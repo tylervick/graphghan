@@ -300,4 +300,27 @@ import Testing
         let data = try ZipBuilder(items: entries.map { ZipBuilder.Item($0.key, $0.value) }).build()
         #expect(throws: BundleError.pieceNamesMissingChart(piece: "panel")) { try PatternBundle.read(data) }
     }
+
+    /// `entries` with its manifest's `pieces` passed through `edit`.
+    static func withPieces(_ edit: (inout [[String: Any]]) -> Void) throws -> Data {
+        var entries = try piecedEntries()
+        var manifest = try #require(try JSONSerialization.jsonObject(with: entries["pattern.json"]!) as? [String: Any])
+        var pieces = try #require(manifest["pieces"] as? [[String: Any]])
+        edit(&pieces)
+        manifest["pieces"] = pieces
+        entries["pattern.json"] = try JSONSerialization.data(withJSONObject: manifest)
+        return try ZipBuilder(items: entries.map { ZipBuilder.Item($0.key, $0.value) }).build()
+    }
+
+    @Test func twoPiecesWithOneIDAreRefused() throws {
+        let data = try Self.withPieces { $0[2]["id"] = "strip" }
+        #expect(throws: BundleError.duplicatePiece(piece: "strip")) { try PatternBundle.read(data) }
+        #expect(BundleError.duplicatePiece(piece: "strip").message == "Two pieces are both called “strip”.")
+    }
+
+    @Test func aPieceMadeNoTimesIsRefused() throws {
+        let data = try Self.withPieces { $0[1]["make"] = 0 }
+        #expect(throws: BundleError.pieceMakeCount(piece: "strip", make: 0)) { try PatternBundle.read(data) }
+        #expect(BundleError.pieceMakeCount(piece: "strip", make: 0).message == "The piece “strip” is to be made 0 times.")
+    }
 }

@@ -94,6 +94,43 @@ import Testing
         let s = ProjectPace.summarize(doc, manifest: manifest, models: models)
         #expect(s.sessions.map(\.rows) == [4, 0])
     }
+
+    /// Same-second events keep their recorded order, as Python's stable sort does: the log ends on
+    /// a finishing advance, so the strip is finished at row 4 (4 rows done); taken in any other
+    /// order it would end on a jump and leave the strip unfinished (3).
+    @Test func sameSecondEventsKeepTheirRecordedOrder() throws {
+        let rows = [
+            RowsDocument.Entry(label: "R 1", from: 1, to: 1, text: "a", count: 6, code: nil, repeatText: nil),
+            RowsDocument.Entry(label: "R 2 - R 4", from: 2, to: 4, text: "b", count: 6, code: nil, repeatText: nil),
+        ]
+        let rdocID = RowsDocument.computeID(rows)
+        let manifest = PatternManifest(schema: 2, id: "bag", title: "Bag", version: "1", dedication: "", quote: "",
+                                       author: "", license: "", preview: "preview.png", palette: [], charts: [],
+                                       updated: "2026-01-01T00:00:00Z",
+                                       pieces: [ManifestPieceFixture.make(id: "strip", title: "Strip", make: 1,
+                                                                          rows: "pieces/strip.rows.json", rowsID: rdocID)],
+                                       assembly: [])
+        let rdocJSON = """
+        {"schema":1,"id":"\(rdocID)","piece":{"title":"Strip"},"rows":[
+            {"label":"R 1","from":1,"to":1,"count":6,"text":"a"},
+            {"label":"R 2 - R 4","from":2,"to":4,"count":6,"text":"b"}
+        ]}
+        """
+        let models: [String: PieceModel] = ["strip": .written(WrittenSequence(try RowsDocument.load(Data(rdocJSON.utf8))))]
+        let t = ProgressDates.parse("2026-09-12T18:00:00Z")!
+        // Many same-second events, so the sort cannot fall back on an insertion sort's stability.
+        var events: [PiecedEventRecord] = []
+        for _ in 0..<40 {
+            events.append(PiecedEventRecord(t: t, piece: "strip", copy: 1, row: 4, run: 0, kind: .jump))
+            events.append(PiecedEventRecord(t: t, piece: "strip", copy: 1, row: 4, run: 0, kind: .advance))  // finishes
+        }
+        let doc = ProjectProgressDocument(patternID: "bag", patternVersion: nil,
+                                          pieces: [PieceProgressRecord(piece: "strip", copy: 1, docID: rdocID,
+                                                                       cursor: Cursor(row: 4, run: 0), finished: nil)],
+                                          current: PieceKey(piece: "strip", copy: 1), assemblyDone: [],
+                                          started: nil, finished: nil, events: events)
+        #expect(ProjectPace.summarize(doc, manifest: manifest, models: models).sessions.map(\.rows) == [4])
+    }
 }
 
 /// Test-only convenience initializers: `ManifestPiece` and `AssemblyStep` are `Decodable` only.

@@ -87,7 +87,12 @@ public enum ProjectPace {
         var last: [PieceKey: PieceState] = [:]
         var sessions: [OpenSession] = []
         var current: OpenSession?
-        for e in doc.events.sorted(by: { $0.t < $1.t }) {
+        // Sorted by (t, recorded index): same-second events keep their recorded order, as
+        // Python's stable sort does -- Swift's `sorted` makes no stability promise.
+        let ordered = doc.events.enumerated()
+            .sorted { ($0.element.t, $0.offset) < ($1.element.t, $1.offset) }
+            .map(\.element)
+        for e in ordered {
             guard let model = models[e.piece] else { continue }
             if current == nil || e.t.timeIntervalSince(current!.end) > gap {
                 if let c = current { sessions.append(c) }

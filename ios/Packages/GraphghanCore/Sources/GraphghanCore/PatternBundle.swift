@@ -74,7 +74,10 @@ public struct PatternBundle: Sendable {
         var rowsPaths: [String] = []
         if let pieces = manifest.pieces {
             let chartIDs = Set(manifest.charts.map(\.id))
+            var pieceIDs = Set<String>()
             for piece in pieces {
+                guard pieceIDs.insert(piece.id).inserted else { throw BundleError.duplicatePiece(piece: piece.id) }
+                guard piece.make >= 1 else { throw BundleError.pieceMakeCount(piece: piece.id, make: piece.make) }
                 switch (piece.chart, piece.rows) {
                 case (let chartID?, nil):
                     guard chartIDs.contains(chartID) else { throw BundleError.pieceNamesMissingChart(piece: piece.id) }
@@ -206,6 +209,10 @@ public enum BundleError: Error, Equatable {
     case pieceNamesMissingChart(piece: String)
     /// A piece with neither `chart` nor `rows`, both, or a written piece with no `rows_id`.
     case pieceKind(piece: String)
+    /// Two pieces share an id: progress keys a piece copy by it.
+    case duplicatePiece(piece: String)
+    /// A piece whose `make` is below 1.
+    case pieceMakeCount(piece: String, make: Int)
     case invalidRows(path: String, reason: String)
     case rowsIDMismatch(path: String, expected: String, found: String)
 
@@ -254,6 +261,10 @@ public enum BundleError: Error, Equatable {
             return "The piece “\(piece)” names a chart this file doesn't contain."
         case .pieceKind(let piece):
             return "The piece “\(piece)” is neither a chart nor written rows."
+        case .duplicatePiece(let piece):
+            return "Two pieces are both called “\(piece)”."
+        case .pieceMakeCount(let piece, let make):
+            return "The piece “\(piece)” is to be made \(make) times."
         case .invalidRows(let path, let reason):
             return "The written rows in \(path) can't be used: \(reason)."
         case .rowsIDMismatch(let path, _, _):
