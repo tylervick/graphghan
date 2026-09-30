@@ -200,6 +200,9 @@ struct WorkView: View {
     /// "Next: …" on a finished piece (chart or written): select it, reload its work, and land on
     /// its own cursor (review focus 2). Clears `chart`/`sequence` on a written next piece -- left
     /// stale, `onDisappear` would build the final Live Activity state from the piece just left.
+    /// A Live Activity belongs to a chart piece (#223): moving onto a written piece ends it (no
+    /// final state, since nothing about it is wrong); moving onto a chart piece starts or updates
+    /// one exactly as the `.task` above does on first appearing.
     private func goToNext() async {
         guard let manifest, let key = try? model.projects.nextUnfinished(after: project, manifest: manifest) else { return }
         do {
@@ -210,9 +213,13 @@ struct WorkView: View {
             case .chart(let c, let s):
                 chart = c
                 sequence = s
+                if let (info, state) = await model.activityState(for: project) {
+                    await model.liveActivity.start(projectID: project.id, info: info, state: state)
+                }
             case .written:
                 chart = nil
                 sequence = nil
+                await model.liveActivity.end(projectID: project.id, finalState: nil)
             }
             cursor = project.cursor
             pieceFinished = false

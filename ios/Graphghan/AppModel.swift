@@ -509,7 +509,10 @@ final class AppModel {
 
     // MARK: live activity
 
-    /// The attributes and current state for a project, or nil when its chart cannot be read.
+    /// The attributes and current state for a project, or nil when its chart cannot be read --
+    /// which is always true of a pieced project's written current piece (#223: it has no chart
+    /// and never started this activity; a stale one showing it ends quietly, not as unavailable
+    /// -- see `reconcileState(for:)`).
     func activityState(for project: Project) async -> (WorkActivityInfo, WorkActivityState)? {
         guard let chart = try? await projects.chart(for: project), let sequence = try? WorkSequence(chart: chart),
               let state = LiveActivityState.make(cursor: project.cursor, sequence: sequence, perRepetition: project.tapPerRepetition) else { return nil }
@@ -523,6 +526,13 @@ final class AppModel {
     func performIntent(_ action: WorkAction, projectID: UUID) async {
         guard let project = try? projects.project(id: projectID) else {
             await endActivityUnavailable(projectID: projectID)
+            return
+        }
+        // A written current piece never started this activity (#223: a Live Activity belongs to
+        // a chart piece). If the system still shows one for this project it is stale -- from
+        // before the piece changed -- so it ends quietly and nothing is applied.
+        if project.isPieced, project.currentIsWritten {
+            await endActivityQuietly(projectID: projectID)
             return
         }
         guard let chart = try? await projects.chart(for: project), let sequence = try? WorkSequence(chart: chart) else {
@@ -704,20 +714,50 @@ final class AppModel {
         // method, which would deadlock on the mutex `reconcile` already holds.
         await liveActivity.reconcile { [weak self] info in
             guard info.projectID == projectID else {
-                // another project's activity is refreshed from its own stored cursor, never ended
+                // another project's activity is refreshed from its own stored cursor, or ended
+                // quietly if it turns out to be a pieced project's written current piece -- never
+                // told it is unavailable, which it is not.
                 guard let self, let p = try? self.projects.project(id: info.projectID) else { return nil }
-                return await self.activityState(for: p)?.1
+                return await self.reconcileState(for: p)
             }
             return nil
         }
     }
+
+    /// A written current piece never started this activity (#223), so a stale one showing it is
+    /// not "unavailable" -- it just never applied here. `reconcileState`'s quiet final state ends
+    /// it without a message; other active activities refresh as usual.
+    private func endActivityQuietly(projectID: UUID) async {
+        await liveActivity.reconcile { [weak self] info in
+            guard info.projectID == projectID else {
+                guard let self, let p = try? self.projects.project(id: info.projectID) else { return nil }
+                return await self.reconcileState(for: p)
+            }
+            return Self.quietEnd
+        }
+    }
+
+    /// What `reconcile`'s callers feed the controller for one project's activity: the real state
+    /// for a chart piece; a quiet, message-less final state for a pieced project whose current
+    /// piece is written (a Live Activity belongs to a chart piece -- #223 -- so a stale one just
+    /// closes rather than saying the project is gone); nil when the project or its chart is
+    /// genuinely unreadable, which still ends with the "no longer available" message.
+    private func reconcileState(for project: Project) async -> WorkActivityState? {
+        if project.isPieced, project.currentIsWritten { return Self.quietEnd }
+        return await activityState(for: project)?.1
+    }
+
+    /// A finished state with no message: `LiveActivityController.reconcile` ends an activity that
+    /// gets this without showing anything on the lock screen first.
+    private static let quietEnd = WorkActivityState(row: 0, rowCount: 0, side: nil, runIndex: 0, currentCode: nil, currentCount: nil,
+                                                     nextCode: nil, nextCount: nil, isLastInRow: true, percent: 0, finished: true)
 
     /// Launch-time reconciliation (spec §7): the stored cursor wins; stale activities end.
     func reconcileActivities() async {
         // As above: the closure must not call a public LiveActivityController method.
         await liveActivity.reconcile { [weak self] info in
             guard let self, let project = try? self.projects.project(id: info.projectID) else { return nil }
-            return await self.activityState(for: project)?.1
+            return await self.reconcileState(for: project)
         }
     }
 }

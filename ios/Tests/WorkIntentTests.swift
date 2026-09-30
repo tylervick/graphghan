@@ -138,4 +138,66 @@ import GraphghanCore
         await h.model.reconcileActivities()
         #expect(h.backend.calls.last == .update("act1", 2, 0))
     }
+
+    // MARK: pieced projects (fix round 1, #206) -- a Live Activity belongs to a chart piece (#223)
+
+    /// The pieces-basic bundle, started at its first piece ("panel", a chart) -- same backend
+    /// wiring as `make()`, so a test can switch onto a written piece and inspect the activity calls.
+    func makePieced() async throws -> Harness {
+        let container = try makeInMemoryContainer()
+        let client = StubClient()
+        let patterns = PatternStore(baseURL: URL(string: "https://example.test/")!, cacheDirectory: try temporaryDirectory(), client: client)
+        let charts = ChartLibrary(directory: try temporaryDirectory())
+        let backend = RecordingBackend()
+        let model = AppModel(context: container.mainContext, patterns: patterns, charts: charts,
+                             rows: RowsLibrary(directory: try temporaryDirectory()),
+                             localPatterns: try makeLocalPatternStore(), activityBackend: backend,
+                             defaults: UserDefaults(suiteName: "test-\(UUID().uuidString)")!)
+        model.registerIntentHandler()
+        let manifest = try #require(await model.importBundle(data: try TestFixtures.bundle("pieces-basic")))
+        try await model.startPiecedProject(manifest: manifest, title: "")
+        let project = try #require(try model.projects.projects().first)
+        return Harness(model: model, backend: backend, project: project)
+    }
+
+    /// A written current piece never started this activity (#223): a stale one showing this
+    /// project -- from before the piece changed -- ends quietly, not as "unavailable", and the
+    /// tap that found it applies nothing.
+    @Test func lockScreenTapOnAWrittenCurrentPieceEndsTheActivityQuietly() async throws {
+        let h = try await makePieced()   // starts on "panel", a chart
+        let (info, state) = try #require(await h.model.activityState(for: h.project))
+        await h.model.liveActivity.start(projectID: h.project.id, info: info, state: state)
+        let manifest = try await h.model.manifest(for: h.project.patternID, path: nil)
+        try await h.model.projects.selectPiece(PieceKey(piece: "strip", copy: 1), of: h.project, manifest: manifest)  // now written
+        let cursorBefore = h.project.cursor
+        _ = try await AdvanceRunIntent(projectID: h.project.id).perform()
+        #expect(h.backend.calls.last == .end("act1", message: nil, finished: true, immediately: false))
+        #expect(h.backend.active().isEmpty)
+        #expect(h.project.cursor == cursorBefore)
+    }
+
+    /// The same stale-activity case, found at launch instead of by a tap.
+    @Test func reconcileEndsAWrittenCurrentPiecesStaleActivityQuietly() async throws {
+        let h = try await makePieced()
+        let (info, state) = try #require(await h.model.activityState(for: h.project))
+        await h.model.liveActivity.start(projectID: h.project.id, info: info, state: state)
+        let manifest = try await h.model.manifest(for: h.project.patternID, path: nil)
+        try await h.model.projects.selectPiece(PieceKey(piece: "strip", copy: 1), of: h.project, manifest: manifest)
+        let cursorBefore = h.project.cursor
+        h.backend.reset()
+        await h.model.reconcileActivities()
+        #expect(h.backend.calls == [.end("act1", message: nil, finished: true, immediately: false)])
+        #expect(h.project.cursor == cursorBefore)
+    }
+
+    /// The unchanged path: a pieced project's current chart piece still steps and updates the
+    /// activity, exactly as a single-chart project's does.
+    @Test func lockScreenTapOnAChartCurrentPieceStepsAsBefore() async throws {
+        let h = try await makePieced()
+        let (info, state) = try #require(await h.model.activityState(for: h.project))
+        await h.model.liveActivity.start(projectID: h.project.id, info: info, state: state)
+        _ = try await AdvanceRunIntent(projectID: h.project.id).perform()
+        #expect(h.project.cursor == Cursor(row: 1, run: 1))
+        #expect(h.backend.calls.last == .update("act1", 1, 1))
+    }
 }
