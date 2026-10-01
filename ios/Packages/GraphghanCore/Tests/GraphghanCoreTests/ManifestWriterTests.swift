@@ -30,6 +30,17 @@ import Testing
         #expect(m.schema == 2 && m.charts.count == 1 && m.charts[0].isDefault && m.charts[0].path == "charts/front-panel-sc/chart.json")
         #expect(m.pieces?.map(\.id) == ["front-panel", "dorsal-fin"] && m.pieces?[1].rows == "pieces/dorsal-fin.rows.json")
         #expect(m.assembly.map(\.title) == ["Pages 13–16"] && m.assembly[0].text == nil)
+        #expect(m.preview == "preview.png")
+    }
+
+    /// Written pieces only: no chart to draw a preview from, so none is named.
+    @Test func aPiecedManifestOfWrittenPiecesOnlyNamesNoPreview() throws {
+        let pieces = [PieceEntry(id: "strap", title: "Strap", make: 1, chart: nil, rows: "pieces/strap.rows.json",
+                                 rowsID: "sha256:" + String(repeating: "b", count: 64), pages: [3])]
+        let data = ManifestWriter.encodePieced(id: "bag", title: "Bag", version: "0.1.0", dedication: "", charts: [], pieces: pieces,
+                                               assembly: [], palette: [], preview: "")
+        let m = try JSONDecoder().decode(PatternManifest.self, from: data)
+        #expect(m.schema == 2 && m.charts.isEmpty && m.preview == "" && m.defaultChart == nil && m.pieces?.count == 1)
     }
 
     @Test func aWrittenManifestDecodesWithTheLibrarysFields() throws {

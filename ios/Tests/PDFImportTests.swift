@@ -414,6 +414,33 @@ import ProseReaderKit
         #expect(files(base.localDir).isEmpty)
     }
 
+    /// Every chart removed: a pattern of written pieces only, with no preview to name (the
+    /// manifest's `preview` is then ""), which reads back as a bundle would carry it.
+    @Test func aDraftOfWrittenPiecesOnlySavesAndReadsBack() async throws {
+        let base = try await make()
+        let importer = base.importer()
+        let reading = try await readBag(importer)
+        let pieced = try #require(reading.pieced)
+        var draft = OutlineDraft(pieced.outline, charts: pieced.charts)
+        for piece in draft.pieces where piece.isChart { draft.remove(piece.id) }
+        #expect(draft.pieces.map(\.title) == ["Strap"])
+        let manifest = try await importer.savePieced(reading, draft: draft, records: [:])
+        let local = try #require(await base.local.manifest(for: manifest.id))
+        #expect(local.schema == 2 && local.charts.isEmpty && local.preview == "")
+        #expect(local.pieces?.map(\.id) == ["strap"] && local.pieces?.allSatisfy(\.isWritten) == true)
+        #expect(files(base.chartsDir).isEmpty)
+        // What the store holds, packed as a bundle and read back the way an opened file is.
+        var entries: [(name: String, bytes: Data)] = [(PatternBundle.manifestName, try Data(contentsOf: base.localDir.appendingPathComponent("\(manifest.id)/pattern.json")))]
+        for path in [local.preview] + local.charts.map(\.preview) where !path.isEmpty {
+            entries.append((path, try #require(await base.local.preview(for: manifest.id, path: path), "\(path)")))
+        }
+        for piece in local.pieces ?? [] {
+            if let path = piece.rows, let id = piece.rowsID { entries.append((path, try await base.rows.data(id: id))) }
+        }
+        let bundle = try PatternBundle.read(BundleImportTests.pack(entries))
+        #expect(bundle.rows.map(\.document.title) == ["Strap"] && bundle.charts.isEmpty)
+    }
+
     /// A chart piece is saved with its own check's record; one with none, as not checked.
     @Test func eachChartPieceIsSavedWithItsOwnRecord() async throws {
         let base = try await make()

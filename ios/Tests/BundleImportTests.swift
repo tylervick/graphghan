@@ -274,11 +274,15 @@ import GraphghanCore
     /// type-checker timeout waiting to happen, and it timed out on CI's Xcode before this.
     /// `dropping` leaves those entries out of the new archive.
     static func repack(_ archive: ZipArchive, replacing: [String: Data], dropping: Set<String> = []) throws -> Data {
+        let names = archive.names.filter { !dropping.contains($0) }
+        return pack(try names.map { name in (name, try replacing[name] ?? archive.data(named: name)) })
+    }
+
+    /// Entries packed stored, in the order given: a bundle built from files in hand.
+    static func pack(_ entries: [(name: String, bytes: Data)]) -> Data {
         var out = Data()
         var central = Data()
-        let names = archive.names.filter { !dropping.contains($0) }
-        for name in names {
-            let bytes = try replacing[name] ?? archive.data(named: name)
+        for (name, bytes) in entries {
             let nameBytes = Data(name.utf8)
             let offset = UInt32(out.count)
             let size = UInt32(bytes.count)
@@ -312,7 +316,7 @@ import GraphghanCore
             central.append(nameBytes)
         }
         let directoryOffset = UInt32(out.count)
-        let count = UInt16(names.count)
+        let count = UInt16(entries.count)
         out.append(central)
         append32(&out, 0x0605_4b50)
         append16(&out, 0)              // this disk

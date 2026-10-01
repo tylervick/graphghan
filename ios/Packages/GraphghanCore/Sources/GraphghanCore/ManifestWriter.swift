@@ -74,9 +74,11 @@ public enum ManifestWriter {
 
     /// Manifest schema 2: several charts and/or written pieces, assembled per `assembly`. Each
     /// `charts[]` entry is built exactly as `encode`'s one entry is, `default: true` on the first
-    /// only.
+    /// only. `preview` is "" for a pattern with no chart to draw one from (written pieces only):
+    /// a non-empty preview is a file the bundle must carry.
     public static func encodePieced(id: String, title: String, version: String, dedication: String, charts: [ManifestChartInput],
-                                    pieces: [PieceEntry], assembly: [AssemblyEntry], palette: [ChartDraft.Palette]) -> Data {
+                                    pieces: [PieceEntry], assembly: [AssemblyEntry], palette: [ChartDraft.Palette],
+                                    preview: String = "preview.png") -> Data {
         let chartEntries: [JSONValue] = charts.enumerated().map { i, input in
             chartEntry(chart: input.chart, chartID: input.chartID, variant: input.variant, gaugeKey: input.gaugeKey,
                       palette: input.palette, isDefault: i == 0)
@@ -98,7 +100,7 @@ public enum ManifestWriter {
         let manifest: JSONValue = .object([
             "schema": .int(2), "id": .string(id), "title": .string(title), "version": .string(version),
             "dedication": .string(dedication), "quote": .string(""), "author": .string(""), "license": .string(""),
-            "preview": .string("preview.png"),
+            "preview": .string(preview),
             "palette": .array(palette.map { .object(["code": .string($0.code), "name": .string($0.name), "hex": .string($0.hex)]) }),
             "charts": .array(chartEntries),
             "pieces": .array(pieceEntries),

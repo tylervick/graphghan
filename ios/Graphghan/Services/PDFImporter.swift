@@ -518,11 +518,13 @@ struct PDFImporter: Sendable {
         }
         let manifestData = ManifestWriter.encodePieced(
             id: slug, title: reading.title, version: reading.version, dedication: "Imported from \(reading.fileName) on \(Self.today())",
-            charts: built.map(\.input), pieces: entries, assembly: assembly, palette: built.first?.input.palette ?? foundPalette)
+            charts: built.map(\.input), pieces: entries, assembly: assembly, palette: built.first?.input.palette ?? foundPalette,
+            preview: built.isEmpty ? "" : "preview.png")
         let manifest: PatternManifest
         do { manifest = try JSONDecoder().decode(PatternManifest.self, from: manifestData) } catch { throw PDFImportError.invalidChart("manifest: \(error)") }
         var previews: [String: Data] = [:]
-        if let first = built.first { previews["preview.png"] = first.preview }
+        // Written pieces only: no chart, no preview, and the manifest names none.
+        if let first = built.first, !manifest.preview.isEmpty { previews[manifest.preview] = first.preview }
         for (entry, b) in zip(manifest.charts, built) { previews[entry.preview] = b.preview }
         let bundleCharts = zip(manifest.charts, built).map { BundleChart(entry: $0, chart: $1.chart, data: $1.data) }
         let bundleRows = (manifest.pieces ?? []).compactMap { piece in
