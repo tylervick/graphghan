@@ -37,6 +37,11 @@ import ProseReaderKit
         return out
     }
 
+    static func importer() throws -> PDFImporter {
+        PDFImporter(charts: ChartLibrary(directory: try temporaryDirectory()), local: LocalPatternStore(directory: try temporaryDirectory()),
+                    rows: RowsLibrary(directory: try temporaryDirectory()), rowReader: nil, modelUnavailable: nil, pieceReader: FoundOutline())
+    }
+
     @Test(arguments: try entries())
     func aRealPDFReadsToThePinnedHash(entry: Entry) async throws {
         let url = TestFixtures.root.appendingPathComponent("fixtures/import/real/\(entry.file)")
@@ -44,8 +49,7 @@ import ProseReaderKit
             print("SKIP real fixture \(entry.file) is absent; see fixtures/import/real/README.md")
             return
         }
-        let importer = PDFImporter(charts: ChartLibrary(directory: try temporaryDirectory()), local: LocalPatternStore(directory: try temporaryDirectory()),
-                                   rowReader: nil, modelUnavailable: nil)
+        let importer = try Self.importer()
         let started = Date()
         let reading = try await importer.read(data, fileName: entry.file)
         let seconds = Date().timeIntervalSince(started)
@@ -71,8 +75,7 @@ import ProseReaderKit
             print("SKIP real fixture \(file) is absent; see fixtures/import/real/README.md")
             return
         }
-        let importer = PDFImporter(charts: ChartLibrary(directory: try temporaryDirectory()), local: LocalPatternStore(directory: try temporaryDirectory()),
-                                   rowReader: nil, modelUnavailable: nil)
+        let importer = try Self.importer()
         let reading = try await importer.read(data, fileName: file)
         guard case .grid(_, let toCheck) = reading.source else { Issue.record("\(file) read no grid"); return }
         #expect(toCheck == rows, "\(file)")
@@ -89,8 +92,7 @@ import ProseReaderKit
             print("SKIP Orca's PDF or its transcript is absent; see fixtures/import/real/README.md")
             return
         }
-        let importer = PDFImporter(charts: ChartLibrary(directory: try temporaryDirectory()), local: LocalPatternStore(directory: try temporaryDirectory()),
-                                   rowReader: nil, modelUnavailable: nil)
+        let importer = try Self.importer()
         let chart = try await importer.read(data, fileName: "orca.pdf").bundle.charts[0].chart
         let doc = try JSONDecoder().decode(ProseDocument.self, from: truth)
         let rows = (doc.written_rows ?? []).map { r in
@@ -115,8 +117,7 @@ import ProseReaderKit
             print("SKIP real fixture \(file) is absent; see fixtures/import/real/README.md")
             return
         }
-        let importer = PDFImporter(charts: ChartLibrary(directory: try temporaryDirectory()), local: LocalPatternStore(directory: try temporaryDirectory()),
-                                   rowReader: nil, modelUnavailable: nil)
+        let importer = try Self.importer()
         let reading = try await importer.read(data, fileName: file)
         let marked = reading.bundle.charts[0].chart.palette.filter { $0.use == ChartDraft.Palette.noStitch }
         #expect(reading.colours == colours && marked.count == noStitch, "\(file): \(reading.colours) colours, \(marked.map(\.hex)) no stitch")
@@ -139,8 +140,7 @@ import ProseReaderKit
             print("SKIP real fixture \(file) is absent; see fixtures/import/real/README.md")
             return
         }
-        let importer = PDFImporter(charts: ChartLibrary(directory: try temporaryDirectory()), local: LocalPatternStore(directory: try temporaryDirectory()),
-                                   rowReader: nil, modelUnavailable: nil)
+        let importer = try Self.importer()
         let reading = try await importer.read(data, fileName: file)
         #expect(reading.contents?.sentence == sentence, "\(file): \(String(describing: reading.contents))")
     }
@@ -155,8 +155,7 @@ import ProseReaderKit
             print("SKIP real fixture \(file) is absent; see fixtures/import/real/README.md")
             return
         }
-        let importer = PDFImporter(charts: ChartLibrary(directory: try temporaryDirectory()), local: LocalPatternStore(directory: try temporaryDirectory()),
-                                   rowReader: nil, modelUnavailable: nil)
+        let importer = try Self.importer()
         let reading = try await importer.read(data, fileName: file)
         let chart = reading.bundle.charts[0].chart
         #expect(chart.document.schema == 3 && chart.isShaped && reading.colours == 3)
@@ -187,5 +186,26 @@ import ProseReaderKit
         #expect(o.assembly == [AssemblyOutline(title: "Page 8", text: nil, pages: [8]), AssemblyOutline(title: "Pages 13–16", text: nil, pages: [13, 14, 15, 16])])
         #expect(o.leftOut == ["text after R 2 (page 7)", "text after R 104 (page 10)", "text after R 15 (page 12)"])
         #expect(o.pieces[8].entries[2].text == "same as")   // a known limit of code-only reading: the line's rest was split off (#200 would read it)
+    }
+
+    /// Orca read whole (spec §7.1): page 9's two 29 × 77 regions, left to right, both shaped
+    /// pieces, each with its own 77 written rows, and the outline `orcasOutline` pins.
+    @Test func orcaIsReadAsPieces() async throws {
+        let file = "EN_OrcaCrossbodyBagPDFPattern.pdf"
+        guard let data = try? Data(contentsOf: TestFixtures.root.appendingPathComponent("fixtures/import/real/\(file)")) else {
+            print("SKIP real fixture \(file) is absent; see fixtures/import/real/README.md")
+            return
+        }
+        let reading = try await Self.importer().read(data, fileName: file)
+        let pieced = try #require(reading.pieced)
+        #expect(pieced.charts.count == 2 && pieced.charts.map(\.found.page) == [9, 9] && pieced.charts[0].found.x0 < pieced.charts[1].found.x0)
+        for chart in pieced.charts {
+            let loaded = try Chart.load(ChartWriter.encode(chart.draft).0)
+            #expect(loaded.document.schema == 3 && loaded.isShaped && chart.width == 29 && chart.height == 77)
+            #expect(chart.draft.written?.count == 77)
+        }
+        #expect(pieced.outline.pieces.map(\.title) == ["Rows, page 7, R 1–2", "Front Panel", "Back Panel", "Head Tail", "Dorsal Fin", "Pectoral Fin (Front)",
+                                                       "Pectoral Fin (Back)", "Tail", "Rows, page 12, R 1–15"])
+        #expect(reading.pdf == data)
     }
 }

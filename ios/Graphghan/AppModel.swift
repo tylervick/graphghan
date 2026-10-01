@@ -328,7 +328,8 @@ final class AppModel {
     var pdfImport: PDFImportState? = nil
 
     private var pdfImporter: PDFImporter {
-        PDFImporter(charts: charts, local: localPatterns, rowReader: rowReader, modelUnavailable: modelUnavailable)
+        PDFImporter(charts: charts, local: localPatterns, rows: rows, rowReader: rowReader, modelUnavailable: modelUnavailable,
+                    pieceReader: FoundOutline())
     }
 
     /// The sheet's reading states, then the chart found or the sentence for why not. Cancel

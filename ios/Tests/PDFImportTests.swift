@@ -15,17 +15,19 @@ import ProseReaderKit
     struct Base {
         let charts: ChartLibrary
         let local: LocalPatternStore
+        let rows: RowsLibrary
         let chartsDir: URL
         let localDir: URL
-        func importer(rowReader: (any RowReading)? = nil, modelUnavailable: String? = nil) -> PDFImporter {
-            PDFImporter(charts: charts, local: local, rowReader: rowReader, modelUnavailable: modelUnavailable)
+        func importer(rowReader: (any RowReading)? = nil, modelUnavailable: String? = nil, pieceReader: any PieceReading = FoundOutline()) -> PDFImporter {
+            PDFImporter(charts: charts, local: local, rows: rows, rowReader: rowReader, modelUnavailable: modelUnavailable, pieceReader: pieceReader)
         }
     }
 
     func make() async throws -> Base {
         let chartsDir = try temporaryDirectory()
         let localDir = try temporaryDirectory()
-        return Base(charts: ChartLibrary(directory: chartsDir), local: LocalPatternStore(directory: localDir), chartsDir: chartsDir, localDir: localDir)
+        return Base(charts: ChartLibrary(directory: chartsDir), local: LocalPatternStore(directory: localDir), rows: RowsLibrary(directory: try temporaryDirectory()),
+                    chartsDir: chartsDir, localDir: localDir)
     }
 
     /// A canned answer standing in for the model (phone import spec §9).
@@ -285,6 +287,27 @@ import ProseReaderKit
         #expect(((try? FileManager.default.contentsOfDirectory(atPath: base.chartsDir.path)) ?? []).isEmpty)
     }
 
+    // MARK: a PDF of several pieces (pieces spec §7.1, #206)
+
+    @Test func aPageWithTwoChartsIsReadAsPieces() async throws {
+        let rows = "Front\n" + PDFTestDocuments.colourRows + "\nBack\n" + PDFTestDocuments.colourRows
+        let reading = try await make().importer().read(try #require(PDFTestDocuments.twoCharts(rowsText: rows)), fileName: "bag.pdf")
+        let pieced = try #require(reading.pieced)
+        #expect(pieced.charts.count == 2 && pieced.charts.map(\.found.page) == [1, 1] && pieced.charts[0].found.x0 < pieced.charts[1].found.x0)
+        #expect(pieced.outline.pieces.map(\.title) == ["Front", "Back"])
+        #expect(pieced.charts.allSatisfy { $0.draft.written?.count == 15 })
+        #expect(pieced.charts.allSatisfy { $0.width == Self.chartWidth && $0.height == Self.chartHeight && $0.colours == 4 && !$0.preview.isEmpty })
+        #expect(pieced.sections.count == 2)
+        #expect(reading.pdf.count > 0)
+    }
+
+    @Test func oneChartAndNothingElseIsReadAsToday() async throws {
+        let pdf = try #require(PDFTestDocuments.chart(rows: true))
+        let reading = try await make().importer().read(pdf, fileName: "x.pdf")
+        #expect(reading.pieced == nil)
+        #expect(reading.pdf == pdf)
+    }
+
     @Test func theCheckFinishesCleanOrNamesTheRow() async throws {
         let pdf = try #require(PDFTestDocuments.chart(rows: true))
         let clean = try await make().importer(rowReader: StubRowReader(document: Self.chartDocument(), delayPerRow: .zero))
@@ -540,38 +563,56 @@ enum PDFTestDocuments {
 
     /// The chart page, then with `rows` a page of written rows: `rowsText` when given, else `colourRows`.
     static func chart(rows: Bool, rowsText: String? = nil) -> Data? {
-        let cell: CGFloat = 12, ox: CGFloat = 60, oy: CGFloat = 80
-        let w = PDFImportTests.chartWidth, h = PDFImportTests.chartHeight
         let renderer = UIGraphicsPDFRenderer(bounds: bounds)
         return renderer.pdfData { ctx in
             ctx.beginPage()
-            let cg = ctx.cgContext
-            for y in 0..<h { for x in 0..<w {
-                let rgb = GridColours.rgb(PDFImportTests.chartHexes[PDFImportTests.chartCell(x: x, y: y)])!
-                cg.setFillColor(CGColor(red: CGFloat(rgb.0) / 255, green: CGFloat(rgb.1) / 255, blue: CGFloat(rgb.2) / 255, alpha: 1))
-                cg.fill(CGRect(x: ox + CGFloat(x) * cell, y: oy + CGFloat(y) * cell, width: cell, height: cell))
-            } }
-            for x in 0...w {
-                let bold = (w - x) % 5 == 0
-                cg.setStrokeColor(bold ? CGColor(gray: 0, alpha: 1) : CGColor(gray: 0.55, alpha: 1))
-                cg.setLineWidth(bold ? 1 : 0.5)
-                cg.move(to: CGPoint(x: ox + CGFloat(x) * cell, y: oy)); cg.addLine(to: CGPoint(x: ox + CGFloat(x) * cell, y: oy + CGFloat(h) * cell)); cg.strokePath()
-            }
-            for y in 0...h {
-                let bold = (h - y) % 5 == 0
-                cg.setStrokeColor(bold ? CGColor(gray: 0, alpha: 1) : CGColor(gray: 0.55, alpha: 1))
-                cg.setLineWidth(bold ? 1 : 0.5)
-                cg.move(to: CGPoint(x: ox, y: oy + CGFloat(y) * cell)); cg.addLine(to: CGPoint(x: ox + CGFloat(w) * cell, y: oy + CGFloat(y) * cell)); cg.strokePath()
-            }
-            let attrs: [NSAttributedString.Key: Any] = [.font: UIFont.systemFont(ofSize: 6)]
-            for x in 0..<w { ("\(w - x)" as NSString).draw(at: CGPoint(x: ox + CGFloat(x) * cell + 2, y: oy - 9), withAttributes: attrs) }
-            for y in 0..<h { ("\(h - y)" as NSString).draw(at: CGPoint(x: ox - 14, y: oy + CGFloat(y) * cell + 3), withAttributes: attrs) }
+            drawChart(ctx.cgContext, ox: 60, oy: 80)
             if rows {
                 ctx.beginPage()
                 let text = rowsText ?? colourRows
                 (text as NSString).draw(in: bounds.insetBy(dx: 36, dy: 36), withAttributes: [.font: UIFont.systemFont(ofSize: 12)])
             }
         }
+    }
+
+    /// Two of the synthetic charts side by side on page 1 (x 40 and 330), then a page of `rowsText`.
+    /// The second sits lower: two grids whose lines align across a 50 pt gap read as one grid of
+    /// 44 columns, gap and all, which is the grid reader's business, not the importer's.
+    static func twoCharts(rowsText: String) -> Data? {
+        let renderer = UIGraphicsPDFRenderer(bounds: bounds)
+        return renderer.pdfData { ctx in
+            ctx.beginPage()
+            drawChart(ctx.cgContext, ox: 40, oy: 80)
+            drawChart(ctx.cgContext, ox: 330, oy: 400)
+            ctx.beginPage()
+            (rowsText as NSString).draw(in: bounds.insetBy(dx: 36, dy: 36), withAttributes: [.font: UIFont.systemFont(ofSize: 12)])
+        }
+    }
+
+    /// The synthetic chart at 12 pt cells with its origin at (`ox`, `oy`).
+    static func drawChart(_ cg: CGContext, ox: CGFloat, oy: CGFloat) {
+        let cell: CGFloat = 12
+        let w = PDFImportTests.chartWidth, h = PDFImportTests.chartHeight
+        for y in 0..<h { for x in 0..<w {
+            let rgb = GridColours.rgb(PDFImportTests.chartHexes[PDFImportTests.chartCell(x: x, y: y)])!
+            cg.setFillColor(CGColor(red: CGFloat(rgb.0) / 255, green: CGFloat(rgb.1) / 255, blue: CGFloat(rgb.2) / 255, alpha: 1))
+            cg.fill(CGRect(x: ox + CGFloat(x) * cell, y: oy + CGFloat(y) * cell, width: cell, height: cell))
+        } }
+        for x in 0...w {
+            let bold = (w - x) % 5 == 0
+            cg.setStrokeColor(bold ? CGColor(gray: 0, alpha: 1) : CGColor(gray: 0.55, alpha: 1))
+            cg.setLineWidth(bold ? 1 : 0.5)
+            cg.move(to: CGPoint(x: ox + CGFloat(x) * cell, y: oy)); cg.addLine(to: CGPoint(x: ox + CGFloat(x) * cell, y: oy + CGFloat(h) * cell)); cg.strokePath()
+        }
+        for y in 0...h {
+            let bold = (h - y) % 5 == 0
+            cg.setStrokeColor(bold ? CGColor(gray: 0, alpha: 1) : CGColor(gray: 0.55, alpha: 1))
+            cg.setLineWidth(bold ? 1 : 0.5)
+            cg.move(to: CGPoint(x: ox, y: oy + CGFloat(y) * cell)); cg.addLine(to: CGPoint(x: ox + CGFloat(w) * cell, y: oy + CGFloat(y) * cell)); cg.strokePath()
+        }
+        let attrs: [NSAttributedString.Key: Any] = [.font: UIFont.systemFont(ofSize: 6)]
+        for x in 0..<w { ("\(w - x)" as NSString).draw(at: CGPoint(x: ox + CGFloat(x) * cell + 2, y: oy - 9), withAttributes: attrs) }
+        for y in 0..<h { ("\(h - y)" as NSString).draw(at: CGPoint(x: ox - 14, y: oy + CGFloat(y) * cell + 3), withAttributes: attrs) }
     }
 
     /// One page that is only a picture: what a Canva export of the rows looks like to PDFKit.
