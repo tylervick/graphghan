@@ -484,6 +484,10 @@ struct PDFImporter: Sendable {
         var entries: [PieceEntry] = []
         // `FoundParts.palette`: the palette a written row's "(Name)" was matched against.
         let foundPalette = pieced.charts.first?.draft.palette ?? []
+        // A chart's id is its grid's hash, and a pieced manifest lists each chart once (§5.3):
+        // a later chart piece with an earlier one's grid folds into it, the first piece's title,
+        // record and file kept, `make` summed and pages joined. Index into `entries`, by chart id.
+        var pieceForChart: [String: Int] = [:]
         for (n, piece) in draft.pieces.enumerated() {
             guard let id = ids[piece.id] else { throw PDFImportError.invalidChart("piece \(piece.id) has no id") }
             let title = Self.titled(piece.title, else: "Piece \(n + 1)")
@@ -493,11 +497,17 @@ struct PDFImporter: Sendable {
                 guard pieced.charts.indices.contains(c) else { throw PDFImportError.invalidChart("piece \(id) names no chart") }
                 let d = chartDraft(c, outline: o)
                 let (data, chartID) = ChartWriter.encode(d)
+                if let first = pieceForChart[chartID] {
+                    entries[first].make += piece.make
+                    entries[first].pages = Set(entries[first].pages + piece.pages).sorted()
+                    continue
+                }
                 let chart: Chart
                 do { chart = try Chart.load(data) } catch { throw PDFImportError.invalidChart("\(title): \(error)") }
                 guard let preview = ChartPreview.png(chart) else { throw PDFImportError.invalidChart("\(title): no preview") }
                 let input = ManifestChartInput(chart: chart, chartID: chartID, variant: id, gaugeKey: d.gauge.stitch ?? "sc", palette: d.palette)
                 built.append(BuiltChart(data: data, chart: chart, preview: preview, input: input))
+                pieceForChart[chartID] = entries.count
                 entries.append(PieceEntry(id: id, title: title, make: piece.make, chart: chartID, rows: nil, rowsID: nil, pages: piece.pages))
             case .rows:
                 // Exactly the colours its rows name, from the palette their "(Name)"s were matched

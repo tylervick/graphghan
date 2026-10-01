@@ -339,10 +339,11 @@ import ProseReaderKit
 
     /// The bag: Front and Back side by side, their rows on page 2, a written Strap on page 3.
     /// With `assembly`, a fourth page of prose no piece uses: an assembly step.
-    func readBag(_ importer: PDFImporter, assembly: Bool = false) async throws -> PDFImportReading {
+    /// With `distinctBack: false`, Back's grid is Front's, cell for cell.
+    func readBag(_ importer: PDFImporter, assembly: Bool = false, distinctBack: Bool = true) async throws -> PDFImportReading {
         let rows = "Front\n" + PDFTestDocuments.colourRows + "\nBack\n" + PDFTestDocuments.colourRows
         let more = [Self.strapPage] + (assembly ? ["Sew the strap to the top corners of the bag, one end to each side panel."] : [])
-        let pdf = try #require(PDFTestDocuments.twoCharts(rowsText: rows, morePages: more, distinctBack: true))
+        let pdf = try #require(PDFTestDocuments.twoCharts(rowsText: rows, morePages: more, distinctBack: distinctBack))
         return try await importer.read(pdf, fileName: "bag.pdf")
     }
 
@@ -369,6 +370,29 @@ import ProseReaderKit
         #expect(await base.local.sourcePDF(for: manifest.id) == reading.pdf)
         #expect(await base.local.preview(for: manifest.id, path: "preview.png") != nil)
         for entry in local.charts { #expect(await base.local.preview(for: manifest.id, path: entry.preview) != nil) }
+    }
+
+    /// Two chart pieces with the same grid are one chart (its id is the grid's hash), and spec
+    /// §5.3 lists each chart once: they fold into the first piece, made as many times as both.
+    @Test func identicalGridsFoldIntoOnePieceMadeTwice() async throws {
+        let base = try await make()
+        let importer = base.importer()
+        let reading = try await readBag(importer, distinctBack: false)
+        let pieced = try #require(reading.pieced)
+        let draft = OutlineDraft(pieced.outline, charts: pieced.charts)
+        #expect(draft.pieces.map(\.title) == ["Front", "Back", "Strap"])
+        let pages = Set(draft.pieces[0].pages + draft.pieces[1].pages).sorted()
+        let finished = ImportRecord(grid: true, check: .finished, rowsChecked: 15, rowsTotal: 15, rowsDisagree: [], gaugePrinted: false, problem: nil)
+        let manifest = try await importer.savePieced(reading, draft: draft, records: [0: finished])
+        let local = try #require(await base.local.manifest(for: manifest.id))
+        try PatternBundle.validate(local)
+        #expect(local.pieces?.map(\.id) == ["front", "strap"])
+        let front = try #require(local.pieces?.first)
+        #expect(front.title == "Front" && front.make == 2 && front.pages == pages)
+        #expect(local.charts.count == 1 && local.charts[0].id == front.chart)
+        // The first piece's record, not the second's "not checked".
+        let chart = try await base.charts.chart(id: try #require(front.chart))
+        #expect(ImportRecord(json: chart.document.ext) == finished)
     }
 
     /// Review Focus 1: one chart left and nothing else saves as manifest 1, as a one-chart PDF does.
