@@ -55,4 +55,32 @@ import ProseReaderKit
                                                                                sections: [], pageTexts: ["x", "y"], palette: []))
         #expect(o.pieces.map(\.title) == ["Chart 1 (page 2)"] && o.pieces[0].pairedSection == nil)
     }
+
+    static func outline(_ pages: [String], charts: [FoundChart]) async -> PatternOutline {
+        await FoundOutline().outline(pages: pages, found: FoundParts(charts: charts, sections: RowText.sections(in: pages), pageTexts: pages, palette: palette))
+    }
+
+    @Test func chartsPassedOutOfReadingOrderComeOutInReadingOrder() async {
+        let o = await Self.outline(["a", "b"], charts: [FoundChart(page: 2, x0: 900, cols: 5, rows: 5), FoundChart(page: 2, x0: 100, cols: 5, rows: 5),
+                                                         FoundChart(page: 1, x0: 500, cols: 5, rows: 5)])
+        #expect(o.pieces.map(\.title) == ["Chart 1 (page 1)", "Chart 2 (page 2)", "Chart 3 (page 2)"])
+        #expect(o.pieces.map(\.kind) == [.chart(2), .chart(1), .chart(0)])
+    }
+
+    @Test func aChartNoSectionFitsIsUnpairedBesideOneThatPairs() async {
+        let o = await Self.outline(Self.pages, charts: [FoundChart(page: 2, x0: 100, cols: 5, rows: 4), FoundChart(page: 2, x0: 900, cols: 5, rows: 30)])
+        let charts = o.pieces.filter { if case .chart = $0.kind { true } else { false } }
+        #expect(charts.map(\.title) == ["Front Panel", "Chart 2 (page 2)"] && charts.map(\.pairedSection) == [3, nil])
+    }
+
+    @Test func aSameHeightSectionNoChartTakesIsAWrittenPiece() async {
+        let o = await Self.outline(Self.pages, charts: [FoundChart(page: 2, x0: 100, cols: 5, rows: 4)])
+        #expect(o.pieces.map(\.title) == ["Front Panel", "Side Panel", "Dorsal Fin", "Pectoral Fin (Front)", "Back Panel"])
+        #expect(o.pieces[4].kind == .rows(4) && o.pieces[4].entries.map(\.to) == [1, 2, 3, 4])
+    }
+
+    @Test func aSectionThatDoesNotStartAtRowOneIsNotOffered() async {
+        let o = await Self.outline(["Odd Piece\nR 3: 6 sc [6]\nR 4: 6 sc [6]"], charts: [])
+        #expect(o.pieces.isEmpty && o.leftOut.isEmpty)
+    }
 }

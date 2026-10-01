@@ -40,9 +40,10 @@ enum WrittenPieceParser {
         return ParsedPiece(entries: entries, pages: pages, stoppedAtPage: nil, stoppedAfterRow: nil)
     }
 
-    /// The stitch count a row ends with, "[6]" or "[6].".
+    /// The stitch count a row ends with, "[6]" or "[6].". A printed "[0]" is no count: a rows
+    /// document refuses a count below 1, and one such row would fail the whole save.
     static func count(in body: String) -> Int? {
-        firstGroup(countRe, in: body).flatMap { Int($0) }
+        firstGroup(countRe, in: body).flatMap { Int($0) }.flatMap { $0 >= 1 ? $0 : nil }
     }
 
     /// The code of the key colour a row opens with, "(Black) ch 7", matched by name, any case.

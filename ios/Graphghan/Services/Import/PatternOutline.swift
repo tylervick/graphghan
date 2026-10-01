@@ -35,7 +35,8 @@ struct PieceOutline: Sendable, Equatable {
     var title: String
     var kind: PieceKind
     var make: Int
-    /// 1-based.
+    /// 1-based. A chart piece's are its chart's page and its paired rows' pages, so its first page
+    /// is the earliest of them.
     var pages: [Int]
     /// For a chart piece: the section of its own rows (spec §7.2), nil when none matched.
     var pairedSection: Int?

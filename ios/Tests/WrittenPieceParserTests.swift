@@ -28,4 +28,13 @@ import ProseReaderKit
         let p = WrittenPieceParser.parse(Self.section("R 1: (Pink) 3 sc [3]"), palette: Self.palette)
         #expect(p.entries[0].code == nil && p.entries[0].count == 3)
     }
+
+    @Test func aCountBelowOneIsNoCount() {
+        #expect(WrittenPieceParser.parse(Self.section("R 1: (Black) 6 sc [0]"), palette: Self.palette).entries[0].count == nil)
+    }
+
+    @Test func aCountMayEndWithAPeriodButNotSitMidRow() {
+        #expect(WrittenPieceParser.parse(Self.section("R 1: 6 sc [6]."), palette: []).entries[0].count == 6)
+        #expect(WrittenPieceParser.parse(Self.section("R 1: 6 sc [6], then turn"), palette: []).entries[0].count == nil)
+    }
 }

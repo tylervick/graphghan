@@ -10,13 +10,15 @@ struct FoundOutline: PieceReading {
         let chartOrder = found.charts.indices.sorted { (found.charts[$0].page, found.charts[$0].x0) < (found.charts[$1].page, found.charts[$1].x0) }
         let pairs = Self.pairs(charts: found.charts, order: chartOrder, sections: found.sections)
         var pieces: [(piece: PieceOutline, order: (Int, Int))] = []
-        for i in chartOrder {
+        // A chart is numbered and ordered by its reading position, not by where the caller put it.
+        for (position, i) in chartOrder.enumerated() {
             let chart = found.charts[i]
             let paired = pairs[i]
             let rowPages = paired.map { found.sections[$0].blocks.map { $0.page + 1 } } ?? []
-            let title = paired.flatMap { titles[$0] } ?? "Chart \(i + 1) (page \(chart.page))"
+            let title = paired.flatMap { titles[$0] } ?? "Chart \(position + 1) (page \(chart.page))"
+            // Its pages are its chart's and its rows', so its first page is the earliest of them.
             pieces.append((PieceOutline(title: title, kind: .chart(i), make: 1, pages: Array(Set([chart.page] + rowPages)).sorted(),
-                                        pairedSection: paired, entries: []), (0, i)))
+                                        pairedSection: paired, entries: []), (0, position)))
         }
         var leftOut: [String] = []
         let pairedSections = Set(pairs.values)
