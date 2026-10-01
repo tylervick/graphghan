@@ -1,5 +1,6 @@
 import CryptoKit
 import Foundation
+import PDFKit
 import Testing
 import GraphghanCore
 import ProseReaderKit
@@ -167,5 +168,24 @@ import ProseReaderKit
         #expect(reading.bundle.manifest.charts[0].stitches == 1805)
         #expect(chart.written?.count == 77)
         #expect(chart.written?.first?.hasPrefix("R 1") == true)
+    }
+
+    /// The outline code finds in Orca's text (spec §7.3), with page 9's two 29 × 77 regions standing in.
+    @Test func orcasOutline() async throws {
+        let url = TestFixtures.root.appendingPathComponent("fixtures/import/real/EN_OrcaCrossbodyBagPDFPattern.pdf")
+        guard let doc = PDFDocument(url: url) else { print("SKIP real fixture EN_OrcaCrossbodyBagPDFPattern.pdf is absent; see fixtures/import/real/README.md"); return }
+        let pages = (0..<doc.pageCount).map { doc.page(at: $0)?.string ?? "" }
+        let found = FoundParts(charts: [FoundChart(page: 9, x0: 100, cols: 29, rows: 77), FoundChart(page: 9, x0: 1200, cols: 29, rows: 77)],
+                               sections: RowText.sections(in: pages), pageTexts: pages,
+                               palette: [.init(code: "A", name: "black", hex: "#201b18"), .init(code: "B", name: "white", hex: "#ffffff")])
+        let o = await FoundOutline().outline(pages: pages, found: found)
+        #expect(o.pieces.map(\.title) == ["Rows, page 7, R 1–2", "Front Panel", "Back Panel", "Head Tail", "Dorsal Fin", "Pectoral Fin (Front)",
+                                          "Pectoral Fin (Back)", "Tail", "Rows, page 12, R 1–15"])
+        #expect(o.pieces[1].pairedSection == 7 && o.pieces[2].pairedSection == 8)
+        #expect(o.pieces[3].entries.map { [$0.from, $0.to ?? -1] } == [[1, 1], [2, 26], [27, 86], [87, 104]])
+        #expect(o.pieces[8].entries.map { [$0.from, $0.to ?? -1] } == [[1, 1], [2, 7], [8, 15]])
+        #expect(o.assembly == [AssemblyOutline(title: "Page 8", text: nil, pages: [8]), AssemblyOutline(title: "Pages 13–16", text: nil, pages: [13, 14, 15, 16])])
+        #expect(o.leftOut == ["text after R 2 (page 7)", "text after R 104 (page 10)", "text after R 15 (page 12)"])
+        #expect(o.pieces[8].entries[2].text == "same as")   // a known limit of code-only reading: the line's rest was split off (#200 would read it)
     }
 }
