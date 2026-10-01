@@ -328,6 +328,22 @@ import Testing
         #expect(throws: BundleError.pieceNamesMissingChart(piece: "panel")) { try PatternBundle.read(data) }
     }
 
+    /// #228: the two pieced rules Python's `validate_manifest` already had. Both fixtures are
+    /// schema-valid and wrong in one way only.
+    @Test func aChartNoPieceNamesIsRefused() throws {
+        var entries = try Self.piecedEntries()
+        entries["pattern.json"] = try Data(contentsOf: Fixtures.directory.appendingPathComponent("refused/chart-no-piece-names.pattern.json"))
+        let data = try ZipBuilder(items: entries.map { ZipBuilder.Item($0.key, $0.value) }).build()
+        #expect(throws: BundleError.chartNamedByNoPiece(path: "charts/extra-sc/chart.json")) { try PatternBundle.read(data) }
+    }
+
+    @Test func aDefaultChartThatIsNotTheFirstChartPiecesIsRefused() throws {
+        var entries = try Self.piecedEntries()
+        entries["pattern.json"] = try Data(contentsOf: Fixtures.directory.appendingPathComponent("refused/default-not-first-chart-piece.pattern.json"))
+        let data = try ZipBuilder(items: entries.map { ZipBuilder.Item($0.key, $0.value) }).build()
+        #expect(throws: BundleError.defaultNotFirstChartPiece) { try PatternBundle.read(data) }
+    }
+
     /// `entries` with its manifest's `pieces` passed through `edit`.
     static func withPieces(_ edit: (inout [[String: Any]]) -> Void) throws -> Data {
         var entries = try piecedEntries()

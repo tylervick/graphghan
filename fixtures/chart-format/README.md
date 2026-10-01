@@ -60,11 +60,13 @@ each one (and still validate it against `schema/chart.schema.json` — the refus
 rule named in its `ext.fixture.refuses`, which docs/chart-format.md states). They live in a
 subdirectory precisely so the top-level `*.chart.json` globs above do not pick them up.
 
-The same directory also holds three refusals in the pieces shape, each otherwise valid against its
+The same directory also holds five refusals in the pieces shape, each otherwise valid against its
 own schema: `rows-gap.rows.json` (a gap between two rows entries) and
 `rows-open-not-last.rows.json` (an open-ended entry that is not last), both refused against
 `schema/rows.schema.json`; and `piece-names-missing-chart.pattern.json` (a piece naming a chart
-not in `charts`), refused against `schema/manifest.schema.json`.
+not in `charts`), `chart-no-piece-names.pattern.json` (a chart no piece names) and
+`default-not-first-chart-piece.pattern.json` (a default chart that is not the first chart piece's),
+refused against `schema/manifest.schema.json`.
 
 The two readers in this repo are enforced against these fixtures in their own suites:
 `tests/test_conformance.py` for `graphghan.chartdoc`, and `GraphghanCoreTests` for the Swift

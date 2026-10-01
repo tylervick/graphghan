@@ -388,12 +388,15 @@ def test_refused_fixture_is_refused(name):
 
 def test_refused_directory_listing_matches_spec():
     """The full refused/ listing, not just the *.chart.json glob REFUSED_NAMES draws from: the
-    three pieces-basic refusals (a rows gap, an open-ended entry that is not last, a piece naming
-    a chart not in `charts`) live alongside the five chart refusals."""
+    five pieces-basic refusals (a rows gap, an open-ended entry that is not last, a piece naming
+    a chart not in `charts`, a chart no piece names, a default chart that is not the first chart
+    piece's) live alongside the five chart refusals."""
     assert {p.name for p in REFUSED.glob("*.json")} == {f"{name}.chart.json" for name in REFUSED_NAMES} | {
         "rows-gap.rows.json",
         "rows-open-not-last.rows.json",
         "piece-names-missing-chart.pattern.json",
+        "chart-no-piece-names.pattern.json",
+        "default-not-first-chart-piece.pattern.json",
     }
 
 
@@ -458,6 +461,25 @@ def test_refused_manifest_naming_a_missing_chart():
     m = json.loads((FIX / "refused" / "piece-names-missing-chart.pattern.json").read_text(encoding="utf-8"))
     assert Draft202012Validator(MANIFEST_SCHEMA).is_valid(m)
     assert any("not in `charts`" in p for p in manifestdoc.validate_manifest(m))
+
+
+@pytest.mark.parametrize(
+    ("name", "problem"),
+    [
+        ("chart-no-piece-names.pattern.json", "which no piece names"),
+        (
+            "default-not-first-chart-piece.pattern.json",
+            "the default chart must be the first chart piece's chart",
+        ),
+    ],
+)
+def test_refused_manifest_is_refused_for_its_one_reason(name, problem):
+    """#228: schema-valid, and refused for exactly the one rule it breaks (the Swift reader refuses
+    the same two files in PatternBundleTests)."""
+    m = json.loads((FIX / "refused" / name).read_text(encoding="utf-8"))
+    assert Draft202012Validator(MANIFEST_SCHEMA).is_valid(m)
+    problems = manifestdoc.validate_manifest(m)
+    assert len(problems) == 1 and problem in problems[0]
 
 
 PHONE = FIX / "phone-pieced"

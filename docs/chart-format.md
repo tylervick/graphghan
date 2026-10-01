@@ -498,9 +498,11 @@ Changing the format starts with a fixture.
 
 Every `*.chart.json` document under `fixtures/chart-format/refused/` is otherwise valid — it still
 validates against `schema/chart.schema.json` — but a reader MUST refuse it for the one reason
-named in its `ext.fixture.refuses`. The same directory also holds three more refusals in the
+named in its `ext.fixture.refuses`. The same directory also holds five more refusals in the
 pieces shape, each otherwise valid against its own schema: a reader MUST refuse
 `refused/rows-gap.rows.json` (a gap between two rows entries) and
 `refused/rows-open-not-last.rows.json` (an open-ended entry that is not last) against
 `schema/rows.schema.json`, and `refused/piece-names-missing-chart.pattern.json` (a piece naming a
-chart not in `charts`) against `schema/manifest.schema.json`.
+chart not in `charts`), `refused/chart-no-piece-names.pattern.json` (a chart no piece names) and
+`refused/default-not-first-chart-piece.pattern.json` (a default chart that is not the first chart
+piece's) against `schema/manifest.schema.json`.
