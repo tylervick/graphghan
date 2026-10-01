@@ -192,13 +192,40 @@ import Testing
         }
     }
 
-    @Test(arguments: ["", "a//b.png", "./preview.png", "charts/./preview.png"])
+    @Test(arguments: ["a//b.png", "./preview.png", "charts/./preview.png"])
     func aPathThatCannotBecomeAFileIsRefused(path: String) throws {
         // Silently skipping these would lose a preview without telling anyone.
         var object = try Self.manifestJSON()
         object["preview"] = path
         let data = try Self.rebuilt(replacing: [PatternBundle.manifestName: try Self.encode(object)])
         #expect(throws: BundleError.unusablePath(path)) { try PatternBundle.read(data) }
+    }
+
+    // An empty manifest-level `preview` means "no preview" (a written-only pattern never made
+    // one), but a chart's own `path`/`preview` and a written piece's `rows` are never optional --
+    // the schema still requires them, so an empty one is a lie about that file, still refused.
+
+    @Test func aChartWithAnEmptyPathIsRefused() throws {
+        var object = try Self.manifestJSON()
+        var charts = object["charts"] as! [[String: Any]]
+        charts[0]["path"] = ""
+        object["charts"] = charts
+        let data = try Self.rebuilt(replacing: [PatternBundle.manifestName: try Self.encode(object)])
+        #expect(throws: BundleError.unusablePath("")) { try PatternBundle.read(data) }
+    }
+
+    @Test func aChartWithAnEmptyPreviewIsRefused() throws {
+        var object = try Self.manifestJSON()
+        var charts = object["charts"] as! [[String: Any]]
+        charts[0]["preview"] = ""
+        object["charts"] = charts
+        let data = try Self.rebuilt(replacing: [PatternBundle.manifestName: try Self.encode(object)])
+        #expect(throws: BundleError.unusablePath("")) { try PatternBundle.read(data) }
+    }
+
+    @Test func aWrittenPieceWithAnEmptyRowsPathIsRefused() throws {
+        let data = try Self.withPieces { $0[1]["rows"] = "" }
+        #expect(throws: BundleError.unusablePath("")) { try PatternBundle.read(data) }
     }
 
     @Test func aChartWithNoStatedSizeIsAccepted() throws {
@@ -322,5 +349,60 @@ import Testing
         let data = try Self.withPieces { $0[1]["make"] = 0 }
         #expect(throws: BundleError.pieceMakeCount(piece: "strip", make: 0)) { try PatternBundle.read(data) }
         #expect(BundleError.pieceMakeCount(piece: "strip", make: 0).message == "The piece “strip” is to be made 0 times.")
+    }
+
+    /// A written-only pattern never had a preview to generate (spec §7.5): `preview` is absent
+    /// from the manifest and the archive carries no `preview.png` at all.
+    @Test func aWrittenOnlyBundleWithNoPreviewReads() throws {
+        var entries = try Self.piecedEntries()
+        entries.removeValue(forKey: "preview.png")
+        entries.removeValue(forKey: "charts/final-sc/chart.json")
+        entries.removeValue(forKey: "charts/final-sc/preview.png")
+        var manifest = try #require(try JSONSerialization.jsonObject(with: entries["pattern.json"]!) as? [String: Any])
+        manifest.removeValue(forKey: "preview")
+        manifest["charts"] = [Any]()
+        var pieces = try #require(manifest["pieces"] as? [[String: Any]])
+        pieces.removeAll { $0["chart"] != nil }
+        manifest["pieces"] = pieces
+        entries["pattern.json"] = try JSONSerialization.data(withJSONObject: manifest)
+        let data = try ZipBuilder(items: entries.map { ZipBuilder.Item($0.key, $0.value) }).build()
+
+        let bundle = try PatternBundle.read(data)
+        #expect(bundle.manifest.preview == "")
+        #expect(bundle.manifest.charts.isEmpty)
+        #expect(bundle.previews.isEmpty)
+    }
+
+    // ---- validate: the manifest checks, without an archive (the phone's own save runs them) ----
+
+    /// The committed pieced manifest with its `pieces` passed through `edit`, decoded.
+    static func piecedManifest(_ edit: (inout [[String: Any]]) -> Void) throws -> PatternManifest {
+        var manifest = try #require(try JSONSerialization.jsonObject(with: Fixtures.pieces("pattern.json")) as? [String: Any])
+        var pieces = try #require(manifest["pieces"] as? [[String: Any]])
+        edit(&pieces)
+        manifest["pieces"] = pieces
+        return try JSONDecoder().decode(PatternManifest.self, from: JSONSerialization.data(withJSONObject: manifest))
+    }
+
+    @Test func validatePassesTheCommittedPiecedManifest() throws {
+        try PatternBundle.validate(Self.piecedManifest { _ in })
+    }
+
+    @Test func validateRefusesTwoPiecesWithOneID() throws {
+        let manifest = try Self.piecedManifest { $0[2]["id"] = "strip" }
+        #expect(throws: BundleError.duplicatePiece(piece: "strip")) { try PatternBundle.validate(manifest) }
+    }
+
+    /// Spec §5.3: a pieced manifest lists each chart once and no two pieces name the same one
+    /// (`validate_manifest` refuses it too). The same grid twice is one piece made twice.
+    @Test func validateRefusesTwoPiecesNamingOneChart() throws {
+        let manifest = try Self.piecedManifest { pieces in
+            var copy = pieces[0]
+            copy["id"] = "panel-2"
+            pieces.append(copy)
+        }
+        #expect(throws: BundleError.pieceSharesChart(piece: "panel-2")) { try PatternBundle.validate(manifest) }
+        #expect(BundleError.pieceSharesChart(piece: "panel-2").message
+            == "The piece “panel-2” names the same chart as another piece.")
     }
 }

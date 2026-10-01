@@ -15,17 +15,21 @@ import ProseReaderKit
     struct Base {
         let charts: ChartLibrary
         let local: LocalPatternStore
+        let rows: RowsLibrary
         let chartsDir: URL
         let localDir: URL
-        func importer(rowReader: (any RowReading)? = nil, modelUnavailable: String? = nil) -> PDFImporter {
-            PDFImporter(charts: charts, local: local, rowReader: rowReader, modelUnavailable: modelUnavailable)
+        let rowsDir: URL
+        func importer(rowReader: (any RowReading)? = nil, modelUnavailable: String? = nil, pieceReader: any PieceReading = FoundOutline()) -> PDFImporter {
+            PDFImporter(charts: charts, local: local, rows: rows, rowReader: rowReader, modelUnavailable: modelUnavailable, pieceReader: pieceReader)
         }
     }
 
     func make() async throws -> Base {
         let chartsDir = try temporaryDirectory()
         let localDir = try temporaryDirectory()
-        return Base(charts: ChartLibrary(directory: chartsDir), local: LocalPatternStore(directory: localDir), chartsDir: chartsDir, localDir: localDir)
+        let rowsDir = try temporaryDirectory()
+        return Base(charts: ChartLibrary(directory: chartsDir), local: LocalPatternStore(directory: localDir), rows: RowsLibrary(directory: rowsDir),
+                    chartsDir: chartsDir, localDir: localDir, rowsDir: rowsDir)
     }
 
     /// A canned answer standing in for the model (phone import spec §9).
@@ -285,6 +289,232 @@ import ProseReaderKit
         #expect(((try? FileManager.default.contentsOfDirectory(atPath: base.chartsDir.path)) ?? []).isEmpty)
     }
 
+    // MARK: a PDF of several pieces (pieces spec §7.1, #206)
+
+    @Test func aPageWithTwoChartsIsReadAsPieces() async throws {
+        let rows = "Front\n" + PDFTestDocuments.colourRows + "\nBack\n" + PDFTestDocuments.colourRows
+        let reading = try await make().importer().read(try #require(PDFTestDocuments.twoCharts(rowsText: rows)), fileName: "bag.pdf")
+        let pieced = try #require(reading.pieced)
+        #expect(pieced.charts.count == 2 && pieced.charts.map(\.found.page) == [1, 1] && pieced.charts[0].found.x0 < pieced.charts[1].found.x0)
+        #expect(pieced.outline.pieces.map(\.title) == ["Front", "Back"])
+        #expect(pieced.charts.allSatisfy { $0.draft.written?.count == 15 })
+        #expect(pieced.charts.allSatisfy { $0.width == Self.chartWidth && $0.height == Self.chartHeight && $0.colours == 4 && !$0.preview.isEmpty })
+        #expect(pieced.sections.count == 2)
+        #expect(reading.pdf.count > 0)
+    }
+
+    /// Each chart piece is checked against the rows the outline paired it with, not against the
+    /// first set as tall as it (pieces spec §7.2): the Front against the Front's, the Back the Back's.
+    @Test func eachChartPieceIsCheckedAgainstItsOwnRows() async throws {
+        let rows = "Front\n" + PDFTestDocuments.colourRows + "\nBack\n" + PDFTestDocuments.colourRows
+        let asked = Asked()
+        let importer = try await make().importer(rowReader: StubRowReader(document: Self.chartDocument(), delayPerRow: .zero, asked: asked))
+        let reading = try await importer.read(try #require(PDFTestDocuments.twoCharts(rowsText: rows)), fileName: "bag.pdf")
+        let pieced = try #require(reading.pieced)
+        var records: [ImportRecord] = []
+        for piece in pieced.outline.pieces {
+            guard case .chart(let c) = piece.kind, let s = piece.pairedSection else { continue }
+            records.append(await importer.check(chart: pieced.charts[c], section: pieced.sections[s], pageTexts: reading.pageTexts, progress: nil))
+        }
+        let sections = await asked.sections.compactMap { $0 }
+        #expect(sections.count == 2 && sections.allSatisfy { $0.rows == 15 })
+        #expect(sections == [pieced.sections[0], pieced.sections[1]])
+        let first = try #require(sections.first?.blocks.first), second = try #require(sections.last?.blocks.first)
+        // Both runs print the same words; the Front's comes first on the page, the Back's after it.
+        #expect((first.page, first.index) < (second.page, second.index))
+        #expect(first.text.hasPrefix("Row 1: 3 B") && second.text.hasPrefix("Row 1: 3 B"))
+        #expect(records.allSatisfy { $0.check == .finished && $0.rowsTotal == 15 && $0.rowsDisagree.isEmpty && $0.problem == nil })
+    }
+
+    @Test func oneChartAndNothingElseIsReadAsToday() async throws {
+        let pdf = try #require(PDFTestDocuments.chart(rows: true))
+        let reading = try await make().importer().read(pdf, fileName: "x.pdf")
+        #expect(reading.pieced == nil)
+        #expect(reading.pdf == pdf)
+    }
+
+    // MARK: saving a pieced PDF (pieces spec §7.5, #206)
+
+    static let strapPage = "Strap\nR 1: 6 sc [6]\nR 2 - R 10: ch 1, turn, 6 sc [6]"
+
+    /// The bag: Front and Back side by side, their rows on page 2, a written Strap on page 3.
+    /// With `assembly`, a fourth page of prose no piece uses: an assembly step.
+    /// With `distinctBack: false`, Back's grid is Front's, cell for cell.
+    func readBag(_ importer: PDFImporter, assembly: Bool = false, distinctBack: Bool = true) async throws -> PDFImportReading {
+        let rows = "Front\n" + PDFTestDocuments.colourRows + "\nBack\n" + PDFTestDocuments.colourRows
+        let more = [Self.strapPage] + (assembly ? ["Sew the strap to the top corners of the bag, one end to each side panel."] : [])
+        let pdf = try #require(PDFTestDocuments.twoCharts(rowsText: rows, morePages: more, distinctBack: distinctBack))
+        return try await importer.read(pdf, fileName: "bag.pdf")
+    }
+
+    func files(_ dir: URL) -> [String] { (try? FileManager.default.contentsOfDirectory(atPath: dir.path)) ?? [] }
+
+    @Test func aPiecedImportSavesManifest2WithItsPDF() async throws {
+        let base = try await make()
+        let importer = base.importer()
+        let reading = try await readBag(importer)
+        let pieced = try #require(reading.pieced)
+        let draft = OutlineDraft(pieced.outline, charts: pieced.charts)
+        #expect(draft.pieces.map(\.title) == ["Front", "Back", "Strap"])
+        let manifest = try await importer.savePieced(reading, draft: draft, records: [:])
+        let local = try #require(await base.local.manifest(for: manifest.id))
+        #expect(local.schema == 2 && local.id == "bag")
+        #expect(local.pieces?.map(\.id) == ["front", "back", "strap"])
+        #expect(local.charts.map(\.variant) == ["front", "back"] && Set(local.charts.map(\.id)).count == 2)
+        for entry in local.charts { #expect(await base.charts.hasChart(id: entry.id)) }
+        let strap = try #require(local.pieces?.last)
+        #expect(strap.rows == "pieces/strap.rows.json" && strap.chart == nil)
+        let document = try await base.rows.document(id: try #require(strap.rowsID))
+        #expect(document.title == "Strap" && document.entries.map(\.from) == [1, 2] && document.entries.last?.to == 10)
+        #expect(local.pieces?.prefix(2).allSatisfy { $0.chart != nil } == true)
+        #expect(await base.local.sourcePDF(for: manifest.id) == reading.pdf)
+        #expect(await base.local.preview(for: manifest.id, path: "preview.png") != nil)
+        for entry in local.charts { #expect(await base.local.preview(for: manifest.id, path: entry.preview) != nil) }
+    }
+
+    /// Two chart pieces with the same grid are one chart (its id is the grid's hash), and spec
+    /// §5.3 lists each chart once: they fold into the first piece, made as many times as both.
+    @Test func identicalGridsFoldIntoOnePieceMadeTwice() async throws {
+        let base = try await make()
+        let importer = base.importer()
+        let reading = try await readBag(importer, distinctBack: false)
+        let pieced = try #require(reading.pieced)
+        let draft = OutlineDraft(pieced.outline, charts: pieced.charts)
+        #expect(draft.pieces.map(\.title) == ["Front", "Back", "Strap"])
+        let pages = Set(draft.pieces[0].pages + draft.pieces[1].pages).sorted()
+        let finished = ImportRecord(grid: true, check: .finished, rowsChecked: 15, rowsTotal: 15, rowsDisagree: [], gaugePrinted: false, problem: nil)
+        let manifest = try await importer.savePieced(reading, draft: draft, records: [0: finished])
+        let local = try #require(await base.local.manifest(for: manifest.id))
+        try PatternBundle.validate(local)
+        #expect(local.pieces?.map(\.id) == ["front", "strap"])
+        let front = try #require(local.pieces?.first)
+        #expect(front.title == "Front" && front.make == 2 && front.pages == pages)
+        #expect(local.charts.count == 1 && local.charts[0].id == front.chart)
+        // The first piece's record, not the second's "not checked".
+        let chart = try await base.charts.chart(id: try #require(front.chart))
+        #expect(ImportRecord(json: chart.document.ext) == finished)
+    }
+
+    /// Review Focus 1: one chart left and nothing else saves as manifest 1, as a one-chart PDF does.
+    @Test func removingAllButOneChartSavesAsToday() async throws {
+        let base = try await make()
+        let importer = base.importer()
+        let reading = try await readBag(importer)
+        let pieced = try #require(reading.pieced)
+        var draft = OutlineDraft(pieced.outline, charts: pieced.charts)
+        for piece in draft.pieces.dropFirst() { draft.remove(piece.id) }
+        for step in draft.assembly { draft.removeStep(step.id) }
+        #expect(draft.isSingleChart)
+        let manifest = try await importer.savePieced(reading, draft: draft, records: [:])
+        let local = try #require(await base.local.manifest(for: manifest.id))
+        #expect(local.schema == 1 && local.pieces == nil && local.charts.count == 1)
+        #expect(local.charts[0].width == Self.chartWidth && local.charts[0].height == Self.chartHeight)
+        #expect(await base.charts.hasChart(id: local.charts[0].id))
+        #expect(files(base.rowsDir).isEmpty)
+        #expect(await base.local.sourcePDF(for: manifest.id) == reading.pdf)
+    }
+
+    /// One chart made twice keeps its make: manifest 1 cannot say it, so it saves as one piece.
+    @Test func oneChartMadeTwiceSavesAsAPiece() async throws {
+        let base = try await make()
+        let importer = base.importer()
+        let reading = try await readBag(importer)
+        let pieced = try #require(reading.pieced)
+        var draft = OutlineDraft(pieced.outline, charts: pieced.charts)
+        for piece in draft.pieces.dropFirst() { draft.remove(piece.id) }
+        for step in draft.assembly { draft.removeStep(step.id) }
+        draft.setMake(draft.pieces[0].id, 2)
+        let manifest = try await importer.savePieced(reading, draft: draft, records: [:])
+        let local = try #require(await base.local.manifest(for: manifest.id))
+        #expect(local.schema == 2 && local.charts.count == 1)
+        #expect(local.pieces?.map(\.make) == [2])
+    }
+
+    /// Review Focus 4: a written piece that does not start at row 1 is refused, and nothing is
+    /// written -- no chart, no rows, no pattern directory, no stray `source.pdf`.
+    @Test func aFailedPiecedSaveWritesNothing() async throws {
+        let base = try await make()
+        let importer = base.importer()
+        var reading = try await readBag(importer)
+        let pieced = try #require(reading.pieced)
+        var outline = pieced.outline
+        let strap = try #require(outline.pieces.firstIndex { $0.title == "Strap" })
+        outline.pieces[strap].entries = outline.pieces[strap].entries.filter { $0.from != 1 }
+        #expect(outline.pieces[strap].entries.first?.from == 2)
+        reading.pieced = PiecedReading(outline: outline, charts: pieced.charts, sections: pieced.sections, pdf: pieced.pdf)
+        let draft = OutlineDraft(outline, charts: pieced.charts)
+        do {
+            _ = try await importer.savePieced(reading, draft: draft, records: [:])
+            Issue.record("a strap starting at row 2 saved")
+        } catch PDFImportError.rowsDoNotAssemble(let why) {
+            #expect(why.count == 1 && why[0].hasPrefix("Strap: ") && why[0].contains("gap"), "\(why)")
+        }
+        #expect(files(base.chartsDir).isEmpty)
+        #expect(files(base.rowsDir).isEmpty)
+        #expect(files(base.localDir).isEmpty)
+    }
+
+    /// Every chart removed: a pattern of written pieces only, with no preview to name (the
+    /// manifest's `preview` is then ""), which reads back as a bundle would carry it.
+    @Test func aDraftOfWrittenPiecesOnlySavesAndReadsBack() async throws {
+        let base = try await make()
+        let importer = base.importer()
+        let reading = try await readBag(importer)
+        let pieced = try #require(reading.pieced)
+        var draft = OutlineDraft(pieced.outline, charts: pieced.charts)
+        for piece in draft.pieces where piece.isChart { draft.remove(piece.id) }
+        #expect(draft.pieces.map(\.title) == ["Strap"])
+        let manifest = try await importer.savePieced(reading, draft: draft, records: [:])
+        let local = try #require(await base.local.manifest(for: manifest.id))
+        #expect(local.schema == 2 && local.charts.isEmpty && local.preview == "")
+        #expect(local.pieces?.map(\.id) == ["strap"] && local.pieces?.allSatisfy(\.isWritten) == true)
+        #expect(files(base.chartsDir).isEmpty)
+        // What the store holds, packed as a bundle and read back the way an opened file is.
+        var entries: [(name: String, bytes: Data)] = [(PatternBundle.manifestName, try Data(contentsOf: base.localDir.appendingPathComponent("\(manifest.id)/pattern.json")))]
+        for path in [local.preview] + local.charts.map(\.preview) where !path.isEmpty {
+            entries.append((path, try #require(await base.local.preview(for: manifest.id, path: path), "\(path)")))
+        }
+        for piece in local.pieces ?? [] {
+            if let path = piece.rows, let id = piece.rowsID { entries.append((path, try await base.rows.data(id: id))) }
+        }
+        let bundle = try PatternBundle.read(BundleImportTests.pack(entries))
+        #expect(bundle.rows.map(\.document.title) == ["Strap"] && bundle.charts.isEmpty)
+    }
+
+    /// A chart piece is saved with its own check's record; one with none, as not checked.
+    @Test func eachChartPieceIsSavedWithItsOwnRecord() async throws {
+        let base = try await make()
+        let importer = base.importer()
+        let reading = try await readBag(importer)
+        let pieced = try #require(reading.pieced)
+        let draft = OutlineDraft(pieced.outline, charts: pieced.charts)
+        let finished = ImportRecord(grid: true, check: .finished, rowsChecked: 15, rowsTotal: 15, rowsDisagree: [], gaugePrinted: false, problem: nil)
+        let manifest = try await importer.savePieced(reading, draft: draft, records: [0: finished, 7: finished])
+        let local = try #require(await base.local.manifest(for: manifest.id))
+        let front = try await base.charts.chart(id: try #require(local.pieces?[0].chart))
+        let back = try await base.charts.chart(id: try #require(local.pieces?[1].chart))
+        #expect(ImportRecord(json: front.document.ext) == finished)
+        let unchecked = try #require(ImportRecord(json: back.document.ext))
+        #expect(unchecked.rowsTotal == 15 && unchecked.rowsChecked == 0 && unchecked.check == .unavailable)
+    }
+
+    /// A piece or step renamed to blank is saved as "Piece N" or "Step N", by its place in the list.
+    @Test func blankTitlesSaveAsTheirPlace() async throws {
+        let base = try await make()
+        let importer = base.importer()
+        let reading = try await readBag(importer, assembly: true)
+        let pieced = try #require(reading.pieced)
+        var draft = OutlineDraft(pieced.outline, charts: pieced.charts)
+        #expect(draft.assembly.map(\.title) == ["Page 4"])
+        draft.rename(draft.pieces[2].id, to: "   ")
+        draft.renameStep(draft.assembly[0].id, to: "")
+        let manifest = try await importer.savePieced(reading, draft: draft, records: [:])
+        let local = try #require(await base.local.manifest(for: manifest.id))
+        #expect(local.pieces?.map(\.title) == ["Front", "Back", "Piece 3"])
+        #expect(local.pieces?.map(\.id) == ["front", "back", "piece"])
+        #expect(local.assembly.map(\.title) == ["Step 1"] && local.assembly.first?.pages == [4])
+    }
+
     @Test func theCheckFinishesCleanOrNamesTheRow() async throws {
         let pdf = try #require(PDFTestDocuments.chart(rows: true))
         let clean = try await make().importer(rowReader: StubRowReader(document: Self.chartDocument(), delayPerRow: .zero))
@@ -540,38 +770,64 @@ enum PDFTestDocuments {
 
     /// The chart page, then with `rows` a page of written rows: `rowsText` when given, else `colourRows`.
     static func chart(rows: Bool, rowsText: String? = nil) -> Data? {
-        let cell: CGFloat = 12, ox: CGFloat = 60, oy: CGFloat = 80
-        let w = PDFImportTests.chartWidth, h = PDFImportTests.chartHeight
         let renderer = UIGraphicsPDFRenderer(bounds: bounds)
         return renderer.pdfData { ctx in
             ctx.beginPage()
-            let cg = ctx.cgContext
-            for y in 0..<h { for x in 0..<w {
-                let rgb = GridColours.rgb(PDFImportTests.chartHexes[PDFImportTests.chartCell(x: x, y: y)])!
-                cg.setFillColor(CGColor(red: CGFloat(rgb.0) / 255, green: CGFloat(rgb.1) / 255, blue: CGFloat(rgb.2) / 255, alpha: 1))
-                cg.fill(CGRect(x: ox + CGFloat(x) * cell, y: oy + CGFloat(y) * cell, width: cell, height: cell))
-            } }
-            for x in 0...w {
-                let bold = (w - x) % 5 == 0
-                cg.setStrokeColor(bold ? CGColor(gray: 0, alpha: 1) : CGColor(gray: 0.55, alpha: 1))
-                cg.setLineWidth(bold ? 1 : 0.5)
-                cg.move(to: CGPoint(x: ox + CGFloat(x) * cell, y: oy)); cg.addLine(to: CGPoint(x: ox + CGFloat(x) * cell, y: oy + CGFloat(h) * cell)); cg.strokePath()
-            }
-            for y in 0...h {
-                let bold = (h - y) % 5 == 0
-                cg.setStrokeColor(bold ? CGColor(gray: 0, alpha: 1) : CGColor(gray: 0.55, alpha: 1))
-                cg.setLineWidth(bold ? 1 : 0.5)
-                cg.move(to: CGPoint(x: ox, y: oy + CGFloat(y) * cell)); cg.addLine(to: CGPoint(x: ox + CGFloat(w) * cell, y: oy + CGFloat(y) * cell)); cg.strokePath()
-            }
-            let attrs: [NSAttributedString.Key: Any] = [.font: UIFont.systemFont(ofSize: 6)]
-            for x in 0..<w { ("\(w - x)" as NSString).draw(at: CGPoint(x: ox + CGFloat(x) * cell + 2, y: oy - 9), withAttributes: attrs) }
-            for y in 0..<h { ("\(h - y)" as NSString).draw(at: CGPoint(x: ox - 14, y: oy + CGFloat(y) * cell + 3), withAttributes: attrs) }
+            drawChart(ctx.cgContext, ox: 60, oy: 80)
             if rows {
                 ctx.beginPage()
                 let text = rowsText ?? colourRows
                 (text as NSString).draw(in: bounds.insetBy(dx: 36, dy: 36), withAttributes: [.font: UIFont.systemFont(ofSize: 12)])
             }
         }
+    }
+
+    /// Two of the synthetic charts side by side on page 1 (x 40 and 330), then a page of `rowsText`,
+    /// then a page for each of `morePages`.
+    /// The second sits lower: two grids whose lines align across a 50 pt gap read as one grid of
+    /// 44 columns, gap and all, which is the grid reader's business, not the importer's. With
+    /// `distinctBack`, the second chart differs from the first in one cell of its top row (row 15),
+    /// so the two are two charts in a content-addressed library, and a check stopped before row
+    /// 15 still finds the rows it read agree.
+    static func twoCharts(rowsText: String, morePages: [String] = [], distinctBack: Bool = false) -> Data? {
+        let renderer = UIGraphicsPDFRenderer(bounds: bounds)
+        return renderer.pdfData { ctx in
+            ctx.beginPage()
+            drawChart(ctx.cgContext, ox: 40, oy: 80)
+            drawChart(ctx.cgContext, ox: 330, oy: 400, changed: distinctBack ? (x: 10, y: 0) : nil)
+            for text in [rowsText] + morePages {
+                ctx.beginPage()
+                (text as NSString).draw(in: bounds.insetBy(dx: 36, dy: 36), withAttributes: [.font: UIFont.systemFont(ofSize: 12)])
+            }
+        }
+    }
+
+    /// The synthetic chart at 12 pt cells with its origin at (`ox`, `oy`).
+    static func drawChart(_ cg: CGContext, ox: CGFloat, oy: CGFloat, changed: (x: Int, y: Int)? = nil) {
+        let cell: CGFloat = 12
+        let w = PDFImportTests.chartWidth, h = PDFImportTests.chartHeight
+        for y in 0..<h { for x in 0..<w {
+            var c = PDFImportTests.chartCell(x: x, y: y)
+            if let changed, changed == (x, y) { c = (c + 2) % 4 }
+            let rgb = GridColours.rgb(PDFImportTests.chartHexes[c])!
+            cg.setFillColor(CGColor(red: CGFloat(rgb.0) / 255, green: CGFloat(rgb.1) / 255, blue: CGFloat(rgb.2) / 255, alpha: 1))
+            cg.fill(CGRect(x: ox + CGFloat(x) * cell, y: oy + CGFloat(y) * cell, width: cell, height: cell))
+        } }
+        for x in 0...w {
+            let bold = (w - x) % 5 == 0
+            cg.setStrokeColor(bold ? CGColor(gray: 0, alpha: 1) : CGColor(gray: 0.55, alpha: 1))
+            cg.setLineWidth(bold ? 1 : 0.5)
+            cg.move(to: CGPoint(x: ox + CGFloat(x) * cell, y: oy)); cg.addLine(to: CGPoint(x: ox + CGFloat(x) * cell, y: oy + CGFloat(h) * cell)); cg.strokePath()
+        }
+        for y in 0...h {
+            let bold = (h - y) % 5 == 0
+            cg.setStrokeColor(bold ? CGColor(gray: 0, alpha: 1) : CGColor(gray: 0.55, alpha: 1))
+            cg.setLineWidth(bold ? 1 : 0.5)
+            cg.move(to: CGPoint(x: ox, y: oy + CGFloat(y) * cell)); cg.addLine(to: CGPoint(x: ox + CGFloat(w) * cell, y: oy + CGFloat(y) * cell)); cg.strokePath()
+        }
+        let attrs: [NSAttributedString.Key: Any] = [.font: UIFont.systemFont(ofSize: 6)]
+        for x in 0..<w { ("\(w - x)" as NSString).draw(at: CGPoint(x: ox + CGFloat(x) * cell + 2, y: oy - 9), withAttributes: attrs) }
+        for y in 0..<h { ("\(h - y)" as NSString).draw(at: CGPoint(x: ox - 14, y: oy + CGFloat(y) * cell + 3), withAttributes: attrs) }
     }
 
     /// One page that is only a picture: what a Canva export of the rows looks like to PDFKit.

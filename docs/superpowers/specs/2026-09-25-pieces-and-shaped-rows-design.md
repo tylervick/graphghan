@@ -87,7 +87,8 @@ Stated plainly, because the design changes each of these:
 - #200: whether a server model is needed to name pieces and read assembly. This spec defines the
   interface it would plug into (§7.3) and nothing more.
 - #210: a row with a gap (two stitched spans); refused by schema 3.
-- #211: pieces written as numbered steps, not row heads (Orca's strap); left out and named.
+- #211: pieces written as numbered steps, not row heads (Orca's strap); until then its page
+  sits inside an assembly step.
 - #212: split, merge and add in the review list.
 - #213: alternative charts per piece.
 - #214: the Python writing pieced patterns (import CLI, generator, site).
@@ -399,8 +400,10 @@ only (`FoundOutline`):
   R 1–14".
 - **Assembly**: pages no piece used, proposed as one step per run of consecutive pages
   ("Pages 13–16").
-- **Left out**: anything found that is not a piece, in #209's sentence. Orca's strap is numbered
-  steps, which `RowText` does not find (#211); the sheet does not invent it.
+- **Left out**: text found after a piece's last row, in the review list's own "Left out: …" line
+  (#209's sentence shows only when there is no list). Orca's strap is numbered steps, which
+  `RowText` does not find (#211); the sheet does not invent it, and its page falls inside an
+  assembly step.
 
 A server reader from #200 would conform to `PieceReading` and pre-fill the same list with better
 titles, the strap and real step text. Nothing after the outline changes.
@@ -448,8 +451,8 @@ committed, so the fixtures are hand-built in its shape:
   `charts`.
 - `fixtures/bundle/`: one pieced bundle, drift-tested like the rest.
 - Real: `PDFImportRealTests` pins Orca's outline (2 chart pieces, both schema 3, their spans; the
-  written pieces found; the strap in the left-out sentence), skipping when the PDF is absent. The
-  Python `test_import_real.py` keeps the flat hashes it pins today (#214).
+  written pieces found; the strap's page 13 inside the "Pages 13–16" step until #211), skipping
+  when the PDF is absent. The Python `test_import_real.py` keeps the flat hashes it pins today (#214).
 
 Python and Swift both run every fixture, as today.
 
@@ -458,10 +461,18 @@ Python and Swift both run every fixture, as today.
 - Every existing chart, bundle and fixture reads unchanged and hashes the same.
 - Orca's PDF, opened on the phone, offers a review list with the front and back panels as shaped
   chart pieces (pass 1 is 9 stitches at `x0` 6, the widest 29, pass 77 is 3; 3 colours each), each
-  with its own check, the written pieces `RowText` finds, proposed assembly pages, and the strap
-  named as left out. Saved, it starts one project whose Work screen shows row 1 of the front
-  panel as 9 stitches with no light blue, and whose Projects row reads "Front panel · Row 1 of 77 ·
-  0 of N pieces".
+  with its own check, the written pieces `RowText` finds, and proposed assembly pages (the
+  strap's page 13 among them until #211). Saved, it starts one project whose Work screen shows
+  row 1 of the front panel as 9 stitches with no light blue, and whose Projects row reads
+  "Front panel · Row 1 of 77 · 0 of N pieces".
+  `orcaImportsAsAPiecedPattern` (2026-10-01) confirms this on the simulator: the review list
+  offers all nine pieces (the front and back panels, the page-7 reading example, Head Tail,
+  Dorsal Fin, both pectoral fins, Tail, and the page-12 written rows) and both assembly steps; the
+  maker drops the page-7 example and its Page 8 step, renames Head Tail to Side Panel and the
+  page-12 rows to Tail (Black), and saves the remaining eight pieces with no checks run; the read
+  itself took 12.2 s. It does not confirm the strap named as left out: the strap's page 13
+  ("Strap") falls inside the "Pages 13–16" assembly step, so the review list names nothing left
+  out for it. Numbered-step pieces like the strap are #211. The device run is still to do.
 - A written piece can be worked from row 1 to its last, through a range, and an open-ended one
   can be finished by hand.
 - The Orca import's total time, both checks included, is recorded in this section on its first

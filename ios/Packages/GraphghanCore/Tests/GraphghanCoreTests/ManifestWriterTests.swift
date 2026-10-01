@@ -1,9 +1,48 @@
+import CryptoKit
 import Foundation
 import Testing
 @testable import GraphghanCore
 
 /// A manifest the phone writes decodes as `PatternManifest` and carries what the library shows.
 @Suite struct ManifestWriterTests {
+    /// `ManifestWriter.encode`'s single-chart bytes must not move when its entry-building is
+    /// factored out for `encodePieced` to share: pinned against the SHA-256 recorded from today's
+    /// output (before the refactor) for the `minimal-rows` fixture.
+    @Test func encodesSingleChartBytesUnchanged() throws {
+        let chart = try Chart.load(Fixtures.data("minimal-rows.chart.json"))
+        let palette = chart.palette.map { ChartDraft.Palette(code: $0.code, name: $0.name, hex: $0.hex) }
+        let data = ManifestWriter.encode(id: "minimal", title: "Minimal", version: "1.0.0", dedication: "",
+                                         chart: chart, chartID: chart.id, variant: "final", gaugeKey: "sc", palette: palette)
+        let hash = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+        #expect(hash == "a83cfc222607db93c2180de72078f967170c9ac1a07b6fbf9319aee030ccb2a7")
+    }
+
+    @Test func aPiecedManifestReadsAsSchema2() throws {
+        let chart = try Chart.load(Fixtures.data("shaped-basic.chart.json"))
+        let input = ManifestChartInput(chart: chart, chartID: chart.id, variant: "front-panel", gaugeKey: "sc",
+                                       palette: chart.palette.map { .init(code: $0.code, name: $0.name, hex: $0.hex) })
+        let pieces = [PieceEntry(id: "front-panel", title: "Front Panel", make: 1, chart: chart.id, rows: nil, rowsID: nil, pages: [9, 17]),
+                      PieceEntry(id: "dorsal-fin", title: "Dorsal Fin", make: 1, chart: nil, rows: "pieces/dorsal-fin.rows.json",
+                                 rowsID: "sha256:" + String(repeating: "b", count: 64), pages: [11])]
+        let data = ManifestWriter.encodePieced(id: "orca", title: "Orca", version: "0.1.0", dedication: "", charts: [input], pieces: pieces,
+                                               assembly: [AssemblyEntry(title: "Pages 13–16", text: nil, pages: [13, 14, 15, 16])], palette: input.palette)
+        let m = try JSONDecoder().decode(PatternManifest.self, from: data)
+        #expect(m.schema == 2 && m.charts.count == 1 && m.charts[0].isDefault && m.charts[0].path == "charts/front-panel-sc/chart.json")
+        #expect(m.pieces?.map(\.id) == ["front-panel", "dorsal-fin"] && m.pieces?[1].rows == "pieces/dorsal-fin.rows.json")
+        #expect(m.assembly.map(\.title) == ["Pages 13–16"] && m.assembly[0].text == nil)
+        #expect(m.preview == "preview.png")
+    }
+
+    /// Written pieces only: no chart to draw a preview from, so none is named.
+    @Test func aPiecedManifestOfWrittenPiecesOnlyNamesNoPreview() throws {
+        let pieces = [PieceEntry(id: "strap", title: "Strap", make: 1, chart: nil, rows: "pieces/strap.rows.json",
+                                 rowsID: "sha256:" + String(repeating: "b", count: 64), pages: [3])]
+        let data = ManifestWriter.encodePieced(id: "bag", title: "Bag", version: "0.1.0", dedication: "", charts: [], pieces: pieces,
+                                               assembly: [], palette: [], preview: "")
+        let m = try JSONDecoder().decode(PatternManifest.self, from: data)
+        #expect(m.schema == 2 && m.charts.isEmpty && m.preview == "" && m.defaultChart == nil && m.pieces?.count == 1)
+    }
+
     @Test func aWrittenManifestDecodesWithTheLibrarysFields() throws {
         let draft = ChartDraft(pattern: .init(id: "orca", title: "Orca", version: "0.1.0"),
                                palette: [.init(code: "A", name: "black", hex: "#000000"), .init(code: "B", name: "white", hex: "#ffffff")],

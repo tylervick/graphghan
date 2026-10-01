@@ -190,6 +190,29 @@ import Testing
     #expect(!RowText.isSingleRow("Total: 3673"))  // no head at all
 }
 
+/// #222: Orca's side panel prints "R 2 - R 26"; the letter repeats before the range's end.
+@Test func aRangeHeadMayRepeatItsLetter() {
+    #expect(RowText.rowNumbers(of: "R 2 - R 26: ch 1, turn, 6 sc [6]") == Array(2...26))
+    #expect(RowText.rowNumbers(of: "Rows 3 - Row 5: 4 sc") == [3, 4, 5])
+    #expect(RowText.rowNumbers(of: "R 27 - 86: (White) ch 1, turn, 6 sc [6]") == Array(27...86))
+    #expect(!RowText.isSingleRow("R 2 - R 26: ch 1, turn, 6 sc [6]"))
+}
+
+/// #222 as Orca's PDF actually reads: `blocks(in:)` must not split a line inside its own leading head.
+@Test func aRangeHeadStaysOneBlock() {
+    #expect(RowText.blocks(in: "R 2 - R 26: ch 1, turn, 6 sc [6]") == ["R 2 - R 26: ch 1, turn, 6 sc [6]"])
+    #expect(RowText.blocks(in: "R 1: 6 sc [6]\nR 2 - R 26: ch 1, turn, 6 sc [6]\nR 27 - 86: 6 sc [6]").count == 3)
+    // a head later in the line still starts a new block, as today
+    #expect(RowText.blocks(in: "R 1: 6 sc R 2: 6 sc").count == 2)
+}
+
+@Test func splitHeadGivesTheLabelRowsAndBody() {
+    #expect(RowText.splitHead("R 2 - R 26: ch 1, turn, 6 sc [6]") == RowHead(label: "R 2 - R 26", rows: Array(2...26), body: "ch 1, turn, 6 sc [6]"))
+    #expect(RowText.splitHead("R 1 [←]: (Black) ch 10, 9 sc [9]") == RowHead(label: "R 1 [←]", rows: [1], body: "(Black) ch 10, 9 sc [9]"))
+    #expect(RowText.splitHead("Row 12: 3 B, 17 A")?.label == "Row 12")
+    #expect(RowText.splitHead("no head here") == nil)
+}
+
 @Test func aRowThatRepeatsAnotherNamesIt() {
     #expect(RowText.repeatedRow(in: "Row 6: repeat row 5.") == 5)
     #expect(RowText.repeatedRow(in: "Rows 9-10: Rep Row 8.") == 8)

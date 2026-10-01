@@ -45,4 +45,22 @@ import GraphghanCore
         #expect(PieceListSection.pageText([3, 7]) == "pages 3, 7 of the original PDF")
         #expect(PieceListSection.pageText([]) == "")
     }
+
+    /// Task 9: a step whose PDF is kept on this phone offers a button instead of the plain text;
+    /// a bundle opened on another phone (no PDF) keeps today's text (`onOpenPage` nil).
+    @Test func aStepOpensThePDFWhenItIsKept() {
+        #expect(AssemblyStepRow.pageAction(pages: [13, 14, 15, 16], hasPDF: true) == "Open pages 13–16")
+        #expect(AssemblyStepRow.pageAction(pages: [15], hasPDF: true) == "Open page 15")
+        #expect(AssemblyStepRow.pageAction(pages: [15], hasPDF: false) == nil)
+    }
+
+    @Test @MainActor func assemblyOpenButtonSnapshot() throws {
+        let manifest = try JSONDecoder().decode(PatternManifest.self, from: TestFixtures.pieces("pattern.json"))
+        let view = VStack(alignment: .leading, spacing: 14) {
+            AssemblyStepRow(step: manifest.assembly[0], done: false, onToggle: { _ in }, onOpenPage: { _ in })
+        }
+        .padding(16)
+        .background(Color.ground.weave())
+        #expect(try Snapshots.assert(view, named: "project-assembly-open", size: CGSize(width: 390, height: 120)))
+    }
 }

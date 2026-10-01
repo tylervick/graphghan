@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 import Testing
 import GraphghanCore
 import ProseReaderKit
@@ -71,6 +72,72 @@ import ProseReaderKit
         #expect(model.pdfImport == nil && model.libraryItems.contains { $0.slug == "craigh-na-dun-blanket" })
     }
 
+    // MARK: the review list (#206)
+
+    /// `OutlineReviewSection`'s rows outside the sheet's `ScrollView` -- `ImageRenderer` cannot
+    /// flatten one, the way `project-pieces-rows` snapshots `PieceRow` outside its `List`.
+    /// It pins layout and labels only: text fields and steppers render as placeholders (#67).
+    @Test @MainActor func reviewRowsSnapshot() throws {
+        let draft = OutlineDraftTests.draft()
+        let view = VStack(alignment: .leading, spacing: 14) {
+            OutlineReviewSection(draft: .constant(draft), leftOut: [
+                "text after R 2 (page 7)", "text after R 104 (page 10)", "text after R 15 (page 12)",
+            ])
+        }
+        .padding(16)
+        .background(Color.ground.weave())
+        #expect(try Snapshots.assert(view, named: "pdf-import-review-rows", size: CGSize(width: 390, height: 760)))
+    }
+
+    /// The bag's two charts and their rows, read with no model (no check runs): a pieced reading.
+    func readBag(_ model: AppModel) async throws -> PDFImportState {
+        let rows = "Front\n" + PDFTestDocuments.colourRows + "\nBack\n" + PDFTestDocuments.colourRows
+        await model.importPDF(data: try #require(PDFTestDocuments.twoCharts(rowsText: rows, distinctBack: true)), fileName: "bag.pdf")
+        return try #require(model.pdfImport)
+    }
+
+    /// The review list names every piece and what was left out; #209's "One chart was imported;
+    /// the other was left out" above it would contradict it.
+    @Test func aPiecedReadingShowsNoOneChartLeftOutSentence() async throws {
+        let state = try await readBag(try await make(rowReader: nil, modelUnavailable: "needs iOS 26"))
+        #expect(state.draft != nil && state.reading?.contents?.sentence != nil)
+        #expect(state.leftOutSentence == nil)
+        // Without a review list the sentence is the only word on what was left out.
+        state.draft = nil
+        #expect(state.leftOutSentence == state.reading?.contents?.sentence)
+    }
+
+    /// Nothing to add once the maker has removed every piece.
+    @Test func addIsDisabledWithNoPieces() async throws {
+        let state = try await readBag(try await make(rowReader: nil, modelUnavailable: "needs iOS 26"))
+        #expect(state.canAdd)
+        for piece in state.draft?.pieces ?? [] { state.draft?.remove(piece.id) }
+        #expect(!state.canAdd)
+        state.draft = nil  // a one-chart reading has no list and always adds
+        #expect(state.canAdd)
+    }
+
+    /// A chart piece's check line shows what the one-chart sheet shows for the same record: a
+    /// problem as a copyable report (#176), a busy model with its battery note and "Why?".
+    @Test(arguments: [
+        ImportRecord(grid: true, check: .finished, rowsChecked: 0, rowsTotal: 15, rowsDisagree: [], gaugePrinted: false, problem: ImportRecord.modelBusy),
+        ImportRecord(grid: true, check: .finished, rowsChecked: 0, rowsTotal: 15, rowsDisagree: [], gaugePrinted: false, problem: "the rows are 12 stitches wide, the chart 15"),
+        ImportRecord(grid: true, check: .finished, rowsChecked: 15, rowsTotal: 15, rowsDisagree: [], gaugePrinted: false, problem: nil),
+    ])
+    func aPieceCheckShowsWhatTheOneChartSheetShows(record: ImportRecord) async throws {
+        let state = try await readBag(try await make(rowReader: nil, modelUnavailable: "needs iOS 26"))
+        state.onBatteryAtCheck = true
+        let front = try #require(state.draft?.pieces.first { $0.isChart })
+        let chart = try #require(state.chartIndex(ofPiece: front.id))
+        state.pieceChecks[chart] = .done(record)
+        state.check = .done(record)  // the one-chart path, given the same record
+        let oneChart = try #require(state.checkShown)
+        #expect(state.pieceChecksShown[front.id] == oneChart)
+        let busy = record.problem == ImportRecord.modelBusy
+        #expect(oneChart.copyable == (record.problem != nil) && oneChart.askWhy == busy && oneChart.batteryNote == busy)
+        #expect(oneChart.sentence == PDFImportState.checkSentence(record))
+    }
+
     // MARK: written rows (PR 2)
 
     @Test func writtenRowsShowProgressThenTheChart() async throws {
@@ -141,6 +208,76 @@ import ProseReaderKit
         guard case .done(let record) = done else { return }
         #expect(record.check == .stopped && record.rowsTotal == 15 && record.rowsChecked < 15)
         #expect(record.sentence?.hasPrefix("Written rows checked up to row \(record.rowsChecked); \(record.rowsChecked + 1)–15 not checked.") == true)
+    }
+
+    /// Review Focus 3, the checking half: Skip during the second chart piece's check leaves the
+    /// first piece's finished record and settles the second as stopped, before Skip returns, and
+    /// the cancelled task writes nothing over it afterwards. The saving half is Task 8's.
+    @Test func skippingTheSecondPiecesCheckKeepsTheFirst() async throws {
+        let model = try await make(rowReader: PDFImportTests.StubRowReader(document: PDFImportTests.chartDocument(), delayPerRow: .milliseconds(60)))
+        let rows = "Front\n" + PDFTestDocuments.colourRows + "\nBack\n" + PDFTestDocuments.colourRows
+        // A Back one cell different from the Front: two charts, each saved with its own record.
+        await model.importPDF(data: try #require(PDFTestDocuments.twoCharts(rowsText: rows, distinctBack: true)), fileName: "bag.pdf")
+        let state = try #require(model.pdfImport)
+        #expect(state.check == .none && state.pieceCheckPlan.map(\.chart) == [0, 1])
+        var secondRunning = false
+        for _ in 0..<500 {
+            if case .running = state.pieceChecks[1] { secondRunning = true; break }
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        try #require(secondRunning)
+        #expect(state.pieceChecking?.line.hasPrefix("Checking Back: written row ") == true)
+        model.skipPDFCheck()
+        func expectSettled() throws {
+            guard case .done(let first) = state.pieceChecks[0], case .done(let second) = state.pieceChecks[1] else {
+                Issue.record("not settled: \(state.pieceChecks)"); return
+            }
+            #expect(first.check == .finished && first.rowsChecked == 15 && first.rowsDisagree.isEmpty)
+            #expect(second.check == .stopped && second.rowsTotal == 15 && second.rowsChecked < 15)
+            #expect(state.pieceChecks.keys.sorted() == [0, 1])
+        }
+        try expectSettled()
+        try await Task.sleep(for: .milliseconds(300))
+        try expectSettled()
+        #expect(state.pieceChecking == nil)
+        let lines = state.pieceCheckLines
+        #expect(lines.count == 2 && lines.values.contains("Written rows agree with the chart."))
+        #expect(lines.values.contains { $0.hasPrefix("Written rows checked up to row ") })
+        // The cancelled task has ended and let the screen go; nothing of it reaches the next test.
+        await state.checkTask?.value
+        try expectSettled()
+        // Add saves both pieces as one pattern, each chart with its own record.
+        await model.addImportedPDF()
+        #expect(model.pdfImport == nil)
+        #expect(model.libraryItems.contains { $0.source == .local && $0.slug == "bag" })
+        let manifest = try await model.manifest(for: "bag", path: nil)
+        #expect(manifest.schema == 2)
+        let pieces = try #require(manifest.pieces)
+        let front = try await model.charts.chart(id: try #require(pieces[0].chart))
+        let back = try await model.charts.chart(id: try #require(pieces[1].chart))
+        #expect(ImportRecord(json: front.document.ext)?.check == .finished)
+        #expect(ImportRecord(json: back.document.ext)?.check == .stopped)
+    }
+
+    /// Skip while the first piece is read: the second piece's turn never comes, so it is settled
+    /// as stopped at row 0 and the reader is never asked for it.
+    @Test func skippingTheFirstPiecesCheckNeverAsksForTheSecond() async throws {
+        let asked = Asked()
+        let model = try await make(rowReader: PDFImportTests.StubRowReader(document: PDFImportTests.chartDocument(), delayPerRow: .milliseconds(60), asked: asked))
+        let rows = "Front\n" + PDFTestDocuments.colourRows + "\nBack\n" + PDFTestDocuments.colourRows
+        await model.importPDF(data: try #require(PDFTestDocuments.twoCharts(rowsText: rows)), fileName: "bag.pdf")
+        let state = try #require(model.pdfImport)
+        var firstRunning = false
+        for _ in 0..<500 {
+            if case .running = state.pieceChecks[0] { firstRunning = true; break }
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        try #require(firstRunning)
+        model.skipPDFCheck()
+        await state.checkTask?.value
+        guard case .done(let second) = state.pieceChecks[1] else { Issue.record("not settled: \(state.pieceChecks)"); return }
+        #expect(second.check == .stopped && second.rowsChecked == 0 && second.rowsTotal == 15)
+        #expect(await asked.sections.count == 1)
     }
 
     @Test func addingBeforeTheCheckEndsSavesItAsStopped() async throws {

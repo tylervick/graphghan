@@ -67,4 +67,12 @@ import GraphghanCore
         await client.fail("/patterns/p/charts/final-sc/chart.json")
         await #expect(throws: URLError.self) { try await store.chartData(for: "p", path: "charts/final-sc/chart.json") }
     }
+
+    /// A written-only pattern's manifest-level `preview` decodes to "" (#224): that must not
+    /// resolve to the site's base URL and get fetched.
+    @Test func anEmptyPreviewPathMakesNoRequest() async throws {
+        let (store, client) = try await makeStore()
+        #expect(await store.preview(for: "p", sitePath: "") == nil)
+        #expect(await client.requests().isEmpty)
+    }
 }

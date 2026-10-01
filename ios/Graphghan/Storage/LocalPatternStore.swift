@@ -41,11 +41,30 @@ actor LocalPatternStore {
         return try? Data(contentsOf: url)
     }
 
+    /// The PDF a pattern was imported from, beside its manifest (pieces spec §5.5). Never part of
+    /// a bundle: it is the PDF's author's, not the pattern's.
+    static let sourcePDFName = "source.pdf"
+
+    /// Whether a pattern kept the PDF it was imported from, without reading its bytes (fix round
+    /// 1, review focus 2): a view that only needs to show a button, not the PDF itself, should not
+    /// pay to load it on every load. Same shape as `has(id:)`.
+    func hasSourcePDF(for id: String) -> Bool {
+        guard let url = safeURL(id: id, path: Self.sourcePDFName) else { return false }
+        return FileManager.default.fileExists(atPath: url.path)
+    }
+
+    /// The PDF the pattern was imported from, nil for one that came another way.
+    func sourcePDF(for id: String) -> Data? {
+        guard let url = safeURL(id: id, path: Self.sourcePDFName) else { return nil }
+        return try? Data(contentsOf: url)
+    }
+
     /// Writes the pattern's directory whole: built in a sibling temporary directory and swapped
     /// in, so a pattern folder is never half-written and re-importing replaces rather than merges.
     /// A chart the new version no longer lists stays in `ChartLibrary`; a project pinned its id
-    /// and has to keep opening.
-    func save(_ bundle: PatternBundle) throws {
+    /// and has to keep opening. `sourcePDF`, when given, is staged with the rest, so it lands
+    /// with the pattern or not at all, and a save without one leaves none behind.
+    func save(_ bundle: PatternBundle, sourcePDF: Data? = nil) throws {
         let id = bundle.manifest.id
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let staging = directory.appendingPathComponent(".staging-\(UUID().uuidString)", isDirectory: true)
@@ -59,6 +78,9 @@ actor LocalPatternStore {
             try FileManager.default.createDirectory(at: destination.deletingLastPathComponent(),
                                                     withIntermediateDirectories: true)
             try bytes.write(to: destination, options: .atomic)
+        }
+        if let sourcePDF {
+            try sourcePDF.write(to: staging.appendingPathComponent(Self.sourcePDFName), options: .atomic)
         }
 
         // Replaced, not removed-then-moved: a move that fails after the remove would leave the

@@ -16,6 +16,9 @@ final class PDFImportState {
     var stage: Stage = .reading
     let fileName: String
     var reading: PDFImportReading? = nil
+    /// The pieces review list's edits, set when the reading holds more than one chart's worth of
+    /// pieces (#206); nil when there is nothing to review, and the sheet's UI is as before.
+    var draft: OutlineDraft? = nil
     var preview: UIImage? = nil
     /// The read in flight, so Cancel can stop the model mid-row.
     var task: Task<Void, Never>? = nil
@@ -27,6 +30,12 @@ final class PDFImportState {
     /// The row check under "Chart found" (spec §5.2), and its task so Skip and Cancel can stop it.
     var check: CheckStage = .none
     var checkTask: Task<Void, Never>? = nil
+    /// A pieced PDF's checks, one per chart piece with written rows (pieces spec §7.2), keyed by
+    /// chart index (`FoundParts.charts`, as `PieceKind.chart` counts). `check` stays `.none` then.
+    var pieceChecks: [Int: CheckStage] = [:]
+    /// The chart pieces being checked, in the order they are checked, with the rows each is
+    /// checked against: what "Skip the check" settles when it stops them.
+    var pieceCheckPlan: [(chart: Int, section: RowSection)] = []
     /// What the app's scene was doing when the check started, for the probe's report (#176).
     var appStateAtCheck: String = ""
     /// And what the iPhone's power situation was, which nobody thought to note on the first
@@ -45,6 +54,87 @@ final class PDFImportState {
     /// minutes and holds the screen awake, neither of which may outlive the sheet.
     var measureTask: Task<Void, Never>? = nil
     init(fileName: String) { self.fileName = fileName }
+
+    /// The outline's chart index for a review-list piece (`OutlineDraft.Piece.id`), nil for a
+    /// written piece.
+    func chartIndex(ofPiece id: Int) -> Int? {
+        guard let pieces = reading?.pieced?.outline.pieces, pieces.indices.contains(id), case .chart(let c) = pieces[id].kind else { return nil }
+        return c
+    }
+
+    /// "Checking Back: written row 4 of 15…" while a chart piece's check runs, with its progress;
+    /// nil otherwise.
+    var pieceChecking: (line: String, done: Int, of: Int)? {
+        for (chart, _) in pieceCheckPlan {
+            guard case .running(let done, let of) = pieceChecks[chart] else { continue }
+            let title = draft?.pieces.first { chartIndex(ofPiece: $0.id) == chart }?.title
+                ?? reading?.pieced?.outline.pieces.first { $0.kind == .chart(chart) }?.title ?? "chart \(chart + 1)"
+            return ("Checking \(title): written row \(done) of \(of)…", done, of)
+        }
+        return nil
+    }
+
+    /// Each checked chart piece's line in the review list, keyed by `OutlineDraft.Piece.id`: the
+    /// words the one-chart sheet shows under its check.
+    var pieceCheckLines: [Int: String] {
+        var lines: [Int: String] = [:]
+        for piece in draft?.pieces ?? [] {
+            guard let chart = chartIndex(ofPiece: piece.id), case .done(let record) = pieceChecks[chart],
+                  let line = Self.checkSentence(record) else { continue }
+            lines[piece.id] = line
+        }
+        return lines
+    }
+
+    /// Nothing to say for a chart with no written rows; agreement only for a finished check.
+    static func checkSentence(_ record: ImportRecord) -> String? {
+        record.sentence ?? (record.check == .finished ? "Written rows agree with the chart." : nil)
+    }
+
+    /// What a finished check shows, wherever it is shown: under the one-chart sheet's chart, or
+    /// under a chart piece in the review list. One choice, so a piece loses none of the (#176)
+    /// diagnostics the one-chart sheet has.
+    struct CheckShown: Equatable {
+        var sentence: String?
+        /// A problem's sentence is a report the maker copies or shares on, not a plain line.
+        var copyable: Bool
+        /// "This iPhone was on battery…", beside a busy model.
+        var batteryNote: Bool
+        /// "Why?" and the probes behind it, beside a busy model.
+        var askWhy: Bool
+    }
+
+    func shown(_ record: ImportRecord) -> CheckShown {
+        let busy = record.problem == ImportRecord.modelBusy
+        return CheckShown(sentence: Self.checkSentence(record), copyable: record.problem != nil,
+                          batteryNote: busy && onBatteryAtCheck, askWhy: busy)
+    }
+
+    /// The one-chart check's, once it is done.
+    var checkShown: CheckShown? {
+        guard case .done(let record) = check else { return nil }
+        return shown(record)
+    }
+
+    /// Each checked chart piece's, keyed by `OutlineDraft.Piece.id`.
+    var pieceChecksShown: [Int: CheckShown] {
+        var result: [Int: CheckShown] = [:]
+        for piece in draft?.pieces ?? [] {
+            guard let chart = chartIndex(ofPiece: piece.id), case .done(let record) = pieceChecks[chart] else { continue }
+            result[piece.id] = shown(record)
+        }
+        return result
+    }
+
+    /// #209's "One chart was imported; the other was left out", for a reading with no review
+    /// list. With one, the list names every piece kept and what was left out, and that sentence
+    /// would contradict it.
+    var leftOutSentence: String? {
+        draft == nil ? reading?.contents?.sentence : nil
+    }
+
+    /// A review list with every piece removed has nothing to add.
+    var canAdd: Bool { draft?.pieces.isEmpty != true }
 
     /// Cancel while the model reads or before the chart is added; Done once it failed.
     var isCancellable: Bool {
@@ -77,6 +167,10 @@ struct PDFImportSheet: View {
                     }
                     .padding()
                 case .found:
+                    // A ScrollView, so a long review list scrolls (#206); ImageRenderer cannot
+                    // flatten one, so no snapshot renders the sheet itself through this case --
+                    // `OutlineReviewSection`'s rows are snapshotted directly, as a plain VStack.
+                    ScrollView {
                     VStack(spacing: 16) {
                         if let preview = state.preview {
                             Image(uiImage: preview).resizable().scaledToFit().frame(maxHeight: 280)
@@ -85,8 +179,22 @@ struct PDFImportSheet: View {
                         if let r = state.reading {
                             Text(r.bundle.manifest.title).font(Font.Heather.heading).foregroundStyle(Color.ink)
                             Text("\(r.width) × \(r.height) stitches, \(r.colours) colours").font(Font.Heather.body).foregroundStyle(Color.ink2)
-                            if let leftOut = r.contents?.sentence {
+                            if let leftOut = state.leftOutSentence {
                                 Text(leftOut).font(Font.Heather.caption).foregroundStyle(Color.ink2).multilineTextAlignment(.center)
+                            }
+                            if let draft = state.draft {
+                                let shown = state.pieceChecksShown
+                                OutlineReviewSection(draft: Binding(get: { state.draft ?? draft }, set: { state.draft = $0 }),
+                                                     leftOut: r.pieced?.outline.leftOut ?? []) { piece in
+                                    if let shown = shown[piece.id] { CheckResult(state: state, shown: shown, alignment: .leading) }
+                                }
+                            }
+                            if let checking = state.pieceChecking {
+                                VStack(spacing: 6) {
+                                    Text(checking.line).font(Font.Heather.caption).foregroundStyle(Color.ink2).monospacedDigit()
+                                    ProgressView(value: Double(checking.done), total: Double(max(checking.of, 1))).tint(Color.ink)
+                                    Button("Skip the check") { model.skipPDFCheck() }.font(Font.Heather.caption)
+                                }
                             }
                         }
                         switch state.check {
@@ -99,35 +207,17 @@ struct PDFImportSheet: View {
                                 Button("Skip the check") { model.skipPDFCheck() }.font(Font.Heather.caption)
                             }
                         case .done(let record):
-                            VStack(spacing: 8) {
-                                // Nothing to say for a chart with no written rows; agreement only for a finished check.
-                                if let sentence = record.sentence ?? (record.check == .finished ? "Written rows agree with the chart." : nil) {
-                                    if record.problem == nil {
-                                        Text(sentence).font(Font.Heather.caption).foregroundStyle(Color.ink2).multilineTextAlignment(.center)
-                                    } else {
-                                        // Anything that went wrong has to leave the phone: this
-                                        // is the sentence a maker sends on, and it was the one
-                                        // thing on the sheet that could not be copied (#176).
-                                        report(sentence)
-                                    }
-                                }
-                                if record.problem == ImportRecord.modelBusy {
-                                    if state.onBatteryAtCheck {
-                                        Text("This iPhone was on battery, which may be why; plugging in may help.")
-                                            .font(Font.Heather.caption).foregroundStyle(Color.ink2)
-                                            .multilineTextAlignment(.center)
-                                    }
-                                    whyTheModelIsBusy
-                                }
-                            }
+                            CheckResult(state: state, shown: state.shown(record), alignment: .center)
                         }
                         Button("Add to library") {
                             state.stage = .saving  // set before the save runs: no second tap, no cancel underneath it
                             Task { await model.addImportedPDF() }
                         }
                         .buttonStyle(.borderedProminent)
+                        .disabled(!state.canAdd)
                     }
                     .padding()
+                    }
                 case .saving:
                     VStack(spacing: 12) {
                         ProgressView()
@@ -137,7 +227,7 @@ struct PDFImportSheet: View {
                     VStack(spacing: 12) {
                         Image(systemName: "doc.questionmark").font(Font.Heather.rowNumber).foregroundStyle(Color.ink2)
                         Text(sentence).font(Font.Heather.body).foregroundStyle(Color.ink).multilineTextAlignment(.center)
-                        if sentence == ImportRecord.modelBusySentence { whyTheModelIsBusy }
+                        if sentence == ImportRecord.modelBusySentence { WhyTheModelIsBusy(state: state) }
                     }
                     .padding()
                 }
@@ -157,13 +247,54 @@ struct PDFImportSheet: View {
         .interactiveDismissDisabled(state.stage == .reading || state.stage == .saving)
     }
 
-    /// "Why?" beside a busy model (#176). The simulator has no model, so the three probes -- a
-    /// one-line prompt with no instructions, the same prompt under the row instructions, a
-    /// structured answer -- can only be asked on the phone that refused the check, and this is
-    /// where they are asked. The report says which of the three is the first to be refused.
-    @ViewBuilder private var whyTheModelIsBusy: some View {
+    /// The estimate the sheet prints: rows at the measured pace, rounded up, never under a minute.
+    static func minutes(for rows: Int) -> Int {
+        max(1, Int((Double(rows) * PDFImporter.secondsPerRow / 60).rounded(.up)))
+    }
+}
+
+/// A finished check's words (#176), the same under the one-chart sheet's chart and under a chart
+/// piece in the review list: a problem as a report that copies, and beside a busy model the
+/// battery note and "Why?".
+struct CheckResult: View {
+    let state: PDFImportState
+    let shown: PDFImportState.CheckShown
+    let alignment: HorizontalAlignment
+
+    var body: some View {
+        let text: TextAlignment = alignment == .leading ? .leading : .center
+        VStack(alignment: alignment, spacing: 8) {
+            if let sentence = shown.sentence {
+                if shown.copyable {
+                    // Anything that went wrong has to leave the phone: this is the sentence a
+                    // maker sends on, and it was the one thing on the sheet that could not be
+                    // copied (#176).
+                    CopyableReport(text: sentence)
+                } else {
+                    Text(sentence).font(Font.Heather.caption).foregroundStyle(Color.ink2).multilineTextAlignment(text)
+                }
+            }
+            if shown.batteryNote {
+                Text("This iPhone was on battery, which may be why; plugging in may help.")
+                    .font(Font.Heather.caption).foregroundStyle(Color.ink2)
+                    .multilineTextAlignment(text)
+            }
+            if shown.askWhy { WhyTheModelIsBusy(state: state) }
+        }
+    }
+}
+
+/// "Why?" beside a busy model (#176). The simulator has no model, so the three probes -- a
+/// one-line prompt with no instructions, the same prompt under the row instructions, a
+/// structured answer -- can only be asked on the phone that refused the check, and this is
+/// where they are asked. The report says which of the three is the first to be refused.
+struct WhyTheModelIsBusy: View {
+    @Environment(AppModel.self) private var model
+    let state: PDFImportState
+
+    var body: some View {
         if let probe = state.probe {
-            report(probe.text)
+            CopyableReport(text: probe.text)
             measureTheLimit
         } else if state.probing {
             ProgressView()
@@ -177,7 +308,7 @@ struct PDFImportSheet: View {
     /// thirty times and waits out a refusal, so it runs on a second tap, not with the first.
     @ViewBuilder private var measureTheLimit: some View {
         if let limits = state.limits {
-            report(limits.text)
+            CopyableReport(text: limits.text)
         } else if state.measuring {
             VStack(spacing: 6) {
                 ProgressView()
@@ -188,12 +319,16 @@ struct PDFImportSheet: View {
                 .font(Font.Heather.caption)
         }
     }
+}
 
-    /// A report the maker has to get off the phone and into an issue. It scrolls, because these
-    /// run to a dozen lines and the sheet would otherwise cut the last ones off -- which is
-    /// exactly what happened to the run that mattered (#176) -- and it copies and shares, because
-    /// reading a token count off a screen and typing it out again loses the digits that matter.
-    @ViewBuilder private func report(_ text: String) -> some View {
+/// A report the maker has to get off the phone and into an issue. It scrolls, because these
+/// run to a dozen lines and the sheet would otherwise cut the last ones off -- which is
+/// exactly what happened to the run that mattered (#176) -- and it copies and shares, because
+/// reading a token count off a screen and typing it out again loses the digits that matter.
+struct CopyableReport: View {
+    let text: String
+
+    var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             ScrollView {
                 Text(text)
@@ -209,10 +344,5 @@ struct PDFImportSheet: View {
             .font(Font.Heather.caption)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    /// The estimate the sheet prints: rows at the measured pace, rounded up, never under a minute.
-    static func minutes(for rows: Int) -> Int {
-        max(1, Int((Double(rows) * PDFImporter.secondsPerRow / 60).rounded(.up)))
     }
 }

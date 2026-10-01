@@ -15,6 +15,14 @@ struct ProjectDetailView: View {
     @State private var manifest: PatternManifest?
     @State private var notes: String = ""
     @State private var showJump = false
+    /// Whether the pattern kept the PDF it was imported from (Task 9); false for a bundle opened
+    /// on another phone, whose assembly steps then show their page numbers as plain text. Checked
+    /// without loading the PDF's bytes (fix round 1) -- those are only worth the read once a step
+    /// button is actually tapped.
+    @State private var hasSourcePDF = false
+    /// An assembly step's "Open page N" button, once its PDF has finished loading: non-nil
+    /// presents the viewer sheet. Nothing is shown while the load is in flight.
+    @State private var pdfViewer: PDFViewerRequest?
     @State private var confirmDelete = false
     @State private var confirmFinish = false
     @State private var switching = false
@@ -41,6 +49,19 @@ struct ProjectDetailView: View {
                                  onToggleStep: { i, on in
                                      do { try model.projects.setAssemblyStep(i, done: on, for: project) }
                                      catch { actionError = "Couldn't update that step: \(error.localizedDescription)" }
+                                 },
+                                 hasSourcePDF: hasSourcePDF,
+                                 onOpenPage: { page in
+                                     Task {
+                                         // Hops off the main actor to read the file: `AppModel.sourcePDF`
+                                         // awaits `LocalPatternStore`, an actor, so the read itself
+                                         // happens on its executor, not here.
+                                         if let data = await model.sourcePDF(for: project.patternID) {
+                                             pdfViewer = PDFViewerRequest(data: data, page: page)
+                                         } else {
+                                             actionError = "The PDF couldn't be opened."
+                                         }
+                                     }
                                  })
                 notesSection
                 manageSection(showFinishToggle: false)
@@ -97,6 +118,15 @@ struct ProjectDetailView: View {
                 }
             }
         }
+        .sheet(item: $pdfViewer) { viewer in
+            NavigationStack {
+                PDFPageView(data: viewer.data, page: viewer.page, documentID: viewer.id)
+                    .ignoresSafeArea(edges: .bottom)
+                    .toolbar {
+                        ToolbarItem(placement: .confirmationAction) { Button("Done") { pdfViewer = nil } }
+                    }
+            }
+        }
         .confirmationDialog("Delete this project and its progress?", isPresented: $confirmDelete, titleVisibility: .visible) {
             Button("Delete", role: .destructive) {
                 // Only leave the screen if the project really went; otherwise the list would still
@@ -149,6 +179,14 @@ struct ProjectDetailView: View {
 
     private struct SummaryRefresh: Hashable { let key: ProjectSummaryKey?; let chartID: String? }
 
+    /// What `pdfViewer`'s sheet shows once an assembly step's PDF has loaded: its bytes and the
+    /// page that step asked for.
+    private struct PDFViewerRequest: Identifiable {
+        let id = UUID()
+        let data: Data
+        let page: Int
+    }
+
     @ViewBuilder private var notesSection: some View {
         Section("Notes") {
             TextField("Yarn lots, hook, reminders…", text: $notes, axis: .vertical)
@@ -188,6 +226,7 @@ struct ProjectDetailView: View {
             }
             loadError = nil
             statuses = await model.projects.statuses(for: project, manifest: manifest)
+            hasSourcePDF = await model.hasSourcePDF(for: project.patternID)
         } else {
             do { sequence = try await model.projects.sequence(for: project) }
             catch { loadError = "This project's chart could not be read. Download it again to continue." }

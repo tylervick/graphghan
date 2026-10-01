@@ -51,47 +51,7 @@ public struct PatternBundle: Sendable {
             throw BundleError.badManifest("\(error)")
         }
 
-        guard GraphghanCore.manifestSchemas.contains(manifest.schema) else {
-            throw BundleError.unsupportedManifestSchema(manifest.schema)
-        }
-        if manifest.pieces != nil, manifest.schema != 2 { throw BundleError.piecedNeedsSchema2 }
-        guard !manifest.id.isEmpty,
-              manifest.id.unicodeScalars.allSatisfy(slugCharacters.contains) else {
-            throw BundleError.badPatternID(manifest.id)
-        }
-        if manifest.isPieced {
-            guard !(manifest.pieces ?? []).isEmpty else { throw BundleError.noPieces }
-        } else {
-            guard !manifest.charts.isEmpty else { throw BundleError.noCharts }
-        }
-        var seen = Set<String>()
-        for entry in manifest.charts where !seen.insert(entry.path).inserted {
-            throw BundleError.duplicateChartPath(entry.path)
-        }
-
-        // A piece is exactly one of a chart (naming a `charts[]` entry) or written rows (with its
-        // id); checked before the paths are, so its rows files join the paths every entry needs.
-        var rowsPaths: [String] = []
-        if let pieces = manifest.pieces {
-            let chartIDs = Set(manifest.charts.map(\.id))
-            var pieceIDs = Set<String>()
-            for piece in pieces {
-                guard pieceIDs.insert(piece.id).inserted else { throw BundleError.duplicatePiece(piece: piece.id) }
-                guard piece.make >= 1 else { throw BundleError.pieceMakeCount(piece: piece.id, make: piece.make) }
-                switch (piece.chart, piece.rows) {
-                case (let chartID?, nil):
-                    guard chartIDs.contains(chartID) else { throw BundleError.pieceNamesMissingChart(piece: piece.id) }
-                case (nil, let path?):
-                    guard piece.rowsID != nil else { throw BundleError.pieceKind(piece: piece.id) }
-                    rowsPaths.append(path)
-                default:
-                    throw BundleError.pieceKind(piece: piece.id)
-                }
-            }
-        }
-
-        try checkPaths([manifestName, manifest.preview]
-            + manifest.charts.map(\.path) + manifest.charts.map(\.preview) + rowsPaths)
+        try validate(manifest)
 
         var charts: [BundleChart] = []
         for entry in manifest.charts {
@@ -128,6 +88,59 @@ public struct PatternBundle: Sendable {
         }
 
         return PatternBundle(manifest: manifest, manifestData: manifestData, charts: charts, previews: previews, rows: rows)
+    }
+
+    /// The manifest-level checks `read` makes before it opens any file the manifest names: the
+    /// schema, the pattern id, the pieces and the paths. Public so the phone's own pieced save
+    /// refuses, before writing anything, a manifest `read` would later refuse.
+    public static func validate(_ manifest: PatternManifest) throws {
+        guard GraphghanCore.manifestSchemas.contains(manifest.schema) else {
+            throw BundleError.unsupportedManifestSchema(manifest.schema)
+        }
+        if manifest.pieces != nil, manifest.schema != 2 { throw BundleError.piecedNeedsSchema2 }
+        guard !manifest.id.isEmpty,
+              manifest.id.unicodeScalars.allSatisfy(slugCharacters.contains) else {
+            throw BundleError.badPatternID(manifest.id)
+        }
+        if manifest.isPieced {
+            guard !(manifest.pieces ?? []).isEmpty else { throw BundleError.noPieces }
+        } else {
+            guard !manifest.charts.isEmpty else { throw BundleError.noCharts }
+        }
+        var seen = Set<String>()
+        for entry in manifest.charts where !seen.insert(entry.path).inserted {
+            throw BundleError.duplicateChartPath(entry.path)
+        }
+
+        // A piece is exactly one of a chart (naming a `charts[]` entry) or written rows (with its
+        // id); checked before the paths are, so its rows files join the paths every entry needs.
+        var rowsPaths: [String] = []
+        if let pieces = manifest.pieces {
+            let chartIDs = Set(manifest.charts.map(\.id))
+            var pieceIDs = Set<String>()
+            var namedCharts = Set<String>()
+            for piece in pieces {
+                guard pieceIDs.insert(piece.id).inserted else { throw BundleError.duplicatePiece(piece: piece.id) }
+                guard piece.make >= 1 else { throw BundleError.pieceMakeCount(piece: piece.id, make: piece.make) }
+                switch (piece.chart, piece.rows) {
+                case (let chartID?, nil):
+                    guard chartIDs.contains(chartID) else { throw BundleError.pieceNamesMissingChart(piece: piece.id) }
+                    // Spec §5.3: each chart once. The same grid twice is one piece made twice.
+                    guard namedCharts.insert(chartID).inserted else { throw BundleError.pieceSharesChart(piece: piece.id) }
+                case (nil, let path?):
+                    guard piece.rowsID != nil else { throw BundleError.pieceKind(piece: piece.id) }
+                    rowsPaths.append(path)
+                default:
+                    throw BundleError.pieceKind(piece: piece.id)
+                }
+            }
+        }
+
+        // An absent manifest-level `preview` decodes to "" (schema 1 and 2 both allow omitting
+        // it); every other path here is still required by its owner (a chart, a written piece)
+        // and an empty one is a lie about that file, not "no file" -- it stays checked.
+        try checkPaths([manifestName] + (manifest.preview.isEmpty ? [] : [manifest.preview])
+            + manifest.charts.map(\.path) + manifest.charts.map(\.preview) + rowsPaths)
     }
 
     /// Every referenced path has to be writable as a file under one directory, because that is
@@ -211,6 +224,8 @@ public enum BundleError: Error, Equatable {
     case pieceKind(piece: String)
     /// Two pieces share an id: progress keys a piece copy by it.
     case duplicatePiece(piece: String)
+    /// A chart piece names a chart an earlier piece already names (spec §5.3: each chart once).
+    case pieceSharesChart(piece: String)
     /// A piece whose `make` is below 1.
     case pieceMakeCount(piece: String, make: Int)
     case invalidRows(path: String, reason: String)
@@ -263,6 +278,8 @@ public enum BundleError: Error, Equatable {
             return "The piece “\(piece)” is neither a chart nor written rows."
         case .duplicatePiece(let piece):
             return "Two pieces are both called “\(piece)”."
+        case .pieceSharesChart(let piece):
+            return "The piece “\(piece)” names the same chart as another piece."
         case .pieceMakeCount(let piece, let make):
             return "The piece “\(piece)” is to be made \(make) times."
         case .invalidRows(let path, let reason):

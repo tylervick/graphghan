@@ -92,6 +92,65 @@ import GraphghanCore
         #expect(await store.preview(for: id, path: "preview.png") == nil)
     }
 
+    /// A PDF import keeps its source PDF beside the pattern (pieces spec §5.5), written into the
+    /// same staging directory so it lands with the pattern or not at all, and replaced with it.
+    @Test func aSourcePDFIsSavedBesideThePatternAndGoesWithIt() async throws {
+        let (store, directory) = try make()
+        let bundle = try bundle()
+        let pdf = Data("%PDF-1.7 not really".utf8)
+        try await store.save(bundle, sourcePDF: pdf)
+        #expect(await store.sourcePDF(for: Self.slug) == pdf)
+        #expect(FileManager.default.fileExists(atPath: directory.appendingPathComponent("\(Self.slug)/source.pdf").path))
+        // The directory is replaced whole: a save without a PDF leaves none behind.
+        try await store.save(bundle)
+        #expect(await store.sourcePDF(for: Self.slug) == nil)
+        #expect(await store.sourcePDF(for: "nothing") == nil)
+        #expect(await store.sourcePDF(for: "..") == nil)
+    }
+
+    /// Fix round 1, review focus 2: `hasSourcePDF` answers from the filesystem alone, without
+    /// reading the PDF's bytes -- true once a PDF is saved beside the pattern, false for one saved
+    /// without a PDF or that never existed.
+    @Test func hasSourcePDFAnswersWithoutLoadingIt() async throws {
+        let (store, _) = try make()
+        let bundle = try bundle()
+        #expect(await store.hasSourcePDF(for: Self.slug) == false)
+        try await store.save(bundle, sourcePDF: Data("%PDF-1.7 not really".utf8))
+        #expect(await store.hasSourcePDF(for: Self.slug) == true)
+        // The directory is replaced whole: a save without a PDF leaves none behind.
+        try await store.save(bundle)
+        #expect(await store.hasSourcePDF(for: Self.slug) == false)
+        #expect(await store.hasSourcePDF(for: "nothing") == false)
+    }
+
+    /// Review Focus 5: a PDF imported twice gets its own slug and its own `source.pdf`; deleting
+    /// one pattern's directory (the store has no delete of its own -- `FileManager`, as a maker's
+    /// own removal of a pattern would reach, at the store's directory for that id) never touches
+    /// the other's PDF.
+    @Test func eachImportKeepsItsOwnPDF() async throws {
+        let (store, directory) = try make()
+        let bundle = try bundle()
+        let pdfA = Data("%PDF-1.7 A".utf8)
+        let pdfB = Data("%PDF-1.7 B".utf8)
+        try await store.save(bundle, sourcePDF: pdfA)
+
+        var object = try JSONSerialization.jsonObject(with: bundle.manifestData) as! [String: Any]
+        object["id"] = "second-id"
+        object["title"] = "Second Blanket"
+        let secondData = try JSONSerialization.data(withJSONObject: object)
+        let secondManifest = try JSONDecoder().decode(PatternManifest.self, from: secondData)
+        let secondBundle = PatternBundle(manifest: secondManifest, manifestData: secondData,
+                                         charts: bundle.charts, previews: bundle.previews, rows: bundle.rows)
+        try await store.save(secondBundle, sourcePDF: pdfB)
+
+        #expect(await store.sourcePDF(for: Self.slug) == pdfA)
+        #expect(await store.sourcePDF(for: "second-id") == pdfB)
+
+        try FileManager.default.removeItem(at: directory.appendingPathComponent(Self.slug, isDirectory: true))
+        #expect(await store.sourcePDF(for: Self.slug) == nil)
+        #expect(await store.sourcePDF(for: "second-id") == pdfB)
+    }
+
     @Test func anEmptyStoreIsEmptyRatherThanAnError() async throws {
         let (store, _) = try make()
         #expect(await store.manifests().isEmpty)

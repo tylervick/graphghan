@@ -57,4 +57,10 @@ import Testing
         let m = try PatternBundle.read(data).manifest
         #expect(!m.isPieced && m.pieces == nil && m.assembly.isEmpty && m.piecesTotal == 1)
     }
+
+    @Test func aManifestMayOmitWhatItsSchemaDoesNotRequire() throws {
+        let json = #"{"schema":2,"id":"bag","title":"Bag","version":"1","charts":[],"palette":[],"pieces":[{"id":"strip","title":"Strip","rows":"pieces/strip.rows.json","rows_id":"sha256:\#(String(repeating: "a", count: 64))"}]}"#
+        let m = try JSONDecoder().decode(PatternManifest.self, from: Data(json.utf8))
+        #expect(m.preview == "" && m.dedication == "" && m.updated == "" && m.isPieced)
+    }
 }
