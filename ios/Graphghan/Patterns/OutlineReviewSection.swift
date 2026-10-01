@@ -6,11 +6,12 @@ import GraphghanCore
 /// `ImageRenderer` cannot snapshot) or make more than once; then the assembly steps; then what
 /// was found and left out. A plain `VStack`, snapshotted directly the way `project-pieces-rows`
 /// snapshots `PieceRow`.
-struct OutlineReviewSection: View {
+struct OutlineReviewSection<Check: View>: View {
     @Binding var draft: OutlineDraft
     let leftOut: [String]
-    /// Each checked chart piece's check line, by `OutlineDraft.Piece.id` (pieces spec §7.2).
-    var checkLines: [Int: String] = [:]
+    /// A checked chart piece's check (pieces spec §7.2), under its row: the sheet passes the
+    /// one-chart sheet's own `CheckResult`, so a piece keeps its report and "Why?" (#176).
+    @ViewBuilder let check: (OutlineDraft.Piece) -> Check
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -50,9 +51,7 @@ struct OutlineReviewSection: View {
                 }
                 Text("\(piece.rows) rows").font(Font.Heather.caption).foregroundStyle(Color.ink2)
             }
-            if let line = checkLines[piece.id] {
-                Text(line).font(Font.Heather.caption).foregroundStyle(Color.ink2)
-            }
+            check(piece)
             HStack(spacing: 10) {
                 Stepper("Make × \(piece.make)", value: Binding(get: { piece.make }, set: { draft.setMake(piece.id, $0) }), in: 1...20)
                     .font(Font.Heather.caption).foregroundStyle(Color.ink2)
@@ -105,5 +104,12 @@ struct OutlineReviewSection: View {
     nonisolated static func leftOutSentence(_ items: [String]) -> String? {
         guard !items.isEmpty else { return nil }
         return "Left out: " + items.joined(separator: "; ") + "."
+    }
+}
+
+extension OutlineReviewSection where Check == EmptyView {
+    /// No checks to show: the snapshot's rows.
+    init(draft: Binding<OutlineDraft>, leftOut: [String]) {
+        self.init(draft: draft, leftOut: leftOut) { _ in EmptyView() }
     }
 }

@@ -76,6 +76,7 @@ import ProseReaderKit
 
     /// `OutlineReviewSection`'s rows outside the sheet's `ScrollView` -- `ImageRenderer` cannot
     /// flatten one, the way `project-pieces-rows` snapshots `PieceRow` outside its `List`.
+    /// It pins layout and labels only: text fields and steppers render as placeholders (#67).
     @Test @MainActor func reviewRowsSnapshot() throws {
         let draft = OutlineDraftTests.draft()
         let view = VStack(alignment: .leading, spacing: 14) {
@@ -86,6 +87,55 @@ import ProseReaderKit
         .padding(16)
         .background(Color.ground.weave())
         #expect(try Snapshots.assert(view, named: "pdf-import-review-rows", size: CGSize(width: 390, height: 760)))
+    }
+
+    /// The bag's two charts and their rows, read with no model (no check runs): a pieced reading.
+    func readBag(_ model: AppModel) async throws -> PDFImportState {
+        let rows = "Front\n" + PDFTestDocuments.colourRows + "\nBack\n" + PDFTestDocuments.colourRows
+        await model.importPDF(data: try #require(PDFTestDocuments.twoCharts(rowsText: rows, distinctBack: true)), fileName: "bag.pdf")
+        return try #require(model.pdfImport)
+    }
+
+    /// The review list names every piece and what was left out; #209's "One chart was imported;
+    /// the other was left out" above it would contradict it.
+    @Test func aPiecedReadingShowsNoOneChartLeftOutSentence() async throws {
+        let state = try await readBag(try await make(rowReader: nil, modelUnavailable: "needs iOS 26"))
+        #expect(state.draft != nil && state.reading?.contents?.sentence != nil)
+        #expect(state.leftOutSentence == nil)
+        // Without a review list the sentence is the only word on what was left out.
+        state.draft = nil
+        #expect(state.leftOutSentence == state.reading?.contents?.sentence)
+    }
+
+    /// Nothing to add once the maker has removed every piece.
+    @Test func addIsDisabledWithNoPieces() async throws {
+        let state = try await readBag(try await make(rowReader: nil, modelUnavailable: "needs iOS 26"))
+        #expect(state.canAdd)
+        for piece in state.draft?.pieces ?? [] { state.draft?.remove(piece.id) }
+        #expect(!state.canAdd)
+        state.draft = nil  // a one-chart reading has no list and always adds
+        #expect(state.canAdd)
+    }
+
+    /// A chart piece's check line shows what the one-chart sheet shows for the same record: a
+    /// problem as a copyable report (#176), a busy model with its battery note and "Why?".
+    @Test(arguments: [
+        ImportRecord(grid: true, check: .finished, rowsChecked: 0, rowsTotal: 15, rowsDisagree: [], gaugePrinted: false, problem: ImportRecord.modelBusy),
+        ImportRecord(grid: true, check: .finished, rowsChecked: 0, rowsTotal: 15, rowsDisagree: [], gaugePrinted: false, problem: "the rows are 12 stitches wide, the chart 15"),
+        ImportRecord(grid: true, check: .finished, rowsChecked: 15, rowsTotal: 15, rowsDisagree: [], gaugePrinted: false, problem: nil),
+    ])
+    func aPieceCheckShowsWhatTheOneChartSheetShows(record: ImportRecord) async throws {
+        let state = try await readBag(try await make(rowReader: nil, modelUnavailable: "needs iOS 26"))
+        state.onBatteryAtCheck = true
+        let front = try #require(state.draft?.pieces.first { $0.isChart })
+        let chart = try #require(state.chartIndex(ofPiece: front.id))
+        state.pieceChecks[chart] = .done(record)
+        state.check = .done(record)  // the one-chart path, given the same record
+        let oneChart = try #require(state.checkShown)
+        #expect(state.pieceChecksShown[front.id] == oneChart)
+        let busy = record.problem == ImportRecord.modelBusy
+        #expect(oneChart.copyable == (record.problem != nil) && oneChart.askWhy == busy && oneChart.batteryNote == busy)
+        #expect(oneChart.sentence == PDFImportState.checkSentence(record))
     }
 
     // MARK: written rows (PR 2)
