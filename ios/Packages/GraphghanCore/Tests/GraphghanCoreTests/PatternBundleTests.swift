@@ -192,7 +192,7 @@ import Testing
         }
     }
 
-    @Test(arguments: ["", "a//b.png", "./preview.png", "charts/./preview.png"])
+    @Test(arguments: ["a//b.png", "./preview.png", "charts/./preview.png"])
     func aPathThatCannotBecomeAFileIsRefused(path: String) throws {
         // Silently skipping these would lose a preview without telling anyone.
         var object = try Self.manifestJSON()
@@ -322,5 +322,27 @@ import Testing
         let data = try Self.withPieces { $0[1]["make"] = 0 }
         #expect(throws: BundleError.pieceMakeCount(piece: "strip", make: 0)) { try PatternBundle.read(data) }
         #expect(BundleError.pieceMakeCount(piece: "strip", make: 0).message == "The piece “strip” is to be made 0 times.")
+    }
+
+    /// A written-only pattern never had a preview to generate (spec §7.5): `preview` is absent
+    /// from the manifest and the archive carries no `preview.png` at all.
+    @Test func aWrittenOnlyBundleWithNoPreviewReads() throws {
+        var entries = try Self.piecedEntries()
+        entries.removeValue(forKey: "preview.png")
+        entries.removeValue(forKey: "charts/final-sc/chart.json")
+        entries.removeValue(forKey: "charts/final-sc/preview.png")
+        var manifest = try #require(try JSONSerialization.jsonObject(with: entries["pattern.json"]!) as? [String: Any])
+        manifest.removeValue(forKey: "preview")
+        manifest["charts"] = [Any]()
+        var pieces = try #require(manifest["pieces"] as? [[String: Any]])
+        pieces.removeAll { $0["chart"] != nil }
+        manifest["pieces"] = pieces
+        entries["pattern.json"] = try JSONSerialization.data(withJSONObject: manifest)
+        let data = try ZipBuilder(items: entries.map { ZipBuilder.Item($0.key, $0.value) }).build()
+
+        let bundle = try PatternBundle.read(data)
+        #expect(bundle.manifest.preview == "")
+        #expect(bundle.manifest.charts.isEmpty)
+        #expect(bundle.previews.isEmpty)
     }
 }

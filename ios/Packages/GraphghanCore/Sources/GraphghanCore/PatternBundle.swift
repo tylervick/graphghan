@@ -90,8 +90,8 @@ public struct PatternBundle: Sendable {
             }
         }
 
-        try checkPaths([manifestName, manifest.preview]
-            + manifest.charts.map(\.path) + manifest.charts.map(\.preview) + rowsPaths)
+        try checkPaths(([manifestName, manifest.preview]
+            + manifest.charts.map(\.path) + manifest.charts.map(\.preview) + rowsPaths).filter { !$0.isEmpty })
 
         var charts: [BundleChart] = []
         for entry in manifest.charts {

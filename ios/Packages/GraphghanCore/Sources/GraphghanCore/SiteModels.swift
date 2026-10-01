@@ -178,14 +178,14 @@ public struct PatternManifest: Decodable, Sendable, Equatable {
         id = try c.decode(String.self, forKey: .id)
         title = try c.decode(String.self, forKey: .title)
         version = try c.decode(String.self, forKey: .version)
-        dedication = try c.decode(String.self, forKey: .dedication)
-        quote = try c.decode(String.self, forKey: .quote)
-        author = try c.decode(String.self, forKey: .author)
-        license = try c.decode(String.self, forKey: .license)
-        preview = try c.decode(String.self, forKey: .preview)
-        palette = try c.decode([Swatch].self, forKey: .palette)
+        dedication = try c.decodeIfPresent(String.self, forKey: .dedication) ?? ""
+        quote = try c.decodeIfPresent(String.self, forKey: .quote) ?? ""
+        author = try c.decodeIfPresent(String.self, forKey: .author) ?? ""
+        license = try c.decodeIfPresent(String.self, forKey: .license) ?? ""
+        preview = try c.decodeIfPresent(String.self, forKey: .preview) ?? ""
+        palette = try c.decodeIfPresent([Swatch].self, forKey: .palette) ?? []
         charts = try c.decode([ManifestChart].self, forKey: .charts)
-        updated = try c.decode(String.self, forKey: .updated)
+        updated = try c.decodeIfPresent(String.self, forKey: .updated) ?? ""
         pieces = try c.decodeIfPresent([ManifestPiece].self, forKey: .pieces)
         assembly = try c.decodeIfPresent([AssemblyStep].self, forKey: .assembly) ?? []
     }
