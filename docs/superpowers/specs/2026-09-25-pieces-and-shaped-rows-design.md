@@ -462,6 +462,12 @@ Python and Swift both run every fixture, as today.
   named as left out. Saved, it starts one project whose Work screen shows row 1 of the front
   panel as 9 stitches with no light blue, and whose Projects row reads "Front panel · Row 1 of 77 ·
   0 of N pieces".
+  `orcaImportsAsAPiecedPattern` (2026-10-01) confirms this on the simulator: the review list
+  offers all nine pieces (the front and back panels, the page-7 reading example, Head Tail,
+  Dorsal Fin, both pectoral fins, Tail, and the page-12 written rows) and both assembly steps; the
+  maker drops the page-7 example and its Page 8 step, renames Head Tail to Side Panel and the
+  page-12 rows to Tail (Black), and saves the remaining eight pieces with no checks run; the read
+  itself took 12.2 s. The device run is still to do.
 - A written piece can be worked from row 1 to its last, through a range, and an open-ended one
   can be finished by hand.
 - The Orca import's total time, both checks included, is recorded in this section on its first

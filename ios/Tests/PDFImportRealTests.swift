@@ -208,4 +208,53 @@ import ProseReaderKit
                                                        "Pectoral Fin (Back)", "Tail", "Rows, page 12, R 1–15"])
         #expect(reading.pdf == data)
     }
+
+    /// Orca end to end (pieces spec §10, Task 10): the maker drops the page-7 "how to read a
+    /// graph" example and the page-8 assembly step it belongs to, renames "Head Tail" to "Side
+    /// Panel" and the tail's written rows to "Tail (Black)", then saves with no checks run.
+    @Test func orcaImportsAsAPiecedPattern() async throws {
+        let file = "EN_OrcaCrossbodyBagPDFPattern.pdf"
+        guard let data = try? Data(contentsOf: TestFixtures.root.appendingPathComponent("fixtures/import/real/\(file)")) else {
+            print("SKIP real fixture \(file) is absent; see fixtures/import/real/README.md")
+            return
+        }
+        let importer = try Self.importer()
+        let started = Date()
+        let reading = try await importer.read(data, fileName: file)
+        let seconds = Date().timeIntervalSince(started)
+        print("orca pieced read: \(String(format: "%.1f", seconds)) s")
+        let pieced = try #require(reading.pieced)
+        var draft = OutlineDraft(pieced.outline, charts: pieced.charts)
+
+        let example = try #require(draft.pieces.first { $0.title == "Rows, page 7, R 1–2" })
+        draft.remove(example.id)
+        let page8 = try #require(draft.assembly.first { $0.title == "Page 8" })
+        draft.removeStep(page8.id)
+        let headTail = try #require(draft.pieces.first { $0.title == "Head Tail" })
+        draft.rename(headTail.id, to: "Side Panel")
+        let tailRows = try #require(draft.pieces.first { $0.title == "Rows, page 12, R 1–15" })
+        draft.rename(tailRows.id, to: "Tail (Black)")
+
+        let manifest = try await importer.savePieced(reading, draft: draft, records: [:])
+        #expect(manifest.schema == 2)
+        let pieces = try #require(manifest.pieces)
+        #expect(pieces.map(\.id) == ["front-panel", "back-panel", "side-panel", "dorsal-fin", "pectoral-fin-front", "pectoral-fin-back", "tail", "tail-black"],
+                "\(pieces.map(\.id))")
+
+        #expect(manifest.charts.count == 2, "\(manifest.charts.map(\.variant))")
+        for entry in manifest.charts {
+            let chart = try await importer.charts.chart(id: entry.id)
+            #expect(chart.document.schema == 3 && chart.isShaped && chart.width == 29 && chart.height == 77, "\(entry.variant)")
+            #expect(chart.written?.count == 77, "\(entry.variant)")
+        }
+
+        let sidePanel = try #require(pieces.first { $0.id == "side-panel" })
+        let rowsID = try #require(sidePanel.rowsID)
+        let rowsDoc = try await importer.rows.document(id: rowsID)
+        #expect(rowsDoc.entries.count == 4 && rowsDoc.entries.last?.to == 104, "\(rowsDoc.entries)")
+
+        #expect(manifest.assembly.map(\.title) == ["Pages 13–16"], "\(manifest.assembly.map(\.title))")
+
+        #expect(await importer.local.sourcePDF(for: manifest.id) == data)
+    }
 }
