@@ -15,6 +15,11 @@ struct ProjectDetailView: View {
     @State private var manifest: PatternManifest?
     @State private var notes: String = ""
     @State private var showJump = false
+    /// The pattern's kept PDF (Task 9), when the import kept one; nil for a bundle opened on
+    /// another phone, whose assembly steps then show their page numbers as plain text.
+    @State private var sourcePDF: Data?
+    /// The page an assembly step's "Open page N" button asked to see; non-nil presents the sheet.
+    @State private var openPage: Int?
     @State private var confirmDelete = false
     @State private var confirmFinish = false
     @State private var switching = false
@@ -41,7 +46,9 @@ struct ProjectDetailView: View {
                                  onToggleStep: { i, on in
                                      do { try model.projects.setAssemblyStep(i, done: on, for: project) }
                                      catch { actionError = "Couldn't update that step: \(error.localizedDescription)" }
-                                 })
+                                 },
+                                 hasSourcePDF: sourcePDF != nil,
+                                 onOpenPage: { page in openPage = page })
                 notesSection
                 manageSection(showFinishToggle: false)
             } else if let sequence, let summary {
@@ -94,6 +101,17 @@ struct ProjectDetailView: View {
             if let sequence {
                 JumpToRowSheet(rowCount: sequence.passes.count, current: project.cursor.row) { row in
                     model.projects.apply(.jump(row: row), to: project, in: sequence)
+                }
+            }
+        }
+        .sheet(isPresented: Binding(get: { openPage != nil }, set: { if !$0 { openPage = nil } })) {
+            if let sourcePDF, let openPage {
+                NavigationStack {
+                    PDFPageView(data: sourcePDF, page: openPage)
+                        .ignoresSafeArea(edges: .bottom)
+                        .toolbar {
+                            ToolbarItem(placement: .confirmationAction) { Button("Done") { self.openPage = nil } }
+                        }
                 }
             }
         }
@@ -188,6 +206,7 @@ struct ProjectDetailView: View {
             }
             loadError = nil
             statuses = await model.projects.statuses(for: project, manifest: manifest)
+            sourcePDF = await model.sourcePDF(for: project.patternID)
         } else {
             do { sequence = try await model.projects.sequence(for: project) }
             catch { loadError = "This project's chart could not be read. Download it again to continue." }

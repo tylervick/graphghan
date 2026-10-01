@@ -108,6 +108,34 @@ import GraphghanCore
         #expect(await store.sourcePDF(for: "..") == nil)
     }
 
+    /// Review Focus 5: a PDF imported twice gets its own slug and its own `source.pdf`; deleting
+    /// one pattern's directory (the store has no delete of its own -- `FileManager`, as a maker's
+    /// own removal of a pattern would reach, at the store's directory for that id) never touches
+    /// the other's PDF.
+    @Test func eachImportKeepsItsOwnPDF() async throws {
+        let (store, directory) = try make()
+        let bundle = try bundle()
+        let pdfA = Data("%PDF-1.7 A".utf8)
+        let pdfB = Data("%PDF-1.7 B".utf8)
+        try await store.save(bundle, sourcePDF: pdfA)
+
+        var object = try JSONSerialization.jsonObject(with: bundle.manifestData) as! [String: Any]
+        object["id"] = "second-id"
+        object["title"] = "Second Blanket"
+        let secondData = try JSONSerialization.data(withJSONObject: object)
+        let secondManifest = try JSONDecoder().decode(PatternManifest.self, from: secondData)
+        let secondBundle = PatternBundle(manifest: secondManifest, manifestData: secondData,
+                                         charts: bundle.charts, previews: bundle.previews, rows: bundle.rows)
+        try await store.save(secondBundle, sourcePDF: pdfB)
+
+        #expect(await store.sourcePDF(for: Self.slug) == pdfA)
+        #expect(await store.sourcePDF(for: "second-id") == pdfB)
+
+        try FileManager.default.removeItem(at: directory.appendingPathComponent(Self.slug, isDirectory: true))
+        #expect(await store.sourcePDF(for: Self.slug) == nil)
+        #expect(await store.sourcePDF(for: "second-id") == pdfB)
+    }
+
     @Test func anEmptyStoreIsEmptyRatherThanAnError() async throws {
         let (store, _) = try make()
         #expect(await store.manifests().isEmpty)

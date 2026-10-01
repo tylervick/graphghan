@@ -25,21 +25,41 @@ struct PieceRow: View {
     }
 }
 
-/// One assembly step row: its title, text and page reference, with its own done toggle.
+/// One assembly step row: its title, text and page reference, with its own done toggle. When the
+/// step's PDF is kept on this phone (`onOpenPage` non-nil, Task 9), the page reference becomes a
+/// button that opens it there instead of the plain "page N of the original PDF" text.
 struct AssemblyStepRow: View {
     let step: AssemblyStep
     let done: Bool
     let onToggle: (Bool) -> Void
+    var onOpenPage: ((Int) -> Void)? = nil
 
     var body: some View {
         Toggle(isOn: Binding(get: { done }, set: onToggle)) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(step.title).font(Font.Heather.body).foregroundStyle(Color.ink)
                 if let text = step.text { Text(text).font(Font.Heather.caption).foregroundStyle(Color.ink2) }
-                if !step.pages.isEmpty { Text(PieceListSection.pageText(step.pages)).font(Font.Heather.caption).foregroundStyle(Color.ink2) }
+                if let label = Self.pageAction(pages: step.pages, hasPDF: onOpenPage != nil) {
+                    Button(label) { if let first = step.pages.first { onOpenPage?(first) } }
+                        .font(Font.Heather.caption)
+                        .foregroundStyle(Color.heather)
+                } else if !step.pages.isEmpty {
+                    Text(PieceListSection.pageText(step.pages)).font(Font.Heather.caption).foregroundStyle(Color.ink2)
+                }
             }
         }
         .tint(.heather)
+    }
+
+    /// "Open page 15" / "Open pages 13–16" when the kept PDF can show this step's pages; nil
+    /// when there is none, which keeps today's plain text. `nonisolated`: a pure string
+    /// function, called from tests that are not on the main actor.
+    nonisolated static func pageAction(pages: [Int], hasPDF: Bool) -> String? {
+        guard hasPDF, let first = pages.first else { return nil }
+        if pages.count == 1 { return "Open page \(first)" }
+        let consecutive = zip(pages, pages.dropFirst()).allSatisfy { $1 == $0 + 1 }
+        let list = consecutive ? "\(first)–\(pages.last!)" : pages.map(String.init).joined(separator: ", ")
+        return "Open pages \(list)"
     }
 }
 
@@ -50,6 +70,10 @@ struct PieceListSection: View {
     let assemblyDone: [Int]
     let onSelect: (PieceKey) -> Void
     let onToggleStep: (Int, Bool) -> Void
+    /// Whether the pattern's source PDF is kept on this phone (Task 9): when true, each step's
+    /// page reference becomes a button through `onOpenPage` instead of plain text.
+    var hasSourcePDF: Bool = false
+    var onOpenPage: (Int) -> Void = { _ in }
 
     var body: some View {
         Section("Pieces") {
@@ -63,7 +87,8 @@ struct PieceListSection: View {
         if !assembly.isEmpty {
             Section("Assembly · \(assemblyDone.count) of \(assembly.count)") {
                 ForEach(Array(assembly.enumerated()), id: \.offset) { i, step in
-                    AssemblyStepRow(step: step, done: assemblyDone.contains(i), onToggle: { onToggleStep(i, $0) })
+                    AssemblyStepRow(step: step, done: assemblyDone.contains(i), onToggle: { onToggleStep(i, $0) },
+                                    onOpenPage: hasSourcePDF ? onOpenPage : nil)
                 }
             }
         }

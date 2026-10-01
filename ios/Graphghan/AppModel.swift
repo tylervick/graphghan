@@ -140,6 +140,13 @@ final class AppModel {
 
     func isLocal(_ slug: String) -> Bool { localIndex.contains { $0.slug == slug } }
 
+    /// The PDF a pieced pattern was imported from, when it is still on this phone (pieces spec
+    /// §5.5, Task 9); nil for a bundle opened on another phone, whose assembly steps show their
+    /// page numbers as plain text instead of a button.
+    func sourcePDF(for patternID: String) async -> Data? {
+        await localPatterns.sourcePDF(for: patternID)
+    }
+
     /// The local section. Cheap (a directory of small JSON files) and load-bearing well before the
     /// Patterns tab is opened -- a project's row needs to know its pattern is local to find its
     /// preview -- so the app calls it at launch as well as on every library refresh.
