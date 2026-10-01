@@ -21,6 +21,18 @@ import GraphghanCore
         #expect(Self.draft().pieceIDs() == [0: "front-panel", 1: "strap", 2: "strap-2"])
     }
 
+    /// A repeat's suffix must not land on a title that already slugs to it: "Strap", "Strap",
+    /// "Strap 2" once gave "strap", "strap-2", "strap-2", which the bundle reader refuses.
+    @Test func aSuffixNeverCollidesWithAnotherTitle() {
+        var d = Self.draft()
+        d.rename(0, to: "Strap")
+        d.rename(1, to: "Strap")
+        d.rename(2, to: "Strap 2")
+        #expect(d.pieceIDs() == [0: "strap", 1: "strap-2", 2: "strap-2-2"])
+        d.move(fromOffsets: [2], toOffset: 0)
+        #expect(d.pieceIDs() == [2: "strap-2", 0: "strap", 1: "strap-3"])
+    }
+
     @Test func editsKeepIDsAndRespectOrder() {
         var d = Self.draft()
         d.rename(1, to: "Handle")

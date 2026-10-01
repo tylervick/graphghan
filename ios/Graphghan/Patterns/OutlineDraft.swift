@@ -66,19 +66,26 @@ struct OutlineDraft: Equatable, Sendable {
     }
 
     /// Unique slugs in the current order, from each title ("Front Panel" → "front-panel", a
-    /// repeat → "front-panel-2", empty → "piece"). `PDFImporter.slug` falls back to "pattern" for
-    /// a title with no ASCII letter or digit; the review list wants "piece" for that case instead.
+    /// repeat → "front-panel-2", empty → "piece"). A suffix skips any id already taken, so
+    /// "Strap", "Strap", "Strap 2" give "strap", "strap-2", "strap-2-2". `PDFImporter.slug` falls
+    /// back to "pattern" for a title with no ASCII letter or digit; the review list wants "piece"
+    /// for that case instead.
     func pieceIDs() -> [Int: String] {
         var result: [Int: String] = [:]
-        var counts: [String: Int] = [:]
+        var used: Set<String> = []
         for piece in pieces {
             let hasLetterOrDigit = piece.title.unicodeScalars.contains {
                 (0x41...0x5a).contains($0.value) || (0x61...0x7a).contains($0.value) || (0x30...0x39).contains($0.value)
             }
             let base = hasLetterOrDigit ? PDFImporter.slug(piece.title) : "piece"
-            let n = (counts[base] ?? 0) + 1
-            counts[base] = n
-            result[piece.id] = n == 1 ? base : "\(base)-\(n)"
+            var id = base
+            var n = 2
+            while used.contains(id) {
+                id = "\(base)-\(n)"
+                n += 1
+            }
+            used.insert(id)
+            result[piece.id] = id
         }
         return result
     }
