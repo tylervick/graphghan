@@ -362,9 +362,9 @@ final class AppModel {
         pdfImport = state
         let importer = pdfImporter
         // The rows-only path reads for minutes; the screen must not sleep part way through it (#176).
-        IdleTimer.hold()
+        state.holdScreen()
         let task = Task { [weak self] in
-            defer { IdleTimer.release() }
+            defer { state.releaseScreen() }
             do {
                 let reading = try await importer.read(data, fileName: fileName) { p in
                     Task { @MainActor in
@@ -405,9 +405,9 @@ final class AppModel {
         state.appStateAtCheck = Self.describe(UIApplication.shared.applicationState)
         state.powerAtCheck = PowerState.summary
         state.onBatteryAtCheck = PowerState.isOnBattery
-        IdleTimer.hold()
+        state.holdScreen()
         state.checkTask = Task {
-            defer { IdleTimer.release() }
+            defer { state.releaseScreen() }
             let record = await importer.check(reading) { p in
                 Task { @MainActor in
                     if case .checking(let done, let of) = p, case .running = state.check { state.check = .running(done: done, of: of) }
@@ -436,9 +436,9 @@ final class AppModel {
         state.powerAtCheck = PowerState.summary
         state.onBatteryAtCheck = PowerState.isOnBattery
         let reads = rowReader != nil
-        IdleTimer.hold()
+        state.holdScreen()
         state.checkTask = Task {
-            defer { IdleTimer.release() }
+            defer { state.releaseScreen() }
             for (chart, section) in plan {
                 // Skip settles every piece whose turn had not come; nothing here may write one after it.
                 if Task.isCancelled { break }
@@ -504,9 +504,9 @@ final class AppModel {
         guard #available(iOS 26, *), let reader = rowReader as? ProseReader else { return }
         state.measuring = true
         state.measuringStep = "starting"
-        IdleTimer.hold()
+        state.holdScreen()
         defer {
-            IdleTimer.release()
+            state.releaseScreen()
             state.measuring = false
         }
         let context = ["the app was \(Self.describe(UIApplication.shared.applicationState)) while measuring",

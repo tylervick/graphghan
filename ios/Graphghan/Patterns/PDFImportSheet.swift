@@ -53,7 +53,23 @@ final class PDFImportState {
     /// The measurement in flight, so Cancel and "Add to library" stop it: it asks the model for
     /// minutes and holds the screen awake, neither of which may outlive the sheet.
     var measureTask: Task<Void, Never>? = nil
+    /// How many of `IdleTimer`'s holds this import has taken and not yet let go. The app-wide
+    /// count is shared with every other import running at the same time (tests run suites in
+    /// parallel), so a check of one import's holds reads this instead (#227).
+    var screenHolds = 0
     init(fileName: String) { self.fileName = fileName }
+
+    /// Holds the screen awake for this import; every `holdScreen` is paired with one
+    /// `releaseScreen`.
+    func holdScreen() {
+        IdleTimer.hold()
+        screenHolds += 1
+    }
+
+    func releaseScreen() {
+        IdleTimer.release()
+        screenHolds = max(0, screenHolds - 1)
+    }
 
     /// The outline's chart index for a review-list piece (`OutlineDraft.Piece.id`), nil for a
     /// written piece.
