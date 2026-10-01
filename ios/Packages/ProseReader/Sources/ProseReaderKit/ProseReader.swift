@@ -451,6 +451,14 @@ public struct ProseReader: Sendable {
     }
 }
 
+/// A written row's head, split: the label as printed, the rows it covers, and the text after it.
+public struct RowHead: Equatable, Sendable {
+    public let label: String
+    public let rows: [Int]
+    public let body: String
+    public init(label: String, rows: [Int], body: String) { self.label = label; self.rows = rows; self.body = body }
+}
+
 /// Text handling that needs no model: finding the rows on a page, tidying what the model returns.
 public enum RowText {
     /// The head of a written row in every spelling the corpus uses (#146): "Row 12 (WS):",
@@ -466,7 +474,8 @@ public enum RowText {
         // A side marker is a bracketed or parenthesised group or a bare RS/WS/LR/RL: any other text
         // between the number and the period is a sentence ("Row 1 starts here. Continue").
         let marker = #"((?:\s*\([^()\n]{1,24}\)|\s*\[[^\[\]\n]{1,12}\]|\s+(?:RS|WS|LR|RL))?)"#
-        let range = #"(\d+(?:\s*(?:[-–]|&|and)\s*\d+)?)"#
+        // "R 2 - R 26" and "Rows 3 - Row 5" repeat the row word before the range's end (#222).
+        let range = #"(\d+(?:\s*(?:[-–]|&|and)\s*(?:(?:Rows?|ROWS?|R)\s*\.?\s*)?\d+)?)"#
         let run = #"(?:\d+\s*(?!(?:sc|dc|hdc|tr|ch|sts?|sl)\b)[A-Za-z]{1,3}\b|\([A-Za-z][A-Za-z ]*\))"#
         return "(?:(?:Rows?|ROWS?|R)\\s*\\.?\\s*" + range + marker + ending
             + "|(\\d+)(?:st|nd|rd|th)\\s+[Rr]ow" + marker + ending
@@ -529,9 +538,20 @@ public enum RowText {
         for raw in text.split(whereSeparator: \.isNewline) {
             let whole = raw.trimmingCharacters(in: .whitespaces)
             if whole.isEmpty { continue }
-            // Cut a line wherever another row head begins inside it.
-            let pieces = rowInside.stringByReplacingMatches(in: whole, range: NSRange(whole.startIndex..., in: whole), withTemplate: "\n")
-                .split(separator: "\n").map { $0.trimmingCharacters(in: .whitespaces) }
+            // Cut a line wherever another row head begins inside it — but never inside the
+            // line's own leading head ("R 2 - R 26:" must not split at its inner "R 26").
+            let ownHead: String
+            let splitFrom: String
+            if let m = rowStart.firstMatch(in: whole, range: NSRange(whole.startIndex..., in: whole)),
+               let headEnd = Range(m.range, in: whole)?.upperBound {
+                ownHead = String(whole[..<headEnd])
+                splitFrom = String(whole[headEnd...])
+            } else {
+                ownHead = ""
+                splitFrom = whole
+            }
+            let cut = rowInside.stringByReplacingMatches(in: splitFrom, range: NSRange(splitFrom.startIndex..., in: splitFrom), withTemplate: "\n")
+            let pieces = (ownHead + cut).split(separator: "\n").map { $0.trimmingCharacters(in: .whitespaces) }
             for line in pieces where !line.isEmpty {
                 let range = NSRange(line.startIndex..., in: line)
                 if rowStart.firstMatch(in: line, range: range) != nil {
@@ -593,6 +613,14 @@ public enum RowText {
         guard numbers.count == 2, let last = numbers.last, last >= first, last - first <= 300 else { return [first] }
         if h.number.contains("&") || h.number.contains("and") { return [first, last] }
         return Array(first...last)
+    }
+
+    /// The head's printed label ("R 2 - R 26", "R 1 [←]"), its rows, and the row's own text.
+    public static func splitHead(_ block: String) -> RowHead? {
+        guard let h = head(of: block) else { return nil }
+        let head = block[..<h.end].trimmingCharacters(in: .whitespaces)
+        let label = head.trimmingCharacters(in: CharacterSet(charactersIn: ":.-–—").union(.whitespaces))
+        return RowHead(label: label, rows: rowNumbers(of: block), body: block[h.end...].trimmingCharacters(in: .whitespacesAndNewlines))
     }
 
     /// True when a block's head names exactly one row: no range, "&" or "and". A head that names
