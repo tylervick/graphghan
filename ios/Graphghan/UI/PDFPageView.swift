@@ -11,6 +11,9 @@ import SwiftUI
 struct PDFPageView: UIViewRepresentable {
     let data: Data
     let page: Int
+    /// Who these bytes are, from the caller (the viewer request's id): with `data.count`, the
+    /// cheap key `updateUIView` compares instead of the whole PDF on every render.
+    let documentID: AnyHashable
 
     /// What has already been applied to the `PDFView`, so `updateUIView` -- called on every
     /// SwiftUI re-render, not just when `data` or `page` actually change -- does not rebuild the
@@ -18,7 +21,8 @@ struct PDFPageView: UIViewRepresentable {
     /// `view.document` against a document freshly allocated from `data` is always a mismatch,
     /// since `PDFDocument(data:)` never returns the same instance twice).
     final class Coordinator {
-        var data: Data?
+        struct DocumentKey: Equatable { let id: AnyHashable; let count: Int }
+        var document: DocumentKey?
         var page: Int?
     }
 
@@ -35,11 +39,12 @@ struct PDFPageView: UIViewRepresentable {
         apply(to: view, coordinator: context.coordinator)
     }
 
-    private func apply(to view: PDFView, coordinator: Coordinator) {
-        if coordinator.data != data {
+    func apply(to view: PDFView, coordinator: Coordinator) {
+        let key = Coordinator.DocumentKey(id: documentID, count: data.count)
+        if coordinator.document != key {
             guard let document = PDFDocument(data: data) else { return }
             view.document = document
-            coordinator.data = data
+            coordinator.document = key
             coordinator.page = nil  // the new document has shown no page yet
         }
         guard coordinator.page != page, let document = view.document, document.pageCount > 0 else { return }

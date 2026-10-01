@@ -58,6 +58,8 @@ struct ProjectDetailView: View {
                                          // happens on its executor, not here.
                                          if let data = await model.sourcePDF(for: project.patternID) {
                                              pdfViewer = PDFViewerRequest(data: data, page: page)
+                                         } else {
+                                             actionError = "The PDF couldn't be opened."
                                          }
                                      }
                                  })
@@ -118,7 +120,7 @@ struct ProjectDetailView: View {
         }
         .sheet(item: $pdfViewer) { viewer in
             NavigationStack {
-                PDFPageView(data: viewer.data, page: viewer.page)
+                PDFPageView(data: viewer.data, page: viewer.page, documentID: viewer.id)
                     .ignoresSafeArea(edges: .bottom)
                     .toolbar {
                         ToolbarItem(placement: .confirmationAction) { Button("Done") { pdfViewer = nil } }
