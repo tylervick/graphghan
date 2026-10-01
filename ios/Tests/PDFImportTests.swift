@@ -414,6 +414,22 @@ import ProseReaderKit
         #expect(await base.local.sourcePDF(for: manifest.id) == reading.pdf)
     }
 
+    /// One chart made twice keeps its make: manifest 1 cannot say it, so it saves as one piece.
+    @Test func oneChartMadeTwiceSavesAsAPiece() async throws {
+        let base = try await make()
+        let importer = base.importer()
+        let reading = try await readBag(importer)
+        let pieced = try #require(reading.pieced)
+        var draft = OutlineDraft(pieced.outline, charts: pieced.charts)
+        for piece in draft.pieces.dropFirst() { draft.remove(piece.id) }
+        for step in draft.assembly { draft.removeStep(step.id) }
+        draft.setMake(draft.pieces[0].id, 2)
+        let manifest = try await importer.savePieced(reading, draft: draft, records: [:])
+        let local = try #require(await base.local.manifest(for: manifest.id))
+        #expect(local.schema == 2 && local.charts.count == 1)
+        #expect(local.pieces?.map(\.make) == [2])
+    }
+
     /// Review Focus 4: a written piece that does not start at row 1 is refused, and nothing is
     /// written -- no chart, no rows, no pattern directory, no stray `source.pdf`.
     @Test func aFailedPiecedSaveWritesNothing() async throws {

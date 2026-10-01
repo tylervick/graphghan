@@ -90,9 +90,10 @@ struct OutlineDraft: Equatable, Sendable {
         return result
     }
 
-    /// One chart, nothing else: save as today (spec §7.4, §7.5).
+    /// One chart made once, nothing else: save as today (spec §7.4, §7.5). Manifest 1 has no
+    /// make, so one chart made twice saves as a piece.
     var isSingleChart: Bool {
-        pieces.count == 1 && pieces[0].isChart && assembly.isEmpty
+        pieces.count == 1 && pieces[0].isChart && pieces[0].make == 1 && assembly.isEmpty
     }
 }
 

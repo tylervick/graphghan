@@ -48,5 +48,8 @@ import GraphghanCore
         #expect(!d.isSingleChart)
         d.remove(1); d.remove(2); d.removeStep(0)
         #expect(d.isSingleChart)
+        // Manifest 1 has no make: one chart made twice saves as pieces, so the 2 is kept.
+        d.setMake(0, 2)
+        #expect(!d.isSingleChart)
     }
 }
