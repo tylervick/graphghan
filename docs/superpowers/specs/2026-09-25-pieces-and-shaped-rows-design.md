@@ -448,8 +448,8 @@ committed, so the fixtures are hand-built in its shape:
   `charts`.
 - `fixtures/bundle/`: one pieced bundle, drift-tested like the rest.
 - Real: `PDFImportRealTests` pins Orca's outline (2 chart pieces, both schema 3, their spans; the
-  written pieces found; the strap in the left-out sentence), skipping when the PDF is absent. The
-  Python `test_import_real.py` keeps the flat hashes it pins today (#214).
+  written pieces found; the strap's page 13 inside the "Pages 13–16" step until #211), skipping
+  when the PDF is absent. The Python `test_import_real.py` keeps the flat hashes it pins today (#214).
 
 Python and Swift both run every fixture, as today.
 
@@ -458,10 +458,10 @@ Python and Swift both run every fixture, as today.
 - Every existing chart, bundle and fixture reads unchanged and hashes the same.
 - Orca's PDF, opened on the phone, offers a review list with the front and back panels as shaped
   chart pieces (pass 1 is 9 stitches at `x0` 6, the widest 29, pass 77 is 3; 3 colours each), each
-  with its own check, the written pieces `RowText` finds, proposed assembly pages, and the strap
-  named as left out. Saved, it starts one project whose Work screen shows row 1 of the front
-  panel as 9 stitches with no light blue, and whose Projects row reads "Front panel · Row 1 of 77 ·
-  0 of N pieces".
+  with its own check, the written pieces `RowText` finds, and proposed assembly pages (the
+  strap's page 13 among them until #211). Saved, it starts one project whose Work screen shows
+  row 1 of the front panel as 9 stitches with no light blue, and whose Projects row reads
+  "Front panel · Row 1 of 77 · 0 of N pieces".
   `orcaImportsAsAPiecedPattern` (2026-10-01) confirms this on the simulator: the review list
   offers all nine pieces (the front and back panels, the page-7 reading example, Head Tail,
   Dorsal Fin, both pectoral fins, Tail, and the page-12 written rows) and both assembly steps; the
