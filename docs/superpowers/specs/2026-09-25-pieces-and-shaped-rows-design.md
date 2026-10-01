@@ -87,7 +87,8 @@ Stated plainly, because the design changes each of these:
 - #200: whether a server model is needed to name pieces and read assembly. This spec defines the
   interface it would plug into (§7.3) and nothing more.
 - #210: a row with a gap (two stitched spans); refused by schema 3.
-- #211: pieces written as numbered steps, not row heads (Orca's strap); left out and named.
+- #211: pieces written as numbered steps, not row heads (Orca's strap); until then its page
+  sits inside an assembly step.
 - #212: split, merge and add in the review list.
 - #213: alternative charts per piece.
 - #214: the Python writing pieced patterns (import CLI, generator, site).
@@ -399,8 +400,10 @@ only (`FoundOutline`):
   R 1–14".
 - **Assembly**: pages no piece used, proposed as one step per run of consecutive pages
   ("Pages 13–16").
-- **Left out**: anything found that is not a piece, in #209's sentence. Orca's strap is numbered
-  steps, which `RowText` does not find (#211); the sheet does not invent it.
+- **Left out**: text found after a piece's last row, in the review list's own "Left out: …" line
+  (#209's sentence shows only when there is no list). Orca's strap is numbered steps, which
+  `RowText` does not find (#211); the sheet does not invent it, and its page falls inside an
+  assembly step.
 
 A server reader from #200 would conform to `PieceReading` and pre-fill the same list with better
 titles, the strap and real step text. Nothing after the outline changes.
