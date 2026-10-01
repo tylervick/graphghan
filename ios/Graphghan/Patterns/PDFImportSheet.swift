@@ -30,6 +30,12 @@ final class PDFImportState {
     /// The row check under "Chart found" (spec §5.2), and its task so Skip and Cancel can stop it.
     var check: CheckStage = .none
     var checkTask: Task<Void, Never>? = nil
+    /// A pieced PDF's checks, one per chart piece with written rows (pieces spec §7.2), keyed by
+    /// chart index (`FoundParts.charts`, as `PieceKind.chart` counts). `check` stays `.none` then.
+    var pieceChecks: [Int: CheckStage] = [:]
+    /// The chart pieces being checked, in the order they are checked, with the rows each is
+    /// checked against: what "Skip the check" settles when it stops them.
+    var pieceCheckPlan: [(chart: Int, section: RowSection)] = []
     /// What the app's scene was doing when the check started, for the probe's report (#176).
     var appStateAtCheck: String = ""
     /// And what the iPhone's power situation was, which nobody thought to note on the first
@@ -48,6 +54,42 @@ final class PDFImportState {
     /// minutes and holds the screen awake, neither of which may outlive the sheet.
     var measureTask: Task<Void, Never>? = nil
     init(fileName: String) { self.fileName = fileName }
+
+    /// The outline's chart index for a review-list piece (`OutlineDraft.Piece.id`), nil for a
+    /// written piece.
+    func chartIndex(ofPiece id: Int) -> Int? {
+        guard let pieces = reading?.pieced?.outline.pieces, pieces.indices.contains(id), case .chart(let c) = pieces[id].kind else { return nil }
+        return c
+    }
+
+    /// "Checking Back: written row 4 of 15…" while a chart piece's check runs, with its progress;
+    /// nil otherwise.
+    var pieceChecking: (line: String, done: Int, of: Int)? {
+        for (chart, _) in pieceCheckPlan {
+            guard case .running(let done, let of) = pieceChecks[chart] else { continue }
+            let title = draft?.pieces.first { chartIndex(ofPiece: $0.id) == chart }?.title
+                ?? reading?.pieced?.outline.pieces.first { $0.kind == .chart(chart) }?.title ?? "chart \(chart + 1)"
+            return ("Checking \(title): written row \(done) of \(of)…", done, of)
+        }
+        return nil
+    }
+
+    /// Each checked chart piece's line in the review list, keyed by `OutlineDraft.Piece.id`: the
+    /// words the one-chart sheet shows under its check.
+    var pieceCheckLines: [Int: String] {
+        var lines: [Int: String] = [:]
+        for piece in draft?.pieces ?? [] {
+            guard let chart = chartIndex(ofPiece: piece.id), case .done(let record) = pieceChecks[chart],
+                  let line = Self.checkSentence(record) else { continue }
+            lines[piece.id] = line
+        }
+        return lines
+    }
+
+    /// Nothing to say for a chart with no written rows; agreement only for a finished check.
+    static func checkSentence(_ record: ImportRecord) -> String? {
+        record.sentence ?? (record.check == .finished ? "Written rows agree with the chart." : nil)
+    }
 
     /// Cancel while the model reads or before the chart is added; Done once it failed.
     var isCancellable: Bool {
@@ -97,7 +139,14 @@ struct PDFImportSheet: View {
                             }
                             if let draft = state.draft {
                                 OutlineReviewSection(draft: Binding(get: { state.draft ?? draft }, set: { state.draft = $0 }),
-                                                     leftOut: r.pieced?.outline.leftOut ?? [])
+                                                     leftOut: r.pieced?.outline.leftOut ?? [], checkLines: state.pieceCheckLines)
+                            }
+                            if let checking = state.pieceChecking {
+                                VStack(spacing: 6) {
+                                    Text(checking.line).font(Font.Heather.caption).foregroundStyle(Color.ink2).monospacedDigit()
+                                    ProgressView(value: Double(checking.done), total: Double(max(checking.of, 1))).tint(Color.ink)
+                                    Button("Skip the check") { model.skipPDFCheck() }.font(Font.Heather.caption)
+                                }
                             }
                         }
                         switch state.check {
@@ -111,8 +160,7 @@ struct PDFImportSheet: View {
                             }
                         case .done(let record):
                             VStack(spacing: 8) {
-                                // Nothing to say for a chart with no written rows; agreement only for a finished check.
-                                if let sentence = record.sentence ?? (record.check == .finished ? "Written rows agree with the chart." : nil) {
+                                if let sentence = PDFImportState.checkSentence(record) {
                                     if record.problem == nil {
                                         Text(sentence).font(Font.Heather.caption).foregroundStyle(Color.ink2).multilineTextAlignment(.center)
                                     } else {

@@ -301,6 +301,29 @@ import ProseReaderKit
         #expect(reading.pdf.count > 0)
     }
 
+    /// Each chart piece is checked against the rows the outline paired it with, not against the
+    /// first set as tall as it (pieces spec §7.2): the Front against the Front's, the Back the Back's.
+    @Test func eachChartPieceIsCheckedAgainstItsOwnRows() async throws {
+        let rows = "Front\n" + PDFTestDocuments.colourRows + "\nBack\n" + PDFTestDocuments.colourRows
+        let asked = Asked()
+        let importer = try await make().importer(rowReader: StubRowReader(document: Self.chartDocument(), delayPerRow: .zero, asked: asked))
+        let reading = try await importer.read(try #require(PDFTestDocuments.twoCharts(rowsText: rows)), fileName: "bag.pdf")
+        let pieced = try #require(reading.pieced)
+        var records: [ImportRecord] = []
+        for piece in pieced.outline.pieces {
+            guard case .chart(let c) = piece.kind, let s = piece.pairedSection else { continue }
+            records.append(await importer.check(chart: pieced.charts[c], section: pieced.sections[s], pageTexts: reading.pageTexts, progress: nil))
+        }
+        let sections = await asked.sections.compactMap { $0 }
+        #expect(sections.count == 2 && sections.allSatisfy { $0.rows == 15 })
+        #expect(sections == [pieced.sections[0], pieced.sections[1]])
+        let first = try #require(sections.first?.blocks.first), second = try #require(sections.last?.blocks.first)
+        // Both runs print the same words; the Front's comes first on the page, the Back's after it.
+        #expect((first.page, first.index) < (second.page, second.index))
+        #expect(first.text.hasPrefix("Row 1: 3 B") && second.text.hasPrefix("Row 1: 3 B"))
+        #expect(records.allSatisfy { $0.check == .finished && $0.rowsTotal == 15 && $0.rowsDisagree.isEmpty && $0.problem == nil })
+    }
+
     @Test func oneChartAndNothingElseIsReadAsToday() async throws {
         let pdf = try #require(PDFTestDocuments.chart(rows: true))
         let reading = try await make().importer().read(pdf, fileName: "x.pdf")

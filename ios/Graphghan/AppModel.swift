@@ -380,6 +380,10 @@ final class AppModel {
     /// lands in `state.check`; "Add to library" writes it into the chart.
     private func startPDFCheck(_ state: PDFImportState, importer: PDFImporter) {
         guard let reading = state.reading else { return }
+        if let pieced = reading.pieced, let draft = state.draft, !draft.isSingleChart {
+            startPieceChecks(state, reading: reading, pieced: pieced, draft: draft, importer: importer)
+            return
+        }
         if case .grid(_, let total) = reading.source, total > 0, rowReader != nil { state.check = .running(done: 0, of: total) }
         // The sheet arrives through `onOpenURL` while the scene is still activating from the share
         // sheet, and whether the system counts the app as foreground at this moment is #176's
@@ -396,6 +400,51 @@ final class AppModel {
                 }
             }
             state.check = .done(record)
+        }
+    }
+
+    /// A pieced PDF's checks (pieces spec §7.2): each chart piece still in the review list that
+    /// has written rows paired with it, in the list's order, one after another in one task, so
+    /// the model is asked one row at a time as before. Each record lands in `pieceChecks`.
+    private func startPieceChecks(_ state: PDFImportState, reading: PDFImportReading, pieced: PiecedReading,
+                                  draft: OutlineDraft, importer: PDFImporter) {
+        let plan: [(chart: Int, section: RowSection)] = draft.pieces.compactMap { piece in
+            guard pieced.outline.pieces.indices.contains(piece.id) else { return nil }
+            let outline = pieced.outline.pieces[piece.id]
+            guard case .chart(let c) = outline.kind, pieced.charts.indices.contains(c),
+                  let s = outline.pairedSection, pieced.sections.indices.contains(s) else { return nil }
+            return (c, pieced.sections[s])
+        }
+        guard !plan.isEmpty else { return }
+        state.pieceCheckPlan = plan
+        state.pieceChecks = [:]
+        state.appStateAtCheck = Self.describe(UIApplication.shared.applicationState)
+        state.powerAtCheck = PowerState.summary
+        state.onBatteryAtCheck = PowerState.isOnBattery
+        let reads = rowReader != nil
+        IdleTimer.hold()
+        state.checkTask = Task {
+            defer { IdleTimer.release() }
+            for (chart, section) in plan {
+                // Skip settles every piece whose turn had not come; nothing here may write one after it.
+                if Task.isCancelled { break }
+                if reads, section.rows > 0 { state.pieceChecks[chart] = .running(done: 0, of: section.rows) }
+                let record = await importer.check(chart: pieced.charts[chart], section: section, pageTexts: reading.pageTexts) { p in
+                    Task { @MainActor in
+                        if case .checking(let done, let of) = p, case .running = state.pieceChecks[chart] {
+                            state.pieceChecks[chart] = .running(done: done, of: of)
+                        }
+                    }
+                }
+                // The piece that was being read: its own record, stopped at the row it reached,
+                // replaces the one Skip put down for it.
+                state.pieceChecks[chart] = .done(record)
+            }
+            // Stopped some other way than Skip ("Add to library"): the pieces never reached get
+            // the record of a check stopped before its read, as Skip would have left them.
+            for (chart, section) in plan where state.pieceChecks[chart] == nil {
+                state.pieceChecks[chart] = .done(importer.unchecked(pieced.charts[chart].draft, section: section))
+            }
         }
     }
 
@@ -454,8 +503,23 @@ final class AppModel {
     }
 
     /// "Skip the check": the reader stops between rows; what it read is compared and recorded.
+    ///
+    /// For a pieced PDF, every chart piece not yet finished is settled here, before Skip returns:
+    /// the one being read as stopped at the row it reached (its read then replaces that with
+    /// what it compared), the ones not yet started as stopped at row 0.
     func skipPDFCheck() {
         pdfImport?.checkTask?.cancel()
+        guard let state = pdfImport, let pieced = state.reading?.pieced, !state.pieceCheckPlan.isEmpty else { return }
+        let importer = pdfImporter
+        for (chart, section) in state.pieceCheckPlan {
+            var record = importer.unchecked(pieced.charts[chart].draft, section: section)
+            switch state.pieceChecks[chart] {
+            case .some(.done): continue
+            case .some(.running(let done, _)): record.rowsChecked = done
+            default: break
+            }
+            state.pieceChecks[chart] = .done(record)
+        }
     }
 
     /// "Add to library": the bundle importer's order, then the same landing as an opened bundle.

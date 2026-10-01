@@ -272,7 +272,7 @@ struct PDFImporter: Sendable {
             draft.written = Self.writtenRows(paired.map { sections[$0] }, height: d.chart.rows)
             let (bundle, preview, chart) = try Self.bundle(for: draft, title: title, version: "0.1.0", fileName: fileName)
             charts.append(PiecedChart(found: d.chart, draft: draft, preview: preview, width: chart.width, height: chart.height,
-                                      colours: bundle.manifest.charts[0].colors))
+                                      colours: bundle.manifest.charts[0].colors, chart: chart))
         }
         return PiecedReading(outline: outline, charts: charts, sections: sections, pdf: pdf)
     }
@@ -309,13 +309,43 @@ struct PDFImporter: Sendable {
     /// The written rows read and compared with the chart (spec §4.2): the outcome as the record
     /// the chart carries. Cancelling stops the reader between rows; what was read is compared.
     func check(_ reading: PDFImportReading, progress: (@Sendable (PDFImportProgress) -> Void)?) async -> ImportRecord {
-        var record = ImportRecord(json: reading.draft.ext) ?? ImportRecord(grid: true, check: .noRows, rowsChecked: 0, rowsTotal: 0, rowsDisagree: [], gaugePrinted: false, problem: nil)
-        guard case .grid(_, let total) = reading.source, total > 0 else { record.check = .noRows; return record }
-        record.rowsTotal = total
-        guard let rowReader else { record.check = .unavailable; return record }
+        guard case .grid(_, let total) = reading.source, total > 0 else { return unchecked(reading.draft, section: nil) }
+        // Without a reader the rows are not looked for again: the record says so straight away.
+        guard rowReader != nil else {
+            var record = unchecked(reading.draft, section: nil)
+            record.rowsTotal = total
+            record.check = .unavailable
+            return record
+        }
         let section = RowText.section(fitting: reading.height, in: reading.pageTexts)
+        return await check(reading.draft, chart: reading.bundle.charts[0].chart, section: section, pageTexts: reading.pageTexts, progress: progress)
+    }
+
+    /// One chart piece of a pieced PDF against its own paired rows (pieces spec §7.2): the same
+    /// check, with the section the outline paired it with rather than one found by height.
+    func check(chart: PiecedChart, section: RowSection?, pageTexts: [String],
+               progress: (@Sendable (PDFImportProgress) -> Void)?) async -> ImportRecord {
+        await check(chart.draft, chart: chart.chart, section: section, pageTexts: pageTexts, progress: progress)
+    }
+
+    /// The record a check comes to when it is stopped before its read starts: no rows to check,
+    /// no model to check them with, or stopped at row 0 -- what "Skip the check" leaves for a
+    /// chart piece whose turn had not come (pieces spec §7.2).
+    func unchecked(_ draft: ChartDraft, section: RowSection?) -> ImportRecord {
+        var record = ImportRecord(json: draft.ext) ?? ImportRecord(grid: true, check: .noRows, rowsChecked: 0, rowsTotal: 0, rowsDisagree: [], gaugePrinted: false, problem: nil)
+        guard let section, section.rows > 0 else { record.check = .noRows; return record }
+        record.rowsTotal = section.rows
+        record.check = rowReader == nil ? .unavailable : .stopped
+        return record
+    }
+
+    private func check(_ draft: ChartDraft, chart: Chart, section: RowSection?, pageTexts: [String],
+                       progress: (@Sendable (PDFImportProgress) -> Void)?) async -> ImportRecord {
+        var record = unchecked(draft, section: section)
+        guard let section, section.rows > 0, let rowReader else { return record }
+        let total = section.rows
         progress?(.checking(done: 0, of: total))
-        let doc = await rowReader.read(pages: reading.pageTexts, section: section) { p in progress?(.checking(done: p.rowsSoFar, of: p.rowsTotal)) }
+        let doc = await rowReader.read(pages: pageTexts, section: section) { p in progress?(.checking(done: p.rowsSoFar, of: p.rowsTotal)) }
         let all = doc.written_rows ?? []
         // A row the reader returned unread is named, never dropped, as the rows-only path does.
         let unread = all.compactMap { r -> String? in
@@ -340,7 +370,6 @@ struct PDFImporter: Sendable {
             record.problem = ImportRecord.modelBusy
             return record
         }
-        let chart = reading.bundle.charts[0].chart
         if let w = doc.chart?.width, let h = doc.chart?.height, w > 0, h > 0, (w, h) != (chart.width, chart.height) {
             record.problem = "written rows give \(w)x\(h), the chart reads \(chart.width)x\(chart.height)"
             return record
@@ -550,6 +579,8 @@ struct PiecedChart: Sendable {
     let height: Int
     /// Yarn colours, as `PDFImportReading.colours`.
     let colours: Int
+    /// The chart as drafted, which its check compares the written rows with.
+    let chart: Chart
 }
 
 /// What a PDF of several pieces holds, for the review list, the checks and the save (spec §7).

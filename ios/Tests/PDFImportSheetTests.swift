@@ -160,6 +160,43 @@ import ProseReaderKit
         #expect(record.sentence?.hasPrefix("Written rows checked up to row \(record.rowsChecked); \(record.rowsChecked + 1)–15 not checked.") == true)
     }
 
+    /// Review Focus 3, the checking half: Skip during the second chart piece's check leaves the
+    /// first piece's finished record and settles the second as stopped, before Skip returns, and
+    /// the cancelled task writes nothing over it afterwards. The saving half is Task 8's.
+    @Test func skippingTheSecondPiecesCheckKeepsTheFirst() async throws {
+        let model = try await make(rowReader: PDFImportTests.StubRowReader(document: PDFImportTests.chartDocument(), delayPerRow: .milliseconds(60)))
+        let rows = "Front\n" + PDFTestDocuments.colourRows + "\nBack\n" + PDFTestDocuments.colourRows
+        await model.importPDF(data: try #require(PDFTestDocuments.twoCharts(rowsText: rows)), fileName: "bag.pdf")
+        let state = try #require(model.pdfImport)
+        #expect(state.check == .none && state.pieceCheckPlan.map(\.chart) == [0, 1])
+        var secondRunning = false
+        for _ in 0..<500 {
+            if case .running = state.pieceChecks[1] { secondRunning = true; break }
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        try #require(secondRunning)
+        #expect(state.pieceChecking?.line.hasPrefix("Checking Back: written row ") == true)
+        model.skipPDFCheck()
+        func expectSettled() throws {
+            guard case .done(let first) = state.pieceChecks[0], case .done(let second) = state.pieceChecks[1] else {
+                Issue.record("not settled: \(state.pieceChecks)"); return
+            }
+            #expect(first.check == .finished && first.rowsChecked == 15 && first.rowsDisagree.isEmpty)
+            #expect(second.check == .stopped && second.rowsTotal == 15 && second.rowsChecked < 15)
+            #expect(state.pieceChecks.keys.sorted() == [0, 1])
+        }
+        try expectSettled()
+        try await Task.sleep(for: .milliseconds(300))
+        try expectSettled()
+        #expect(state.pieceChecking == nil)
+        let lines = state.pieceCheckLines
+        #expect(lines.count == 2 && lines.values.contains("Written rows agree with the chart."))
+        #expect(lines.values.contains { $0.hasPrefix("Written rows checked up to row ") })
+        // The cancelled task has ended and let the screen go; nothing of it reaches the next test.
+        await state.checkTask?.value
+        try expectSettled()
+    }
+
     @Test func addingBeforeTheCheckEndsSavesItAsStopped() async throws {
         let model = try await make(rowReader: PDFImportTests.StubRowReader(document: PDFImportTests.chartDocument(), delayPerRow: .milliseconds(300)))
         await model.importPDF(data: try #require(PDFTestDocuments.chart(rows: true)), fileName: "drawn.pdf")

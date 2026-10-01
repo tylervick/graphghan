@@ -9,6 +9,8 @@ import GraphghanCore
 struct OutlineReviewSection: View {
     @Binding var draft: OutlineDraft
     let leftOut: [String]
+    /// Each checked chart piece's check line, by `OutlineDraft.Piece.id` (pieces spec §7.2).
+    var checkLines: [Int: String] = [:]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -47,7 +49,9 @@ struct OutlineReviewSection: View {
                     Text(Self.piecePages(piece.pages)).font(Font.Heather.caption).foregroundStyle(Color.ink2)
                 }
                 Text("\(piece.rows) rows").font(Font.Heather.caption).foregroundStyle(Color.ink2)
-                // The per-chart check line (Task 7) goes here; nothing until then.
+            }
+            if let line = checkLines[piece.id] {
+                Text(line).font(Font.Heather.caption).foregroundStyle(Color.ink2)
             }
             HStack(spacing: 10) {
                 Stepper("Make × \(piece.make)", value: Binding(get: { piece.make }, set: { draft.setMake(piece.id, $0) }), in: 1...20)
