@@ -522,6 +522,9 @@ struct PDFImporter: Sendable {
             preview: built.isEmpty ? "" : "preview.png")
         let manifest: PatternManifest
         do { manifest = try JSONDecoder().decode(PatternManifest.self, from: manifestData) } catch { throw PDFImportError.invalidChart("manifest: \(error)") }
+        // The checks `PatternBundle.read` makes, before anything is written: a pattern saved here
+        // must open again, and must open as a bundle somewhere else.
+        do { try PatternBundle.validate(manifest) } catch let error as BundleError { throw PDFImportError.invalidChart("manifest: \(error.message)") }
         var previews: [String: Data] = [:]
         // Written pieces only: no chart, no preview, and the manifest names none.
         if let first = built.first, !manifest.preview.isEmpty { previews[manifest.preview] = first.preview }

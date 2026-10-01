@@ -372,4 +372,37 @@ import Testing
         #expect(bundle.manifest.charts.isEmpty)
         #expect(bundle.previews.isEmpty)
     }
+
+    // ---- validate: the manifest checks, without an archive (the phone's own save runs them) ----
+
+    /// The committed pieced manifest with its `pieces` passed through `edit`, decoded.
+    static func piecedManifest(_ edit: (inout [[String: Any]]) -> Void) throws -> PatternManifest {
+        var manifest = try #require(try JSONSerialization.jsonObject(with: Fixtures.pieces("pattern.json")) as? [String: Any])
+        var pieces = try #require(manifest["pieces"] as? [[String: Any]])
+        edit(&pieces)
+        manifest["pieces"] = pieces
+        return try JSONDecoder().decode(PatternManifest.self, from: JSONSerialization.data(withJSONObject: manifest))
+    }
+
+    @Test func validatePassesTheCommittedPiecedManifest() throws {
+        try PatternBundle.validate(Self.piecedManifest { _ in })
+    }
+
+    @Test func validateRefusesTwoPiecesWithOneID() throws {
+        let manifest = try Self.piecedManifest { $0[2]["id"] = "strip" }
+        #expect(throws: BundleError.duplicatePiece(piece: "strip")) { try PatternBundle.validate(manifest) }
+    }
+
+    /// Spec §5.3: a pieced manifest lists each chart once and no two pieces name the same one
+    /// (`validate_manifest` refuses it too). The same grid twice is one piece made twice.
+    @Test func validateRefusesTwoPiecesNamingOneChart() throws {
+        let manifest = try Self.piecedManifest { pieces in
+            var copy = pieces[0]
+            copy["id"] = "panel-2"
+            pieces.append(copy)
+        }
+        #expect(throws: BundleError.pieceSharesChart(piece: "panel-2")) { try PatternBundle.validate(manifest) }
+        #expect(BundleError.pieceSharesChart(piece: "panel-2").message
+            == "The piece “panel-2” names the same chart as another piece.")
+    }
 }
