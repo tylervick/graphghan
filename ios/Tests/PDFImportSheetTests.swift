@@ -166,7 +166,8 @@ import ProseReaderKit
     @Test func skippingTheSecondPiecesCheckKeepsTheFirst() async throws {
         let model = try await make(rowReader: PDFImportTests.StubRowReader(document: PDFImportTests.chartDocument(), delayPerRow: .milliseconds(60)))
         let rows = "Front\n" + PDFTestDocuments.colourRows + "\nBack\n" + PDFTestDocuments.colourRows
-        await model.importPDF(data: try #require(PDFTestDocuments.twoCharts(rowsText: rows)), fileName: "bag.pdf")
+        // A Back one cell different from the Front: two charts, each saved with its own record.
+        await model.importPDF(data: try #require(PDFTestDocuments.twoCharts(rowsText: rows, distinctBack: true)), fileName: "bag.pdf")
         let state = try #require(model.pdfImport)
         #expect(state.check == .none && state.pieceCheckPlan.map(\.chart) == [0, 1])
         var secondRunning = false
@@ -195,6 +196,38 @@ import ProseReaderKit
         // The cancelled task has ended and let the screen go; nothing of it reaches the next test.
         await state.checkTask?.value
         try expectSettled()
+        // Add saves both pieces as one pattern, each chart with its own record.
+        await model.addImportedPDF()
+        #expect(model.pdfImport == nil)
+        #expect(model.libraryItems.contains { $0.source == .local && $0.slug == "bag" })
+        let manifest = try await model.manifest(for: "bag", path: nil)
+        #expect(manifest.schema == 2)
+        let pieces = try #require(manifest.pieces)
+        let front = try await model.charts.chart(id: try #require(pieces[0].chart))
+        let back = try await model.charts.chart(id: try #require(pieces[1].chart))
+        #expect(ImportRecord(json: front.document.ext)?.check == .finished)
+        #expect(ImportRecord(json: back.document.ext)?.check == .stopped)
+    }
+
+    /// Skip while the first piece is read: the second piece's turn never comes, so it is settled
+    /// as stopped at row 0 and the reader is never asked for it.
+    @Test func skippingTheFirstPiecesCheckNeverAsksForTheSecond() async throws {
+        let asked = Asked()
+        let model = try await make(rowReader: PDFImportTests.StubRowReader(document: PDFImportTests.chartDocument(), delayPerRow: .milliseconds(60), asked: asked))
+        let rows = "Front\n" + PDFTestDocuments.colourRows + "\nBack\n" + PDFTestDocuments.colourRows
+        await model.importPDF(data: try #require(PDFTestDocuments.twoCharts(rowsText: rows)), fileName: "bag.pdf")
+        let state = try #require(model.pdfImport)
+        var firstRunning = false
+        for _ in 0..<500 {
+            if case .running = state.pieceChecks[0] { firstRunning = true; break }
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        try #require(firstRunning)
+        model.skipPDFCheck()
+        await state.checkTask?.value
+        guard case .done(let second) = state.pieceChecks[1] else { Issue.record("not settled: \(state.pieceChecks)"); return }
+        #expect(second.check == .stopped && second.rowsChecked == 0 && second.rowsTotal == 15)
+        #expect(await asked.sections.count == 1)
     }
 
     @Test func addingBeforeTheCheckEndsSavesItAsStopped() async throws {

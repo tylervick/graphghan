@@ -436,8 +436,8 @@ final class AppModel {
                         }
                     }
                 }
-                // The piece that was being read: its own record, stopped at the row it reached,
-                // replaces the one Skip put down for it.
+                // The piece that was being read: the record it compared (stopped, unless every row
+                // had already been read) replaces the one Skip put down for it.
                 state.pieceChecks[chart] = .done(record)
             }
             // Stopped some other way than Skip ("Add to library"): the pieces never reached get
@@ -532,8 +532,17 @@ final class AppModel {
         var record: ImportRecord?
         if case .done(let r) = state.check { record = r }
         let importer = pdfImporter
+        // A reviewed outline saves as pieces, each chart with its own check (pieces spec §7.5);
+        // with none, the one chart saves as it always has.
+        var records: [Int: ImportRecord] = [:]
+        for (chart, stage) in state.pieceChecks { if case .done(let r) = stage { records[chart] = r } }
         do {
-            let manifest = try await importer.save(reading, record: record)
+            let manifest: PatternManifest
+            if let draft = state.draft {
+                manifest = try await importer.savePieced(reading, draft: draft, records: records)
+            } else {
+                manifest = try await importer.save(reading, record: record)
+            }
             manifests[manifest.id] = manifest
             for key in images.keys where key == "local:\(manifest.id)" || key.hasPrefix("\(manifest.id)/") { images[key] = nil }
             await loadLocalPatterns()

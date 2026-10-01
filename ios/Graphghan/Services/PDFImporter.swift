@@ -436,8 +436,111 @@ struct PDFImporter: Sendable {
             bundle = try Self.bundle(for: draft, title: reading.title, version: reading.version, fileName: reading.fileName).0
         }
         for chart in bundle.charts { _ = try await charts.store(chart.data) }
-        try await local.save(bundle)
+        // The PDF stays beside every local pattern made from one (pieces spec §5.5).
+        try await local.save(bundle, sourcePDF: reading.pdf.isEmpty ? nil : reading.pdf)
         return bundle.manifest
+    }
+
+    /// A pieced PDF as the maker left its review list (pieces spec §7.5): one manifest-2 pattern,
+    /// a chart per chart piece and a rows document per written piece, in the list's order, with
+    /// the PDF beside it. One chart and nothing else saves as `save` does, as manifest 1.
+    ///
+    /// Everything is built and validated before anything is written, then stored in the bundle
+    /// importer's order: charts, rows, the pattern directory whole. `records` is by chart index;
+    /// a chart piece with none is saved as not checked.
+    func savePieced(_ reading: PDFImportReading, draft: OutlineDraft, records: [Int: ImportRecord]) async throws -> PatternManifest {
+        guard let pieced = reading.pieced else { return try await save(reading) }
+        let ids = draft.pieceIDs()
+        let slug = reading.draft.pattern.id
+        let sourcePDF = reading.pdf.isEmpty ? nil : reading.pdf
+        // The chart piece's draft with its record in it, by its index into `pieced.charts`.
+        func chartDraft(_ c: Int, outline: PieceOutline) -> ChartDraft {
+            var d = pieced.charts[c].draft
+            let section = outline.pairedSection.flatMap { pieced.sections.indices.contains($0) ? pieced.sections[$0] : nil }
+            d.ext = (records[c] ?? unchecked(d, section: section)).json()
+            return d
+        }
+        func outline(of piece: OutlineDraft.Piece) throws(PDFImportError) -> PieceOutline {
+            guard pieced.outline.pieces.indices.contains(piece.id) else { throw .invalidChart("piece \(piece.id) is not in the outline") }
+            return pieced.outline.pieces[piece.id]
+        }
+
+        if draft.isSingleChart {
+            let piece = draft.pieces[0]
+            let o = try outline(of: piece)
+            guard case .chart(let c) = o.kind, pieced.charts.indices.contains(c) else { throw PDFImportError.invalidChart("no chart") }
+            let bundle = try Self.bundle(for: chartDraft(c, outline: o), title: reading.title, version: reading.version, fileName: reading.fileName).0
+            for chart in bundle.charts { _ = try await charts.store(chart.data) }
+            try await local.save(bundle, sourcePDF: sourcePDF)
+            return bundle.manifest
+        }
+
+        // A pattern of no pieces is no pattern: the bundle reader would refuse it.
+        guard !draft.pieces.isEmpty else { throw PDFImportError.nothingFound }
+        // 1–2: every chart and rows document built and validated; nothing written yet.
+        struct BuiltChart { let data: Data; let chart: Chart; let preview: Data; let input: ManifestChartInput }
+        var built: [BuiltChart] = []
+        var written: [String: (data: Data, document: RowsDocument)] = [:]  // by piece id
+        var entries: [PieceEntry] = []
+        // `FoundParts.palette`: the palette a written row's "(Name)" was matched against.
+        let foundPalette = pieced.charts.first?.draft.palette ?? []
+        for (n, piece) in draft.pieces.enumerated() {
+            guard let id = ids[piece.id] else { throw PDFImportError.invalidChart("piece \(piece.id) has no id") }
+            let title = Self.titled(piece.title, else: "Piece \(n + 1)")
+            let o = try outline(of: piece)
+            switch o.kind {
+            case .chart(let c):
+                guard pieced.charts.indices.contains(c) else { throw PDFImportError.invalidChart("piece \(id) names no chart") }
+                let d = chartDraft(c, outline: o)
+                let (data, chartID) = ChartWriter.encode(d)
+                let chart: Chart
+                do { chart = try Chart.load(data) } catch { throw PDFImportError.invalidChart("\(title): \(error)") }
+                guard let preview = ChartPreview.png(chart) else { throw PDFImportError.invalidChart("\(title): no preview") }
+                let input = ManifestChartInput(chart: chart, chartID: chartID, variant: id, gaugeKey: d.gauge.stitch ?? "sc", palette: d.palette)
+                built.append(BuiltChart(data: data, chart: chart, preview: preview, input: input))
+                entries.append(PieceEntry(id: id, title: title, make: piece.make, chart: chartID, rows: nil, rowsID: nil, pages: piece.pages))
+            case .rows:
+                // Exactly the colours its rows name, from the palette their "(Name)"s were matched
+                // against: a rows document using a code its palette lacks is refused.
+                let codes = Set(o.entries.compactMap(\.code))
+                let palette = foundPalette.filter { codes.contains($0.code) }
+                let (data, rowsID) = RowsWriter.encode(title: title, palette: palette, entries: o.entries, pages: piece.pages)
+                let document: RowsDocument
+                do { document = try RowsDocument.load(data) } catch { throw PDFImportError.rowsDoNotAssemble(["\(title): \(error)"]) }
+                written[id] = (data, document)
+                entries.append(PieceEntry(id: id, title: title, make: piece.make, chart: nil, rows: "pieces/\(id).rows.json", rowsID: rowsID, pages: piece.pages))
+            }
+        }
+        // 3: the manifest, as a bundle would carry it.
+        let assembly = draft.assembly.enumerated().map { n, step in
+            let text = pieced.outline.assembly.indices.contains(step.id) ? pieced.outline.assembly[step.id].text : nil
+            return AssemblyEntry(title: Self.titled(step.title, else: "Step \(n + 1)"), text: text, pages: step.pages)
+        }
+        let manifestData = ManifestWriter.encodePieced(
+            id: slug, title: reading.title, version: reading.version, dedication: "Imported from \(reading.fileName) on \(Self.today())",
+            charts: built.map(\.input), pieces: entries, assembly: assembly, palette: built.first?.input.palette ?? foundPalette)
+        let manifest: PatternManifest
+        do { manifest = try JSONDecoder().decode(PatternManifest.self, from: manifestData) } catch { throw PDFImportError.invalidChart("manifest: \(error)") }
+        var previews: [String: Data] = [:]
+        if let first = built.first { previews["preview.png"] = first.preview }
+        for (entry, b) in zip(manifest.charts, built) { previews[entry.preview] = b.preview }
+        let bundleCharts = zip(manifest.charts, built).map { BundleChart(entry: $0, chart: $1.chart, data: $1.data) }
+        let bundleRows = (manifest.pieces ?? []).compactMap { piece in
+            written[piece.id].map { BundleRows(piece: piece, document: $0.document, data: $0.data) }
+        }
+        let bundle = PatternBundle(manifest: manifest, manifestData: manifestData, charts: bundleCharts, previews: previews, rows: bundleRows)
+
+        // 4: only now is anything written.
+        for chart in bundle.charts { _ = try await charts.store(chart.data) }
+        for r in bundle.rows { _ = try await rows.store(r.data) }
+        try await local.save(bundle, sourcePDF: sourcePDF)
+        return manifest
+    }
+
+    /// A title as the maker left it, or `fallback` when they left it blank.
+    static func titled(_ title: String, else fallback: String) -> String {
+        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? fallback : trimmed
     }
 
     static func isHex(_ s: String) -> Bool {

@@ -18,6 +18,7 @@ import ProseReaderKit
         let rows: RowsLibrary
         let chartsDir: URL
         let localDir: URL
+        let rowsDir: URL
         func importer(rowReader: (any RowReading)? = nil, modelUnavailable: String? = nil, pieceReader: any PieceReading = FoundOutline()) -> PDFImporter {
             PDFImporter(charts: charts, local: local, rows: rows, rowReader: rowReader, modelUnavailable: modelUnavailable, pieceReader: pieceReader)
         }
@@ -26,8 +27,9 @@ import ProseReaderKit
     func make() async throws -> Base {
         let chartsDir = try temporaryDirectory()
         let localDir = try temporaryDirectory()
-        return Base(charts: ChartLibrary(directory: chartsDir), local: LocalPatternStore(directory: localDir), rows: RowsLibrary(directory: try temporaryDirectory()),
-                    chartsDir: chartsDir, localDir: localDir)
+        let rowsDir = try temporaryDirectory()
+        return Base(charts: ChartLibrary(directory: chartsDir), local: LocalPatternStore(directory: localDir), rows: RowsLibrary(directory: rowsDir),
+                    chartsDir: chartsDir, localDir: localDir, rowsDir: rowsDir)
     }
 
     /// A canned answer standing in for the model (phone import spec §9).
@@ -331,6 +333,121 @@ import ProseReaderKit
         #expect(reading.pdf == pdf)
     }
 
+    // MARK: saving a pieced PDF (pieces spec §7.5, #206)
+
+    static let strapPage = "Strap\nR 1: 6 sc [6]\nR 2 - R 10: ch 1, turn, 6 sc [6]"
+
+    /// The bag: Front and Back side by side, their rows on page 2, a written Strap on page 3.
+    /// With `assembly`, a fourth page of prose no piece uses: an assembly step.
+    func readBag(_ importer: PDFImporter, assembly: Bool = false) async throws -> PDFImportReading {
+        let rows = "Front\n" + PDFTestDocuments.colourRows + "\nBack\n" + PDFTestDocuments.colourRows
+        let more = [Self.strapPage] + (assembly ? ["Sew the strap to the top corners of the bag, one end to each side panel."] : [])
+        let pdf = try #require(PDFTestDocuments.twoCharts(rowsText: rows, morePages: more, distinctBack: true))
+        return try await importer.read(pdf, fileName: "bag.pdf")
+    }
+
+    func files(_ dir: URL) -> [String] { (try? FileManager.default.contentsOfDirectory(atPath: dir.path)) ?? [] }
+
+    @Test func aPiecedImportSavesManifest2WithItsPDF() async throws {
+        let base = try await make()
+        let importer = base.importer()
+        let reading = try await readBag(importer)
+        let pieced = try #require(reading.pieced)
+        let draft = OutlineDraft(pieced.outline, charts: pieced.charts)
+        #expect(draft.pieces.map(\.title) == ["Front", "Back", "Strap"])
+        let manifest = try await importer.savePieced(reading, draft: draft, records: [:])
+        let local = try #require(await base.local.manifest(for: manifest.id))
+        #expect(local.schema == 2 && local.id == "bag")
+        #expect(local.pieces?.map(\.id) == ["front", "back", "strap"])
+        #expect(local.charts.map(\.variant) == ["front", "back"] && Set(local.charts.map(\.id)).count == 2)
+        for entry in local.charts { #expect(await base.charts.hasChart(id: entry.id)) }
+        let strap = try #require(local.pieces?.last)
+        #expect(strap.rows == "pieces/strap.rows.json" && strap.chart == nil)
+        let document = try await base.rows.document(id: try #require(strap.rowsID))
+        #expect(document.title == "Strap" && document.entries.map(\.from) == [1, 2] && document.entries.last?.to == 10)
+        #expect(local.pieces?.prefix(2).allSatisfy { $0.chart != nil } == true)
+        #expect(await base.local.sourcePDF(for: manifest.id) == reading.pdf)
+        #expect(await base.local.preview(for: manifest.id, path: "preview.png") != nil)
+        for entry in local.charts { #expect(await base.local.preview(for: manifest.id, path: entry.preview) != nil) }
+    }
+
+    /// Review Focus 1: one chart left and nothing else saves as manifest 1, as a one-chart PDF does.
+    @Test func removingAllButOneChartSavesAsToday() async throws {
+        let base = try await make()
+        let importer = base.importer()
+        let reading = try await readBag(importer)
+        let pieced = try #require(reading.pieced)
+        var draft = OutlineDraft(pieced.outline, charts: pieced.charts)
+        for piece in draft.pieces.dropFirst() { draft.remove(piece.id) }
+        for step in draft.assembly { draft.removeStep(step.id) }
+        #expect(draft.isSingleChart)
+        let manifest = try await importer.savePieced(reading, draft: draft, records: [:])
+        let local = try #require(await base.local.manifest(for: manifest.id))
+        #expect(local.schema == 1 && local.pieces == nil && local.charts.count == 1)
+        #expect(local.charts[0].width == Self.chartWidth && local.charts[0].height == Self.chartHeight)
+        #expect(await base.charts.hasChart(id: local.charts[0].id))
+        #expect(files(base.rowsDir).isEmpty)
+        #expect(await base.local.sourcePDF(for: manifest.id) == reading.pdf)
+    }
+
+    /// Review Focus 4: a written piece that does not start at row 1 is refused, and nothing is
+    /// written -- no chart, no rows, no pattern directory, no stray `source.pdf`.
+    @Test func aFailedPiecedSaveWritesNothing() async throws {
+        let base = try await make()
+        let importer = base.importer()
+        var reading = try await readBag(importer)
+        let pieced = try #require(reading.pieced)
+        var outline = pieced.outline
+        let strap = try #require(outline.pieces.firstIndex { $0.title == "Strap" })
+        outline.pieces[strap].entries = outline.pieces[strap].entries.filter { $0.from != 1 }
+        #expect(outline.pieces[strap].entries.first?.from == 2)
+        reading.pieced = PiecedReading(outline: outline, charts: pieced.charts, sections: pieced.sections, pdf: pieced.pdf)
+        let draft = OutlineDraft(outline, charts: pieced.charts)
+        do {
+            _ = try await importer.savePieced(reading, draft: draft, records: [:])
+            Issue.record("a strap starting at row 2 saved")
+        } catch PDFImportError.rowsDoNotAssemble(let why) {
+            #expect(why.count == 1 && why[0].hasPrefix("Strap: ") && why[0].contains("gap"), "\(why)")
+        }
+        #expect(files(base.chartsDir).isEmpty)
+        #expect(files(base.rowsDir).isEmpty)
+        #expect(files(base.localDir).isEmpty)
+    }
+
+    /// A chart piece is saved with its own check's record; one with none, as not checked.
+    @Test func eachChartPieceIsSavedWithItsOwnRecord() async throws {
+        let base = try await make()
+        let importer = base.importer()
+        let reading = try await readBag(importer)
+        let pieced = try #require(reading.pieced)
+        let draft = OutlineDraft(pieced.outline, charts: pieced.charts)
+        let finished = ImportRecord(grid: true, check: .finished, rowsChecked: 15, rowsTotal: 15, rowsDisagree: [], gaugePrinted: false, problem: nil)
+        let manifest = try await importer.savePieced(reading, draft: draft, records: [0: finished, 7: finished])
+        let local = try #require(await base.local.manifest(for: manifest.id))
+        let front = try await base.charts.chart(id: try #require(local.pieces?[0].chart))
+        let back = try await base.charts.chart(id: try #require(local.pieces?[1].chart))
+        #expect(ImportRecord(json: front.document.ext) == finished)
+        let unchecked = try #require(ImportRecord(json: back.document.ext))
+        #expect(unchecked.rowsTotal == 15 && unchecked.rowsChecked == 0 && unchecked.check == .unavailable)
+    }
+
+    /// A piece or step renamed to blank is saved as "Piece N" or "Step N", by its place in the list.
+    @Test func blankTitlesSaveAsTheirPlace() async throws {
+        let base = try await make()
+        let importer = base.importer()
+        let reading = try await readBag(importer, assembly: true)
+        let pieced = try #require(reading.pieced)
+        var draft = OutlineDraft(pieced.outline, charts: pieced.charts)
+        #expect(draft.assembly.map(\.title) == ["Page 4"])
+        draft.rename(draft.pieces[2].id, to: "   ")
+        draft.renameStep(draft.assembly[0].id, to: "")
+        let manifest = try await importer.savePieced(reading, draft: draft, records: [:])
+        let local = try #require(await base.local.manifest(for: manifest.id))
+        #expect(local.pieces?.map(\.title) == ["Front", "Back", "Piece 3"])
+        #expect(local.pieces?.map(\.id) == ["front", "back", "piece"])
+        #expect(local.assembly.map(\.title) == ["Step 1"] && local.assembly.first?.pages == [4])
+    }
+
     @Test func theCheckFinishesCleanOrNamesTheRow() async throws {
         let pdf = try #require(PDFTestDocuments.chart(rows: true))
         let clean = try await make().importer(rowReader: StubRowReader(document: Self.chartDocument(), delayPerRow: .zero))
@@ -598,26 +715,34 @@ enum PDFTestDocuments {
         }
     }
 
-    /// Two of the synthetic charts side by side on page 1 (x 40 and 330), then a page of `rowsText`.
+    /// Two of the synthetic charts side by side on page 1 (x 40 and 330), then a page of `rowsText`,
+    /// then a page for each of `morePages`.
     /// The second sits lower: two grids whose lines align across a 50 pt gap read as one grid of
-    /// 44 columns, gap and all, which is the grid reader's business, not the importer's.
-    static func twoCharts(rowsText: String) -> Data? {
+    /// 44 columns, gap and all, which is the grid reader's business, not the importer's. With
+    /// `distinctBack`, the second chart differs from the first in one cell of its top row (row 15),
+    /// so the two are two charts in a content-addressed library, and a check stopped before row
+    /// 15 still finds the rows it read agree.
+    static func twoCharts(rowsText: String, morePages: [String] = [], distinctBack: Bool = false) -> Data? {
         let renderer = UIGraphicsPDFRenderer(bounds: bounds)
         return renderer.pdfData { ctx in
             ctx.beginPage()
             drawChart(ctx.cgContext, ox: 40, oy: 80)
-            drawChart(ctx.cgContext, ox: 330, oy: 400)
-            ctx.beginPage()
-            (rowsText as NSString).draw(in: bounds.insetBy(dx: 36, dy: 36), withAttributes: [.font: UIFont.systemFont(ofSize: 12)])
+            drawChart(ctx.cgContext, ox: 330, oy: 400, changed: distinctBack ? (x: 10, y: 0) : nil)
+            for text in [rowsText] + morePages {
+                ctx.beginPage()
+                (text as NSString).draw(in: bounds.insetBy(dx: 36, dy: 36), withAttributes: [.font: UIFont.systemFont(ofSize: 12)])
+            }
         }
     }
 
     /// The synthetic chart at 12 pt cells with its origin at (`ox`, `oy`).
-    static func drawChart(_ cg: CGContext, ox: CGFloat, oy: CGFloat) {
+    static func drawChart(_ cg: CGContext, ox: CGFloat, oy: CGFloat, changed: (x: Int, y: Int)? = nil) {
         let cell: CGFloat = 12
         let w = PDFImportTests.chartWidth, h = PDFImportTests.chartHeight
         for y in 0..<h { for x in 0..<w {
-            let rgb = GridColours.rgb(PDFImportTests.chartHexes[PDFImportTests.chartCell(x: x, y: y)])!
+            var c = PDFImportTests.chartCell(x: x, y: y)
+            if let changed, changed == (x, y) { c = (c + 2) % 4 }
+            let rgb = GridColours.rgb(PDFImportTests.chartHexes[c])!
             cg.setFillColor(CGColor(red: CGFloat(rgb.0) / 255, green: CGFloat(rgb.1) / 255, blue: CGFloat(rgb.2) / 255, alpha: 1))
             cg.fill(CGRect(x: ox + CGFloat(x) * cell, y: oy + CGFloat(y) * cell, width: cell, height: cell))
         } }

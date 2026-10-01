@@ -92,6 +92,22 @@ import GraphghanCore
         #expect(await store.preview(for: id, path: "preview.png") == nil)
     }
 
+    /// A PDF import keeps its source PDF beside the pattern (pieces spec §5.5), written into the
+    /// same staging directory so it lands with the pattern or not at all, and replaced with it.
+    @Test func aSourcePDFIsSavedBesideThePatternAndGoesWithIt() async throws {
+        let (store, directory) = try make()
+        let bundle = try bundle()
+        let pdf = Data("%PDF-1.7 not really".utf8)
+        try await store.save(bundle, sourcePDF: pdf)
+        #expect(await store.sourcePDF(for: Self.slug) == pdf)
+        #expect(FileManager.default.fileExists(atPath: directory.appendingPathComponent("\(Self.slug)/source.pdf").path))
+        // The directory is replaced whole: a save without a PDF leaves none behind.
+        try await store.save(bundle)
+        #expect(await store.sourcePDF(for: Self.slug) == nil)
+        #expect(await store.sourcePDF(for: "nothing") == nil)
+        #expect(await store.sourcePDF(for: "..") == nil)
+    }
+
     @Test func anEmptyStoreIsEmptyRatherThanAnError() async throws {
         let (store, _) = try make()
         #expect(await store.manifests().isEmpty)
