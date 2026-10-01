@@ -119,6 +119,7 @@ public struct PatternBundle: Sendable {
             let chartIDs = Set(manifest.charts.map(\.id))
             var pieceIDs = Set<String>()
             var namedCharts = Set<String>()
+            var firstChartPiece: String?
             for piece in pieces {
                 guard pieceIDs.insert(piece.id).inserted else { throw BundleError.duplicatePiece(piece: piece.id) }
                 guard piece.make >= 1 else { throw BundleError.pieceMakeCount(piece: piece.id, make: piece.make) }
@@ -127,12 +128,22 @@ public struct PatternBundle: Sendable {
                     guard chartIDs.contains(chartID) else { throw BundleError.pieceNamesMissingChart(piece: piece.id) }
                     // Spec §5.3: each chart once. The same grid twice is one piece made twice.
                     guard namedCharts.insert(chartID).inserted else { throw BundleError.pieceSharesChart(piece: piece.id) }
+                    if firstChartPiece == nil { firstChartPiece = chartID }
                 case (nil, let path?):
                     guard piece.rowsID != nil else { throw BundleError.pieceKind(piece: piece.id) }
                     rowsPaths.append(path)
                 default:
                     throw BundleError.pieceKind(piece: piece.id)
                 }
+            }
+            // Spec §5.3, as `validate_manifest` has it (#228): `charts` lists only the charts the
+            // pieces name, and the default is the first chart piece's, so a reader that knows
+            // nothing of pieces opens on the first piece.
+            if let unnamed = manifest.charts.first(where: { !namedCharts.contains($0.id) }) {
+                throw BundleError.chartNamedByNoPiece(path: unnamed.path)
+            }
+            if let first = firstChartPiece, let def = manifest.charts.first(where: \.isDefault), def.id != first {
+                throw BundleError.defaultNotFirstChartPiece
             }
         }
 
@@ -228,6 +239,10 @@ public enum BundleError: Error, Equatable {
     case pieceSharesChart(piece: String)
     /// A piece whose `make` is below 1.
     case pieceMakeCount(piece: String, make: Int)
+    /// A pieced manifest lists a chart no piece names (spec §5.3).
+    case chartNamedByNoPiece(path: String)
+    /// A pieced manifest's default chart is not the first chart piece's (spec §5.3).
+    case defaultNotFirstChartPiece
     case invalidRows(path: String, reason: String)
     case rowsIDMismatch(path: String, expected: String, found: String)
 
@@ -282,6 +297,10 @@ public enum BundleError: Error, Equatable {
             return "The piece “\(piece)” names the same chart as another piece."
         case .pieceMakeCount(let piece, let make):
             return "The piece “\(piece)” is to be made \(make) times."
+        case .chartNamedByNoPiece(let path):
+            return "This pattern lists the chart \(path), but no piece uses it."
+        case .defaultNotFirstChartPiece:
+            return "This pattern opens on a chart that isn't its first piece's."
         case .invalidRows(let path, let reason):
             return "The written rows in \(path) can't be used: \(reason)."
         case .rowsIDMismatch(let path, _, _):

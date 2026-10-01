@@ -553,14 +553,37 @@ def refused_fixtures() -> dict[str, dict]:
 def pieces_refused_fixtures(manifest: dict) -> dict[str, dict]:
     """file name (with its own extension) -> doc, for the pieces-basic refusals (spec §5.2, §5.3,
     §9): a rows gap, an open-ended entry that is not last, and a piece naming a chart not in
-    `charts`. `manifest` is pieces_basic()["pattern.json"]."""
+    `charts`; a chart no piece names; and a default chart that is not the first chart piece's
+    (#228). `manifest` is pieces_basic()["pattern.json"]."""
     missing_chart = json.loads(json.dumps(manifest))
     missing_chart["pieces"][0]["chart"] = "sha256:" + "0" * 64
+
+    # A second chart entry, not the default; nothing else about it is wrong.
+    def extra_chart(doc: dict) -> dict:
+        extra = dict(
+            doc["charts"][0],
+            id="sha256:" + "1" * 64,
+            variant="extra",
+            default=False,
+            path="charts/extra-sc/chart.json",
+            preview="charts/extra-sc/preview.png",
+        )
+        doc["charts"].append(extra)
+        return extra
+
+    unnamed_chart = json.loads(json.dumps(manifest))
+    extra_chart(unnamed_chart)
+
+    default_not_first = json.loads(json.dumps(manifest))
+    lid = extra_chart(default_not_first)
+    default_not_first["pieces"].insert(0, {"id": "lid", "title": "Lid", "make": 1, "chart": lid["id"]})
     return {
         # The strip's palette, so the gap is the only thing wrong with it.
         "rows-gap.rows.json": rows_doc("Gap", [STRIP_ROWS[0], STRIP_ROWS[2]], PIECES_PALETTE),
         "rows-open-not-last.rows.json": rows_doc("Open", [dict(STRAP_ROWS[1], **{"from": 1}), STRIP_ROWS[1]]),
         "piece-names-missing-chart.pattern.json": missing_chart,
+        "chart-no-piece-names.pattern.json": unnamed_chart,
+        "default-not-first-chart-piece.pattern.json": default_not_first,
     }
 
 
