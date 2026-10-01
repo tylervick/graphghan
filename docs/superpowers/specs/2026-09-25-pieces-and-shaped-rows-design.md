@@ -467,7 +467,9 @@ Python and Swift both run every fixture, as today.
   Dorsal Fin, both pectoral fins, Tail, and the page-12 written rows) and both assembly steps; the
   maker drops the page-7 example and its Page 8 step, renames Head Tail to Side Panel and the
   page-12 rows to Tail (Black), and saves the remaining eight pieces with no checks run; the read
-  itself took 12.2 s. The device run is still to do.
+  itself took 12.2 s. It does not confirm the strap named as left out: the strap's page 13
+  ("Strap") falls inside the "Pages 13–16" assembly step, so the review list names nothing left
+  out for it. Numbered-step pieces like the strap are #211. The device run is still to do.
 - A written piece can be worked from row 1 to its last, through a range, and an open-ended one
   can be finished by hand.
 - The Orca import's total time, both checks included, is recorded in this section on its first
