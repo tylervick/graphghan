@@ -458,3 +458,41 @@ def test_refused_manifest_naming_a_missing_chart():
     m = json.loads((FIX / "refused" / "piece-names-missing-chart.pattern.json").read_text(encoding="utf-8"))
     assert Draft202012Validator(MANIFEST_SCHEMA).is_valid(m)
     assert any("not in `charts`" in p for p in manifestdoc.validate_manifest(m))
+
+
+PHONE = FIX / "phone-pieced"
+
+
+def phone(name):
+    return json.loads((PHONE / name).read_text(encoding="utf-8"))
+
+
+def test_phone_pieced_fixture_is_valid():
+    """The phone's own writers' pieced pattern (Swift `PhonePiecedFixtureTests` pins its bytes):
+    every file passes its schema and its validator, and every id is the one Python computes."""
+    m = phone("pattern.json")
+    assert list(Draft202012Validator(MANIFEST_SCHEMA).iter_errors(m)) == []
+    assert manifestdoc.validate_manifest(m) == []
+    assert [p["id"] for p in manifestdoc.pieces(m)] == ["panel", "strap"]
+    for c in m["charts"]:
+        chart = phone(c["path"])
+        assert [e.message for e in Draft202012Validator(CHART_SCHEMA).iter_errors(chart)] == []
+        assert chartdoc.validate_document(chart) == [] and chart["schema"] == 3
+        codes = [p["code"] for p in chart["palette"]]
+        computed = chartdoc.chart_id(
+            codes, chart["rows"], chart["technique"], no_stitch=chartdoc.no_stitch_code(chart)
+        )
+        assert computed == chart["chart"]["id"] == c["id"]
+    for p in m["pieces"]:
+        if "rows" in p:
+            rd = phone(p["rows"])
+            assert [e.message for e in Draft202012Validator(ROWS_SCHEMA).iter_errors(rd)] == []
+            assert rowsdoc.validate_rows_document(rd) == [] and rd["id"] == p["rows_id"]
+
+
+def test_phone_pieced_fixture_with_its_panel_twice_is_refused():
+    """What the phone wrote before identical grids folded into one piece: a second piece naming
+    the same chart, which spec §5.3 refuses (the phone now writes `make: 2` instead)."""
+    m = phone("pattern.json")
+    m["pieces"].insert(1, {**m["pieces"][0], "id": "panel-2", "make": 1})
+    assert any("same chart" in p for p in manifestdoc.validate_manifest(m))
