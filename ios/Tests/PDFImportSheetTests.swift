@@ -329,18 +329,21 @@ import ProseReaderKit
         #expect(probe.steps[0].kind == .availability)
         #expect(probe.finding == "There is no model to ask on this iPhone, so nothing below was run.")
         #expect(probe.text.contains("the app was"))
+        await Self.settle(model.pdfImport)
     }
 
     /// The screen is held awake while the check runs and let go when it ends, so a 77-row read
     /// does not stop at the lock screen (#176).
+    /// Reads this import's own holds, not `IdleTimer.count`, which other suites' imports running
+    /// in parallel move too (#227).
     @Test func theScreenIsHeldAwakeOnlyWhileTheCheckRuns() async throws {
-        let before = IdleTimer.count
         let model = try await make(rowReader: PDFImportTests.StubRowReader(document: PDFImportTests.chartDocument(), delayPerRow: .milliseconds(100)))
         await model.importPDF(data: try #require(PDFTestDocuments.chart(rows: true)), fileName: "drawn.pdf")
+        let state = try #require(model.pdfImport)
         _ = try #require(await Self.checkState(of: model) { if case .running = $0 { return true }; return false })
-        #expect(IdleTimer.count > before)
-        _ = try #require(await Self.checkState(of: model) { if case .done = $0 { return true }; return false })
-        #expect(IdleTimer.count == before)
+        #expect(state.screenHolds == 1)
+        await Self.settle(state)
+        #expect(state.screenHolds == 0)
     }
 
     /// The measurement asks the model for minutes and holds the screen awake, so neither Cancel
@@ -362,11 +365,10 @@ import ProseReaderKit
         let model = try await make(rowReader: nil, modelUnavailable: "needs iOS 26")
         await model.importPDF(data: try #require(PDFTestDocuments.chart(rows: true)), fileName: "drawn.pdf")
         // The check's own hold outlives `importPDF`, which does not await it; let it land first.
-        _ = await Self.checkState(of: model) { if case .done = $0 { return true }; return false }
-        let before = IdleTimer.count
+        await Self.settle(model.pdfImport)
         await model.measureModelLimit()
         #expect(model.pdfImport?.limits == nil && model.pdfImport?.measuring == false)
-        #expect(IdleTimer.count == before)
+        #expect(model.pdfImport?.screenHolds == 0)
     }
 
     /// Sharing a second PDF while a check is still reading must stop the first one: a session
@@ -380,15 +382,29 @@ import ProseReaderKit
         await model.importPDF(data: try #require(PDFTestDocuments.chart(rows: true)), fileName: "second.pdf")
         #expect(first.checkTask?.isCancelled == true)
         #expect(model.pdfImport !== first && model.pdfImport?.fileName == "second.pdf")
+        let second = model.pdfImport
+        model.cancelPDFImport()
+        await Self.settle(first)
+        await Self.settle(second)
     }
 
     @Test func cancelDuringTheCheckWritesNothing() async throws {
         let model = try await make(rowReader: PDFImportTests.StubRowReader(document: PDFImportTests.chartDocument(), delayPerRow: .milliseconds(300)))
         await model.importPDF(data: try #require(PDFTestDocuments.chart(rows: true)), fileName: "drawn.pdf")
         _ = try #require(await Self.checkState(of: model) { if case .running = $0 { return true }; return false })
+        let state = model.pdfImport
         model.cancelPDFImport()
-        try await Task.sleep(for: .milliseconds(100))
+        await Self.settle(state)
         #expect(model.pdfImport == nil && model.libraryItems.isEmpty)
+    }
+
+    /// Waits for everything an import started (the read, the check, the measurement) to end. The
+    /// check holds the screen awake from its own task, which `importPDF` does not await, so a test
+    /// that returns while one runs hands its hold to the next test (#227).
+    static func settle(_ state: PDFImportState?) async {
+        await state?.task?.value
+        await state?.checkTask?.value
+        await state?.measureTask?.value
     }
 
     /// The sheet's check stage once `test` accepts it, or nil after three seconds.
