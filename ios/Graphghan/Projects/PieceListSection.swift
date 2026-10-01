@@ -28,6 +28,11 @@ struct PieceRow: View {
 /// One assembly step row: its title, text and page reference, with its own done toggle. When the
 /// step's PDF is kept on this phone (`onOpenPage` non-nil, Task 9), the page reference becomes a
 /// button that opens it there instead of the plain "page N of the original PDF" text.
+///
+/// The button sits below the `Toggle`, not inside its label: a `List` row's `Toggle` treats its
+/// whole label as part of the switch's tap target, so a button nested in that label would flip
+/// `done` on the same tap that opens the PDF. `.buttonStyle(.borderless)` keeps the button's own
+/// tap from being swallowed by the row underneath it (fix round 1, review focus 1).
 struct AssemblyStepRow: View {
     let step: AssemblyStep
     let done: Bool
@@ -35,20 +40,25 @@ struct AssemblyStepRow: View {
     var onOpenPage: ((Int) -> Void)? = nil
 
     var body: some View {
-        Toggle(isOn: Binding(get: { done }, set: onToggle)) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(step.title).font(Font.Heather.body).foregroundStyle(Color.ink)
-                if let text = step.text { Text(text).font(Font.Heather.caption).foregroundStyle(Color.ink2) }
-                if let label = Self.pageAction(pages: step.pages, hasPDF: onOpenPage != nil) {
-                    Button(label) { if let first = step.pages.first { onOpenPage?(first) } }
-                        .font(Font.Heather.caption)
-                        .foregroundStyle(Color.heather)
-                } else if !step.pages.isEmpty {
-                    Text(PieceListSection.pageText(step.pages)).font(Font.Heather.caption).foregroundStyle(Color.ink2)
+        let label = Self.pageAction(pages: step.pages, hasPDF: onOpenPage != nil)
+        VStack(alignment: .leading, spacing: 2) {
+            Toggle(isOn: Binding(get: { done }, set: onToggle)) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(step.title).font(Font.Heather.body).foregroundStyle(Color.ink)
+                    if let text = step.text { Text(text).font(Font.Heather.caption).foregroundStyle(Color.ink2) }
+                    if label == nil, !step.pages.isEmpty {
+                        Text(PieceListSection.pageText(step.pages)).font(Font.Heather.caption).foregroundStyle(Color.ink2)
+                    }
                 }
             }
+            .tint(.heather)
+            if let label {
+                Button(label) { if let first = step.pages.first { onOpenPage?(first) } }
+                    .buttonStyle(.borderless)
+                    .font(Font.Heather.caption)
+                    .foregroundStyle(Color.heather)
+            }
         }
-        .tint(.heather)
     }
 
     /// "Open page 15" / "Open pages 13–16" when the kept PDF can show this step's pages; nil

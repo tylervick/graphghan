@@ -45,6 +45,14 @@ actor LocalPatternStore {
     /// a bundle: it is the PDF's author's, not the pattern's.
     static let sourcePDFName = "source.pdf"
 
+    /// Whether a pattern kept the PDF it was imported from, without reading its bytes (fix round
+    /// 1, review focus 2): a view that only needs to show a button, not the PDF itself, should not
+    /// pay to load it on every load. Same shape as `has(id:)`.
+    func hasSourcePDF(for id: String) -> Bool {
+        guard let url = safeURL(id: id, path: Self.sourcePDFName) else { return false }
+        return FileManager.default.fileExists(atPath: url.path)
+    }
+
     /// The PDF the pattern was imported from, nil for one that came another way.
     func sourcePDF(for id: String) -> Data? {
         guard let url = safeURL(id: id, path: Self.sourcePDFName) else { return nil }

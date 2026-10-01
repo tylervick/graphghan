@@ -140,9 +140,16 @@ final class AppModel {
 
     func isLocal(_ slug: String) -> Bool { localIndex.contains { $0.slug == slug } }
 
-    /// The PDF a pieced pattern was imported from, when it is still on this phone (pieces spec
-    /// §5.5, Task 9); nil for a bundle opened on another phone, whose assembly steps show their
-    /// page numbers as plain text instead of a button.
+    /// Whether a pieced pattern kept the PDF it was imported from (pieces spec §5.5, Task 9),
+    /// without loading it: the Work screen needs this on every load just to decide whether to show
+    /// a button; `sourcePDF(for:)` below is for once the maker actually taps it.
+    func hasSourcePDF(for patternID: String) async -> Bool {
+        await localPatterns.hasSourcePDF(for: patternID)
+    }
+
+    /// The PDF a pieced pattern was imported from, when it is still on this phone; nil for a
+    /// bundle opened on another phone, whose assembly steps show their page numbers as plain text
+    /// instead of a button.
     func sourcePDF(for patternID: String) async -> Data? {
         await localPatterns.sourcePDF(for: patternID)
     }

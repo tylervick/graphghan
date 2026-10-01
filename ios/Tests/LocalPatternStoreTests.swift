@@ -108,6 +108,21 @@ import GraphghanCore
         #expect(await store.sourcePDF(for: "..") == nil)
     }
 
+    /// Fix round 1, review focus 2: `hasSourcePDF` answers from the filesystem alone, without
+    /// reading the PDF's bytes -- true once a PDF is saved beside the pattern, false for one saved
+    /// without a PDF or that never existed.
+    @Test func hasSourcePDFAnswersWithoutLoadingIt() async throws {
+        let (store, _) = try make()
+        let bundle = try bundle()
+        #expect(await store.hasSourcePDF(for: Self.slug) == false)
+        try await store.save(bundle, sourcePDF: Data("%PDF-1.7 not really".utf8))
+        #expect(await store.hasSourcePDF(for: Self.slug) == true)
+        // The directory is replaced whole: a save without a PDF leaves none behind.
+        try await store.save(bundle)
+        #expect(await store.hasSourcePDF(for: Self.slug) == false)
+        #expect(await store.hasSourcePDF(for: "nothing") == false)
+    }
+
     /// Review Focus 5: a PDF imported twice gets its own slug and its own `source.pdf`; deleting
     /// one pattern's directory (the store has no delete of its own -- `FileManager`, as a maker's
     /// own removal of a pattern would reach, at the store's directory for that id) never touches
