@@ -97,6 +97,9 @@ actor PatternStore {
     }
 
     private func cachedBytes(sitePath: String, cacheFile: URL) async -> Data? {
+        // An empty site path means "no file" (a written-only pattern's preview, say): not a
+        // relative URL worth resolving against `baseURL`, and not worth a cache read either.
+        guard !sitePath.isEmpty else { return nil }
         if let data = try? Data(contentsOf: cacheFile) { return data }
         guard let response = try? await client.get(url(for: sitePath), ifNoneMatch: nil), response.status == 200 else { return nil }
         try? FileManager.default.createDirectory(at: cacheFile.deletingLastPathComponent(), withIntermediateDirectories: true)

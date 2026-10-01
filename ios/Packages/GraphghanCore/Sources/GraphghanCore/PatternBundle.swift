@@ -90,8 +90,11 @@ public struct PatternBundle: Sendable {
             }
         }
 
-        try checkPaths(([manifestName, manifest.preview]
-            + manifest.charts.map(\.path) + manifest.charts.map(\.preview) + rowsPaths).filter { !$0.isEmpty })
+        // An absent manifest-level `preview` decodes to "" (schema 1 and 2 both allow omitting
+        // it); every other path here is still required by its owner (a chart, a written piece)
+        // and an empty one is a lie about that file, not "no file" -- it stays checked.
+        try checkPaths([manifestName] + (manifest.preview.isEmpty ? [] : [manifest.preview])
+            + manifest.charts.map(\.path) + manifest.charts.map(\.preview) + rowsPaths)
 
         var charts: [BundleChart] = []
         for entry in manifest.charts {

@@ -201,6 +201,33 @@ import Testing
         #expect(throws: BundleError.unusablePath(path)) { try PatternBundle.read(data) }
     }
 
+    // An empty manifest-level `preview` means "no preview" (a written-only pattern never made
+    // one), but a chart's own `path`/`preview` and a written piece's `rows` are never optional --
+    // the schema still requires them, so an empty one is a lie about that file, still refused.
+
+    @Test func aChartWithAnEmptyPathIsRefused() throws {
+        var object = try Self.manifestJSON()
+        var charts = object["charts"] as! [[String: Any]]
+        charts[0]["path"] = ""
+        object["charts"] = charts
+        let data = try Self.rebuilt(replacing: [PatternBundle.manifestName: try Self.encode(object)])
+        #expect(throws: BundleError.unusablePath("")) { try PatternBundle.read(data) }
+    }
+
+    @Test func aChartWithAnEmptyPreviewIsRefused() throws {
+        var object = try Self.manifestJSON()
+        var charts = object["charts"] as! [[String: Any]]
+        charts[0]["preview"] = ""
+        object["charts"] = charts
+        let data = try Self.rebuilt(replacing: [PatternBundle.manifestName: try Self.encode(object)])
+        #expect(throws: BundleError.unusablePath("")) { try PatternBundle.read(data) }
+    }
+
+    @Test func aWrittenPieceWithAnEmptyRowsPathIsRefused() throws {
+        let data = try Self.withPieces { $0[1]["rows"] = "" }
+        #expect(throws: BundleError.unusablePath("")) { try PatternBundle.read(data) }
+    }
+
     @Test func aChartWithNoStatedSizeIsAccepted() throws {
         // manifest.py omits `size` when the gauge and the cell kind do not count the same thing
         // (#48). A reader that demands it refuses a bundle our own exporter validly writes.
