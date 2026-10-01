@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 import Testing
 import GraphghanCore
 import ProseReaderKit
@@ -69,6 +70,22 @@ import ProseReaderKit
         #expect(model.pdfImport != nil)
         await model.addImportedPDF()
         #expect(model.pdfImport == nil && model.libraryItems.contains { $0.slug == "craigh-na-dun-blanket" })
+    }
+
+    // MARK: the review list (#206)
+
+    /// `OutlineReviewSection`'s rows outside the sheet's `ScrollView` -- `ImageRenderer` cannot
+    /// flatten one, the way `project-pieces-rows` snapshots `PieceRow` outside its `List`.
+    @Test @MainActor func reviewRowsSnapshot() throws {
+        let draft = OutlineDraftTests.draft()
+        let view = VStack(alignment: .leading, spacing: 14) {
+            OutlineReviewSection(draft: .constant(draft), leftOut: [
+                "text after R 2 (page 7)", "text after R 104 (page 10)", "text after R 15 (page 12)",
+            ])
+        }
+        .padding(16)
+        .background(Color.ground.weave())
+        #expect(try Snapshots.assert(view, named: "pdf-import-review-rows", size: CGSize(width: 390, height: 760)))
     }
 
     // MARK: written rows (PR 2)

@@ -16,6 +16,9 @@ final class PDFImportState {
     var stage: Stage = .reading
     let fileName: String
     var reading: PDFImportReading? = nil
+    /// The pieces review list's edits, set when the reading holds more than one chart's worth of
+    /// pieces (#206); nil when there is nothing to review, and the sheet's UI is as before.
+    var draft: OutlineDraft? = nil
     var preview: UIImage? = nil
     /// The read in flight, so Cancel can stop the model mid-row.
     var task: Task<Void, Never>? = nil
@@ -77,6 +80,10 @@ struct PDFImportSheet: View {
                     }
                     .padding()
                 case .found:
+                    // A ScrollView, so a long review list scrolls (#206); ImageRenderer cannot
+                    // flatten one, so no snapshot renders the sheet itself through this case --
+                    // `OutlineReviewSection`'s rows are snapshotted directly, as a plain VStack.
+                    ScrollView {
                     VStack(spacing: 16) {
                         if let preview = state.preview {
                             Image(uiImage: preview).resizable().scaledToFit().frame(maxHeight: 280)
@@ -87,6 +94,10 @@ struct PDFImportSheet: View {
                             Text("\(r.width) × \(r.height) stitches, \(r.colours) colours").font(Font.Heather.body).foregroundStyle(Color.ink2)
                             if let leftOut = r.contents?.sentence {
                                 Text(leftOut).font(Font.Heather.caption).foregroundStyle(Color.ink2).multilineTextAlignment(.center)
+                            }
+                            if let draft = state.draft {
+                                OutlineReviewSection(draft: Binding(get: { state.draft ?? draft }, set: { state.draft = $0 }),
+                                                     leftOut: r.pieced?.outline.leftOut ?? [])
                             }
                         }
                         switch state.check {
@@ -128,6 +139,7 @@ struct PDFImportSheet: View {
                         .buttonStyle(.borderedProminent)
                     }
                     .padding()
+                    }
                 case .saving:
                     VStack(spacing: 12) {
                         ProgressView()

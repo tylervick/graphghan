@@ -360,6 +360,7 @@ final class AppModel {
                     }
                 }
                 state.reading = reading
+                if let pieced = reading.pieced { state.draft = OutlineDraft(pieced.outline, charts: pieced.charts) }
                 state.preview = UIImage(data: reading.preview)
                 state.stage = .found
                 if case .grid = reading.source { self?.startPDFCheck(state, importer: importer) }
