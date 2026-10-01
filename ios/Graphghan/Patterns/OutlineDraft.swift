@@ -36,13 +36,14 @@ struct OutlineDraft: Equatable, Sendable {
     }
 
     mutating func rename(_ id: Int, to title: String) {
-        guard pieces.indices.contains(id) else { return }
-        pieces[id].title = title
+        guard let i = pieces.firstIndex(where: { $0.id == id }) else { return }
+        pieces[i].title = title
     }
 
+    /// By stable id, not current position: a delete button holds the id of the row it was drawn
+    /// for, and after a reorder that is no longer the row at any particular index.
     mutating func remove(_ id: Int) {
-        guard !pieces.isEmpty else { return }
-        pieces.remove(at: min(max(id, 0), pieces.count - 1))
+        pieces.removeAll { $0.id == id }
     }
 
     mutating func move(fromOffsets: IndexSet, toOffset: Int) {
@@ -51,18 +52,17 @@ struct OutlineDraft: Equatable, Sendable {
 
     /// Clamped to 1...20 (pieces spec §7.3): nobody is making 0 or 100 of a piece.
     mutating func setMake(_ id: Int, _ make: Int) {
-        guard pieces.indices.contains(id) else { return }
-        pieces[id].make = min(max(make, 1), 20)
+        guard let i = pieces.firstIndex(where: { $0.id == id }) else { return }
+        pieces[i].make = min(max(make, 1), 20)
     }
 
     mutating func removeStep(_ id: Int) {
-        guard !assembly.isEmpty else { return }
-        assembly.remove(at: min(max(id, 0), assembly.count - 1))
+        assembly.removeAll { $0.id == id }
     }
 
     mutating func renameStep(_ id: Int, to title: String) {
-        guard assembly.indices.contains(id) else { return }
-        assembly[id].title = title
+        guard let i = assembly.firstIndex(where: { $0.id == id }) else { return }
+        assembly[i].title = title
     }
 
     /// Unique slugs in the current order, from each title ("Front Panel" → "front-panel", a

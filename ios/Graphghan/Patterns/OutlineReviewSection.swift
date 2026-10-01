@@ -18,8 +18,8 @@ struct OutlineReviewSection: View {
             if !draft.assembly.isEmpty {
                 VStack(alignment: .leading, spacing: 10) {
                     Text("Assembly").font(Font.Heather.heading).foregroundStyle(Color.ink)
-                    ForEach(Array(draft.assembly.enumerated()), id: \.element.id) { i, step in
-                        stepRow(i, step)
+                    ForEach(draft.assembly) { step in
+                        stepRow(step)
                     }
                 }
             }
@@ -29,13 +29,16 @@ struct OutlineReviewSection: View {
         }
     }
 
+    /// `i` is only the row's current position, for the up/down reorder (which is positional, like
+    /// `onMove`); every edit or delete goes by `piece.id`, the row's stable identity, since after a
+    /// reorder `i` no longer names the row the button was drawn for.
     @ViewBuilder private func pieceRow(_ i: Int, _ piece: OutlineDraft.Piece) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 8) {
-                TextField("Title", text: Binding(get: { piece.title }, set: { draft.rename(i, to: $0) }))
+                TextField("Title", text: Binding(get: { piece.title }, set: { draft.rename(piece.id, to: $0) }))
                     .font(Font.Heather.body).foregroundStyle(Color.ink)
                 Spacer()
-                Button { draft.remove(i) } label: { Image(systemName: "trash") }
+                Button { draft.remove(piece.id) } label: { Image(systemName: "trash") }
                     .foregroundStyle(Color.ink2)
             }
             HStack(spacing: 10) {
@@ -47,7 +50,7 @@ struct OutlineReviewSection: View {
                 // The per-chart check line (Task 7) goes here; nothing until then.
             }
             HStack(spacing: 10) {
-                Stepper("Make × \(piece.make)", value: Binding(get: { piece.make }, set: { draft.setMake(i, $0) }), in: 1...20)
+                Stepper("Make × \(piece.make)", value: Binding(get: { piece.make }, set: { draft.setMake(piece.id, $0) }), in: 1...20)
                     .font(Font.Heather.caption).foregroundStyle(Color.ink2)
                 Spacer()
                 Button { draft.move(fromOffsets: [i], toOffset: i - 1) } label: { Image(systemName: "chevron.up") }
@@ -62,17 +65,17 @@ struct OutlineReviewSection: View {
         .clipShape(RoundedRectangle(cornerRadius: 8))
     }
 
-    @ViewBuilder private func stepRow(_ i: Int, _ step: OutlineDraft.Step) -> some View {
+    @ViewBuilder private func stepRow(_ step: OutlineDraft.Step) -> some View {
         HStack(spacing: 8) {
             VStack(alignment: .leading, spacing: 2) {
-                TextField("Title", text: Binding(get: { step.title }, set: { draft.renameStep(i, to: $0) }))
+                TextField("Title", text: Binding(get: { step.title }, set: { draft.renameStep(step.id, to: $0) }))
                     .font(Font.Heather.body).foregroundStyle(Color.ink)
                 if !step.pages.isEmpty {
                     Text(Self.stepPages(step.pages)).font(Font.Heather.caption).foregroundStyle(Color.ink2)
                 }
             }
             Spacer()
-            Button { draft.removeStep(i) } label: { Image(systemName: "trash") }
+            Button { draft.removeStep(step.id) } label: { Image(systemName: "trash") }
                 .foregroundStyle(Color.ink2)
         }
     }

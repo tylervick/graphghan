@@ -28,7 +28,7 @@ import GraphghanCore
         d.move(fromOffsets: [2], toOffset: 0)
         #expect(d.pieces.map(\.id) == [2, 0, 1] && d.pieces[0].make == 1 && d.pieces[2].title == "Handle")
         d.remove(0)
-        #expect(d.pieces.map(\.id) == [0, 1])
+        #expect(d.pieces.map(\.id) == [2, 1])
     }
 
     @Test func oneChartAloneIsSingle() {
