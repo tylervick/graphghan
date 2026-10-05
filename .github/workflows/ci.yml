@@ -28,7 +28,7 @@ jobs:
       # mise installs the uv/hk/linter versions mise.toml pins, so `hk check --all`
       # below runs the same tools as the local pre-commit hook rather than a
       # separately-maintained list that can drift from it.
-      - uses: jdx/mise-action@c37c93293d6b742fc901e1406b8f764f6fb19dac # v2.4.4
+      - uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
         with: {cache: true}
       - name: Cache uv packages
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -92,7 +92,7 @@ jobs:
       # jdx/mise-action v2.4.4 has no working_directory input (install_dir is deprecated), so this
       # only installs the root mise.toml tools (uv/hk/...); the Core package tests step below
       # installs ios/mise.toml's xcodegen via `mise install` run from ios/.
-      - uses: jdx/mise-action@c37c93293d6b742fc901e1406b8f764f6fb19dac # v2.4.4
+      - uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
         with: {cache: true}
       - name: Core package tests
         working-directory: ios
@@ -242,7 +242,7 @@ jobs:
           sudo xcode-select -s "$APP"
           xcodebuild -version
       - if: steps.key.outputs.have == 'true'
-        uses: jdx/mise-action@c37c93293d6b742fc901e1406b8f764f6fb19dac # v2.4.4
+        uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
         with: {cache: true}
       # Graphghan.xcodeproj is generated and gitignored, so it is not in the
       # checkout; xcodegen comes from ios/mise.toml, which the action above does
