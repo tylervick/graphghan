@@ -41,7 +41,7 @@ jobs:
       - run: uv run pytest -q
       - name: Build the pattern feed
         run: uv run graphghan site build
-      - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with: {path: site/dist}
   # Cheap path filter so a docs-only or Python-only change never spins up a macOS runner.
   # `on.pull_request.paths` would filter the whole workflow, and the Python job must always run.
