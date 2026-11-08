@@ -152,7 +152,7 @@ jobs:
       - uses: jdx/mise-action@b44d12e7d0d8ee7461bb893e1b1993500433185b # v5.2.7
         with: {cache: true}
 
-      # jdx/mise-action v2.4.4 has no working_directory input; this installs ios/mise.toml's
+      # jdx/mise-action above is run without working_directory; this installs ios/mise.toml's
       # xcodegen, which archive.sh below needs.
       - name: Install iOS tool versions
         working-directory: ios
