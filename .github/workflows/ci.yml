@@ -5,15 +5,11 @@ on:
   pull_request:
 permissions:
   contents: read
-# Blink is a local agent-review tool nobody runs on a runner (see mise.toml), and a
-# vendor CDN has no business standing between a push and a green build: skip its
-# download rather than have a pruned pin fail `mise install` here.
-#
-# The Revyl CLI is pinned in the same file and is a 40 MB download that only one
+# The Revyl CLI is pinned in mise.toml and is a 40 MB download that only one
 # job below has any use for. Disabled here and re-enabled there, rather than the
 # other way round, so a new job never picks it up by accident.
 env:
-  MISE_DISABLE_TOOLS: http:blink,github:RevylAI/revyl-cli
+  MISE_DISABLE_TOOLS: github:RevylAI/revyl-cli
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -204,9 +200,9 @@ jobs:
     timeout-minutes: 30
     env:
       XCODE_VERSION: "26.2"
-      # Narrower than the workflow-level value: this is the job that wants the
-      # pinned Revyl CLI. Blink stays off.
-      MISE_DISABLE_TOOLS: http:blink
+      # Overrides the workflow-level value: this is the job that wants the
+      # pinned Revyl CLI.
+      MISE_DISABLE_TOOLS: ""
     steps:
       # First, and before the checkout: on a run where the secret is missing
       # every step after this one is wasted, and a macOS runner is the expensive

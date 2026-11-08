@@ -44,7 +44,7 @@ build:
                     - ~/.local/bin/mise trust --all
                     # `install xcodegen`, not a bare `install`: the root
                     # mise.toml pins uv, hk and four linters that have no part in
-                    # building the app, plus Blink and the Revyl CLI itself.
+                    # building the app, plus the Revyl CLI itself.
                     # Naming the one tool keeps a cloud build from downloading
                     # the other seven.
                     - ~/.local/bin/mise -C ios install xcodegen

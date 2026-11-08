@@ -17,6 +17,3 @@ loads every chart through `Chart.load`; the app's `BundleImportTests` imports on
 in-memory library. The format and the reproducibility decisions (stored entries, a fixed 1980
 timestamp, a fixed manifest `updated`) are in
 `docs/superpowers/specs/2026-09-19-open-graphghan-bundles-design.md` §2 and §3.2.
-
-A committed binary makes `blink review` refuse the diff; review a branch carrying one on a scratch
-branch with these files excluded (repo `README.md`, "Agent code review").
