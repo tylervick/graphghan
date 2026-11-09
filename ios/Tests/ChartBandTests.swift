@@ -63,6 +63,20 @@ import GraphghanCore
         #expect(try Snapshots.assert(band(Cursor(row: 42, run: 8), mode: .whole), named: "band-whole", size: Self.size))
     }
 
+    static let stretches = Stretches.of(seq, codes: chart.palette.map(\.code))
+    private func lookAhead(_ cursor: Cursor) -> some View {
+        ChartBand(chart: Self.chart, sequence: Self.seq, cursor: cursor, segmentLabel: nil, mode: .whole, style: .fabric,
+                  onAdvance: {}, onJump: { _, _ in }, onToggleMode: {}, stretches: Self.stretches, returnLabel: "Back to Row \(cursor.row)")
+            .background(Color.ground)
+    }
+    /// #245: the whole view with the stretches marked, the current one bracketed, and the way back visible.
+    @Test func lookAheadAtRowFive() throws {
+        #expect(try Snapshots.assert(lookAhead(Cursor(row: 5, run: 3)), named: "band-look-ahead", size: Self.size))
+    }
+    @Test func lookAheadLateInTheBlanket() throws {
+        #expect(try Snapshots.assert(lookAhead(Cursor(row: 150, run: 0)), named: "band-look-ahead-late", size: Self.size))
+    }
+
     /// A shaped chart (#37): the ground is drawn as the band's own ground, with no yarn and no
     /// hairlines, so the rows follow the piece's silhouette; the whole view does the same.
     @Test func shaped() throws {
