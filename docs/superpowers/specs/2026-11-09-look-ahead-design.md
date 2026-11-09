@@ -213,7 +213,11 @@ with the row number as its label and the rest as its value, in order, so the who
 read right to left. 9 more rows like this, then plain rows for 2 rows." The panel gains a rotor
 action "What's ahead" that speaks the same line followed by the next two stretches as sentences
 ("Rows 15 to 16, 2 plain rows in Deep Green and Gold. Rows 17 to 20, 4 rows in Deep Green and Gold."), posted as an
-accessibility announcement, so the chart-free path (#45) has it.
+accessibility announcement, so the chart-free path (#45) has it. It always has something to say:
+on a one-stretch chart it counts down to the end ("142 more rows like this, then Craigh na Dun
+Blanket is done."), on the last row it says "Last row of Craigh na Dun Blanket.", and once
+finished "Every row worked."; the header's own look-ahead action and button go when finished,
+since the band is then locked to the whole chart.
 
 ### 4.4 Live Activity and intents
 
@@ -239,9 +243,10 @@ row, tap or pinch-out returns) is as today.
 - **Stretch labels.** For the current stretch and each stretch ahead, right-aligned at the
   trailing edge inside the chart rect, in `Font.Heather.annotation` (bold for the current one,
   Heather; Ink for the rest) on a Panel pill at 88%: "Rows 5–14 · 10", preceded by one 7 pt dot
-  per colour in `colours` order. A one-row stretch reads "Row 41 · 1". A label is drawn only when
-  its stretch is two or more rows tall on screen and its centre is at least 14 pt below the last
-  label drawn; otherwise the hairline stands alone. Labels are drawn from the current stretch
+  per colour in `colours` order. A label is drawn only for a stretch of two or more rows (a
+  range needs rows to range over; a one-row first stretch keeps its hairline and bracket) and
+  when its centre is at least a pill's height (16 pt) from the last label drawn, so two pills
+  never overlap; otherwise the hairline stands alone. Labels are drawn from the current stretch
   upward and stop after the eighth, so a 24-stretch chart shows the current one and the next
   seven.
 - **Return pill.** "Back to Row 5" in `Font.Heather.label` Cream on a Heather capsule, 36 pt tall,

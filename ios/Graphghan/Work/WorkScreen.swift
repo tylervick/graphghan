@@ -50,7 +50,16 @@ struct WorkScreen: View {
         finished ? nil : LookAheadLine.text(row: cursor.row, stretches: stretches, sequence: sequence, chart: chart)
     }
 
-    private func toggleMode() { withAnimation { mode = mode == .band ? .whole : .band } }
+    /// What the whole view's control is called in each direction; nil once finished, when the band
+    /// is locked to the whole chart and there is nothing to toggle.
+    static func lookAheadActionName(mode: ChartBand.Mode, finished: Bool) -> String? {
+        finished ? nil : mode == .band ? "Look ahead" : "Back to the row"
+    }
+
+    private func toggleMode() {
+        guard !finished else { return }
+        withAnimation { mode = mode == .band ? .whole : .band }
+    }
 
     var body: some View {
         let c = content
@@ -116,19 +125,21 @@ struct WorkScreen: View {
             .accessibilityValue(Self.headerValue(chart: chart, sequence: sequence, cursor: cursor, stretches: stretches))
             .accessibilityHint("Long press to jump to a row")
             .accessibilityAction(named: "Jump to row", onJump)
-            .accessibilityAction(named: mode == .band ? "Look ahead" : "Back to the row", toggleMode)
+            .accessibilityActions {
+                if let name = Self.lookAheadActionName(mode: mode, finished: finished) { Button(name, action: toggleMode) }
+            }
             Spacer()
             // The whole view's visible control (spec §5.3), in the slot that was empty; nothing to
             // open once finished, when the band is already the whole chart.
-            if finished {
-                Color.clear.frame(width: 44, height: 44)
-            } else {
+            if let name = Self.lookAheadActionName(mode: mode, finished: finished) {
                 Button(action: toggleMode) {
                     Image(systemName: "rectangle.grid.1x2").font(.system(size: 20, weight: .semibold)).frame(width: 44, height: 44)
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(Color.ink2)
-                .accessibilityLabel(mode == .band ? "Look ahead" : "Back to the row")
+                .accessibilityLabel(name)
+            } else {
+                Color.clear.frame(width: 44, height: 44)
             }
         }
         .foregroundStyle(Color.ink)
@@ -155,10 +166,11 @@ struct WorkScreen: View {
             .accessibilityAction(named: "Choose counting step") { onSetStep(step.next) }
             .accessibilityAction(named: perRepetition ? "Switch to one tap per run in repeats" : "Switch to one tap per repetition") { onSetPerRepetition(!perRepetition) }
             .accessibilityAction(named: "Chart: \(bandStyle.other.title.lowercased())") { onSetBandStyle(bandStyle.other) }
-            // The chart-free path to what is ahead (spec §4.3): the line, then the next two stretches.
-            .accessibilityAction(named: "What's ahead") {
-                if let spoken = LookAheadLine.spoken(row: cursor.row, stretches: stretches, sequence: sequence, chart: chart) {
-                    AccessibilityNotification.Announcement(spoken).post()
+            // The chart-free path to what is ahead (spec §4.3): the line, then the next two stretches;
+            // "Every row worked" once finished. Offered only when there is something to say.
+            .accessibilityActions {
+                if let spoken = finished ? "Every row worked." : LookAheadLine.spoken(row: cursor.row, stretches: stretches, sequence: sequence, chart: chart) {
+                    Button("What's ahead") { AccessibilityNotification.Announcement(spoken).post() }
                 }
             }
     }

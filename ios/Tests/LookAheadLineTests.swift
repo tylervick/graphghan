@@ -47,6 +47,14 @@ import GraphghanCore
     @Test func spokenIsTheLineAndTheNextTwoStretches() {
         #expect(LookAheadLine.spoken(row: 14, stretches: Self.stretches, sequence: Self.seq, chart: Self.chart)
                 == "Last row like this, then plain rows for 2 rows. Rows 15 to 16, 2 plain rows in Deep Green and Gold. Rows 17 to 20, 4 rows in Deep Green and Gold.")
-        #expect(LookAheadLine.spoken(row: 184, stretches: Self.stretches, sequence: Self.seq, chart: Self.chart) == nil)
+        // the last row of the last stretch has no header line but still answers the rotor action
+        #expect(LookAheadLine.spoken(row: 184, stretches: Self.stretches, sequence: Self.seq, chart: Self.chart) == "Last row of Craigh na Dun Blanket.")
+    }
+
+    @Test func spokenAnswersOnAOneStretchChart() {
+        let one = [Stretch(rows: 1...184, kind: .pattern, colours: ["C"])]
+        #expect(LookAheadLine.spoken(row: 42, stretches: one, sequence: Self.seq, chart: Self.chart) == "142 more rows like this, then Craigh na Dun Blanket is done.")
+        #expect(LookAheadLine.spoken(row: 184, stretches: one, sequence: Self.seq, chart: Self.chart) == "Last row of Craigh na Dun Blanket.")
+        #expect(LookAheadLine.spoken(row: 42, stretches: [], sequence: Self.seq, chart: Self.chart) == nil)
     }
 }

@@ -27,9 +27,11 @@ enum LookAheadLine {
     }
 
     /// "then <title> is done", or "then the blanket is done" when the title is empty or over `titleLimit`.
-    static func ending(title: String) -> String {
-        let name = title.isEmpty || title.count > titleLimit ? "the blanket" : title
-        return "then \(name) is done"
+    static func ending(title: String) -> String { "then \(blanketName(title: title)) is done" }
+
+    /// The title when it is short enough to say, else "the blanket".
+    static func blanketName(title: String) -> String {
+        title.isEmpty || title.count > titleLimit ? "the blanket" : title
     }
 
     /// What differs between `s` and `next`, in the spec's order: the kind when it changes, else the
@@ -67,12 +69,24 @@ enum LookAheadLine {
     }
 
     /// `text` followed by `sentence` for the next two stretches; for the rotor action (spec §4.3).
-    /// The dot separator becomes a comma so VoiceOver does not read it.
+    /// The dot separator becomes a comma so VoiceOver does not read it. Where the header shows no
+    /// line it still answers: a one-stretch chart counts down to the end, and the last row of
+    /// the last stretch says so. Nil only without stretches or a row.
     static func spoken(row: Int, stretches: [Stretch], sequence: WorkSequence, chart: Chart) -> String? {
-        guard let line = text(row: row, stretches: stretches, sequence: sequence, chart: chart),
-              let i = Stretches.index(containing: row, in: stretches) else { return nil }
+        guard let i = Stretches.index(containing: row, in: stretches) else { return nil }
+        let lead: String
+        if let line = text(row: row, stretches: stretches, sequence: sequence, chart: chart) {
+            lead = line.replacingOccurrences(of: " · ", with: ", ") + "."
+        } else {
+            let left = stretches[i].rows.upperBound - row
+            switch left {
+            case 0: lead = "Last row of \(blanketName(title: chart.title))."
+            case 1: lead = "1 more row like this, \(ending(title: chart.title))."
+            default: lead = "\(left) more rows like this, \(ending(title: chart.title))."
+            }
+        }
         let ahead = stretches.dropFirst(i + 1).prefix(2).map { sentence(for: $0, chart: chart) }
-        return ([line.replacingOccurrences(of: " · ", with: ", ") + "."] + ahead).joined(separator: " ")
+        return ([lead] + ahead).joined(separator: " ")
     }
 
     private static func name(_ code: String, chart: Chart) -> String {

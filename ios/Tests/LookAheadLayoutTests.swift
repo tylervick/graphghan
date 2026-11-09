@@ -48,7 +48,8 @@ import GraphghanCore
         #expect(l.labels.count == 8)
         #expect(l.labels.first?.text == "Rows 5–14 · 10" && l.labels.first?.current == true)
         #expect(l.labels.first?.codes == ["Y", "G"])
-        for (a, b) in zip(l.labels, l.labels.dropFirst()) { #expect(abs(a.y - b.y) >= LookAheadLayout.labelSpacing) }
+        // centres at least a pill's height apart, so two pills never overlap
+        for (a, b) in zip(l.labels, l.labels.dropFirst()) { #expect(abs(a.y - b.y) >= LookAheadLayout.labelHeight) }
         #expect(l.labels.allSatisfy { $0.y <= l.labels.first!.y })  // ahead is upward on a bottom-up chart
         #expect(LookAheadLayout.labelText(Stretch(rows: 41...41, kind: .pattern, colours: [])) == "Row 41 · 1")
     }
@@ -56,6 +57,17 @@ import GraphghanCore
     @Test func lateInTheBlanketFewLabelsRemain() {
         let l = layout(row: 150)
         #expect(l.labels.count <= 7 && l.labels.first?.text == "Rows 140–160 · 21")
+        for (a, b) in zip(l.labels, l.labels.dropFirst()) { #expect(abs(a.y - b.y) >= LookAheadLayout.labelHeight) }
+    }
+
+    @Test func aOneRowStretchGetsNoLabel() {
+        // a one-row first stretch is current: the hairline and the bracket mark it, the label is for two rows or more
+        let passes = (0..<5).map { Pass(label: "Row \($0 + 1)", side: .rs, direction: .ltr, gridRow: $0, runs: [Run(code: "A", count: 3, x0: 0)]) }
+        let seq = WorkSequence(passes: passes)
+        let l = LookAheadLayout(rect: CGRect(x: 0, y: 0, width: 300, height: 100), chartHeight: 5, sequence: seq,
+                                stretches: [Stretch(rows: 1...1, kind: .plain, colours: ["A"]), Stretch(rows: 2...5, kind: .plain, colours: ["A"])], row: 1)
+        #expect(l.bracket == 0...20)
+        #expect(l.labels.map(\.text) == ["Rows 2–5 · 4"])
     }
 
     @Test func aRowPastTheEndHasNoCurrentStretch() {
@@ -100,6 +112,6 @@ import GraphghanCore
         let m = LookAheadLayout(rect: CGRect(x: 0, y: 0, width: 300, height: 100), chartHeight: 10, sequence: s, stretches: two, row: 1)
         #expect(m.ticks.map(\.row) == [10])
         #expect(m.hairlines.isEmpty && m.bracket == nil)
-        #expect(m.labels.map(\.text) == ["Rows 1–4 · 4"] || m.labels.isEmpty)
+        #expect(m.labels.isEmpty)   // both stretches contain a pass with no grid row
     }
 }

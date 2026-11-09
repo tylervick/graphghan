@@ -8,8 +8,12 @@ import GraphghanCore
 /// A pass occupies the band of its grid row; a pass without one gets no mark of any kind.
 struct LookAheadLayout {
     static let tickLength: CGFloat = 6
-    static let labelSpacing: CGFloat = 14
+    /// A label pill's height; label centres sit at least this far apart, so two never overlap.
+    static let labelHeight: CGFloat = 16
+    static let labelSpacing: CGFloat = labelHeight
     static let maxLabels = 8
+    /// A label names a range, so a stretch gets one only when it has rows to range over.
+    static let labelMinRows = 2
     /// The bracket sits 8…14 pt in from the trailing edge; labels end 24 pt in.
     static let bracketInset: CGFloat = 8
     static let labelInset: CGFloat = 24
@@ -54,7 +58,7 @@ struct LookAheadLayout {
 
         var kept: [Label] = []
         if let current {
-            for (i, s) in stretches.enumerated() where i >= current {
+            for (i, s) in stretches.enumerated() where i >= current && s.rows.count >= Self.labelMinRows {
                 guard let sp = span(s) else { continue }
                 let y = (sp.lowerBound + sp.upperBound) / 2
                 if let last = kept.last, abs(last.y - y) < Self.labelSpacing { continue }

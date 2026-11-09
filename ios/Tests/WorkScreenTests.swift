@@ -58,6 +58,14 @@ import GraphghanCore
         #expect(WorkScreen.headerValue(chart: Self.chart, sequence: Self.seq, cursor: Self.end, stretches: Self.stretches) == "Every row worked")
     }
 
+    /// The whole view's control has a name for each direction and none once finished, when the band is locked.
+    @Test func lookAheadActionNameFollowsTheModeAndGoesWhenFinished() {
+        #expect(WorkScreen.lookAheadActionName(mode: .band, finished: false) == "Look ahead")
+        #expect(WorkScreen.lookAheadActionName(mode: .whole, finished: false) == "Back to the row")
+        #expect(WorkScreen.lookAheadActionName(mode: .whole, finished: true) == nil)
+        #expect(WorkScreen.lookAheadActionName(mode: .band, finished: true) == nil)
+    }
+
     @Test func actionLabelsSpellOutTheStitch() {
         let run = Self.seq.pass(at: 42)!.runs[8]
         let name = Self.chart.palette[Self.chart.colorIndex(of: run.code)!].name

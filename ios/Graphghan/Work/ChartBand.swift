@@ -292,7 +292,7 @@ struct ChartBand: View {
             let tw = text.measure(in: CGSize(width: rect.width, height: 40)).width
             let dots = CGFloat(label.codes.count) * 9
             let right = rect.maxX - LookAheadLayout.labelInset
-            let pill = CGRect(x: right - tw - dots - 6, y: label.y - 8, width: tw + dots + 12, height: 16)
+            let pill = CGRect(x: right - tw - dots - 6, y: label.y - LookAheadLayout.labelHeight / 2, width: tw + dots + 12, height: LookAheadLayout.labelHeight)
             context.fill(Path(roundedRect: pill, cornerRadius: 4), with: .color(Color.panel.opacity(0.88)))
             context.draw(text, at: CGPoint(x: right, y: label.y), anchor: .trailing)
             for (j, code) in label.codes.enumerated() {
