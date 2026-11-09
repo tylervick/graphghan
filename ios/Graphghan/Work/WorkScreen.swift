@@ -20,6 +20,9 @@ struct WorkScreen: View {
     /// Fabric-true band or the ribbon that reads one way (#87); the project's setting.
     var bandStyle: BandStyle = .default
     var onSetBandStyle: (BandStyle) -> Void = { _ in }
+    /// The chart's stretches (look-ahead spec §3), computed once by `WorkView`; empty means no
+    /// look-ahead line and no stretch marks, which is also what a one-stretch chart gets.
+    var stretches: [Stretch] = []
 
     @State private var mode: ChartBand.Mode = .band
     @State private var showRunList = false
@@ -33,6 +36,20 @@ struct WorkScreen: View {
     static func actionLabel(chart: Chart, sequence: WorkSequence, cursor: Cursor, step: CountStep, perRepetition: Bool = true) -> String {
         WorkPanelContent.make(chart: chart, sequence: sequence, cursor: cursor, step: step, perRepetition: perRepetition).actionLabel
     }
+
+    /// The header's spoken value (spec §4.3): the side text, the shaped caption, the look-ahead line.
+    static func headerValue(chart: Chart, sequence: WorkSequence, cursor: Cursor, stretches: [Stretch]) -> String {
+        guard !WorkEngine.isFinished(cursor, in: sequence), let pass = sequence.pass(at: cursor.row) else { return "Every row worked" }
+        return [sideText(pass), ShapedRowText.caption(chart: chart, sequence: sequence, row: cursor.row),
+                LookAheadLine.text(row: cursor.row, stretches: stretches, sequence: sequence, chart: chart)]
+            .compactMap { $0 }.joined(separator: ". ")
+    }
+
+    private var lookAheadLine: String? {
+        finished ? nil : LookAheadLine.text(row: cursor.row, stretches: stretches, sequence: sequence, chart: chart)
+    }
+
+    private func toggleMode() { withAnimation { mode = mode == .band ? .whole : .band } }
 
     var body: some View {
         let c = content
@@ -72,20 +89,46 @@ struct WorkScreen: View {
                         .font(Font.Heather.rowNumber).monospacedDigit()
                         .lineLimit(1)
                         .minimumScaleFactor(0.6)
-                        .onTapGesture { withAnimation { mode = mode == .band ? .whole : .band } }
+                        .onTapGesture(perform: toggleMode)
                         .onLongPressGesture(perform: onJump)
-                        .accessibilityHint("Long press to jump to a row")
-                        .accessibilityAction(named: "Jump to row", onJump)
-                    Text(finished ? "Every row worked" : sideText(pass)).font(Font.Heather.caption).foregroundStyle(Color.ink2)
+                    Text(finished ? "Every row worked" : Self.sideText(pass)).font(Font.Heather.caption).foregroundStyle(Color.ink2)
                         .lineLimit(2).multilineTextAlignment(.center).minimumScaleFactor(0.8)
                     if !finished, let caption = ShapedRowText.caption(chart: chart, sequence: sequence, row: cursor.row) {
                         Text(caption).font(Font.Heather.caption).foregroundStyle(Color.heather)
                             .lineLimit(1).minimumScaleFactor(0.8)
                     }
+                    // The look-ahead line (spec §4): how many more rows like this one, then what changes.
+                    // At an accessibility size the whole sentence cannot fit on one line and the screen
+                    // has no height to wrap it, so only the first clause is drawn (spec §6); the full
+                    // sentence is still the header's spoken value and the look-ahead view has the rest.
+                    if let line = lookAheadLine {
+                        let shown = dynamicTypeSize.isAccessibilitySize ? (line.components(separatedBy: " · ").first ?? line) : line
+                        Text(shown).font(Font.Heather.caption).foregroundStyle(Color.heather)
+                            .lineLimit(1).minimumScaleFactor(dynamicTypeSize.isAccessibilitySize ? 0.6 : 0.8)
+                            .onTapGesture(perform: toggleMode)
+                    }
                 }
             }
+            // One element: the row as its label, everything under it as its value (spec §4.3).
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(sequence.pass(at: cursor.row).map { "\($0.label) of \(sequence.passes.count)" } ?? "")
+            .accessibilityValue(Self.headerValue(chart: chart, sequence: sequence, cursor: cursor, stretches: stretches))
+            .accessibilityHint("Long press to jump to a row")
+            .accessibilityAction(named: "Jump to row", onJump)
+            .accessibilityAction(named: mode == .band ? "Look ahead" : "Back to the row", toggleMode)
             Spacer()
-            Color.clear.frame(width: 44, height: 44)
+            // The whole view's visible control (spec §5.3), in the slot that was empty; nothing to
+            // open once finished, when the band is already the whole chart.
+            if finished {
+                Color.clear.frame(width: 44, height: 44)
+            } else {
+                Button(action: toggleMode) {
+                    Image(systemName: "rectangle.grid.1x2").font(.system(size: 20, weight: .semibold)).frame(width: 44, height: 44)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(Color.ink2)
+                .accessibilityLabel(mode == .band ? "Look ahead" : "Back to the row")
+            }
         }
         .foregroundStyle(Color.ink)
         .padding(.horizontal, 16)
@@ -111,6 +154,12 @@ struct WorkScreen: View {
             .accessibilityAction(named: "Choose counting step") { onSetStep(step.next) }
             .accessibilityAction(named: perRepetition ? "Switch to one tap per run in repeats" : "Switch to one tap per repetition") { onSetPerRepetition(!perRepetition) }
             .accessibilityAction(named: "Chart: \(bandStyle.other.title.lowercased())") { onSetBandStyle(bandStyle.other) }
+            // The chart-free path to what is ahead (spec §4.3): the line, then the next two stretches.
+            .accessibilityAction(named: "What's ahead") {
+                if let spoken = LookAheadLine.spoken(row: cursor.row, stretches: stretches, sequence: sequence, chart: chart) {
+                    AccessibilityNotification.Announcement(spoken).post()
+                }
+            }
     }
 
     private func band(_ c: WorkPanelContent) -> some View {
@@ -119,7 +168,9 @@ struct WorkScreen: View {
         // has nowhere to go and closes, the same thing every other surface does when finished.
         ChartBand(chart: chart, sequence: sequence, cursor: cursor, segmentLabel: c.bandLabel, mode: finished ? .whole : mode, style: bandStyle,
                   onAdvance: finished ? onClose : onDone, onJump: onJumpWithinRow,
-                  onToggleMode: finished ? onClose : { withAnimation { mode = mode == .band ? .whole : .band } })
+                  onToggleMode: finished ? onClose : toggleMode,
+                  stretches: stretches,
+                  returnLabel: finished ? nil : sequence.pass(at: cursor.row).map { "Back to \($0.label)" })
             .padding(.horizontal, 12)
             .frame(maxHeight: .infinity)
     }
@@ -204,7 +255,7 @@ struct WorkScreen: View {
         }
     }
 
-    private func sideText(_ pass: Pass) -> String {
+    private static func sideText(_ pass: Pass) -> String {
         let dir = pass.direction.map { $0 == .ltr ? "read left to right" : "read right to left" } ?? "read direction not specified"
         guard let side = pass.side else { return dir }
         return "\(side == .ws ? "Wrong side" : "Right side") · \(dir)"
