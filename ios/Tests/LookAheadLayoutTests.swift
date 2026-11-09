@@ -58,6 +58,13 @@ import GraphghanCore
         #expect(l.labels.count <= 7 && l.labels.first?.text == "Rows 140–160 · 21")
     }
 
+    @Test func aRowPastTheEndHasNoCurrentStretch() {
+        // the finished whole view: every hairline worked, nothing bracketed or labelled
+        let l = layout(row: 185)
+        #expect(l.bracket == nil && l.labels.isEmpty)
+        #expect(l.hairlines.count == Self.stretches.count - 1 && l.hairlines.allSatisfy { !$0.ahead })
+    }
+
     @Test func oneStretchDrawsTicksOnly() {
         let l = layout(row: 42, stretches: [Stretch(rows: 1...184, kind: .pattern, colours: ["C"])])
         #expect(!l.ticks.isEmpty && l.hairlines.isEmpty && l.bracket == nil && l.labels.isEmpty)

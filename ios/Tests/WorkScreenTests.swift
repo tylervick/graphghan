@@ -25,7 +25,8 @@ import GraphghanCore
     @Test func turn() throws { #expect(try Snapshots.assert(screen(Self.turn), named: "work-turn", size: Self.phone)) }
     /// #87: the same repeat row with the band reading one way; the panel and bar are untouched.
     @Test func ribbon() throws { #expect(try Snapshots.assert(screen(Cursor(row: 179, run: 8), style: .ribbon), named: "work-ribbon", size: Self.phone)) }
-    @Test func finished() throws { #expect(try Snapshots.assert(screen(Self.end), named: "work-finished", size: Self.phone)) }
+    /// Finished: the whole chart with ticks only -- no current stretch, no bracket, no labels, no pill, no button.
+    @Test func finished() throws { #expect(try Snapshots.assert(screen(Self.end, stretches: Self.stretches), named: "work-finished", size: Self.phone)) }
 
     /// At the largest accessibility size the count may cap and the landmark pill may drop; nothing clips.
     @Test func accessibilitySize() throws {
@@ -52,8 +53,8 @@ import GraphghanCore
     }
     @Test func theHeaderSpeaksTheLine() {
         #expect(WorkScreen.headerValue(chart: Self.chart, sequence: Self.seq, cursor: Cursor(row: 5, run: 3), stretches: Self.stretches)
-                == "Right side · read right to left. 9 more rows like this · then plain rows for 2 rows")
-        #expect(WorkScreen.headerValue(chart: Self.chart, sequence: Self.seq, cursor: Cursor(row: 5, run: 3), stretches: []) == "Right side · read right to left")
+                == "Right side, read right to left. 9 more rows like this, then plain rows for 2 rows")
+        #expect(WorkScreen.headerValue(chart: Self.chart, sequence: Self.seq, cursor: Cursor(row: 5, run: 3), stretches: []) == "Right side, read right to left")
         #expect(WorkScreen.headerValue(chart: Self.chart, sequence: Self.seq, cursor: Self.end, stretches: Self.stretches) == "Every row worked")
     }
 

@@ -73,6 +73,10 @@ import GraphghanCore
     @Test func lookAheadAtRowFive() throws {
         #expect(try Snapshots.assert(lookAhead(Cursor(row: 5, run: 3)), named: "band-look-ahead", size: Self.size))
     }
+    /// The return pill grows with its label at an accessibility size rather than letting the text spill.
+    @Test func lookAheadAtAnAccessibilitySize() throws {
+        #expect(try Snapshots.assert(lookAhead(Cursor(row: 5, run: 3)).environment(\.dynamicTypeSize, .accessibility5), named: "band-look-ahead-ax5", size: Self.size))
+    }
     @Test func lookAheadLateInTheBlanket() throws {
         #expect(try Snapshots.assert(lookAhead(Cursor(row: 150, run: 0)), named: "band-look-ahead-late", size: Self.size))
     }

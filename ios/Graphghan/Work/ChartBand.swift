@@ -219,7 +219,8 @@ struct ChartBand: View {
     private func drawWhole(context: inout GraphicsContext, size: CGSize) {
         // The return pill gets its own strip at the bottom, so it never covers the rows she is
         // on, which at the start of a blanket are exactly the bottom ones.
-        let fitted = CGSize(width: size.width, height: size.height - (returnLabel == nil ? 0 : Self.returnStrip))
+        let pill = returnPill(context: context, size: size)
+        let fitted = CGSize(width: size.width, height: size.height - (pill.map { $0.capsule.height + Self.returnMargin } ?? 0))
         let rect = BandLayout.wholeChartRect(chart: chart, in: fitted)
         let cw = rect.width / CGFloat(chart.width)
         let ch = rect.height / CGFloat(chart.height)
@@ -236,16 +237,34 @@ struct ChartBand: View {
             context.fill(Path(CGRect(x: rect.minX, y: rect.minY + CGFloat(gy) * ch - 1, width: rect.width, height: 2)), with: .color(.heather))
         }
         drawLookAhead(context: &context, rect: rect, size: size)
+        if let pill {
+            context.fill(Path(roundedRect: pill.capsule, cornerRadius: pill.capsule.height / 2), with: .color(.heather))
+            context.draw(pill.text, at: CGPoint(x: pill.capsule.midX, y: pill.capsule.midY), anchor: .center)
+        }
+    }
+
+    /// The pill sits this far above the band's bottom edge (spec §5.1).
+    static let returnMargin: CGFloat = 14
+
+    /// The return pill's text and capsule: 36 pt tall at the default size, and taller when the label's
+    /// font (which scales with Dynamic Type) needs it, so the text never spills past the capsule.
+    private func returnPill(context: GraphicsContext, size: CGSize) -> (text: GraphicsContext.ResolvedText, capsule: CGRect)? {
+        guard let returnLabel else { return nil }
+        let text = context.resolve(Text(returnLabel).font(Font.Heather.label).foregroundStyle(Color.cream))
+        let measured = text.measure(in: CGSize(width: size.width - 60, height: 200))
+        let height = max(36, measured.height + 12)
+        let width = measured.width + 28
+        return (text, CGRect(x: (size.width - width) / 2, y: size.height - Self.returnMargin - height, width: width, height: height))
     }
 
     /// The look-ahead marks over the whole chart (spec §5.1): row ticks on the leading edge, a
     /// hairline before each stretch, the current stretch bracketed at the trailing edge, the
     /// labels that fit, and the way back. Geometry comes from `LookAheadLayout`.
-    /// Height reserved under the chart for the return pill: 36 pt and 14 pt below, as the spec places it.
-    static let returnStrip: CGFloat = 50
-
     private func drawLookAhead(context: inout GraphicsContext, rect: CGRect, size: CGSize) {
-        let layout = LookAheadLayout(rect: rect, chartHeight: chart.height, sequence: sequence, stretches: stretches, row: cursor.row)
+        // Finished, the cursor still sits on the last row; a row past the end leaves no current
+        // stretch, so nothing is bracketed or labelled and every hairline reads as worked.
+        let row = WorkEngine.isFinished(cursor, in: sequence) ? sequence.passes.count + 1 : cursor.row
+        let layout = LookAheadLayout(rect: rect, chartHeight: chart.height, sequence: sequence, stretches: stretches, row: row)
         for tick in layout.ticks {
             context.fill(Path(CGRect(x: rect.minX, y: tick.y - 0.5, width: LookAheadLayout.tickLength, height: 1)), with: .color(Color.ink.opacity(0.5)))
             // backed like the labels, so a number over a solid row still reads
@@ -282,13 +301,6 @@ struct ChartBand: View {
                 context.fill(dot, with: .color(fill(chart.colorIndex(of: code) ?? 0)))
                 context.stroke(dot, with: .color(Color.ink.opacity(0.15)), lineWidth: 0.5)
             }
-        }
-        if let returnLabel {
-            let text = context.resolve(Text(returnLabel).font(Font.Heather.label).foregroundStyle(Color.cream))
-            let tw = text.measure(in: CGSize(width: size.width, height: 40)).width
-            let capsule = CGRect(x: (size.width - tw - 28) / 2, y: size.height - 14 - 36, width: tw + 28, height: 36)
-            context.fill(Path(roundedRect: capsule, cornerRadius: 18), with: .color(.heather))
-            context.draw(text, at: CGPoint(x: size.width / 2, y: capsule.midY), anchor: .center)
         }
     }
 }

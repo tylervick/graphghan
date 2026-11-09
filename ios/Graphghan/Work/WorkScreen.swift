@@ -40,9 +40,10 @@ struct WorkScreen: View {
     /// The header's spoken value (spec §4.3): the side text, the shaped caption, the look-ahead line.
     static func headerValue(chart: Chart, sequence: WorkSequence, cursor: Cursor, stretches: [Stretch]) -> String {
         guard !WorkEngine.isFinished(cursor, in: sequence), let pass = sequence.pass(at: cursor.row) else { return "Every row worked" }
+        // The dot separator becomes a comma, as `LookAheadLine.spoken` does, so VoiceOver does not read it.
         return [sideText(pass), ShapedRowText.caption(chart: chart, sequence: sequence, row: cursor.row),
                 LookAheadLine.text(row: cursor.row, stretches: stretches, sequence: sequence, chart: chart)]
-            .compactMap { $0 }.joined(separator: ". ")
+            .compactMap { $0 }.joined(separator: ". ").replacingOccurrences(of: " · ", with: ", ")
     }
 
     private var lookAheadLine: String? {
