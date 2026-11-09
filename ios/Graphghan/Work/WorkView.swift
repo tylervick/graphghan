@@ -16,6 +16,7 @@ struct WorkView: View {
     @State private var pieceFinished = false
     @State private var nextTitle: String?
     @State private var cursor: Cursor = .start
+    @State private var stretches: [Stretch] = []
     @State private var showJump = false
     @State private var error: String?
 
@@ -53,6 +54,7 @@ struct WorkView: View {
                 case .chart(let c, let s):
                     chart = c
                     sequence = s
+                    stretches = Stretches.of(s, codes: c.palette.map(\.code))
                     Haptics.prepare()
                     if let (info, state) = await model.activityState(for: project) {
                         guard !Task.isCancelled else { return }
@@ -98,7 +100,8 @@ struct WorkView: View {
                    onSetStep: { step in try? model.projects.setCountStep(step, for: project) },
                    onSetPerRepetition: { on in try? model.projects.setTapPerRepetition(on, for: project) },
                    bandStyle: project.chartStyle,
-                   onSetBandStyle: { style in try? model.projects.setBandStyle(style, for: project) })
+                   onSetBandStyle: { style in try? model.projects.setBandStyle(style, for: project) },
+                   stretches: stretches)
         .overlay(alignment: .top) {
             VStack(spacing: 0) {
                 if let saveError = model.projects.lastError {
@@ -211,6 +214,7 @@ struct WorkView: View {
         work = nil
         chart = nil
         sequence = nil
+        stretches = []
         do {
             try await model.projects.selectPiece(key, of: project, manifest: manifest)
             let loaded = try await model.projects.work(for: project)
@@ -219,6 +223,7 @@ struct WorkView: View {
             case .chart(let c, let s):
                 chart = c
                 sequence = s
+                stretches = Stretches.of(s, codes: c.palette.map(\.code))
                 if let (info, state) = await model.activityState(for: project) {
                     await model.liveActivity.start(projectID: project.id, info: info, state: state)
                 }

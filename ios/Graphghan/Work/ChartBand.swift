@@ -18,6 +18,10 @@ struct ChartBand: View {
     let onAdvance: () -> Void
     let onJump: (_ run: Int, _ stitch: Int) -> Void
     let onToggleMode: () -> Void
+    /// The stretch marks of the whole view (look-ahead spec §5.1); empty draws ticks only.
+    var stretches: [Stretch] = []
+    /// The return pill's text ("Back to Row 5"); nil draws none (the finished state).
+    var returnLabel: String? = nil
 
     @State private var drag: CGFloat = 0
     @State private var dragBase: CGFloat = 0
@@ -213,7 +217,11 @@ struct ChartBand: View {
 
     /// The whole chart at true aspect: worked rows solid, the current row a Heather line, rows ahead faint (decision 1).
     private func drawWhole(context: inout GraphicsContext, size: CGSize) {
-        let rect = BandLayout.wholeChartRect(chart: chart, in: size)
+        // The return pill gets its own strip at the bottom, so it never covers the rows she is
+        // on, which at the start of a blanket are exactly the bottom ones.
+        let pill = returnPill(context: context, size: size)
+        let fitted = CGSize(width: size.width, height: size.height - (pill.map { $0.capsule.height + Self.returnMargin } ?? 0))
+        let rect = BandLayout.wholeChartRect(chart: chart, in: fitted)
         let cw = rect.width / CGFloat(chart.width)
         let ch = rect.height / CGFloat(chart.height)
         let currentGridRow = sequence.pass(at: cursor.row)?.gridRow
@@ -227,6 +235,72 @@ struct ChartBand: View {
         }
         if let gy = currentGridRow {
             context.fill(Path(CGRect(x: rect.minX, y: rect.minY + CGFloat(gy) * ch - 1, width: rect.width, height: 2)), with: .color(.heather))
+        }
+        drawLookAhead(context: &context, rect: rect, size: size)
+        if let pill {
+            context.fill(Path(roundedRect: pill.capsule, cornerRadius: pill.capsule.height / 2), with: .color(.heather))
+            context.draw(pill.text, at: CGPoint(x: pill.capsule.midX, y: pill.capsule.midY), anchor: .center)
+        }
+    }
+
+    /// The pill sits this far above the band's bottom edge (spec §5.1).
+    static let returnMargin: CGFloat = 14
+
+    /// The return pill's text and capsule: 36 pt tall at the default size, and taller when the label's
+    /// font (which scales with Dynamic Type) needs it, so the text never spills past the capsule.
+    private func returnPill(context: GraphicsContext, size: CGSize) -> (text: GraphicsContext.ResolvedText, capsule: CGRect)? {
+        guard let returnLabel else { return nil }
+        let text = context.resolve(Text(returnLabel).font(Font.Heather.label).foregroundStyle(Color.cream))
+        let measured = text.measure(in: CGSize(width: size.width - 60, height: 200))
+        let height = max(36, measured.height + 12)
+        let width = measured.width + 28
+        return (text, CGRect(x: (size.width - width) / 2, y: size.height - Self.returnMargin - height, width: width, height: height))
+    }
+
+    /// The look-ahead marks over the whole chart (spec §5.1): row ticks on the leading edge, a
+    /// hairline before each stretch, the current stretch bracketed at the trailing edge, the
+    /// labels that fit, and the way back. Geometry comes from `LookAheadLayout`.
+    private func drawLookAhead(context: inout GraphicsContext, rect: CGRect, size: CGSize) {
+        // Finished, the cursor still sits on the last row; a row past the end leaves no current
+        // stretch, so nothing is bracketed or labelled and every hairline reads as worked.
+        let row = WorkEngine.isFinished(cursor, in: sequence) ? sequence.passes.count + 1 : cursor.row
+        let layout = LookAheadLayout(rect: rect, chartHeight: chart.height, sequence: sequence, stretches: stretches, row: row)
+        for tick in layout.ticks {
+            context.fill(Path(CGRect(x: rect.minX, y: tick.y - 0.5, width: LookAheadLayout.tickLength, height: 1)), with: .color(Color.ink.opacity(0.5)))
+            // backed like the labels, so a number over a solid row still reads
+            let text = context.resolve(Text("\(tick.row)").font(Font.Heather.annotation).foregroundStyle(Color.ink2))
+            let tw = text.measure(in: CGSize(width: 60, height: 40)).width
+            let x = rect.minX + LookAheadLayout.tickLength + 3
+            context.fill(Path(roundedRect: CGRect(x: x - 3, y: tick.y - 8, width: tw + 6, height: 16), cornerRadius: 4), with: .color(Color.panel.opacity(0.88)))
+            context.draw(text, at: CGPoint(x: x, y: tick.y), anchor: .leading)
+        }
+        for line in layout.hairlines {
+            context.fill(Path(CGRect(x: rect.minX, y: line.y - 0.5, width: rect.width, height: 1)), with: .color(.heather.opacity(line.ahead ? 1 : 0.35)))
+        }
+        if let b = layout.bracket {
+            let x = rect.maxX - LookAheadLayout.bracketInset
+            var path = Path()
+            path.move(to: CGPoint(x: x - 6, y: b.lowerBound + 1))
+            path.addLine(to: CGPoint(x: x, y: b.lowerBound + 1))
+            path.addLine(to: CGPoint(x: x, y: b.upperBound - 1))
+            path.addLine(to: CGPoint(x: x - 6, y: b.upperBound - 1))
+            context.stroke(path, with: .color(.heather), lineWidth: 2)
+        }
+        for label in layout.labels {
+            let text = context.resolve(Text(label.text).font(label.current ? Font.Heather.annotation.bold() : Font.Heather.annotation)
+                .foregroundStyle(label.current ? Color.heather : Color.ink))
+            let tw = text.measure(in: CGSize(width: rect.width, height: 40)).width
+            let dots = CGFloat(label.codes.count) * 9
+            let right = rect.maxX - LookAheadLayout.labelInset
+            let pill = CGRect(x: right - tw - dots - 6, y: label.y - LookAheadLayout.labelHeight / 2, width: tw + dots + 12, height: LookAheadLayout.labelHeight)
+            context.fill(Path(roundedRect: pill, cornerRadius: 4), with: .color(Color.panel.opacity(0.88)))
+            context.draw(text, at: CGPoint(x: right, y: label.y), anchor: .trailing)
+            for (j, code) in label.codes.enumerated() {
+                let cx = pill.minX + 6 + 3.5 + CGFloat(j) * 9
+                let dot = Path(ellipseIn: CGRect(x: cx - 3.5, y: label.y - 3.5, width: 7, height: 7))
+                context.fill(dot, with: .color(fill(chart.colorIndex(of: code) ?? 0)))
+                context.stroke(dot, with: .color(Color.ink.opacity(0.15)), lineWidth: 0.5)
+            }
         }
     }
 }

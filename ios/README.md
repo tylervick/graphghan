@@ -33,6 +33,8 @@ Bundle id `com.tylervick.graphghan`, App Group `group.com.tylervick.graphghan`, 
 - `Packages/GraphghanCore/` — Swift reader for the chart format (JSON decoder, engine) and for
   `.graphghan` bundles (`ZipArchive`, `PatternBundle`)
 - `Tests/` — app unit tests (Swift Testing, in-memory SwiftData, stub HTTP client)
+- `Graphghan/Work/LookAheadLine.swift` and `LookAheadLayout.swift` — the header's "9 more rows
+  like this" line and the whole-chart view's stretch marks, from `GraphghanCore`'s `Stretches`
 
 ## Data
 
