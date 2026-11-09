@@ -279,7 +279,9 @@ drop; nothing clips (snapshot at `.accessibility5`, as today).
   next row's first stitch.
 - **Whole chart**: pinch in, or tap the row number in the header, shows the whole chart at true
   aspect in the band's frame, worked rows solid, the current row a Heather line, rows ahead
-  faint. Tap or pinch out returns. Two levels, not continuous zoom.
+  faint. Tap or pinch out returns. Two levels, not continuous zoom. Superseded on 2026-11-09 by
+  `2026-11-09-look-ahead-design.md` §5: the whole view carries row ticks, stretch marks, a return
+  pill and a header button.
 
 ### 5.4 Touch
 

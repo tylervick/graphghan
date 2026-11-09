@@ -228,7 +228,8 @@ row, tap or pinch-out returns) is as today.
 ### 5.1 Marks
 
 - **Row ticks.** Along the leading edge of the chart rect, a 6 pt tick at 50% Ink and the row
-  number in `Font.Heather.annotation` Ink 2, every 20 passes for a chart over 60 passes, every 10
+  number in `Font.Heather.annotation` Ink 2 on the labels' Panel pill (unreadable over a solid
+  worked row otherwise), every 20 passes for a chart over 60 passes, every 10
   for one over 20, every 5 otherwise. Ticks are at pass numbers, not grid rows, so a bottom-up
   chart's ticks read upward.
 - **Stretch hairlines.** A 1 pt line across the chart rect at the boundary before each stretch:
@@ -244,9 +245,10 @@ row, tap or pinch-out returns) is as today.
   upward and stop after the eighth, so a 24-stretch chart shows the current one and the next
   seven.
 - **Return pill.** "Back to Row 5" in `Font.Heather.label` Cream on a Heather capsule, 36 pt tall,
-  centred 14 pt above the band's bottom edge. It is the same tap the whole view already has; the
-  pill makes the way back visible. Not drawn in the finished state, where the whole view's tap
-  closes the screen and there is no row to go back to.
+  centred 14 pt above the band's bottom edge, in a 50 pt strip of its own under the chart so it
+  never covers the rows she is on (at Row 5 those are the bottom ones). It is the same tap the
+  whole view already has; the pill makes the way back visible. Not drawn in the finished state,
+  where the whole view's tap closes the screen and there is no row to go back to.
 
 What depends on what (builder check): the row ticks are part of the whole view and are drawn
 whenever it is, stretches or none. The return pill and the header button (§5.3) are drawn
@@ -294,11 +296,13 @@ follow-on, §9).
 `2026-09-16-work-screen-field-design.md` §5.3's "Whole chart" paragraph is superseded by §5 of this
 spec; the design-language spec's §6.1 pointer is unchanged. No new tokens or type. The snapshot
 set gains: Row 5 with the look-ahead line (`work-look-ahead-line`), Row 14 (`work-look-ahead-last`),
-the look-ahead view at Row 5 (`work-look-ahead-view`), and the view at Row 150 where most
-stretches are behind (`work-look-ahead-view-late`). `WorkScreenTests.accessibilitySize` is
-re-recorded: the line must not clip and may drop its `minimumScaleFactor` to 0.6 at accessibility
-sizes. `band-whole`, `band-shaped-whole` and `work-finished` are re-recorded too: the first two
-gain row ticks and the pill, the last gains ticks only (§5.1).
+and, in `ChartBandTests` because `WorkScreen`'s mode is private state, the look-ahead view at Row 5
+(`band-look-ahead`) and at Row 150 where most stretches are behind (`band-look-ahead-late`).
+`WorkScreenTests.accessibilitySize` is re-recorded: at an accessibility size the header draws
+only the line's first clause ("3 more rows like this"), scaled to 0.6, because the whole sentence
+does not fit one line and the screen has no height to wrap it; the spoken value is still the
+whole sentence. Every `work-*` reference is re-recorded, since the header button is on all of
+them; `band-whole` and `band-shaped-whole` gain row ticks.
 
 ## 7. Compatibility
 
@@ -312,11 +316,11 @@ site are untouched.
 - `LookAheadLineTests` in `ios/Tests`: every row of the §4.2 tables, the Craigh na Dun examples,
   the one-stretch chart, the finished state.
 - `LookAheadLayoutTests`: §5.2.
-- `WorkScreenTests`: the four snapshots in §6 and the re-recorded accessibility snapshot; a value
-  test that the header's accessibility value contains the line.
+- `WorkScreenTests`: the two line snapshots in §6, every `work-*` reference re-recorded, and a
+  value test that the header's accessibility value contains the line. `ChartBandTests`: the two
+  view snapshots.
 - `DesignRulesTests` unchanged and passing.
-- `BandLayoutTests` unchanged. `ChartBandTests` unchanged except the two whole-view snapshots
-  named in §6.
+- `BandLayoutTests` unchanged.
 
 ## 9. Rulings and follow-ons
 
@@ -330,15 +334,9 @@ site are untouched.
 | #241 | separate; a default-setting change, handled on its own |
 | #75 | unaffected, stays open |
 
-Follow-ons, each behind an issue filed when this PR opens:
-
-- The pattern's own name for a stretch: an optional `sections` key in the chart format
-  (`{title, rows}`), written by the generator (Craigh na Dun's `instructions` already call rows
-  5–14 "braid rows") and the importer when a PDF names its parts, and shown in place of CHANGE
-  and in the labels when present.
-- Jump from the look-ahead view: long-press a row to jump there (the whole-view half of #11).
-- Stretches in Python, with the fixture generated rather than pinned by hand, alongside #70.
-- A second chart of a different texture (#17) to test the thresholds against.
+Follow-ons: #246 (the pattern's own name for a stretch, a `sections` key in the chart format),
+#247 (long-press a row in the look-ahead view to jump there), #248 (Stretches in Python with a
+generated fixture, which also waits on a second chart of a different texture).
 
 ## 10. Non-goals
 
