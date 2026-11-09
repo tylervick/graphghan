@@ -234,7 +234,7 @@ import GraphghanCore
     }
 
     @Test func sentencesNameTheRowsAndColours() {
-        #expect(LookAheadLine.sentence(for: Self.stretches[3], chart: Self.chart) == "Rows 15 to 16, 2 plain rows.")
+        #expect(LookAheadLine.sentence(for: Self.stretches[3], chart: Self.chart) == "Rows 15 to 16, 2 plain rows in Deep Green and Gold.")
         #expect(LookAheadLine.sentence(for: Self.stretches[4], chart: Self.chart) == "Rows 17 to 20, 4 rows in Deep Green and Gold.")
         #expect(LookAheadLine.sentence(for: Self.stretches[2], chart: Self.chart) == "Rows 5 to 14, 10 repeat rows in Gold and Deep Green.")
         #expect(LookAheadLine.sentence(for: Stretch(rows: 7...7, kind: .pattern, colours: ["C", "K", "G"]), chart: Self.chart) == "Row 7, 1 row in Cream, Charcoal and Deep Green.")
@@ -242,7 +242,7 @@ import GraphghanCore
 
     @Test func spokenIsTheLineAndTheNextTwoStretches() {
         #expect(LookAheadLine.spoken(row: 14, stretches: Self.stretches, sequence: Self.seq, chart: Self.chart)
-                == "Last row like this, then plain rows for 2 rows. Rows 15 to 16, 2 plain rows. Rows 17 to 20, 4 rows in Deep Green and Gold.")
+                == "Last row like this, then plain rows for 2 rows. Rows 15 to 16, 2 plain rows in Deep Green and Gold. Rows 17 to 20, 4 rows in Deep Green and Gold.")
         #expect(LookAheadLine.spoken(row: 184, stretches: Self.stretches, sequence: Self.seq, chart: Self.chart) == nil)
     }
 }

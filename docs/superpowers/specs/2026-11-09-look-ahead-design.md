@@ -212,7 +212,7 @@ The header's title stack (row number, side line, captions) becomes one accessibi
 with the row number as its label and the rest as its value, in order, so the whole header reads "Row 5 of 184. Right side,
 read right to left. 9 more rows like this, then plain rows for 2 rows." The panel gains a rotor
 action "What's ahead" that speaks the same line followed by the next two stretches as sentences
-("Rows 15 to 16, 2 plain rows. Rows 17 to 20, 4 rows in Green and Gold."), posted as an
+("Rows 15 to 16, 2 plain rows in Deep Green and Gold. Rows 17 to 20, 4 rows in Deep Green and Gold."), posted as an
 accessibility announcement, so the chart-free path (#45) has it.
 
 ### 4.4 Live Activity and intents
