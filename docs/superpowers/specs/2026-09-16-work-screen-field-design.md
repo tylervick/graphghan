@@ -281,7 +281,8 @@ drop; nothing clips (snapshot at `.accessibility5`, as today).
   aspect in the band's frame, worked rows solid, the current row a Heather line, rows ahead
   faint. Tap or pinch out returns. Two levels, not continuous zoom. Superseded on 2026-11-09 by
   `2026-11-09-look-ahead-design.md` §5: the whole view carries row ticks, stretch marks, a return
-  pill and a header button.
+  pill and a header button. And on 2026-11-11 by `2026-11-11-look-ahead-zoom-design.md`: the whole
+  view pinches and pans between fitted and stitch scale.
 
 ### 5.4 Touch
 

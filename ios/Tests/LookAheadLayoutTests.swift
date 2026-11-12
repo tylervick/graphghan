@@ -21,6 +21,48 @@ import GraphghanCore
         #expect(LookAheadLayout.tickInterval(passCount: 20) == 5)
     }
 
+    /// #250: zoomed in, the passes are further apart and the ticks come closer together.
+    @Test func tickIntervalTightensWithTheZoom() {
+        #expect(LookAheadLayout.tickInterval(passCount: 184, zoom: 1) == 20)
+        #expect(LookAheadLayout.tickInterval(passCount: 184, zoom: 3.2) == 10)
+        #expect(LookAheadLayout.tickInterval(passCount: 184, zoom: 10) == 5)
+        #expect(LookAheadLayout.tickInterval(passCount: 184, zoom: 0.9) == 20)
+    }
+
+    /// #250: with the whole fitted rect in view, saying so changes nothing.
+    @Test func aVisibleRangeCoveringTheChartChangesNothing() {
+        let plain = layout(row: 5)
+        let seen = LookAheadLayout(rect: Self.rect, chartHeight: Self.chart.height, sequence: Self.seq, stretches: Self.stretches, row: 5,
+                                   visible: 0...420, zoom: 1)
+        #expect(seen.ticks == plain.ticks && seen.hairlines == plain.hairlines && seen.labels == plain.labels && seen.bracket == plain.bracket)
+    }
+
+    /// #250: zoomed in and panned, only what is on the band is ticked and labelled, and a stretch
+    /// taller than the band is named in the part of it that shows.
+    @Test func zoomedInTheMarksAreChosenAmongWhatShows() throws {
+        let zoom: CGFloat = 3.2
+        // The chart over three times the size, scrolled so the band shows its bottom 420 pt.
+        let big = CGRect(x: 0, y: 420 - Self.rect.height * zoom, width: Self.rect.width * zoom, height: Self.rect.height * zoom)
+        let l = LookAheadLayout(rect: big, chartHeight: Self.chart.height, sequence: Self.seq, stretches: Self.stretches, row: 5,
+                                visible: 0...420, zoom: zoom)
+        #expect(!l.ticks.isEmpty && l.ticks.allSatisfy { (0...420).contains($0.y) })
+        #expect(zip(l.ticks, l.ticks.dropFirst()).allSatisfy { $1.row - $0.row == 10 })
+        #expect(!l.labels.isEmpty && l.labels.allSatisfy { (0...420).contains($0.y) })
+        #expect(l.labels.first?.current == true)
+        // Scrolled to the top of the chart instead: the current stretch is off the band and unnamed,
+        // and the stretches up there, which the fitted view's eight labels never reached, are.
+        let top = CGRect(x: 0, y: 0, width: big.width, height: big.height)
+        let far = LookAheadLayout(rect: top, chartHeight: Self.chart.height, sequence: Self.seq, stretches: Self.stretches, row: 5,
+                                  visible: 0...420, zoom: zoom)
+        #expect(!far.labels.isEmpty && far.labels.allSatisfy { !$0.current && (0...420).contains($0.y) })
+        let fittedTexts = Set(layout(row: 5).labels.map(\.text))
+        #expect(far.labels.contains { !fittedTexts.contains($0.text) })
+        // One stretch filling the band and more: its label sits mid-band, not at its own centre off screen.
+        let one = [Stretch(rows: 1...100, kind: .plain, colours: ["A"]), Stretch(rows: 101...184, kind: .plain, colours: ["B"])]
+        let tall = LookAheadLayout(rect: big, chartHeight: Self.chart.height, sequence: Self.seq, stretches: one, row: 5, visible: 0...420, zoom: zoom)
+        #expect(tall.labels.count == 1 && abs(tall.labels[0].y - 210) < 0.01)
+    }
+
     @Test func ticksSitOnTheirPassesCentres() {
         let l = layout(row: 5)
         #expect(l.ticks.map(\.row) == Array(stride(from: 20, through: 180, by: 20)))

@@ -77,6 +77,15 @@ import GraphghanCore
     @Test func lookAheadAtAnAccessibilitySize() throws {
         #expect(try Snapshots.assert(lookAhead(Cursor(row: 5, run: 3)).environment(\.dynamicTypeSize, .accessibility5), named: "band-look-ahead-ax5", size: Self.size))
     }
+    /// #250: zoomed in, the view opens on the current row, and the row numbers and labels keep to
+    /// the band's edges while the chart runs off them.
+    @Test func lookAheadZoomedIn() throws {
+        let view = ChartBand(chart: Self.chart, sequence: Self.seq, cursor: Cursor(row: 60, run: 0), segmentLabel: nil, mode: .whole, style: .fabric,
+                             onAdvance: {}, onJump: { _, _ in }, onToggleMode: {}, stretches: Self.stretches, returnLabel: "Back to Row 60",
+                             openingZoom: 2.5)
+            .background(Color.ground)
+        #expect(try Snapshots.assert(view, named: "band-look-ahead-zoomed", size: Self.size))
+    }
     @Test func lookAheadLateInTheBlanket() throws {
         #expect(try Snapshots.assert(lookAhead(Cursor(row: 150, run: 0)), named: "band-look-ahead-late", size: Self.size))
     }

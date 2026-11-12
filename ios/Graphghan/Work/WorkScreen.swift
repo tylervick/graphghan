@@ -183,7 +183,8 @@ struct WorkScreen: View {
                   onAdvance: finished ? onClose : onDone, onJump: onJumpWithinRow,
                   onToggleMode: finished ? onClose : toggleMode,
                   stretches: stretches,
-                  returnLabel: finished ? nil : sequence.pass(at: cursor.row).map { "Back to \($0.label)" })
+                  returnLabel: finished ? nil : sequence.pass(at: cursor.row).map { "Back to \($0.label)" },
+                  spreadReturns: !finished)
             .padding(.horizontal, 12)
             .frame(maxHeight: .infinity)
     }
