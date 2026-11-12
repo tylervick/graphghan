@@ -2,8 +2,9 @@ import SwiftUI
 import GraphghanCore
 
 /// The chart at stitch scale (spec §5.3): the current row tall and ringed, two rows above faint,
-/// the rows below at full strength as the ruler; or the whole chart at true aspect. Drawn with
-/// `Canvas` and redrawn only when the cursor or size changes. The band is hidden from VoiceOver;
+/// the rows below at full strength as the ruler; or the whole chart at true aspect, which pinches
+/// and pans between fitted and stitch scale (look-ahead zoom spec, #250). Drawn with `Canvas` and
+/// redrawn only when the cursor, the size or the zoom changes. The band is hidden from VoiceOver;
 /// the panel is the spoken path.
 struct ChartBand: View {
     enum Mode: Equatable { case band, whole }
@@ -22,10 +23,21 @@ struct ChartBand: View {
     var stretches: [Stretch] = []
     /// The return pill's text ("Back to Row 5"); nil draws none (the finished state).
     var returnLabel: String? = nil
+    /// A spread with the whole view fully zoomed in returns to the band (look-ahead zoom spec §3.4).
+    /// Off when finished, where there is no band to return to and the way out of the whole view
+    /// closes the screen.
+    var spreadReturns = true
+    /// The zoom the look-ahead view starts at, before a pinch has chosen another.
+    var openingZoom: CGFloat = 1
 
+    /// The zoom a pinch chose, kept while the Work screen is open (look-ahead zoom spec §3.3).
+    @State private var chosenZoom: CGFloat?
+    /// Where the fingers have put the chart, in the whole view's coordinates; nil until they have.
+    @State private var zoomedRect: CGRect?
     @State private var drag: CGFloat = 0
     @State private var dragBase: CGFloat = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.rendersToImage) private var rendersToImage
 
     var body: some View {
         GeometryReader { geo in
@@ -35,30 +47,16 @@ struct ChartBand: View {
                     ? BandLayout(width: geo.size.width, height: geo.size.height, chart: chart, pass: p, cursor: cursor, segmentLabel: segmentLabel, style: style)
                     : nil
             }
-            Canvas(rendersAsynchronously: false) { context, size in
-                if mode == .whole || layout == nil {
-                    drawWhole(context: &context, size: size)
-                } else if let layout, let pass {
-                    drawBand(context: &context, layout: layout, pass: pass, size: size)
-                }
+            let whole = mode == .whole || layout == nil
+            // The whole view is the chart over the return pill's own strip, so the pill never covers
+            // the rows she is on, which at the start of a blanket are exactly the bottom ones.
+            VStack(spacing: 0) {
+                chartCanvas(layout: layout, pass: pass, whole: whole)
+                if whole, let returnLabel { returnPill(returnLabel) }
             }
-            .contentShape(Rectangle())
-            // In the whole-chart view a tap returns to the band (spec §5.3); only the band itself advances.
-            .onTapGesture { mode == .whole ? onToggleMode() : onAdvance() }
-            .simultaneousGesture(longPressJump(layout: layout, pass: pass))
-            // High priority, not simultaneous: on the band, a rightward scrub is the band's own
-            // scroll, not the screen-wide back swipe `WorkView` attaches around this view (spec
-            // §5.4). A tap still reaches `onTapGesture` above -- this drag needs 12pt of travel
-            // to begin -- and the long-press-to-jump gesture above is unaffected.
-            .highPriorityGesture(DragGesture(minimumDistance: 12).onChanged { value in
-                let raw = dragBase + value.translation.width
-                drag = layout.map { Self.clampedDrag(raw, offsetX: $0.offsetX, maxOffset: maxOffset($0)) } ?? raw
-            }.onEnded { _ in
-                dragBase = layout.map { Self.clampedDrag(drag, offsetX: $0.offsetX, maxOffset: maxOffset($0)) } ?? drag
-            })
-            .simultaneousGesture(MagnifyGesture().onEnded { value in
-                if (mode == .band && value.magnification < 0.8) || (mode == .whole && value.magnification > 1.2) { onToggleMode() }
-            })
+            // The mode changes inside `withAnimation`; the chart is redrawn, not moved, so the pill's
+            // strip opening under it must not slide it.
+            .animation(nil, value: whole)
         }
         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Color.line, lineWidth: 1))
@@ -66,9 +64,76 @@ struct ChartBand: View {
             // The band scrolls on drag and snaps back to the rule on the next step, not on release.
             withAnimation(reduceMotion ? nil : .spring(duration: 0.25)) { drag = 0; dragBase = 0 }
         }
-        .onChange(of: mode) { _, _ in drag = 0; dragBase = 0 }
+        // Leaving the whole view forgets where it was panned to, not how far it was zoomed: it
+        // opens on the current row again, at the scale she last chose (look-ahead zoom spec §3.3).
+        .onChange(of: mode) { _, _ in drag = 0; dragBase = 0; zoomedRect = nil }
         .onChange(of: style) { _, _ in drag = 0; dragBase = 0 }
         .accessibilityHidden(true)
+    }
+
+    private func chartCanvas(layout: BandLayout?, pass: Pass?, whole: Bool) -> some View {
+        Canvas(rendersAsynchronously: false) { context, size in
+            if whole {
+                drawWhole(context: &context, size: size)
+            } else if let layout, let pass {
+                drawBand(context: &context, layout: layout, pass: pass, size: size)
+            }
+        }
+        .contentShape(Rectangle())
+        // In the whole-chart view a tap returns to the band (spec §5.3); only the band itself advances.
+        .onTapGesture { mode == .whole ? onToggleMode() : onAdvance() }
+        .simultaneousGesture(longPressJump(layout: layout, pass: pass))
+        // High priority, not simultaneous: on the band, a rightward scrub is the band's own
+        // scroll, not the screen-wide back swipe `WorkView` attaches around this view (spec
+        // §5.4). A tap still reaches `onTapGesture` above -- this drag needs 12pt of travel
+        // to begin -- and the long-press-to-jump gesture above is unaffected.
+        .highPriorityGesture(DragGesture(minimumDistance: 12).onChanged { value in
+            let raw = dragBase + value.translation.width
+            drag = layout.map { Self.clampedDrag(raw, offsetX: $0.offsetX, maxOffset: maxOffset($0)) } ?? raw
+        }.onEnded { _ in
+            dragBase = layout.map { Self.clampedDrag(drag, offsetX: $0.offsetX, maxOffset: maxOffset($0)) } ?? drag
+        })
+        .simultaneousGesture(MagnifyGesture().onEnded { value in
+            if (mode == .band && value.magnification < 0.8) || (mode == .whole && value.magnification > 1.2) { onToggleMode() }
+        })
+        // In the whole view the zoom surface lies over the chart and takes every touch on it: the
+        // tap that returns, the pinch, the pan. It is laid on after the gestures above, so those
+        // stay the band's. An `ImageRenderer` cannot draw a UIKit view, and the surface draws
+        // nothing anyway, so a rendering goes without it and the gestures above still answer.
+        .overlay {
+            if mode == .whole, !rendersToImage {
+                GeometryReader { area in
+                    let fitted = BandLayout.wholeChartRect(chart: chart, in: area.size)
+                    LookAheadZoomSurface(fitted: fitted.size,
+                                         maxZoom: LookAheadZoom.maxZoom(fittedWidth: fitted.width, chartWidth: chart.width),
+                                         focus: focus, zoom: Binding(get: { zoom }, set: { chosenZoom = $0 }), chartRect: $zoomedRect,
+                                         onTap: onToggleMode, onSpreadAtLimit: spreadReturns ? onToggleMode : nil)
+                }
+            }
+        }
+    }
+
+    private var zoom: CGFloat { chosenZoom ?? openingZoom }
+
+    /// What the whole view opens on: the current row.
+    private var focus: CGPoint {
+        LookAheadZoom.focus(gridRow: sequence.pass(at: cursor.row)?.gridRow, chartHeight: chart.height)
+    }
+
+    /// The way back from the whole view (look-ahead spec §5.1), in a strip of its own under the
+    /// chart: 36 pt tall at the default size and taller when the label's font, which scales with
+    /// Dynamic Type, needs it. The strip is the same tap the chart is.
+    private func returnPill(_ label: String) -> some View {
+        Text(label).font(Font.Heather.label).foregroundStyle(Color.cream)
+            .multilineTextAlignment(.center)
+            .padding(.horizontal, 14).padding(.vertical, 6)
+            .frame(minHeight: 36)
+            .background(Color.heather, in: Capsule())
+            .padding(.horizontal, 16)
+            .padding(.bottom, Self.returnMargin)
+            .frame(maxWidth: .infinity)
+            .contentShape(Rectangle())
+            .onTapGesture(perform: onToggleMode)
     }
 
     /// How far the content can scroll before its far edge would come into view.
@@ -216,69 +281,73 @@ struct ChartBand: View {
     }
 
     /// The whole chart at true aspect: worked rows solid, the current row a Heather line, rows ahead faint (decision 1).
+    /// `size` is the chart's own area, above the return pill's strip. The chart sits where the zoom
+    /// surface has it; before a finger has moved it, where `LookAheadZoom.rect` opens it, which the
+    /// surface is told too, so the first frame and every later one agree.
     private func drawWhole(context: inout GraphicsContext, size: CGSize) {
-        // The return pill gets its own strip at the bottom, so it never covers the rows she is
-        // on, which at the start of a blanket are exactly the bottom ones.
-        let pill = returnPill(context: context, size: size)
-        let fitted = CGSize(width: size.width, height: size.height - (pill.map { $0.capsule.height + Self.returnMargin } ?? 0))
-        let rect = BandLayout.wholeChartRect(chart: chart, in: fitted)
+        let fitted = BandLayout.wholeChartRect(chart: chart, in: size)
+        let limit = LookAheadZoom.maxZoom(fittedWidth: fitted.width, chartWidth: chart.width)
+        // The band falls back to this drawing when a row has no geometry; only the look-ahead view,
+        // which has the surface to pan with, opens zoomed.
+        let opening = mode == .whole ? min(zoom, limit) : 1
+        let rect = zoomedRect ?? LookAheadZoom.rect(fitted: fitted.size, in: size, zoom: opening, focus: focus)
+        guard rect.width > 0, rect.height > 0 else { return }
         let cw = rect.width / CGFloat(chart.width)
         let ch = rect.height / CGFloat(chart.height)
         let currentGridRow = sequence.pass(at: cursor.row)?.gridRow
         let worked = Set((1..<cursor.row).compactMap { sequence.pass(at: $0)?.gridRow })
-        for gy in 0..<chart.height {
+        // Only what is on the band: zoomed in most of the chart is off it, and a pan redraws every frame.
+        let first = max(0, Int(-rect.minY / ch)), last = min(chart.height - 1, Int((size.height - rect.minY) / ch))
+        // Cell edges land on whole pixels, so neighbours share an edge exactly. Rows that only nearly
+        // met left a seam, and rows overlapped to hide it drew the faint ones twice where they
+        // crossed, which at a zoomed-in scale is a stripe through every row still ahead.
+        let scale = context.environment.displayScale
+        func snap(_ v: CGFloat) -> CGFloat { (v * scale).rounded() / scale }
+        for gy in first..<max(first, last + 1) {
             let opacity: Double = worked.contains(gy) || gy == currentGridRow ? 1 : 0.28
+            let y0 = snap(rect.minY + CGFloat(gy) * ch), y1 = snap(rect.minY + CGFloat(gy + 1) * ch)
             for run in chart.runsByRow[gy] where chart.isStitched(colorIndex: run.colorIndex) {
-                let r = CGRect(x: rect.minX + CGFloat(run.x0) * cw, y: rect.minY + CGFloat(gy) * ch, width: CGFloat(run.count) * cw + 0.3, height: ch + 0.3)
-                context.fill(Path(r), with: .color(fill(run.colorIndex).opacity(opacity)))
+                let x0 = snap(rect.minX + CGFloat(run.x0) * cw), x1 = snap(rect.minX + CGFloat(run.x0 + run.count) * cw)
+                guard x1 >= 0, x0 <= size.width else { continue }
+                context.fill(Path(CGRect(x: x0, y: y0, width: x1 - x0, height: y1 - y0)), with: .color(fill(run.colorIndex).opacity(opacity)))
             }
         }
         if let gy = currentGridRow {
             context.fill(Path(CGRect(x: rect.minX, y: rect.minY + CGFloat(gy) * ch - 1, width: rect.width, height: 2)), with: .color(.heather))
         }
-        drawLookAhead(context: &context, rect: rect, size: size)
-        if let pill {
-            context.fill(Path(roundedRect: pill.capsule, cornerRadius: pill.capsule.height / 2), with: .color(.heather))
-            context.draw(pill.text, at: CGPoint(x: pill.capsule.midX, y: pill.capsule.midY), anchor: .center)
-        }
+        drawLookAhead(context: &context, rect: rect, size: size, zoom: rect.width / max(1, fitted.width))
     }
 
     /// The pill sits this far above the band's bottom edge (spec §5.1).
     static let returnMargin: CGFloat = 14
 
-    /// The return pill's text and capsule: 36 pt tall at the default size, and taller when the label's
-    /// font (which scales with Dynamic Type) needs it, so the text never spills past the capsule.
-    private func returnPill(context: GraphicsContext, size: CGSize) -> (text: GraphicsContext.ResolvedText, capsule: CGRect)? {
-        guard let returnLabel else { return nil }
-        let text = context.resolve(Text(returnLabel).font(Font.Heather.label).foregroundStyle(Color.cream))
-        let measured = text.measure(in: CGSize(width: size.width - 60, height: 200))
-        let height = max(36, measured.height + 12)
-        let width = measured.width + 28
-        return (text, CGRect(x: (size.width - width) / 2, y: size.height - Self.returnMargin - height, width: width, height: height))
-    }
-
     /// The look-ahead marks over the whole chart (spec §5.1): row ticks on the leading edge, a
     /// hairline before each stretch, the current stretch bracketed at the trailing edge, the
-    /// labels that fit, and the way back. Geometry comes from `LookAheadLayout`.
-    private func drawLookAhead(context: inout GraphicsContext, rect: CGRect, size: CGSize) {
+    /// labels that fit. Geometry comes from `LookAheadLayout`. Zoomed in, the chart's edges are off
+    /// the band, so the marks that sit on an edge sit on the band's instead: wherever she has
+    /// panned to, the row numbers are down the leading side and the labels down the trailing one.
+    private func drawLookAhead(context: inout GraphicsContext, rect: CGRect, size: CGSize, zoom: CGFloat) {
+        let leading = max(rect.minX, 0), trailing = min(rect.maxX, size.width)
+        guard trailing > leading else { return }
         // Finished, the cursor still sits on the last row; a row past the end leaves no current
         // stretch, so nothing is bracketed or labelled and every hairline reads as worked.
         let row = WorkEngine.isFinished(cursor, in: sequence) ? sequence.passes.count + 1 : cursor.row
-        let layout = LookAheadLayout(rect: rect, chartHeight: chart.height, sequence: sequence, stretches: stretches, row: row)
+        let layout = LookAheadLayout(rect: rect, chartHeight: chart.height, sequence: sequence, stretches: stretches, row: row,
+                                     visible: 0...size.height, zoom: zoom)
         for tick in layout.ticks {
-            context.fill(Path(CGRect(x: rect.minX, y: tick.y - 0.5, width: LookAheadLayout.tickLength, height: 1)), with: .color(Color.ink.opacity(0.5)))
+            context.fill(Path(CGRect(x: leading, y: tick.y - 0.5, width: LookAheadLayout.tickLength, height: 1)), with: .color(Color.ink.opacity(0.5)))
             // backed like the labels, so a number over a solid row still reads
             let text = context.resolve(Text("\(tick.row)").font(Font.Heather.annotation).foregroundStyle(Color.ink2))
             let tw = text.measure(in: CGSize(width: 60, height: 40)).width
-            let x = rect.minX + LookAheadLayout.tickLength + 3
+            let x = leading + LookAheadLayout.tickLength + 3
             context.fill(Path(roundedRect: CGRect(x: x - 3, y: tick.y - 8, width: tw + 6, height: 16), cornerRadius: 4), with: .color(Color.panel.opacity(0.88)))
             context.draw(text, at: CGPoint(x: x, y: tick.y), anchor: .leading)
         }
         for line in layout.hairlines {
-            context.fill(Path(CGRect(x: rect.minX, y: line.y - 0.5, width: rect.width, height: 1)), with: .color(.heather.opacity(line.ahead ? 1 : 0.35)))
+            context.fill(Path(CGRect(x: leading, y: line.y - 0.5, width: trailing - leading, height: 1)), with: .color(.heather.opacity(line.ahead ? 1 : 0.35)))
         }
         if let b = layout.bracket {
-            let x = rect.maxX - LookAheadLayout.bracketInset
+            let x = trailing - LookAheadLayout.bracketInset
             var path = Path()
             path.move(to: CGPoint(x: x - 6, y: b.lowerBound + 1))
             path.addLine(to: CGPoint(x: x, y: b.lowerBound + 1))
@@ -289,9 +358,9 @@ struct ChartBand: View {
         for label in layout.labels {
             let text = context.resolve(Text(label.text).font(label.current ? Font.Heather.annotation.bold() : Font.Heather.annotation)
                 .foregroundStyle(label.current ? Color.heather : Color.ink))
-            let tw = text.measure(in: CGSize(width: rect.width, height: 40)).width
+            let tw = text.measure(in: CGSize(width: trailing - leading, height: 40)).width
             let dots = CGFloat(label.codes.count) * 9
-            let right = rect.maxX - LookAheadLayout.labelInset
+            let right = trailing - LookAheadLayout.labelInset
             let pill = CGRect(x: right - tw - dots - 6, y: label.y - LookAheadLayout.labelHeight / 2, width: tw + dots + 12, height: LookAheadLayout.labelHeight)
             context.fill(Path(roundedRect: pill, cornerRadius: 4), with: .color(Color.panel.opacity(0.88)))
             context.draw(text, at: CGPoint(x: right, y: label.y), anchor: .trailing)

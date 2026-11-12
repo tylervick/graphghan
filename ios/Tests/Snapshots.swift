@@ -2,6 +2,7 @@ import CoreGraphics
 import SwiftUI
 import Testing
 import UIKit
+@testable import Graphghan
 
 /// Minimal snapshot testing: render with ImageRenderer at 2x, compare to a PNG under
 /// Tests/__Snapshots__. Three modes (compare/render/record) via GRAPHGHAN_SNAPSHOTS -- see `Mode`.
@@ -37,7 +38,7 @@ enum Snapshots {
     /// reference size (render). Records and returns false when a reference is missing in compare mode.
     static func assert(_ view: some View, named name: String, size: CGSize, tolerance: Double = 0.005,
                        environment: [String: String] = ProcessInfo.processInfo.environment) throws -> Bool {
-        let renderer = ImageRenderer(content: view.frame(width: size.width, height: size.height))
+        let renderer = ImageRenderer(content: view.frame(width: size.width, height: size.height).environment(\.rendersToImage, true))
         renderer.scale = 2
         guard let image = renderer.uiImage, let png = image.pngData() else { throw SnapshotError.renderFailed(name) }
         let reference = directory.appendingPathComponent("\(name).png")
