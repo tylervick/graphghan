@@ -119,8 +119,13 @@ final class ZoomScrollView: UIScrollView, UIScrollViewDelegate {
 
     @available(*, unavailable) required init?(coder: NSCoder) { fatalError("not used") }
 
-    /// The chart's rect in the bounds' coordinates.
-    var chartRect: CGRect { zoomView.frame.offsetBy(dx: -contentOffset.x, dy: -contentOffset.y) }
+    /// The chart's rect in the bounds' coordinates. From the zooming view's centre and its
+    /// untransformed size, not its `frame`, which UIKit leaves undefined under the zoom's transform.
+    var chartRect: CGRect {
+        let size = CGSize(width: zoomView.bounds.width * zoomScale, height: zoomView.bounds.height * zoomScale)
+        return CGRect(x: zoomView.center.x - size.width / 2 - contentOffset.x, y: zoomView.center.y - size.height / 2 - contentOffset.y,
+                      width: size.width, height: size.height)
+    }
 
     func configure(fitted: CGSize, maxZoom: CGFloat, zoom: CGFloat, focus: CGPoint) {
         openingZoom = zoom
@@ -160,11 +165,10 @@ final class ZoomScrollView: UIScrollView, UIScrollViewDelegate {
         contentOffset = CGPoint(x: max(0, -rect.minX), y: max(0, -rect.minY))
     }
 
-    /// Smaller than the bounds on an axis, the content sits in the middle of it.
+    /// Smaller than the bounds on an axis, the content sits in the middle of it; larger, at the
+    /// content's own origin. Placed by its centre, which a transform does not disturb.
     private func centre() {
-        var frame = zoomView.frame
-        frame.origin.x = frame.width < bounds.width ? (bounds.width - frame.width) / 2 : 0
-        frame.origin.y = frame.height < bounds.height ? (bounds.height - frame.height) / 2 : 0
-        if frame.origin != zoomView.frame.origin { zoomView.frame = frame }
+        let middle = CGPoint(x: max(contentSize.width, bounds.width) / 2, y: max(contentSize.height, bounds.height) / 2)
+        if zoomView.center != middle { zoomView.center = middle }
     }
 }

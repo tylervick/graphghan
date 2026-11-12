@@ -58,6 +58,8 @@ import GraphghanCore
         // A spread that only gets there stops there, however far it was thrown.
         #expect(!LookAheadZoom.returnsToBand(startZoom: 1, pinchScale: 9, maxZoom: 3))
         #expect(!LookAheadZoom.returnsToBand(startZoom: 2.9, pinchScale: 4, maxZoom: 3))
+        // Nearly there is not there (CodeRabbit on #251).
+        #expect(!LookAheadZoom.returnsToBand(startZoom: 2.98, pinchScale: 1.21, maxZoom: 3))
         // A chart that cannot zoom keeps the two-level rule exactly.
         #expect(!LookAheadZoom.returnsToBand(startZoom: 1, pinchScale: 1.2, maxZoom: 1))
         #expect(LookAheadZoom.returnsToBand(startZoom: 1, pinchScale: 1.21, maxZoom: 1))
@@ -160,6 +162,19 @@ import GraphghanCore
         settle()
         #expect(view.zoomScale == 1)
         #expect(abs(view.chartRect.minX - fitted.minX) < 0.01 && abs(view.chartRect.minY - fitted.minY) < 0.01)
+    }
+
+    /// Opened at the limit, the zoom the surface reads back is the limit near enough that the next
+    /// spread is one that began there (spec §3.4).
+    @Test func reopenedFullyZoomedInASpreadReturns() throws {
+        let (window, view) = try hosted(band(openingZoom: 99))
+        defer { window.isHidden = true }
+        #expect(LookAheadZoom.returnsToBand(startZoom: view.zoomScale, pinchScale: 1.3, maxZoom: view.maximumZoomScale))
+        view.setZoomScale(view.maximumZoomScale * 0.5, animated: false)
+        view.layoutIfNeeded()
+        view.setZoomScale(view.maximumZoomScale, animated: false)
+        view.layoutIfNeeded()
+        #expect(LookAheadZoom.returnsToBand(startZoom: view.zoomScale, pinchScale: 1.3, maxZoom: view.maximumZoomScale))
     }
 
     /// Opened zoomed in, the surface is where the band drew its first frame: on the current row.

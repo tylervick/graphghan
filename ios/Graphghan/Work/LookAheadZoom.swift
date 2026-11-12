@@ -40,6 +40,7 @@ enum LookAheadZoom {
     /// by accident. On a chart that cannot zoom the limit is where it starts, which is the rule the
     /// two-level pinch had.
     static func returnsToBand(startZoom: CGFloat, pinchScale: CGFloat, maxZoom: CGFloat) -> Bool {
-        startZoom >= maxZoom * 0.99 && pinchScale > returnFactor
+        // The slack is for arithmetic only: a zoom a hair under the limit is under it.
+        startZoom >= maxZoom - 0.001 && pinchScale > returnFactor
     }
 }
