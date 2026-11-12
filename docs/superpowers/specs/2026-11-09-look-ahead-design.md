@@ -296,6 +296,10 @@ Unchanged: tap returns, pinch out returns. A long-press on a row in the whole vi
 (#73 is about the band at stitch scale and stays open; jumping from the look-ahead view is a
 follow-on, §9).
 
+Amended 2026-11-11 by `2026-11-11-look-ahead-zoom-design.md` (#250): the view now pinches and
+pans between fitted and stitch scale, and the pinch out returns only from fully zoomed in. That
+spec's §3 is the touch behaviour of this view.
+
 ## 6. Design language
 
 `2026-09-16-work-screen-field-design.md` §5.3's "Whole chart" paragraph is superseded by §5 of this
@@ -334,7 +338,7 @@ site are untouched.
 | #245 | closed by this spec's PR |
 | #83 | the whole-chart button lands here; the capsule chevron and the first-fill hint stay open there |
 | #88 | out; a different design, stays an idea |
-| #89 | out; two levels, no continuous zoom, as before |
+| #89 | out; two levels, no continuous zoom, as before. Reversed 2026-11-11 for the look-ahead view by #250: `2026-11-11-look-ahead-zoom-design.md` |
 | #73 | out; unchanged by this spec |
 | #241 | separate; a default-setting change, handled on its own |
 | #75 | unaffected, stays open |
@@ -347,6 +351,7 @@ generated fixture, which also waits on a second chart of a different texture).
 
 - Any change to how a tap advances, to the panel, or to the band at stitch scale.
 - Naming textures ("braid", "lettering") from the chart alone.
-- A vertical scroll of the band (#88), continuous zoom (#89), or a third zoom level.
+- A vertical scroll of the band (#88), continuous zoom (#89), or a third zoom level. (The zoom
+  came two days later, from #250: `2026-11-11-look-ahead-zoom-design.md`.)
 - Anything on the Live Activity or in the intents.
 - Written pieces.
