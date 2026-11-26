@@ -1,7 +1,7 @@
 # iOS tooling. The repo-root mise.toml still applies here (uv, node, hk); this file adds what only
 # ios/ needs. Run from ios/: `mise run generate && mise run test`.
 [tools]
-xcodegen = "2.46.0"
+xcodegen = "2.49.0"
 
 [tasks.generate]
 description = "Generate Graphghan.xcodeproj from project.yml"
