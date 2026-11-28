@@ -52,7 +52,7 @@ pinact = "5.0.2"
 # Renovate's mise manager reads this (github-releases on RevylAI/revyl-cli). Its
 # documented gaps there are `tag_regex` and `version_prefix`; this pin uses
 # neither, so bumps arrive as ordinary pull requests.
-"github:RevylAI/revyl-cli" = { version = "0.1.215", matching_regex = "^revyl-(darwin|linux)-(amd64|arm64)$", rename_exe = "revyl" }
+"github:RevylAI/revyl-cli" = { version = "0.2.94", matching_regex = "^revyl-(darwin|linux)-(amd64|arm64)$", rename_exe = "revyl" }
 
 [tasks.setup]
 description = "Create .venv from uv.lock and install the git hooks"
